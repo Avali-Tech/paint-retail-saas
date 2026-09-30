@@ -1,5 +1,5 @@
 import { migrateDatabase, schema } from '@paint/db';
-import { PERMISSIONS } from '@paint/shared';
+import { PERMISSIONS, SYSTEM_ROLES } from '@paint/shared';
 import { createIsolatedDatabase, type TestDatabase } from '@paint/testing';
 import { and, eq, isNull } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from 'vitest';
@@ -356,11 +356,12 @@ describe('no one can hand out more access than they have', () => {
     let lead: Awaited<ReturnType<typeof hire>>;
 
     beforeEach(async () => {
+      // Everything a Store Employee has, plus team management, limited to Hyderabad.
+      const employee = SYSTEM_ROLES.find((role) => role.key === 'store_employee');
       const key = await customManagerRole([
+        ...(employee?.permissions ?? []),
         'members:read',
         'members:manage',
-        'stores:read',
-        'parties:read',
       ]);
       lead = await hire(key, [hyd]);
     });

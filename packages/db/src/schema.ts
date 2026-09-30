@@ -1,10 +1,12 @@
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   boolean,
   check,
   foreignKey,
   index,
   integer,
+  numeric,
   pgEnum,
   pgPolicy,
   pgRole,
@@ -13,6 +15,7 @@ import {
   primaryKey,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -430,6 +433,206 @@ export const customerProfiles = pgTable(
       foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
     }).onDelete('restrict'),
     pgPolicy('customer_profiles_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** A manufacturer brand sold by the business, e.g. Asian Paints. */
+export const brands = pgTable(
+  'brands',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'restrict' }),
+    name: text('name').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('brands_organization_name_unique').on(
+      table.organizationId,
+      sql`lower(${table.name})`,
+    ),
+    unique('brands_organization_id_id_unique').on(table.organizationId, table.id),
+    pgPolicy('brands_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** A product category; with a parent it is a subcategory (two levels). */
+export const categories = pgTable(
+  'categories',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'restrict' }),
+    parentId: uuid('parent_id'),
+    name: text('name').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('categories_organization_parent_name_unique').on(
+      table.organizationId,
+      sql`coalesce(${table.parentId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
+      sql`lower(${table.name})`,
+    ),
+    unique('categories_organization_id_id_unique').on(table.organizationId, table.id),
+    foreignKey({
+      name: 'categories_parent_fk',
+      columns: [table.organizationId, table.parentId],
+      foreignColumns: [table.organizationId, table.id],
+    }).onDelete('restrict'),
+    check('categories_not_own_parent', sql`${table.parentId} <> ${table.id}`),
+    pgPolicy('categories_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const productType = pgEnum('product_type', [
+  'interior_paint',
+  'exterior_paint',
+  'primer',
+  'putty',
+  'enamel',
+  'wood_finish',
+  'waterproofing',
+  'texture',
+  'thinner',
+  'tool',
+  'other',
+]);
+
+/** Units a pack size can be expressed in. */
+export const unitOfMeasure = pgEnum('unit_of_measure', ['ml', 'l', 'g', 'kg', 'piece', 'set', 'm']);
+
+/**
+ * A product family, e.g. "Apex Ultima" by Asian Paints. Tax details live here;
+ * pack sizes, SKUs and prices live on its variants.
+ */
+export const products = pgTable(
+  'products',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'restrict' }),
+    brandId: uuid('brand_id').notNull(),
+    categoryId: uuid('category_id'),
+    name: text('name').notNull(),
+    type: productType('type').notNull(),
+    description: text('description'),
+    hsnCode: text('hsn_code').notNull(),
+    /** GST rate in basis points: 1800 = 18%. */
+    gstRateBps: integer('gst_rate_bps').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('products_organization_brand_name_unique').on(
+      table.organizationId,
+      table.brandId,
+      sql`lower(${table.name})`,
+    ),
+    unique('products_organization_id_id_unique').on(table.organizationId, table.id),
+    index('products_organization_name_idx').on(table.organizationId, table.name),
+    foreignKey({
+      name: 'products_brand_fk',
+      columns: [table.organizationId, table.brandId],
+      foreignColumns: [brands.organizationId, brands.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'products_category_fk',
+      columns: [table.organizationId, table.categoryId],
+      foreignColumns: [categories.organizationId, categories.id],
+    }).onDelete('restrict'),
+    check('products_hsn_format', sql`${table.hsnCode} ~ '^[0-9]{4}([0-9]{2}){0,2}$'`),
+    check('products_gst_rate_range', sql`${table.gstRateBps} between 0 and 10000`),
+    pgPolicy('products_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** A sellable pack of a product, e.g. Apex Ultima 20 L (SKU AP-ULT-20L). */
+export const productVariants = pgTable(
+  'product_variants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    /** Stored uppercase; unique within the business. */
+    sku: text('sku').notNull(),
+    packSize: numeric('pack_size', { precision: 12, scale: 3, mode: 'number' }).notNull(),
+    unit: unitOfMeasure('unit').notNull(),
+    /** Maximum retail price printed on the pack, in paise. */
+    mrpPaise: bigint('mrp_paise', { mode: 'number' }),
+    /** Default selling price, in paise. Never above the MRP. */
+    sellingPricePaise: bigint('selling_price_paise', { mode: 'number' }),
+    isActive: boolean('is_active').notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    unique('product_variants_organization_sku_unique').on(table.organizationId, table.sku),
+    unique('product_variants_product_pack_unique').on(table.productId, table.packSize, table.unit),
+    unique('product_variants_organization_id_id_unique').on(table.organizationId, table.id),
+    foreignKey({
+      name: 'product_variants_product_fk',
+      columns: [table.organizationId, table.productId],
+      foreignColumns: [products.organizationId, products.id],
+    }).onDelete('cascade'),
+    check('product_variants_sku_format', sql`${table.sku} ~ '^[A-Z0-9][A-Z0-9._/-]{1,39}$'`),
+    check('product_variants_pack_size_positive', sql`${table.packSize} > 0`),
+    check(
+      'product_variants_prices_not_negative',
+      sql`${table.mrpPaise} >= 0 and ${table.sellingPricePaise} >= 0`,
+    ),
+    check(
+      'product_variants_price_within_mrp',
+      sql`${table.sellingPricePaise} is null or ${table.mrpPaise} is null or ${table.sellingPricePaise} <= ${table.mrpPaise}`,
+    ),
+    pgPolicy('product_variants_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** Barcodes printed on or assigned to a variant; unique within the business. */
+export const productBarcodes = pgTable(
+  'product_barcodes',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    barcode: text('barcode').notNull(),
+    variantId: uuid('variant_id').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.barcode] }),
+    index('product_barcodes_variant_id_idx').on(table.variantId),
+    foreignKey({
+      name: 'product_barcodes_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('cascade'),
+    pgPolicy('product_barcodes_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

@@ -1,3 +1,11 @@
+export {
+  GST_RATES_PERCENT,
+  basisPointsToPercent,
+  isValidBarcode,
+  isValidGtin,
+  isValidHsn,
+  percentToBasisPoints,
+} from './catalog.js';
 export { normalizeEmail, normalizePhone } from './contact.js';
 export {
   assertPaise,

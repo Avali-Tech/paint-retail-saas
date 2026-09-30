@@ -28,6 +28,8 @@ describe('migrateDatabase', () => {
       return result.rows.map((row) => row.table_name);
     });
     expect(tables).toEqual([
+      'brands',
+      'categories',
       'customer_profiles',
       'member_stores',
       'organization_members',
@@ -35,6 +37,9 @@ describe('migrateDatabase', () => {
       'otp_challenges',
       'parties',
       'party_roles',
+      'product_barcodes',
+      'product_variants',
+      'products',
       'role_permissions',
       'roles',
       'sessions',

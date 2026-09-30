@@ -43,6 +43,20 @@
       "when": 1790804210742,
       "tag": "0005_grant_parties_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790804942816,
+      "tag": "0006_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790804964699,
+      "tag": "0007_grant_catalog_permissions",
+      "breakpoints": true
     }
   ]
 }

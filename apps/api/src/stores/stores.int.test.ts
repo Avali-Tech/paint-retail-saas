@@ -1,4 +1,5 @@
 import { migrateDatabase, schema } from '@paint/db';
+import { SYSTEM_ROLES } from '@paint/shared';
 import { createIsolatedDatabase, type TestDatabase } from '@paint/testing';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import {
@@ -196,7 +197,9 @@ describe('Branch Manager of Hyderabad', () => {
       role: { key: 'branch_manager' },
       allStores: false,
       storeIds: [hyderabad.id],
-      permissions: ['members:read', 'parties:manage', 'parties:read', 'stores:read'],
+      permissions: [
+        ...(SYSTEM_ROLES.find((role) => role.key === 'branch_manager')?.permissions ?? []),
+      ].sort(),
     });
   });
 });
