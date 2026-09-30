@@ -47,10 +47,20 @@ pnpm verify
 | `pnpm lint` / `pnpm typecheck` / `pnpm format` | Code quality                                |
 | `pnpm verify`                                  | Everything CI runs, in the same order       |
 
+## Database
+
+- Tables are defined in `packages/db/src/schema.ts`. After changing it, generate a migration with
+  `pnpm --filter @paint/db db:generate` and commit the new file in `packages/db/migrations/`.
+- Hand-written SQL (roles, grants, data fixes): `pnpm --filter @paint/db db:custom --name <what>`.
+- **Tenant isolation:** every tenant query runs inside `withTenant(db, organizationId, work)`.
+  PostgreSQL row-level security then limits it to that organisation's rows. Every table must
+  enable row-level security with a policy; an integration test fails the build otherwise.
+
 ## Layout
 
 ```
 apps/                 deployable apps (api, web) — coming next
+packages/db           PostgreSQL schema, migrations, tenant isolation (Drizzle)
 packages/shared       code shared by all apps (money in paise, …)
 packages/testing      test helpers (throwaway PostgreSQL for integration tests)
 ```

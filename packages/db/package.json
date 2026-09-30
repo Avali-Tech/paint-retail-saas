@@ -1,0 +1,24 @@
+{
+  "name": "@paint/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Database schema, migrations and tenant-scoped access (PostgreSQL + Drizzle).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:custom": "drizzle-kit generate --custom"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.3",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@paint/testing": "workspace:*",
+    "@types/pg": "^8.23.1",
+    "drizzle-kit": "^0.31.11"
+  }
+}

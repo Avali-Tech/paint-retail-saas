@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1790800345573,
+      "tag": "0000_create_tenant_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790800354734,
+      "tag": "0001_organizations_and_stores",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790800375856,
+      "tag": "0002_grant_tenant_access",
+      "breakpoints": true
+    }
+  ]
+}
