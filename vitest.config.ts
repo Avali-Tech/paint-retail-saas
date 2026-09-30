@@ -32,6 +32,8 @@ export default defineConfig({
       exclude: [
         '**/*.test.ts',
         '**/*.d.ts',
+        // Fixtures and helpers used only by tests.
+        '**/test-support/**',
         // Entry shims: they only call tested code and run outside the coverage process.
         'packages/testing/src/vitest-global-setup.ts',
         'apps/api/src/main.ts',

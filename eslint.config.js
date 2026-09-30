@@ -25,6 +25,16 @@ export default tseslint.config(
     },
   },
   {
+    // Test-only patterns: Vitest matchers such as expect.any() are typed as any,
+    // tests reject with raw driver error objects, and decorator tests use empty classes.
+    files: ['**/*.test.ts', '**/test-support/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/prefer-promise-reject-errors': 'off',
+      '@typescript-eslint/no-extraneous-class': 'off',
+    },
+  },
+  {
     files: ['**/*.js'],
     ...tseslint.configs.disableTypeChecked,
   },

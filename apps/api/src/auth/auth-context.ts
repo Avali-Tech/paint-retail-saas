@@ -1,0 +1,49 @@
+import type { MemberAccess, Permission } from '@paint/shared';
+
+/** Who is making the request, in which organisation, and what they may do. */
+export interface AuthContext extends MemberAccess {
+  readonly sessionId: string;
+  readonly memberId: string;
+  readonly user: {
+    readonly id: string;
+    readonly fullName: string;
+    readonly phone: string | null;
+    readonly email: string | null;
+  };
+  readonly organization: { readonly id: string; readonly name: string };
+  readonly role: { readonly key: string; readonly name: string };
+}
+
+/** The shape returned by GET /auth/me. */
+export interface AuthProfile {
+  readonly user: AuthContext['user'];
+  readonly organization: AuthContext['organization'];
+  readonly role: AuthContext['role'];
+  readonly permissions: Permission[];
+  readonly allStores: boolean;
+  readonly storeIds: string[];
+}
+
+export function toProfile(auth: AuthContext): AuthProfile {
+  return {
+    user: auth.user,
+    organization: auth.organization,
+    role: auth.role,
+    permissions: [...auth.permissions].sort(),
+    allStores: auth.allStores,
+    storeIds: [...auth.storeIds].sort(),
+  };
+}
+
+/** A request after AuthGuard has run. */
+export interface AuthenticatedRequest {
+  auth?: AuthContext;
+}
+
+/** The AuthContext attached by AuthGuard. Throws if used on a public route. */
+export function authFromRequest(request: AuthenticatedRequest): AuthContext {
+  if (!request.auth) {
+    throw new Error('No signed-in user on this request. Is the route marked @Public()?');
+  }
+  return request.auth;
+}

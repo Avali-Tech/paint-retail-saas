@@ -4,6 +4,7 @@ import { createIsolatedDatabase, type TestDatabase } from '@paint/testing';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { createApp } from './app.js';
 import { loadConfig } from './config.js';
+import { TEST_AUTH_SECRET } from './test-support/test-app.js';
 
 let database: TestDatabase;
 
@@ -17,7 +18,12 @@ afterAll(async () => {
 });
 
 const configFor = (databaseUrl: string) =>
-  loadConfig({ DATABASE_URL: databaseUrl, NODE_ENV: 'test', LOG_LEVEL: 'fatal' });
+  loadConfig({
+    DATABASE_URL: databaseUrl,
+    AUTH_SECRET: TEST_AUTH_SECRET,
+    NODE_ENV: 'test',
+    LOG_LEVEL: 'fatal',
+  });
 
 describe('API with a reachable database', () => {
   let app: NestFastifyApplication;

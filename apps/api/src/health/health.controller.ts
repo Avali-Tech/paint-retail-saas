@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/common';
+import { Public } from '../auth/decorators.js';
 import { HealthService } from './health.service.js';
 
 export interface HealthReport {
@@ -7,6 +8,8 @@ export interface HealthReport {
   readonly checks?: { readonly database: 'up' | 'down' };
 }
 
+/** Public: load balancers call these without signing in. */
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(@Inject(HealthService) private readonly health: HealthService) {}

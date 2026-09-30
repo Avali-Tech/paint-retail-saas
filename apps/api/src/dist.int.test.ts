@@ -54,6 +54,7 @@ beforeAll(async () => {
       NODE_ENV: 'production',
       LOG_LEVEL: 'error',
       RUN_MIGRATIONS: 'true',
+      AUTH_SECRET: 'dist-test-secret-of-at-least-32-characters',
     },
     stdio: 'ignore',
   });

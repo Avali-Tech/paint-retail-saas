@@ -60,6 +60,27 @@ curl localhost:3000/health/ready            # {"status":"ok","checks":{"database
 `GET /health` answers while the process runs (liveness). `GET /health/ready` also checks
 PostgreSQL and answers 503 when it is unreachable (readiness).
 
+## API
+
+Every route requires `Authorization: Bearer <token>` unless marked public.
+
+| Method | Path                       | Access          | What it does                                                                                                 |
+| ------ | -------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------ |
+| GET    | `/health`, `/health/ready` | public          | Liveness and readiness (checks PostgreSQL)                                                                   |
+| POST   | `/auth/signup`             | public          | New business + owner; returns a session token                                                                |
+| POST   | `/auth/login`              | public          | Mobile/email + password. 409 lists businesses if the person belongs to several; resend with `organizationId` |
+| POST   | `/auth/otp/request`        | public          | Texts a 6-digit code (30 s between codes, 5 per hour)                                                        |
+| POST   | `/auth/otp/verify`         | public          | Code (5 tries, 5 minutes) → session token                                                                    |
+| GET    | `/auth/me`                 | signed in       | User, business, role, permissions, store access                                                              |
+| POST   | `/auth/logout`             | signed in       | Ends this device's session                                                                                   |
+| GET    | `/stores`                  | `stores:read`   | Stores the member can access                                                                                 |
+| GET    | `/stores/:id`              | `stores:read`   | One store (404 if not accessible)                                                                            |
+| POST   | `/stores`                  | `stores:manage` | Create a store or godown                                                                                     |
+
+**Access model:** `User → Role → Permissions`, plus store access (`all stores` or a list). Permission
+keys and the standard roles live in `packages/shared/src/permissions.ts`. Routes declare
+`@RequirePermissions(...)`; store-level checks happen in services with `can(auth, permission, storeId)`.
+
 ## Database
 
 - Tables are defined in `packages/db/src/schema.ts`. After changing it, generate a migration with

@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm';
-import type { Database } from './client.js';
+import type { Database, Transaction } from './client.js';
 
 /** The transaction handle passed to work inside withTenant. */
-export type TenantTransaction = Parameters<Parameters<Database['transaction']>[0]>[0];
+export type TenantTransaction = Transaction;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

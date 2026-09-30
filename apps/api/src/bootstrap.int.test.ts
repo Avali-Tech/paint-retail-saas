@@ -2,6 +2,7 @@ import { createIsolatedDatabase, withPgClient, type TestDatabase } from '@paint/
 import { afterEach, describe, expect, inject, it } from 'vitest';
 import { bootstrap } from './bootstrap.js';
 import { ConfigError } from './config.js';
+import { TEST_AUTH_SECRET } from './test-support/test-app.js';
 
 const cleanups: (() => Promise<void>)[] = [];
 
@@ -31,6 +32,7 @@ const env = (databaseUrl: string, extra: Record<string, string> = {}) => ({
   PORT: '0',
   NODE_ENV: 'test',
   LOG_LEVEL: 'fatal',
+  AUTH_SECRET: TEST_AUTH_SECRET,
   ...extra,
 });
 
