@@ -1,6 +1,6 @@
 import { createIsolatedDatabase, type TestDatabase } from '@paint/testing';
 import { eq, sql } from 'drizzle-orm';
-import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, inject, it, vi } from 'vitest';
 import {
   createDatabase,
   enterTenantScope,
@@ -284,6 +284,51 @@ describe('organisation integrity', () => {
 });
 
 describe('createDatabase', () => {
+  it('survives the server dropping an idle pooled connection, and reconnects', async () => {
+    const errors: Error[] = [];
+    const resilient = createDatabase(database.connectionString, {
+      onIdleConnectionError: (error) => errors.push(error),
+    });
+    try {
+      const [{ pid } = { pid: 0 }] = (
+        await resilient.db.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`)
+      ).rows;
+
+      // Kill the now-idle pooled connection from another session, as a failover would.
+      await connection.db.execute(sql`select pg_terminate_backend(${pid})`);
+      await vi.waitFor(() => {
+        expect(errors).toHaveLength(1);
+      });
+
+      const [row] = (await resilient.db.execute<{ ok: number }>(sql`select 1 as ok`)).rows;
+      expect(row?.ok).toBe(1);
+      expect(errors[0]?.message).toMatch(/terminat/);
+    } finally {
+      await resilient.close();
+    }
+  });
+
+  it('logs dropped idle connections to stderr by default', async () => {
+    const stderr = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const defaults = createDatabase(database.connectionString);
+    try {
+      const [{ pid } = { pid: 0 }] = (
+        await defaults.db.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`)
+      ).rows;
+
+      await connection.db.execute(sql`select pg_terminate_backend(${pid})`);
+
+      await vi.waitFor(() => {
+        expect(stderr).toHaveBeenCalledWith(
+          expect.stringMatching(/^PostgreSQL idle connection error \(connection discarded\): /),
+        );
+      });
+    } finally {
+      stderr.mockRestore();
+      await defaults.close();
+    }
+  });
+
   it('gives up connecting after the timeout instead of hanging', async () => {
     // 10.255.255.1 is a non-routable address: connection attempts are never answered.
     const unreachable = createDatabase('postgres://user:pass@10.255.255.1:5432/db', {

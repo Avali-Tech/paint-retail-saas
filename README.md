@@ -64,22 +64,31 @@ PostgreSQL and answers 503 when it is unreachable (readiness).
 
 Every route requires `Authorization: Bearer <token>` unless marked public.
 
-| Method | Path                       | Access          | What it does                                                                                                 |
-| ------ | -------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------ |
-| GET    | `/health`, `/health/ready` | public          | Liveness and readiness (checks PostgreSQL)                                                                   |
-| POST   | `/auth/signup`             | public          | New business + owner; returns a session token                                                                |
-| POST   | `/auth/login`              | public          | Mobile/email + password. 409 lists businesses if the person belongs to several; resend with `organizationId` |
-| POST   | `/auth/otp/request`        | public          | Texts a 6-digit code (30 s between codes, 5 per hour)                                                        |
-| POST   | `/auth/otp/verify`         | public          | Code (5 tries, 5 minutes) → session token                                                                    |
-| GET    | `/auth/me`                 | signed in       | User, business, role, permissions, store access                                                              |
-| POST   | `/auth/logout`             | signed in       | Ends this device's session                                                                                   |
-| GET    | `/stores`                  | `stores:read`   | Stores the member can access                                                                                 |
-| GET    | `/stores/:id`              | `stores:read`   | One store (404 if not accessible)                                                                            |
-| POST   | `/stores`                  | `stores:manage` | Create a store or godown                                                                                     |
+| Method | Path                       | Access           | What it does                                                                                                 |
+| ------ | -------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------ |
+| GET    | `/health`, `/health/ready` | public           | Liveness and readiness (checks PostgreSQL)                                                                   |
+| POST   | `/auth/signup`             | public           | New business + owner; returns a session token                                                                |
+| POST   | `/auth/login`              | public           | Mobile/email + password. 409 lists businesses if the person belongs to several; resend with `organizationId` |
+| POST   | `/auth/otp/request`        | public           | Texts a 6-digit code (30 s between codes, 5 per hour)                                                        |
+| POST   | `/auth/otp/verify`         | public           | Code (5 tries, 5 minutes) → session token                                                                    |
+| GET    | `/auth/me`                 | signed in        | User, business, role, permissions, store access                                                              |
+| POST   | `/auth/logout`             | signed in        | Ends this device's session                                                                                   |
+| GET    | `/stores`                  | `stores:read`    | Stores the member can access                                                                                 |
+| GET    | `/stores/:id`              | `stores:read`    | One store (404 if not accessible)                                                                            |
+| POST   | `/stores`                  | `stores:manage`  | Create a store or godown                                                                                     |
+| GET    | `/roles`                   | `members:read`   | Roles with their permissions                                                                                 |
+| GET    | `/members`, `/members/:id` | `members:read`   | Team members the caller can see (people in their stores)                                                     |
+| POST   | `/members`                 | `members:manage` | Add a person (links an existing account) with a role and stores                                              |
+| PATCH  | `/members/:id`             | `members:manage` | Change role, stores or active status (deactivating signs them out)                                           |
 
 **Access model:** `User → Role → Permissions`, plus store access (`all stores` or a list). Permission
 keys and the standard roles live in `packages/shared/src/permissions.ts`. Routes declare
 `@RequirePermissions(...)`; store-level checks happen in services with `can(auth, permission, storeId)`.
+
+**No one can hand out more than they hold:** not permissions they lack, not stores they can't
+access, not all-store access unless they have it, and not ownership unless they are an owner. Nobody
+can change their own access, which also keeps at least one active owner. Rules live in
+`apps/api/src/members/access-rules.ts`.
 
 ## Database
 
