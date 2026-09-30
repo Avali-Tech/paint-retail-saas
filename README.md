@@ -91,6 +91,10 @@ Every route requires `Authorization: Bearer <token>` unless marked public.
 | GET/POST/PATCH | `/products`, `/products/:id`     | same                                          | Product family: brand, category, type, HSN, GST rate, variants                                                                           |
 | POST           | `/products/:id/variants`         | `catalog:manage`                              | Add a pack size                                                                                                                          |
 | PATCH          | `/variants/:id`                  | `catalog:manage`                              | SKU, MRP, selling price (never above MRP), barcodes, status                                                                              |
+| POST           | `/stock/movements`               | `inventory:manage`                            | Opening stock (once per store and product), adjustments and write-offs (with a reason), several products at once, all or nothing         |
+| GET            | `/stock`                         | `inventory:read`                              | Stock by store: on hand, reserved, available, average cost, value; filters and paging                                                    |
+| GET            | `/stock/availability?variantId=` | `inventory:read`                              | One product across the member's stores                                                                                                   |
+| GET            | `/stock/ledger`                  | `inventory:read`                              | Movement history, newest first, with who made each change                                                                                |
 
 **Access model:** `User → Role → Permissions`, plus store access (`all stores` or a list). Permission
 keys and the standard roles live in `packages/shared/src/permissions.ts`. Routes declare
@@ -109,6 +113,12 @@ business-wide.
 **Catalogue** (roadmap §3.11): one product family (e.g. Apex Ultima) with a variant per pack
 size, each with its own SKU, MRP and selling price in paise, and barcodes. EAN/UPC barcodes are
 check-digit validated. The catalogue is shared by all stores; stock per store comes next.
+
+**Stock** (roadmap §3.13–3.16): every movement is a permanent, append-only ledger entry (a
+database trigger refuses edits and deletes; corrections are new entries). Balances per store and
+product change only through `postStockMovements()` in `@paint/db`, in the same transaction, with
+exact decimal arithmetic and a weighted-average cost. Stock never goes negative.
+`findStockMismatches()` compares balances with the ledger and should be run nightly.
 
 ## Database
 
