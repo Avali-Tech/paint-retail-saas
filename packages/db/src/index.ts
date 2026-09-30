@@ -5,7 +5,7 @@ export {
   type DatabaseOptions,
   type Transaction,
 } from './client.js';
-export { isUniqueViolation } from './errors.js';
+export { isCheckViolation, isUniqueViolation, uniqueViolationConstraint } from './errors.js';
 export { MIGRATIONS_FOLDER, migrateDatabase } from './migrate.js';
 export * as schema from './schema.js';
 export {

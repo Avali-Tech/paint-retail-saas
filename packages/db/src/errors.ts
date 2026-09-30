@@ -1,5 +1,6 @@
-/** PostgreSQL error code for a unique constraint violation. */
+/** PostgreSQL error codes. */
 const UNIQUE_VIOLATION = '23505';
+const CHECK_VIOLATION = '23514';
 
 interface PgError {
   code?: unknown;
@@ -21,4 +22,16 @@ export function isUniqueViolation(error: unknown, constraints?: readonly string[
   const pgError = pgErrorOf(error);
   if (pgError?.code !== UNIQUE_VIOLATION) return false;
   return constraints === undefined || constraints.includes(String(pgError.constraint));
+}
+
+/** The constraint a unique violation broke, or null if `error` is not a unique violation. */
+export function uniqueViolationConstraint(error: unknown): string | null {
+  const pgError = pgErrorOf(error);
+  return pgError?.code === UNIQUE_VIOLATION ? String(pgError.constraint) : null;
+}
+
+/** True when `error` is a check constraint violation on one of the given constraints. */
+export function isCheckViolation(error: unknown, constraints: readonly string[]): boolean {
+  const pgError = pgErrorOf(error);
+  return pgError?.code === CHECK_VIOLATION && constraints.includes(String(pgError.constraint));
 }
