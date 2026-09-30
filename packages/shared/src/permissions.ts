@@ -9,6 +9,8 @@ export const PERMISSIONS = [
   'roles:manage',
   'stores:read',
   'stores:manage',
+  'parties:read',
+  'parties:manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -35,23 +37,33 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
   {
     key: 'branch_manager',
     name: 'Branch Manager',
-    permissions: ['stores:read', 'members:read'],
+    permissions: ['stores:read', 'members:read', 'parties:read', 'parties:manage'],
     allStores: false,
   },
   {
     key: 'inventory_manager',
     name: 'Inventory Manager',
-    permissions: ['stores:read'],
+    permissions: ['stores:read', 'parties:read'],
     allStores: false,
   },
   {
     key: 'sales_executive',
     name: 'Sales Executive',
-    permissions: ['stores:read'],
+    permissions: ['stores:read', 'parties:read', 'parties:manage'],
     allStores: false,
   },
-  { key: 'crm_executive', name: 'CRM Executive', permissions: ['stores:read'], allStores: false },
-  { key: 'store_employee', name: 'Store Employee', permissions: ['stores:read'], allStores: false },
+  {
+    key: 'crm_executive',
+    name: 'CRM Executive',
+    permissions: ['stores:read', 'parties:read', 'parties:manage'],
+    allStores: false,
+  },
+  {
+    key: 'store_employee',
+    name: 'Store Employee',
+    permissions: ['stores:read', 'parties:read'],
+    allStores: false,
+  },
 ];
 
 /** What a signed-in member may do: their role's permissions and their store access. */

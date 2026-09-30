@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { createIsolatedDatabase, withPgClient, type TestDatabase } from '@paint/testing';
 import { afterEach, describe, expect, inject, it } from 'vitest';
 import { MIGRATIONS_FOLDER, migrateDatabase } from './index.js';
@@ -28,10 +28,13 @@ describe('migrateDatabase', () => {
       return result.rows.map((row) => row.table_name);
     });
     expect(tables).toEqual([
+      'customer_profiles',
       'member_stores',
       'organization_members',
       'organizations',
       'otp_challenges',
+      'parties',
+      'party_roles',
       'role_permissions',
       'roles',
       'sessions',
@@ -58,7 +61,7 @@ describe('migrateDatabase', () => {
       const result = await client.query('SELECT 1 FROM drizzle.__drizzle_migrations');
       return result.rowCount;
     });
-    expect(applied).toBe(4);
+    expect(applied).toBe(readdirSync(MIGRATIONS_FOLDER).filter((f) => f.endsWith('.sql')).length);
   });
 
   it('works on a second database on the same server, where the role already exists', async () => {

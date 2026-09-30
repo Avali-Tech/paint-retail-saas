@@ -356,7 +356,12 @@ describe('no one can hand out more access than they have', () => {
     let lead: Awaited<ReturnType<typeof hire>>;
 
     beforeEach(async () => {
-      const key = await customManagerRole(['members:read', 'members:manage', 'stores:read']);
+      const key = await customManagerRole([
+        'members:read',
+        'members:manage',
+        'stores:read',
+        'parties:read',
+      ]);
       lead = await hire(key, [hyd]);
     });
 

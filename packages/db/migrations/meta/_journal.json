@@ -29,6 +29,20 @@
       "when": 1790801753917,
       "tag": "0003_users_roles_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790804210332,
+      "tag": "0004_parties",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790804210742,
+      "tag": "0005_grant_parties_permissions",
+      "breakpoints": true
     }
   ]
 }

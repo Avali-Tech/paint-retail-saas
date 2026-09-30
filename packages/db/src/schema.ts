@@ -290,3 +290,150 @@ export const otpChallenges = pgTable(
   },
   (table) => [index('otp_challenges_phone_created_at_idx').on(table.phone, table.createdAt)],
 ).enableRLS();
+
+/** Whether a party is an individual or a business. */
+export const partyKind = pgEnum('party_kind', ['person', 'organization']);
+
+/** The roles a party can play; one party can hold several (roadmap §3.5). */
+export const partyRole = pgEnum('party_role', [
+  'customer',
+  'contractor',
+  'painter',
+  'architect',
+  'dealer',
+  'supplier',
+  'distributor',
+  'sub_dealer',
+]);
+
+export const customerType = pgEnum('customer_type', [
+  'retail',
+  'contractor',
+  'painter',
+  'dealer',
+  'builder',
+  'corporate',
+]);
+
+export const contactMethod = pgEnum('contact_method', ['phone', 'whatsapp', 'email', 'visit']);
+
+/**
+ * Anyone the business deals with: customers, contractors, painters, architects,
+ * dealers, suppliers. One record per real person or company, with roles attached.
+ */
+export const parties = pgTable(
+  'parties',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'restrict' }),
+    kind: partyKind('kind').notNull().default('person'),
+    displayName: text('display_name').notNull(),
+    legalName: text('legal_name'),
+    /** For businesses: who to speak to. */
+    contactPerson: text('contact_person'),
+    phone: text('phone'),
+    alternatePhone: text('alternate_phone'),
+    email: text('email'),
+    gstin: text('gstin'),
+    pan: text('pan'),
+    addressLine: text('address_line'),
+    city: text('city'),
+    state: text('state'),
+    pincode: text('pincode'),
+    /** Store the party mainly deals with; null = business-wide (e.g. a supplier). */
+    homeStoreId: uuid('home_store_id'),
+    notes: text('notes'),
+    tags: text('tags')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    isActive: boolean('is_active').notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    // Duplicate detection: one party per mobile number and per GSTIN in a business.
+    unique('parties_organization_phone_unique').on(table.organizationId, table.phone),
+    unique('parties_organization_gstin_unique').on(table.organizationId, table.gstin),
+    unique('parties_organization_id_id_unique').on(table.organizationId, table.id),
+    index('parties_organization_display_name_idx').on(table.organizationId, table.displayName),
+    foreignKey({
+      name: 'parties_home_store_fk',
+      columns: [table.organizationId, table.homeStoreId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    check('parties_phone_e164', sql`${table.phone} ~ '^\\+[1-9][0-9]{7,14}$'`),
+    check('parties_alternate_phone_e164', sql`${table.alternatePhone} ~ '^\\+[1-9][0-9]{7,14}$'`),
+    check('parties_email_lowercase', sql`${table.email} = lower(${table.email})`),
+    check(
+      'parties_gstin_format',
+      sql`${table.gstin} ~ '^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$'`,
+    ),
+    check('parties_pan_format', sql`${table.pan} ~ '^[A-Z]{5}[0-9]{4}[A-Z]$'`),
+    check('parties_pincode_format', sql`${table.pincode} ~ '^[1-9][0-9]{5}$'`),
+    pgPolicy('parties_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** Roles held by a party. */
+export const partyRoles = pgTable(
+  'party_roles',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    partyId: uuid('party_id').notNull(),
+    role: partyRole('role').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.partyId, table.role] }),
+    index('party_roles_organization_role_idx').on(table.organizationId, table.role),
+    foreignKey({
+      name: 'party_roles_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('cascade'),
+    pgPolicy('party_roles_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** Extra details for parties with the customer role (roadmap §3.7). */
+export const customerProfiles = pgTable(
+  'customer_profiles',
+  {
+    partyId: uuid('party_id').primaryKey(),
+    organizationId: uuid('organization_id').notNull(),
+    customerType: customerType('customer_type').notNull().default('retail'),
+    /** Salesperson responsible for this customer. */
+    assignedMemberId: uuid('assigned_member_id'),
+    preferredContact: contactMethod('preferred_contact').notNull().default('phone'),
+    ...timestamps,
+  },
+  (table) => [
+    foreignKey({
+      name: 'customer_profiles_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'customer_profiles_assigned_member_fk',
+      columns: [table.organizationId, table.assignedMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    pgPolicy('customer_profiles_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();

@@ -101,7 +101,7 @@ describe('owner', () => {
     const response = await createStore(owner.token, {
       name: 'Secunderabad',
       code: 'sec-1',
-      gstin: '36aabcu9603r1zm',
+      gstin: '36aabcu9603r1zo',
     });
 
     expect(response.statusCode).toBe(201);
@@ -112,7 +112,7 @@ describe('owner', () => {
       type: 'store',
       city: null,
       state: null,
-      gstin: '36AABCU9603R1ZM',
+      gstin: '36AABCU9603R1ZO',
       isActive: true,
     });
   });
@@ -196,7 +196,7 @@ describe('Branch Manager of Hyderabad', () => {
       role: { key: 'branch_manager' },
       allStores: false,
       storeIds: [hyderabad.id],
-      permissions: ['members:read', 'stores:read'],
+      permissions: ['members:read', 'parties:manage', 'parties:read', 'stores:read'],
     });
   });
 });

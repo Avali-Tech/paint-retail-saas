@@ -9,10 +9,13 @@ export const MIGRATIONS_FOLDER = fileURLToPath(new URL('../migrations', import.m
  * Applies every migration that hasn't run yet, in order. Safe to run on every
  * deploy: already-applied migrations are skipped.
  */
-export async function migrateDatabase(connectionString: string): Promise<void> {
+export async function migrateDatabase(
+  connectionString: string,
+  migrationsFolder: string = MIGRATIONS_FOLDER,
+): Promise<void> {
   const { db, close } = createDatabase(connectionString);
   try {
-    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+    await migrate(db, { migrationsFolder });
   } finally {
     await close();
   }

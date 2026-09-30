@@ -252,6 +252,9 @@ importers:
         specifier: ^8.23.0
         version: 8.23.0
     devDependencies:
+      '@paint/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@paint/testing':
         specifier: workspace:*
         version: link:../testing

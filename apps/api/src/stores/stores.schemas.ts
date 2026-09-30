@@ -1,6 +1,5 @@
+import { isValidGstin } from '@paint/shared';
 import { z } from 'zod';
-
-const GSTIN = /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
 export const createStoreSchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -17,7 +16,7 @@ export const createStoreSchema = z.object({
     .string()
     .trim()
     .toUpperCase()
-    .regex(GSTIN, 'Enter a valid 15-character GSTIN')
+    .refine(isValidGstin, 'Enter a valid GSTIN (check for typos)')
     .optional(),
 });
 export type CreateStoreInput = z.output<typeof createStoreSchema>;
