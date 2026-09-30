@@ -28,10 +28,19 @@ export async function withTenant<T>(
 ): Promise<T> {
   assertOrganizationId(organizationId);
   return db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select set_config('app.current_organization_id', ${organizationId}, true)`,
-    );
-    await tx.execute(sql`set local role app_tenant`);
+    await enterTenantScope(tx, organizationId);
     return work(tx);
   });
+}
+
+/**
+ * Switches an open transaction into tenant scope for the rest of the
+ * transaction. Use it when a transaction must first do platform-level work
+ * (such as creating a person's global account) and then tenant work that
+ * must commit or roll back together with it.
+ */
+export async function enterTenantScope(tx: Transaction, organizationId: string): Promise<void> {
+  assertOrganizationId(organizationId);
+  await tx.execute(sql`select set_config('app.current_organization_id', ${organizationId}, true)`);
+  await tx.execute(sql`set local role app_tenant`);
 }

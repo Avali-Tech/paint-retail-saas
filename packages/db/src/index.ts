@@ -8,5 +8,10 @@ export {
 export { isUniqueViolation } from './errors.js';
 export { MIGRATIONS_FOLDER, migrateDatabase } from './migrate.js';
 export * as schema from './schema.js';
-export { assertOrganizationId, withTenant, type TenantTransaction } from './tenant.js';
+export {
+  assertOrganizationId,
+  enterTenantScope,
+  withTenant,
+  type TenantTransaction,
+} from './tenant.js';
 export { sql } from 'drizzle-orm';

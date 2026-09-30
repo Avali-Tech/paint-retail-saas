@@ -1,7 +1,7 @@
 import { normalizeEmail, normalizePhone } from '@paint/shared';
 import { z } from 'zod';
 
-const phone = z.string().transform((value, context) => {
+export const phone = z.string().transform((value, context) => {
   const normalized = normalizePhone(value);
   if (normalized === null) {
     context.addIssue({ code: 'custom', message: 'Enter a valid mobile number' });
@@ -10,7 +10,7 @@ const phone = z.string().transform((value, context) => {
   return normalized;
 });
 
-const email = z.string().transform((value, context) => {
+export const email = z.string().transform((value, context) => {
   const normalized = normalizeEmail(value);
   if (normalized === null) {
     context.addIssue({ code: 'custom', message: 'Enter a valid email address' });
@@ -19,7 +19,7 @@ const email = z.string().transform((value, context) => {
   return normalized;
 });
 
-const password = z
+export const password = z
   .string()
   .min(8, 'Use at least 8 characters')
   .max(128, 'Use at most 128 characters');

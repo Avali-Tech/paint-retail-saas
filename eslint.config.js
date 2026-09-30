@@ -22,6 +22,8 @@ export default tseslint.config(
     // NestJS modules are empty classes by design: the decorator carries the configuration.
     rules: {
       '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],
+      // Allows dropping a field with a rest pattern: const { secret, ...rest } = value.
+      '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true }],
     },
   },
   {

@@ -3,6 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from 'vitest';
 import {
   createDatabase,
+  enterTenantScope,
   migrateDatabase,
   schema,
   withTenant,
@@ -223,6 +224,52 @@ describe('withTenant: transactions', () => {
       expect(rows.length).toBeGreaterThan(0);
       expect(rows.every((row) => row.organizationId === org)).toBe(true);
     }
+  });
+});
+
+describe('enterTenantScope', () => {
+  it('lets one transaction do platform work, then tenant-scoped work, committing both together', async () => {
+    const created = await connection.db.transaction(async (tx) => {
+      const [org] = await tx.insert(organizations).values({ name: 'New Co' }).returning();
+      const id = org?.id ?? '';
+      await tx.insert(stores).values({ organizationId: id, name: 'First', code: 'FST' });
+
+      await enterTenantScope(tx, id);
+
+      const visible = await tx.select({ code: stores.code }).from(stores);
+      const role = await tx.execute<{ role: string }>(sql`select current_user as role`);
+      return { id, visible, role: role.rows[0]?.role };
+    });
+
+    expect(created.visible).toEqual([{ code: 'FST' }]);
+    expect(created.role).toBe('app_tenant');
+    const [org] = await connection.db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, created.id));
+    expect(org?.name).toBe('New Co');
+  });
+
+  it('rolls back the platform work too when the tenant work fails', async () => {
+    await expect(
+      connection.db.transaction(async (tx) => {
+        await tx.insert(organizations).values({ name: 'Doomed Co' });
+        await enterTenantScope(tx, orgA);
+        await tx.insert(stores).values({ organizationId: orgB, name: 'Sneaky', code: 'SNK' });
+      }),
+    ).rejects.toThrow();
+
+    const doomed = await connection.db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.name, 'Doomed Co'));
+    expect(doomed).toEqual([]);
+  });
+
+  it('rejects an invalid organisation id', async () => {
+    await expect(connection.db.transaction((tx) => enterTenantScope(tx, 'nope'))).rejects.toThrow(
+      TypeError,
+    );
   });
 });
 
