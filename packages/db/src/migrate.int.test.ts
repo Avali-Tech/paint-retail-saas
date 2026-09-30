@@ -27,7 +27,17 @@ describe('migrateDatabase', () => {
       );
       return result.rows.map((row) => row.table_name);
     });
-    expect(tables).toEqual(['organizations', 'stores']);
+    expect(tables).toEqual([
+      'member_stores',
+      'organization_members',
+      'organizations',
+      'otp_challenges',
+      'role_permissions',
+      'roles',
+      'sessions',
+      'stores',
+      'users',
+    ]);
 
     const roleCanLogIn = await withPgClient(url, async (client) => {
       const result = await client.query<{ rolcanlogin: boolean }>(
@@ -48,7 +58,7 @@ describe('migrateDatabase', () => {
       const result = await client.query('SELECT 1 FROM drizzle.__drizzle_migrations');
       return result.rowCount;
     });
-    expect(applied).toBe(3);
+    expect(applied).toBe(4);
   });
 
   it('works on a second database on the same server, where the role already exists', async () => {
@@ -73,23 +83,31 @@ describe('migrateDatabase', () => {
 
   // Guard for every future migration: a table without row-level security would
   // let one organisation read another organisation's rows.
-  it('enables row-level security with at least one policy on every table', async () => {
+  it('enables row-level security on every table', async () => {
     const url = await freshDatabase();
     await migrateDatabase(url);
 
-    const unprotected = await withPgClient(url, async (client) => {
-      const result = await client.query<{ table_name: string }>(`
-        SELECT c.relname AS table_name
+    const tables = await withPgClient(url, async (client) => {
+      const result = await client.query<{
+        table_name: string;
+        rls: boolean;
+        policies: number;
+      }>(`
+        SELECT c.relname AS table_name,
+               c.relrowsecurity AS rls,
+               (SELECT count(*)::int FROM pg_policy p WHERE p.polrelid = c.oid) AS policies
         FROM pg_class c
         JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE n.nspname = 'public'
-          AND c.relkind = 'r'
-          AND (NOT c.relrowsecurity
-               OR NOT EXISTS (SELECT 1 FROM pg_policy p WHERE p.polrelid = c.oid))
+        WHERE n.nspname = 'public' AND c.relkind = 'r'
       `);
-      return result.rows.map((row) => row.table_name);
+      return result.rows;
     });
 
-    expect(unprotected).toEqual([]);
+    expect(tables.filter((t) => !t.rls).map((t) => t.table_name)).toEqual([]);
+    // With RLS on and no policy, the tenant role sees nothing: correct only for
+    // tables that are used exclusively outside tenant scope.
+    expect(tables.filter((t) => t.policies === 0).map((t) => t.table_name)).toEqual([
+      'otp_challenges',
+    ]);
   });
 });

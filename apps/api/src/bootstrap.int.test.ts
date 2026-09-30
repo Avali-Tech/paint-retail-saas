@@ -41,7 +41,9 @@ describe('bootstrap', () => {
     const app = await bootstrap(env(database.connectionString, { RUN_MIGRATIONS: 'true' }));
     cleanups.push(() => app.close());
 
-    expect(await tablesIn(database.connectionString)).toEqual(['organizations', 'stores']);
+    expect(await tablesIn(database.connectionString)).toEqual(
+      expect.arrayContaining(['organizations', 'stores', 'users']),
+    );
     const response = await fetch(`${await app.getUrl()}/health/ready`);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ status: 'ok', checks: { database: 'up' } });

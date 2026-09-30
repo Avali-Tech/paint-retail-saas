@@ -1,5 +1,6 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
+import { readdirSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -68,13 +69,15 @@ describe('built server (dist/server/main.js)', () => {
     const response = await waitForReady(`${baseUrl}/health/ready`, 30_000);
 
     expect(await response.json()).toEqual({ status: 'ok', checks: { database: 'up' } });
-    const tables = await withPgClient(database.connectionString, async (client) => {
-      const result = await client.query(
-        "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public'",
-      );
+    const applied = await withPgClient(database.connectionString, async (client) => {
+      const result = await client.query('SELECT 1 FROM drizzle.__drizzle_migrations');
       return result.rowCount;
     });
-    expect(tables).toBe(2);
+    const bundled = readdirSync(`${appDir}/dist/migrations`).filter((file) =>
+      file.endsWith('.sql'),
+    );
+    expect(bundled.length).toBeGreaterThan(0);
+    expect(applied).toBe(bundled.length);
   });
 
   it('shuts down cleanly on SIGTERM, as during a deploy', async () => {
