@@ -1,0 +1,21 @@
+{
+  "name": "@paint/testing",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared test helpers: a real PostgreSQL in Docker for integration tests.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@testcontainers/postgresql": "^12.2.0",
+    "pg": "^8.23.0",
+    "testcontainers": "^12.2.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1"
+  }
+}

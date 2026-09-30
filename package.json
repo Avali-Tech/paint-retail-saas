@@ -1,0 +1,33 @@
+{
+  "name": "paint-retail-saas",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.8.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "turbo run typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.0",
+    "@vitest/coverage-v8": "^5.0.2",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.9",
+    "turbo": "^2.11.5",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.2"
+  }
+}
