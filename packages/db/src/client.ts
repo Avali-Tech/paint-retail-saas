@@ -10,9 +10,17 @@ export interface DatabaseConnection {
   readonly close: () => Promise<void>;
 }
 
+export interface DatabaseOptions {
+  /** How long to wait for a new connection before failing. Default 5 seconds. */
+  readonly connectionTimeoutMillis?: number;
+}
+
 /** Opens a pooled connection to PostgreSQL. */
-export function createDatabase(connectionString: string): DatabaseConnection {
-  const pool = new pg.Pool({ connectionString });
+export function createDatabase(
+  connectionString: string,
+  { connectionTimeoutMillis = 5_000 }: DatabaseOptions = {},
+): DatabaseConnection {
+  const pool = new pg.Pool({ connectionString, connectionTimeoutMillis });
   return {
     db: drizzle({ client: pool, schema }),
     close: () => pool.end(),

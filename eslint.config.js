@@ -12,10 +12,16 @@ export default tseslint.config(
       globals: globals.node,
       parserOptions: {
         projectService: {
-          allowDefaultProject: ['*.js', '*.ts', 'packages/*/*.config.ts'],
+          allowDefaultProject: ['*.js', '*.ts', 'packages/*/*.config.ts', 'apps/*/*.config.ts'],
         },
         tsconfigRootDir: import.meta.dirname,
       },
+    },
+  },
+  {
+    // NestJS modules are empty classes by design: the decorator carries the configuration.
+    rules: {
+      '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],
     },
   },
   {

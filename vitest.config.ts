@@ -29,7 +29,13 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['{apps,packages}/*/src/**/*.ts'],
-      exclude: ['**/*.test.ts', '**/*.d.ts', 'packages/testing/src/vitest-global-setup.ts'],
+      exclude: [
+        '**/*.test.ts',
+        '**/*.d.ts',
+        // Entry shims: they only call tested code and run outside the coverage process.
+        'packages/testing/src/vitest-global-setup.ts',
+        'apps/api/src/main.ts',
+      ],
       reporter: ['text', 'html', 'lcov'],
       thresholds: {
         100: true,

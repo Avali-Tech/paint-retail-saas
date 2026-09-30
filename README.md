@@ -47,6 +47,19 @@ pnpm verify
 | `pnpm lint` / `pnpm typecheck` / `pnpm format` | Code quality                                |
 | `pnpm verify`                                  | Everything CI runs, in the same order       |
 
+## Run the API locally
+
+```sh
+docker compose up -d                        # local PostgreSQL 17 on port 55432
+cp apps/api/.env.example apps/api/.env
+pnpm --filter @paint/api build
+pnpm --filter @paint/api start              # http://localhost:3000
+curl localhost:3000/health/ready            # {"status":"ok","checks":{"database":"up"}}
+```
+
+`GET /health` answers while the process runs (liveness). `GET /health/ready` also checks
+PostgreSQL and answers 503 when it is unreachable (readiness).
+
 ## Database
 
 - Tables are defined in `packages/db/src/schema.ts`. After changing it, generate a migration with
@@ -59,7 +72,7 @@ pnpm verify
 ## Layout
 
 ```
-apps/                 deployable apps (api, web) — coming next
+apps/api              HTTP API (NestJS on Fastify), built with Vite into dist/server
 packages/db           PostgreSQL schema, migrations, tenant isolation (Drizzle)
 packages/shared       code shared by all apps (money in paise, …)
 packages/testing      test helpers (throwaway PostgreSQL for integration tests)

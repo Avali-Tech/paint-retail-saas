@@ -237,6 +237,19 @@ describe('organisation integrity', () => {
 });
 
 describe('createDatabase', () => {
+  it('gives up connecting after the timeout instead of hanging', async () => {
+    // 10.255.255.1 is a non-routable address: connection attempts are never answered.
+    const unreachable = createDatabase('postgres://user:pass@10.255.255.1:5432/db', {
+      connectionTimeoutMillis: 300,
+    });
+    const started = Date.now();
+
+    await expect(unreachable.db.select().from(organizations)).rejects.toThrow();
+    expect(Date.now() - started).toBeLessThan(3_000);
+
+    await unreachable.close();
+  });
+
   it('stops accepting queries after close', async () => {
     const temporary = createDatabase(database.connectionString);
     await temporary.db.select().from(organizations);
