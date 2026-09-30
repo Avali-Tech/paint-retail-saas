@@ -8,6 +8,7 @@ import type { AppConfig } from './config.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
 import { MembersModule } from './members/members.module.js';
+import { PartiesModule } from './parties/parties.module.js';
 import { StoresModule } from './stores/stores.module.js';
 
 export interface AppModuleOptions {
@@ -30,6 +31,7 @@ export class AppModule {
         }),
         HealthModule,
         MembersModule,
+        PartiesModule,
         StoresModule,
       ],
     };
