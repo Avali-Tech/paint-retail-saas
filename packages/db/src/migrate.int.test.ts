@@ -43,6 +43,8 @@ describe('migrateDatabase', () => {
       'role_permissions',
       'roles',
       'sessions',
+      'stock_balances',
+      'stock_ledger',
       'stores',
       'users',
     ]);

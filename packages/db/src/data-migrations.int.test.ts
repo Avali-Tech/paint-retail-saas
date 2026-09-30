@@ -90,6 +90,7 @@ function expectedGrants(prefix: string) {
 describe.each([
   ['0005_grant_parties_permissions', '0004_parties', 'parties:'],
   ['0007_grant_catalog_permissions', '0006_catalog', 'catalog:'],
+  ['0010_grant_inventory_permissions', '0009_stock_ledger_append_only', 'inventory:'],
 ])('%s', (_migration, before, prefix) => {
   it("gives existing organisations' standard roles exactly the permissions new ones get", async () => {
     const permissions = await permissionsAfterBackfill(before, prefix);

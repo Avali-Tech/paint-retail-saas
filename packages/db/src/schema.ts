@@ -640,3 +640,126 @@ export const productBarcodes = pgTable(
     }),
   ],
 ).enableRLS();
+
+/** Why stock moved. The sign of the quantity must match the type (see check below). */
+export const stockMovementType = pgEnum('stock_movement_type', [
+  'opening',
+  'purchase_receipt',
+  'purchase_return',
+  'transfer_in',
+  'transfer_out',
+  'sale',
+  'sale_return',
+  'adjustment',
+  'damage',
+  'count_correction',
+]);
+
+/**
+ * Every stock movement, forever. Append-only: a trigger refuses updates and
+ * deletes, so mistakes are corrected with a new entry. Positive quantity = in,
+ * negative = out, in units of the variant (packs, or ml for colorants later).
+ */
+export const stockLedger = pgTable(
+  'stock_ledger',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    storeId: uuid('store_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    movementType: stockMovementType('movement_type').notNull(),
+    quantity: numeric('quantity', { precision: 14, scale: 3, mode: 'number' }).notNull(),
+    /** Cost per unit for incoming stock, in paise; drives the weighted-average cost. */
+    unitCostPaise: bigint('unit_cost_paise', { mode: 'number' }),
+    /** What caused the movement, e.g. a transfer or goods receipt (later modules). */
+    referenceType: text('reference_type'),
+    referenceId: uuid('reference_id'),
+    note: text('note'),
+    createdByMemberId: uuid('created_by_member_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('stock_ledger_store_variant_created_idx').on(
+      table.organizationId,
+      table.storeId,
+      table.variantId,
+      table.createdAt,
+    ),
+    index('stock_ledger_reference_idx').on(table.referenceType, table.referenceId),
+    foreignKey({
+      name: 'stock_ledger_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'stock_ledger_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'stock_ledger_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'stock_ledger_quantity_sign',
+      sql`case
+        when ${table.movementType} in ('opening', 'purchase_receipt', 'transfer_in', 'sale_return') then ${table.quantity} > 0
+        when ${table.movementType} in ('purchase_return', 'transfer_out', 'sale', 'damage') then ${table.quantity} < 0
+        else ${table.quantity} <> 0
+      end`,
+    ),
+    check('stock_ledger_unit_cost_not_negative', sql`${table.unitCostPaise} >= 0`),
+    pgPolicy('stock_ledger_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * Current stock per store and variant, kept in step with stock_ledger in the
+ * same transaction. on_hand always equals the sum of the ledger (checked by
+ * findStockMismatches); it can never go negative.
+ */
+export const stockBalances = pgTable(
+  'stock_balances',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    storeId: uuid('store_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    onHand: numeric('on_hand', { precision: 14, scale: 3, mode: 'number' }).notNull().default(0),
+    /** Held for confirmed orders (Phase 2). Available = on_hand - reserved. */
+    reserved: numeric('reserved', { precision: 14, scale: 3, mode: 'number' }).notNull().default(0),
+    /** Weighted-average cost per unit in paise; null until a costed receipt. */
+    avgCostPaise: bigint('avg_cost_paise', { mode: 'number' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.storeId, table.variantId] }),
+    index('stock_balances_organization_variant_idx').on(table.organizationId, table.variantId),
+    foreignKey({
+      name: 'stock_balances_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'stock_balances_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('restrict'),
+    check('stock_balances_on_hand_not_negative', sql`${table.onHand} >= 0`),
+    check(
+      'stock_balances_reserved_within_on_hand',
+      sql`${table.reserved} >= 0 and ${table.reserved} <= ${table.onHand}`,
+    ),
+    pgPolicy('stock_balances_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();

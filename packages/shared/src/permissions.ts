@@ -13,6 +13,8 @@ export const PERMISSIONS = [
   'parties:manage',
   'catalog:read',
   'catalog:manage',
+  'inventory:read',
+  'inventory:manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -39,19 +41,40 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
   {
     key: 'branch_manager',
     name: 'Branch Manager',
-    permissions: ['stores:read', 'members:read', 'parties:read', 'parties:manage', 'catalog:read'],
+    permissions: [
+      'stores:read',
+      'members:read',
+      'parties:read',
+      'parties:manage',
+      'catalog:read',
+      'inventory:read',
+      'inventory:manage',
+    ],
     allStores: false,
   },
   {
     key: 'inventory_manager',
     name: 'Inventory Manager',
-    permissions: ['stores:read', 'parties:read', 'catalog:read', 'catalog:manage'],
+    permissions: [
+      'stores:read',
+      'parties:read',
+      'catalog:read',
+      'catalog:manage',
+      'inventory:read',
+      'inventory:manage',
+    ],
     allStores: false,
   },
   {
     key: 'sales_executive',
     name: 'Sales Executive',
-    permissions: ['stores:read', 'parties:read', 'parties:manage', 'catalog:read'],
+    permissions: [
+      'stores:read',
+      'parties:read',
+      'parties:manage',
+      'catalog:read',
+      'inventory:read',
+    ],
     allStores: false,
   },
   {
@@ -63,7 +86,7 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
   {
     key: 'store_employee',
     name: 'Store Employee',
-    permissions: ['stores:read', 'parties:read', 'catalog:read'],
+    permissions: ['stores:read', 'parties:read', 'catalog:read', 'inventory:read'],
     allStores: false,
   },
 ];

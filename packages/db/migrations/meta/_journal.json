@@ -57,6 +57,27 @@
       "when": 1790804964699,
       "tag": "0007_grant_catalog_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790805977272,
+      "tag": "0008_inventory",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790805991653,
+      "tag": "0009_stock_ledger_append_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790805992045,
+      "tag": "0010_grant_inventory_permissions",
+      "breakpoints": true
     }
   ]
 }

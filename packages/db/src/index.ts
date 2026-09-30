@@ -9,6 +9,14 @@ export { isCheckViolation, isUniqueViolation, uniqueViolationConstraint } from '
 export { MIGRATIONS_FOLDER, migrateDatabase } from './migrate.js';
 export * as schema from './schema.js';
 export {
+  InsufficientStockError,
+  findStockMismatches,
+  postStockMovements,
+  type StockMismatch,
+  type StockMovement,
+  type StockMovementType,
+} from './stock.js';
+export {
   assertOrganizationId,
   enterTenantScope,
   withTenant,
