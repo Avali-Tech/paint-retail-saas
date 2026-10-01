@@ -32,6 +32,7 @@ const RESULT_GROUPS = [
   ['leads', 'search.leads'],
   ['opportunities', 'search.opportunities'],
   ['projects', 'search.projects'],
+  ['contracts', 'search.contracts'],
   ['documents', 'search.documents'],
 ] as const satisfies readonly (readonly [keyof SearchResults, MessageKey])[];
 

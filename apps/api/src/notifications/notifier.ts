@@ -25,9 +25,9 @@ export interface NotifierSettings {
 export interface Notice {
   readonly organizationId: string;
   readonly event: NotificationEvent;
-  /** Everyone with the permission at the store, or particular members… */
+  /** Everyone with the permission at the store (null = anywhere), or particular members… */
   readonly to:
-    | { readonly storeId: string; readonly permission: Permission }
+    | { readonly storeId: string | null; readonly permission: Permission }
     | { readonly memberIds: readonly string[] };
   /** …except the person who caused it. */
   readonly actorMemberId?: string;
@@ -128,16 +128,18 @@ export class Notifier {
             ),
           ),
       ),
-      or(
-        eq(organizationMembers.allStores, true),
-        inArray(
-          organizationMembers.id,
-          tx
-            .select({ memberId: memberStores.memberId })
-            .from(memberStores)
-            .where(eq(memberStores.storeId, to.storeId)),
-        ),
-      ),
+      to.storeId === null
+        ? undefined
+        : or(
+            eq(organizationMembers.allStores, true),
+            inArray(
+              organizationMembers.id,
+              tx
+                .select({ memberId: memberStores.memberId })
+                .from(memberStores)
+                .where(eq(memberStores.storeId, to.storeId)),
+            ),
+          ),
     );
   }
 }

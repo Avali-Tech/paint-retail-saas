@@ -79,6 +79,7 @@ export interface SearchResults {
   readonly leads: SearchHit[] | null;
   readonly opportunities: SearchHit[] | null;
   readonly projects: SearchHit[] | null;
+  readonly contracts: SearchHit[] | null;
   readonly documents: SearchHit[];
 }
 

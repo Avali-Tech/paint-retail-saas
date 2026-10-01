@@ -20,6 +20,9 @@ const RESULTS: SearchResults = {
   leads: null,
   opportunities: [],
   projects: null,
+  contracts: [
+    { id: 'c1', title: 'Apex Towers rate contract', subtitle: null, path: '/contracts/c1' },
+  ],
   documents: [],
 };
 
@@ -39,7 +42,12 @@ function renderShell(search: (q: string) => ReturnType<typeof json> = () => json
 describe('resultGroups', () => {
   it('keeps groups in order and leaves out empty or hidden ones', () => {
     const groups = resultGroups({ ...RESULTS, actions: [QUICK_ACTIONS[0] as never] });
-    expect(groups.map((group) => group.key)).toEqual(['actions', 'parties', 'products']);
+    expect(groups.map((group) => group.key)).toEqual([
+      'actions',
+      'parties',
+      'products',
+      'contracts',
+    ]);
     expect(actionHit(QUICK_ACTIONS[0] as never)).toEqual({
       id: 'new_customer',
       title: '+ Customer',
@@ -92,7 +100,7 @@ describe('SearchBox', () => {
   it('says when nothing matches or search fails', async () => {
     const { user } = renderShell((q) =>
       q === 'zzz'
-        ? json({ ...RESULTS, parties: [], products: [] })
+        ? json({ ...RESULTS, parties: [], products: [], contracts: [] })
         : json({ statusCode: 500, message: 'Search down' }, 500),
     );
     const box = await screen.findByRole('combobox', { name: 'Search' });
@@ -125,7 +133,9 @@ describe('SearchBox', () => {
   });
 
   it('ignores Enter while there is nothing to choose', async () => {
-    const { user } = renderShell(() => json({ ...RESULTS, parties: [], products: [] }));
+    const { user } = renderShell(() =>
+      json({ ...RESULTS, parties: [], products: [], contracts: [] }),
+    );
     const box = await screen.findByRole('combobox', { name: 'Search' });
     await user.type(box, 'none');
     await screen.findByText('Nothing found for “none”');

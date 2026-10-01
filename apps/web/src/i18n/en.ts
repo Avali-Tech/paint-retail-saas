@@ -57,6 +57,7 @@ export const en = {
     purchasing: 'Purchasing',
     leads: 'Leads',
     projects: 'Projects',
+    contracts: 'Contracts',
     appearance: 'Appearance',
   },
   search: {
@@ -72,6 +73,7 @@ export const en = {
     leads: 'Leads',
     opportunities: 'Opportunities',
     projects: 'Projects',
+    contracts: 'Contracts',
     documents: 'Documents',
   },
   notifications: {

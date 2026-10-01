@@ -271,6 +271,24 @@ describe('preferences', () => {
         inApp: true,
         email: true,
       },
+      {
+        event: 'contract_renewal_due',
+        title: 'A contract assigned to you is due for renewal',
+        inApp: true,
+        email: true,
+      },
+      {
+        event: 'credit_request_awaiting_approval',
+        title: 'A credit request needs your approval',
+        inApp: true,
+        email: true,
+      },
+      {
+        event: 'credit_request_decided',
+        title: 'Your credit request is approved or rejected',
+        inApp: true,
+        email: true,
+      },
     ]);
     expect(saved.statusCode).toBe(200);
     expect(
@@ -284,6 +302,9 @@ describe('preferences', () => {
       ['low_stock', false, false],
       ['follow_up_due', true, true],
       ['support_access_requested', true, true],
+      ['contract_renewal_due', true, true],
+      ['credit_request_awaiting_approval', true, true],
+      ['credit_request_decided', true, true],
     ]);
     const duplicate = await api(hydManager).put('/notifications/preferences', {
       preferences: [

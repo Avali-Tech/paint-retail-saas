@@ -5,6 +5,8 @@ import { ActivitiesModule } from './activities/activities.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
+import { ContractsModule } from './contracts/contracts.module.js';
+import { CreditModule } from './credit/credit.module.js';
 import { authSettingsFrom } from './auth/auth.tokens.js';
 import { smsSenderFor, type SmsSender } from './auth/sms.js';
 import type { AppConfig } from './config.js';
@@ -51,6 +53,8 @@ export class AppModule {
           smsSender: smsSender ?? smsSenderFor(config.smsProvider),
         }),
         CatalogModule,
+        ContractsModule,
+        CreditModule,
         DocumentsModule.forRoot(config.documents),
         HealthModule,
         ImportsModule,

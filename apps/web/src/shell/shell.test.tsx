@@ -93,6 +93,7 @@ describe('navigation by role', () => {
       'Purchasing',
       'Leads',
       'Projects',
+      'Contracts',
       'Appearance',
     ]);
     expect(screen.getByText('ABC Paints')).toBeInTheDocument();
@@ -139,7 +140,7 @@ describe('navigation by role', () => {
       within(more)
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['Purchasing', 'Leads', 'Projects', 'Appearance']);
+    ).toEqual(['Purchasing', 'Leads', 'Projects', 'Contracts', 'Appearance']);
     await user.click(within(more).getByRole('link', { name: 'Leads' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(location()).toBe('/leads');

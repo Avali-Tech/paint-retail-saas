@@ -12,6 +12,7 @@ export default tseslint.config(
       '**/.turbo/**',
       '**/playwright-report/**',
       '**/test-results/**',
+      '.claude/**',
     ],
   },
   eslint.configs.recommended,

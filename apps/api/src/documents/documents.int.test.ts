@@ -355,6 +355,7 @@ describe('who can see and change documents', () => {
       'lead',
       'opportunity',
       'project',
+      'contract',
     ]) {
       expect([type, (await listOf(owner, type, ghost)).statusCode]).toEqual([type, 404]);
     }

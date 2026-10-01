@@ -51,6 +51,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: 'projects:read',
   },
   {
+    key: 'contracts',
+    label: 'nav.contracts',
+    path: '/contracts',
+    icon: 'contracts',
+    permission: 'contracts:read',
+  },
+  {
     key: 'appearance',
     label: 'nav.appearance',
     path: '/settings/appearance',

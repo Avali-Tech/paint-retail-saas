@@ -4,11 +4,14 @@ import { schema, withTenant, type DatabaseConnection, type Transaction } from '@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { recordLabel } from '../activities/activity-records.js';
 import type { AuthContext } from '../auth/auth-context.js';
+import { contractStatusSql, renewalDueSql, visibleContracts } from '../contracts/contract-sql.js';
+import { creditSummaryOf, type CreditSummary } from '../credit/credit-lookups.js';
 import { DATABASE } from '../database/database.module.js';
 import { storeScope } from '../leads/crm-lookups.js';
 import { PartiesService, type PartyView } from './parties.service.js';
 
-const { activities, documents, leads, opportunities, projectParties, projects, stores } = schema;
+const { activities, contracts, documents, leads, opportunities, projectParties, projects, stores } =
+  schema;
 
 /** How many of each kind of record the overview lists; totals count them all. */
 export const OVERVIEW_ITEMS = 10;
@@ -58,6 +61,23 @@ export interface PartyOverview {
     roles: string[];
     updatedAt: string;
   }> | null;
+  /** The party's agreements; null when the member cannot see contracts. */
+  readonly contracts:
+    | (Section<{
+        id: string;
+        number: string;
+        title: string;
+        type: string;
+        status: string;
+        startDate: string;
+        endDate: string;
+        renewalDate: string;
+        renewalDue: boolean;
+        valuePaise: number | null;
+      }> & { readonly active: number; readonly renewalDue: number })
+    | null;
+  /** Credit limit, days, status and the current check; null when the member cannot see credit. */
+  readonly credit: CreditSummary | null;
   /** Activities on the party and on its visible leads, opportunities and projects. */
   readonly activities: Section<{
     id: string;
@@ -90,8 +110,9 @@ export class PartyOverviewService {
     // 404 unless the member can see the party.
     const party = await this.parties.get(auth, partyId);
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
-      const canSee = (permission: 'leads:read' | 'projects:read') =>
-        auth.permissions.has(permission);
+      const canSee = (
+        permission: 'leads:read' | 'projects:read' | 'contracts:read' | 'credit:read',
+      ) => auth.permissions.has(permission);
       const leadSection = canSee('leads:read') ? await this.leads(tx, auth, partyId) : null;
       const opportunitySection = canSee('leads:read')
         ? await this.opportunities(tx, auth, partyId)
@@ -119,6 +140,10 @@ export class PartyOverviewService {
         leads: leadSection?.view ?? null,
         opportunities: opportunitySection?.view ?? null,
         projects: projectSection?.view ?? null,
+        contracts: canSee('contracts:read') ? await this.contracts(tx, auth, partyId) : null,
+        credit: canSee('credit:read')
+          ? await creditSummaryOf(tx, auth.organization.id, partyId)
+          : null,
         activities: await this.activities(tx, sql`(${sql.join(records, sql` or `)})`),
         documents: await this.documents(tx, partyId),
       };
@@ -223,6 +248,35 @@ export class PartyOverviewService {
           updatedAt: project.updatedAt.toISOString(),
         })),
       },
+    };
+  }
+
+  private async contracts(
+    tx: Transaction,
+    auth: AuthContext,
+    partyId: string,
+  ): Promise<PartyOverview['contracts']> {
+    const rows = await tx
+      .select({ contract: contracts, status: contractStatusSql, renewalDue: renewalDueSql })
+      .from(contracts)
+      .where(and(eq(contracts.partyId, partyId), visibleContracts(auth)))
+      .orderBy(desc(contracts.endDate), desc(contracts.number));
+    return {
+      total: rows.length,
+      active: rows.filter((row) => row.status === 'active').length,
+      renewalDue: rows.filter((row) => row.renewalDue).length,
+      items: rows.slice(0, OVERVIEW_ITEMS).map(({ contract, status, renewalDue }) => ({
+        id: contract.id,
+        number: contract.number,
+        title: contract.title,
+        type: contract.type,
+        status,
+        startDate: contract.startDate,
+        endDate: contract.endDate,
+        renewalDate: contract.renewalDate,
+        renewalDue,
+        valuePaise: contract.valuePaise,
+      })),
     };
   }
 

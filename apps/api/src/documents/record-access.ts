@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 
 const {
+  contracts,
   goodsReceipts,
   leads,
   opportunities,
@@ -130,6 +131,16 @@ const RULES: Record<RecordType, RecordRule> = {
         tx.select({ storeId: projects.storeId }).from(projects).where(eq(projects.id, id)),
       );
       return project ? [project.storeId] : null;
+    },
+  },
+  contract: {
+    read: 'contracts:read',
+    manage: 'contracts:manage',
+    stores: async (tx, id) => {
+      const contract = await first(
+        tx.select({ storeId: contracts.storeId }).from(contracts).where(eq(contracts.id, id)),
+      );
+      return contract ? (contract.storeId ? [contract.storeId] : []) : null;
     },
   },
   stock_count: {

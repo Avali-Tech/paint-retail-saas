@@ -63,6 +63,18 @@ const FIELD_LABELS: Record<string, string> = {
   declined_at: 'Declined',
   expires_at: 'Expires',
   ended_at: 'Ended',
+  status: 'Status',
+  start_date: 'Start date',
+  end_date: 'End date',
+  renewal_date: 'Renewal date',
+  value_paise: 'Value',
+  termination_reason: 'Termination reason',
+  limit_paise: 'Credit limit',
+  credit_days: 'Credit days',
+  hold_reason: 'Hold reason',
+  normal_up_to_percent: 'Normal up to (%)',
+  manager_up_to_percent: 'Manager approval up to (%)',
+  hold_after_overdue_days: 'Hold after overdue (days)',
 };
 
 const recordLabel = sql<string | null>`case ${auditLog.tableName}
@@ -72,6 +84,9 @@ const recordLabel = sql<string | null>`case ${auditLog.tableName}
   when 'role_permissions' then (select ${roles.name} from ${roles} where ${roles.id}::text = ${auditLog.recordId})
   when 'organizations' then (select o.name from organizations o where o.id::text = ${auditLog.recordId})
   when 'support_grants' then (select g.reason from support_grants g where g.id::text = ${auditLog.recordId})
+  when 'contracts' then (select c.number || ' · ' || c.title from contracts c where c.id::text = ${auditLog.recordId})
+  when 'credit_profiles' then (select p.display_name from credit_profiles cp join parties p on p.id = cp.party_id where cp.id::text = ${auditLog.recordId})
+  when 'credit_rules' then 'Credit rules'
   else (select ${users.fullName} from ${organizationMembers} join ${users} on ${users.id} = ${organizationMembers.userId} where ${organizationMembers.id}::text = ${auditLog.recordId})
 end`;
 

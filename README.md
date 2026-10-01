@@ -175,6 +175,13 @@ Every route requires `Authorization: Bearer <token>` unless marked public.
 | POST               | `/projects`, `/opportunities/:id/project`                                                        | `projects:manage`                                        | A project (PJ-000001…) with customer, site and map pin, dates, area, paint litres, value; or started from an opportunity                                                                                                           |
 | GET                | `/projects`, `/projects/:id`, `/projects/pipeline`                                               | `projects:read`                                          | Filter by `stage`, `partyId` (customer or anyone linked), `assignedTo`, `q`; per-stage totals                                                                                                                                      |
 | PATCH · PUT · POST | `/projects/:id`, `/:id/parties`, `/:id/assign`, `/:id/stage`, `/:id/cancel`                      | `projects:manage`                                        | Edit, set architects / contractors / painters / dealers, reassign, move stages, cancel with a reason                                                                                                                               |
+| POST               | `/contracts`                                                                                     | `contracts:manage`                                       | A contract (CT-000001…) with a party, optional store and project, start/end and renewal date (default 30 days before the end), value, terms, credit and discount terms; starts as a draft                                          |
+| GET                | `/contracts`, `/contracts/:id`                                                                   | `contracts:read`                                         | Filter by `status` (incl. `expired`), `type`, `partyId`, `storeId`, `projectId`, `assignedTo`, `q`; `renewalDue=30` lists active contracts ending within 30 days (or already ended), soonest first                                 |
+| PATCH · POST       | `/contracts/:id`, `/:id/activate`, `/:id/terminate`, `/:id/renew`                                | `contracts:manage`                                       | Edit, put in force, terminate with a reason, renew (creates the follow-on contract, 201)                                                                                                                                           |
+| GET                | `/parties/:id/credit`, `/parties/:id/credit/check?amountPaise=`, `/credit-profiles`              | `credit:read`                                            | A party's limit, days, status, risk, hold and current check; whether a sale may go ahead (allowed / manager approval / owner approval / blocked); parties with credit, closest to their limit first                                |
+| PATCH · POST       | `/parties/:id/credit`, `/parties/:id/credit/hold`                                                | `credit:manage`                                          | Risk, notes and (until billing) what the party owes and how many days overdue; put the account on hold with a reason                                                                                                               |
+| POST · GET         | `/credit-requests`, `/credit-requests/:id`                                                       | `credit:manage` to ask, `credit:read` to see             | Ask for credit or a new limit / days (CR-000001…); approvers are notified                                                                                                                                                          |
+| POST · PUT         | `/credit-requests/:id/approve`, `/:id/reject`, `/parties/:id/credit/release`, `/credit-rules`    | `credit:approve` (owners, admins)                        | Decide requests (the requester is notified), release a hold, set the credit rules (`GET /credit-rules` with `credit:read`)                                                                                                         |
 | POST               | `/activities`                                                                                    | the record's manage permission                           | Log a call, meeting, visit, WhatsApp, email or note on a party, lead, opportunity or project; with `dueAt` it is scheduled                                                                                                         |
 | GET                | `/activities?recordType=&recordId=`                                                              | the record's read permission                             | The record's timeline, latest first                                                                                                                                                                                                |
 | GET                | `/activities/follow-ups?when=today`                                                              | signed in                                                | My (or `assignedTo`) open follow-ups: `overdue`, `today`, `upcoming` or `open`, in India time, with badge counts                                                                                                                   |
@@ -238,7 +245,7 @@ mobile number, opening stock by store and SKU. Blank cells keep saved values. Op
 refused once a product has other movements at that store; use a stock count instead.
 
 **Documents** (roadmap P1-M18): files attach to parties, products, stores, purchase orders, goods
-receipts, transfers and stock counts. Whoever can see the record sees its documents; whoever can
+receipts, transfers, stock counts, leads, opportunities, projects and contracts. Whoever can see the record sees its documents; whoever can
 change it can add or remove them, and store access applies (a Pune order's documents are invisible to
 Hyderabad staff). Every file is scanned by ClamAV before it is stored — including inside Word and
 Excel archives — and refused if infected or if scanning is down. The type comes from the file's bytes,
@@ -266,6 +273,31 @@ customer, any number of architects, contractors, painters and dealers, and the o
 from. Site photos are documents on the project (categories `before_photo`, `after_photo`, with a
 note); documents also attach to leads and opportunities. No shade or tinting data until Phase 2.
 
+**Contracts** (roadmap P1-M24): contractor, supplier, customer and dealer agreements as a record
+with terms, dates, documents and status, not a legal engine. Draft → active → terminated (with a
+reason) or renewed; an active contract past its end date (India time) shows as `expired` until it is
+renewed or terminated. Renewing creates a new contract (new number, active, linked both ways via
+`renewalOf` / `renewedBy`), by default starting the day after the old one ends and copying its
+terms. The signed agreement is a document on the contract (record type `contract`). Contracts with
+a store are visible to that store's staff; those without are business-wide. On the renewal date
+the assignee is reminded once, in the app and by email (`contract_renewal_due`); moving the date
+reminds again. Status, dates and value changes are in the audit log; the customer 360 and search
+include contracts.
+
+**Credit** (roadmap P1-M25, spec §3.21–3.22): each party has at most one credit profile: status
+(none, active or on hold, with a reason), limit in paise, credit days and risk. Limits and days
+change only through a credit request that someone with `credit:approve` (owners and admins) approves
+or rejects; approvers at the party's store (or anywhere, for business-wide parties) are notified
+(`credit_request_awaiting_approval`) and the requester hears the decision (`credit_request_decided`).
+One request may wait per party. Approving a new limit for an account on hold keeps it on hold; staff
+with `credit:manage` hold an account, approvers release it. The rule engine (`checkCredit` in
+`@paint/shared`) blocks credit without a limit, on hold, or overdue beyond the configured days, and
+otherwise decides by utilisation: up to 80 % normal, up to 100 % manager approval, above that owner
+approval (configurable per business with `PUT /credit-rules`). Until billing (Release 2.0) calculates
+exposure from invoices, what a party owes and how late it is are entered by hand
+(`manualExposurePaise`, `overdueDays`). Changes to limits, days, status, holds and the rules are in the
+audit log; the customer 360 shows the credit position.
+
 **Activities & follow-ups** (roadmap P1-M09): every call, visit and note is an activity on a party
 (customer, contractor, dealer, supplier…), lead, opportunity or project, and access follows that
 record. A follow-up's assignee is reminded once, in the app and by email, when it is within 15
@@ -280,7 +312,7 @@ permissions, members' roles, store access and active status, and stock adjustmen
 count corrections, with the watched columns' old and new values. No code path can skip it, and the
 application can only read the log: it cannot add, edit or delete entries, and even the database owner
 cannot change or empty it. Each request runs as its member (`runAsMember`), so entries name who acted;
-background and setup work appears as system. Credit limits join the list with P1-M25.
+background and setup work appears as system. Contracts and credit are audited too (see their sections).
 
 **Search** (roadmap P1-M21): every word must match somewhere, exact matches (a SKU, barcode,
 mobile number or document number) come first, and `%` and `_` are ordinary characters. Each group
