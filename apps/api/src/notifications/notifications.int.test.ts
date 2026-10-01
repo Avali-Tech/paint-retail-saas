@@ -265,6 +265,12 @@ describe('preferences', () => {
         inApp: true,
         email: true,
       },
+      {
+        event: 'support_access_requested',
+        title: 'Platform support asks to access your business',
+        inApp: true,
+        email: true,
+      },
     ]);
     expect(saved.statusCode).toBe(200);
     expect(
@@ -277,6 +283,7 @@ describe('preferences', () => {
       ['stock_count_awaiting_approval', true, true],
       ['low_stock', false, false],
       ['follow_up_due', true, true],
+      ['support_access_requested', true, true],
     ]);
     const duplicate = await api(hydManager).put('/notifications/preferences', {
       preferences: [

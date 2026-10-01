@@ -7,6 +7,15 @@ export {
   percentToBasisPoints,
 } from './catalog.js';
 export { normalizeEmail, normalizePhone } from './contact.js';
+export {
+  FEATURE_FLAG_KEYS,
+  FEATURE_FLAGS,
+  PLAN_KEYS,
+  PLANS,
+  resolveFeatures,
+  type FeatureFlag,
+  type PlanKey,
+} from './plans.js';
 export { QUICK_ACTIONS, quickActions, type QuickAction } from './quick-actions.js';
 export {
   CsvError,

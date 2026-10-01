@@ -38,14 +38,27 @@ const timestamps = {
 };
 
 /** A paint business using the product (a tenant). */
+export const plan = pgEnum('plan', ['trial', 'standard', 'enterprise']);
+
 export const organizations = pgTable(
   'organizations',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull(),
+    /** Set by the platform (roadmap P1-M23); limits come from @paint/shared PLANS. */
+    plan: plan('plan').notNull().default('trial'),
+    /** Per-business overrides of the plan's features, e.g. {"loyalty": true}. */
+    featureFlags: jsonb('feature_flags').notNull().default({}),
+    /** A suspended business cannot sign in. */
+    suspendedAt: timestamp('suspended_at', { withTimezone: true }),
+    suspendReason: text('suspend_reason'),
     ...timestamps,
   },
   (table) => [
+    check(
+      'organizations_suspend_reason',
+      sql`(${table.suspendedAt} is null) = (${table.suspendReason} is null)`,
+    ),
     // Tenants can read and update their own organisation, but never create or
     // delete organisations: that is done by the platform, outside tenant scope.
     pgPolicy('organizations_tenant_select', {
@@ -198,6 +211,8 @@ export const organizationMembers = pgTable(
     roleId: uuid('role_id').notNull(),
     /** True for owners and admins: access to every store, including future ones. */
     allStores: boolean('all_stores').notNull().default(false),
+    /** The platform's support staff, here for an approved support grant; hidden from member lists. */
+    isSupport: boolean('is_support').notNull().default(false),
     isActive: boolean('is_active').notNull().default(true),
     ...timestamps,
   },
@@ -266,6 +281,8 @@ export const sessions = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    /** Set for the platform's support sessions; they end with their grant. */
+    supportGrantId: uuid('support_grant_id'),
   },
   (table) => [
     index('sessions_user_id_idx').on(table.userId),
@@ -1432,6 +1449,7 @@ export const notificationEvent = pgEnum('notification_event', [
   'stock_count_awaiting_approval',
   'low_stock',
   'follow_up_due',
+  'support_access_requested',
 ]);
 
 /** An in-app notification for one member. */
@@ -2030,6 +2048,105 @@ export const auditLog = pgTable(
     index('audit_log_organization_time_idx').on(table.organizationId, table.occurredAt),
     index('audit_log_record_idx').on(table.organizationId, table.tableName, table.recordId),
     pgPolicy('audit_log_tenant_read', {
+      for: 'select',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** The SaaS operator's own staff (roadmap P1-M23). Outside every tenant. */
+export const platformAdmins = pgTable('platform_admins', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  // Row-level security with no tenant policy: tenants can never see a row.
+}).enableRLS();
+
+/** Sign-ins to the platform console; separate from tenant sessions. */
+export const platformSessions = pgTable('platform_sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tokenHash: text('token_hash').notNull().unique(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+}).enableRLS();
+
+/**
+ * Access to a business for the platform's support staff: asked for with a
+ * reason, approved (or declined) by the business, time-limited, and ended
+ * early by either side.
+ */
+export const supportGrants = pgTable(
+  'support_grants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    platformUserId: uuid('platform_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    reason: text('reason').notNull(),
+    /** How long access lasts once approved. */
+    minutes: integer('minutes').notNull(),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+    decidedByMemberId: uuid('decided_by_member_id'),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    declinedAt: timestamp('declined_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('support_grants_organization_idx').on(table.organizationId, table.requestedAt),
+    foreignKey({
+      name: 'support_grants_decided_by_fk',
+      columns: [table.organizationId, table.decidedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('support_grants_minutes_range', sql`${table.minutes} between 15 and 480`),
+    check(
+      'support_grants_one_decision',
+      sql`not (${table.approvedAt} is not null and ${table.declinedAt} is not null)`,
+    ),
+    check(
+      'support_grants_expiry_when_approved',
+      sql`(${table.approvedAt} is null) = (${table.expiresAt} is null)`,
+    ),
+    pgPolicy('support_grants_tenant_read', {
+      for: 'select',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+    pgPolicy('support_grants_tenant_decide', {
+      for: 'update',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** Every request made with support access, for the business to review. */
+export const supportAccessLog = pgTable(
+  'support_access_log',
+  {
+    id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    organizationId: uuid('organization_id').notNull(),
+    grantId: uuid('grant_id')
+      .notNull()
+      .references(() => supportGrants.id, { onDelete: 'cascade' }),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+    method: text('method').notNull(),
+    path: text('path').notNull(),
+  },
+  (table) => [
+    index('support_access_log_grant_idx').on(table.grantId, table.occurredAt),
+    pgPolicy('support_access_log_tenant_read', {
       for: 'select',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

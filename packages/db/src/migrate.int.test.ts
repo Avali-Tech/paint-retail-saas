@@ -49,6 +49,8 @@ describe('migrateDatabase', () => {
       'otp_challenges',
       'parties',
       'party_roles',
+      'platform_admins',
+      'platform_sessions',
       'product_barcodes',
       'product_variants',
       'products',
@@ -67,6 +69,8 @@ describe('migrateDatabase', () => {
       'stores',
       'supplier_products',
       'supplier_profiles',
+      'support_access_log',
+      'support_grants',
       'transfer_lines',
       'transfers',
       'users',
@@ -139,8 +143,11 @@ describe('migrateDatabase', () => {
     expect(tables.filter((t) => !t.rls).map((t) => t.table_name)).toEqual([]);
     // With RLS on and no policy, the tenant role sees nothing: correct only for
     // tables that are used exclusively outside tenant scope.
-    expect(tables.filter((t) => t.policies === 0).map((t) => t.table_name)).toEqual([
-      'otp_challenges',
-    ]);
+    expect(
+      tables
+        .filter((t) => t.policies === 0)
+        .map((t) => t.table_name)
+        .sort(),
+    ).toEqual(['otp_challenges', 'platform_admins', 'platform_sessions']);
   });
 });

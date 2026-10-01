@@ -190,6 +190,20 @@
       "when": 1790864748461,
       "tag": "0026_search_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1790867555460,
+      "tag": "0027_platform",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1790867555981,
+      "tag": "0028_platform_access",
+      "breakpoints": true
     }
   ]
 }
