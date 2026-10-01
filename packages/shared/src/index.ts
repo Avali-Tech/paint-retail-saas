@@ -7,6 +7,15 @@ export {
   percentToBasisPoints,
 } from './catalog.js';
 export { normalizeEmail, normalizePhone } from './contact.js';
+export {
+  CsvError,
+  columnKey,
+  parseCsv,
+  readCsvTable,
+  toCsv,
+  type CsvRow,
+  type CsvTable,
+} from './csv.js';
 export { formatDocumentNumber } from './documents.js';
 export {
   assertPaise,
