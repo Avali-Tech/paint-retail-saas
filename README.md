@@ -145,6 +145,7 @@ Every route requires `Authorization: Bearer <token>` unless marked public.
 | GET                | `/activities/follow-ups?when=today`                                               | signed in                                                | My (or `assignedTo`) open follow-ups: `overdue`, `today`, `upcoming` or `open`, in India time, with badge counts                                      |
 | PATCH · POST       | `/activities/:id`, `/:id/complete`, `/:id/cancel`                                 | the record's manage permission                           | Reschedule or reassign; complete with an outcome and optionally schedule the next step; cancel                                                        |
 | GET                | `/parties/:id/overview`                                                           | `parties:read`                                           | Customer 360: the party with its leads, opportunities (open and won value), projects (with its roles there), activities, next follow-up and documents |
+| GET                | `/audit-log`                                                                      | `audit:read` (owners, admins)                            | Who changed what and when: filter by `table`, `recordId`, `actorMemberId`, `from`, `to`; old and new values ready to read                             |
 
 **Access model:** `User → Role → Permissions`, plus store access (`all stores` or a list). Permission
 keys and the standard roles live in `packages/shared/src/permissions.ts`. Routes declare
@@ -229,6 +230,13 @@ minutes of due (`follow_up_due`); rescheduling reminds again.
 **Customer 360** (roadmap P1-M06): `GET /parties/:id/overview` gathers everything linked to a party,
 counting all and listing the latest ten of each. Sections the member has no permission for come back
 as `null`, and leads, opportunities and projects are limited to the member's stores.
+
+**Audit log** (roadmap P1-M20): database triggers record every change to prices, roles and their
+permissions, members' roles, store access and active status, and stock adjustments, write-offs and
+count corrections, with the watched columns' old and new values. No code path can skip it, and the
+application can only read the log: it cannot add, edit or delete entries, and even the database owner
+cannot change or empty it. Each request runs as its member (`runAsMember`), so entries name who acted;
+background and setup work appears as system. Credit limits join the list with P1-M25.
 
 ## Database
 
