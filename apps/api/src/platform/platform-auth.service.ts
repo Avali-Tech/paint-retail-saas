@@ -9,7 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { schema, type DatabaseConnection } from '@paint/db';
-import { normalizeEmail, normalizePhone } from '@paint/shared';
+import { normalizeEmail, normalizePhone, type PendingSignIn } from '@paint/shared';
 import { and, count, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import {
   digestsEqual,
@@ -18,6 +18,7 @@ import {
   hashSessionToken,
   verifyPassword,
 } from '../auth/credentials.js';
+import { TwoFactorService, type Enrolment } from '../auth/two-factor.service.js';
 import { DATABASE } from '../database/database.module.js';
 import type { BootstrapInput, PlatformLoginInput } from './platform.schemas.js';
 
@@ -40,6 +41,11 @@ export interface PlatformSession {
   readonly expiresAt: string;
 }
 
+/** Operators always sign in with two factors: the password, then a code from their app. */
+export interface PlatformPending {
+  readonly twoFactor: PendingSignIn;
+}
+
 const SESSION_HOURS = 12;
 const INVALID = 'Wrong email, mobile number or password';
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
@@ -50,6 +56,7 @@ export class PlatformAuthService {
   constructor(
     @Inject(DATABASE) private readonly connection: DatabaseConnection,
     @Inject(PLATFORM_SETTINGS) private readonly settings: PlatformSettings,
+    @Inject(TwoFactorService) private readonly twoFactor: TwoFactorService,
   ) {}
 
   /** Creates the first operator, once, with the bootstrap token from the server's settings. */
@@ -82,7 +89,7 @@ export class PlatformAuthService {
     });
   }
 
-  async login(input: PlatformLoginInput): Promise<PlatformSession> {
+  async login(input: PlatformLoginInput): Promise<PlatformPending> {
     const email = normalizeEmail(input.identifier);
     const phone = normalizePhone(input.identifier);
     const [user] = await this.connection.db
@@ -101,8 +108,28 @@ export class PlatformAuthService {
     if (!user?.passwordHash || !(await verifyPassword(input.password, user.passwordHash))) {
       throw new UnauthorizedException(INVALID);
     }
-    const userId = user.id;
-    return this.connection.db.transaction((tx) => this.issue(tx, userId));
+    const enabled = (await this.twoFactor.status(user.id)).enabled;
+    return { twoFactor: await this.twoFactor.challenge(user.id, null, !enabled) };
+  }
+
+  /** Adds an authenticator app during an operator's first sign-in. */
+  async setUpTwoFactor(pendingToken: string): Promise<Enrolment> {
+    const { userId } = await this.twoFactor.pending(pendingToken);
+    return this.twoFactor.startEnrolment(
+      userId,
+      await this.twoFactor.accountLabel(userId),
+      'Paint Retail platform',
+    );
+  }
+
+  /** The second step for operators; recovery codes are returned when the app was just added. */
+  async completeTwoFactor(
+    pendingToken: string,
+    code: string,
+  ): Promise<PlatformSession & { recoveryCodes?: string[] }> {
+    const result = await this.twoFactor.completeChallenge(pendingToken, code, true);
+    const session = await this.connection.db.transaction((tx) => this.issue(tx, result.userId));
+    return { ...session, ...(result.recoveryCodes ? { recoveryCodes: result.recoveryCodes } : {}) };
   }
 
   async authenticate(token: string): Promise<Operator | null> {

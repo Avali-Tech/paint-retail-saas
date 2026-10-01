@@ -1,0 +1,345 @@
+import 'reflect-metadata';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { schema, withTenant, type DatabaseConnection, type Transaction } from '@paint/db';
+import { pointLots } from '@paint/shared';
+import { and, eq, inArray, sql, type AnyColumn } from 'drizzle-orm';
+import type { AuthContext } from '../auth/auth-context.js';
+import { todayInIndia } from '../contracts/contract-dates.js';
+import { DATABASE } from '../database/database.module.js';
+import { entriesOf, expireAccount } from '../loyalty/loyalty-lookups.js';
+import { PartiesService, type PartyView } from './parties.service.js';
+
+const {
+  activities,
+  creditProfiles,
+  creditRequests,
+  customerProfiles,
+  documents,
+  loyaltyAccounts,
+  loyaltyLedger,
+  parties,
+  supplierProfiles,
+} = schema;
+
+/** Records that simply move to the surviving party: table and column. */
+const MOVED: readonly (readonly [string, string])[] = [
+  ['leads', 'party_id'],
+  ['leads', 'referred_by_party_id'],
+  ['opportunities', 'party_id'],
+  ['projects', 'customer_party_id'],
+  ['contracts', 'party_id'],
+  ['purchase_orders', 'supplier_party_id'],
+  ['goods_receipts', 'supplier_party_id'],
+  ['credit_requests', 'party_id'],
+];
+
+/**
+ * Every column that references a party, and how a merge handles it. A guard
+ * test fails when a table references parties without being listed here.
+ */
+export const MERGE_HANDLED: readonly string[] = [
+  ...MOVED.map(([table, column]) => `${table}.${column}`),
+  // The survivor keeps its roles and gains the duplicate's.
+  'party_roles.party_id',
+  // One per party: the survivor's is kept; the duplicate's moves only if the survivor has none.
+  'customer_profiles.party_id',
+  'supplier_profiles.party_id',
+  // Moved unless the survivor already has the same row.
+  'supplier_products.supplier_party_id',
+  'project_parties.party_id',
+  // See creditProfile() and loyalty() below.
+  'credit_profiles.party_id',
+  'loyalty_accounts.party_id',
+];
+
+export interface MergeResult {
+  readonly party: PartyView;
+  /** Rows moved to the surviving party, by table and column. */
+  readonly moved: Record<string, number>;
+}
+
+/**
+ * Merges a duplicate party into a survivor (one transaction): every record
+ * that pointed at the duplicate points at the survivor, and the duplicate is
+ * deactivated with a marker to the survivor so old links still lead somewhere.
+ */
+@Injectable()
+export class PartyMergeService {
+  constructor(
+    @Inject(DATABASE) private readonly connection: DatabaseConnection,
+    @Inject(PartiesService) private readonly parties: PartiesService,
+  ) {}
+
+  async merge(auth: AuthContext, duplicateId: string, survivorId: string): Promise<MergeResult> {
+    // A party's records can be at any store, so only members who see every store merge.
+    if (!auth.allStores) {
+      throw new ForbiddenException('Only members who work at every store can merge parties');
+    }
+    if (duplicateId === survivorId) {
+      throw new BadRequestException('Choose another party to merge into');
+    }
+    const moved = await withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      // Locked in id order, so two merges of the same pair cannot deadlock.
+      const locked = await tx
+        .select()
+        .from(parties)
+        .where(inArray(parties.id, [duplicateId, survivorId]))
+        .orderBy(parties.id)
+        .for('update');
+      const duplicate = locked.find((row) => row.id === duplicateId);
+      const survivor = locked.find((row) => row.id === survivorId);
+      if (!duplicate) throw new NotFoundException('Party not found');
+      if (!survivor) throw new BadRequestException('Unknown party to merge into');
+      if (duplicate.mergedIntoId) {
+        throw new ConflictException('This party was already merged into another');
+      }
+      if (!survivor.isActive) throw new BadRequestException('Merge into an active party');
+
+      const counts: Record<string, number> = {};
+      await this.creditProfile(tx, duplicateId, survivorId, counts);
+      for (const [table, column] of MOVED) {
+        const moved = await tx.execute(
+          sql`update ${sql.identifier(table)} set ${sql.identifier(column)} = ${survivorId} where ${sql.identifier(column)} = ${duplicateId}`,
+        );
+        counts[`${table}.${column}`] = Number(moved.rowCount);
+      }
+      counts['party_roles.party_id'] = await this.roles(tx, auth, duplicateId, survivorId);
+      counts['customer_profiles.party_id'] = await this.onePerParty(
+        tx,
+        customerProfiles,
+        customerProfiles.partyId,
+        duplicateId,
+        survivorId,
+      );
+      counts['supplier_profiles.party_id'] = await this.onePerParty(
+        tx,
+        supplierProfiles,
+        supplierProfiles.partyId,
+        duplicateId,
+        survivorId,
+      );
+      counts['supplier_products.supplier_party_id'] = await this.unlessDuplicate(
+        tx,
+        duplicateId,
+        survivorId,
+        'supplier_products',
+        'supplier_party_id',
+        'variant_id',
+      );
+      counts['project_parties.party_id'] = await this.unlessDuplicate(
+        tx,
+        duplicateId,
+        survivorId,
+        'project_parties',
+        'party_id',
+        'project_id, role',
+      );
+      counts['loyalty_accounts.party_id'] = await this.loyalty(tx, auth, duplicateId, survivorId);
+      // Activities and documents about the party itself.
+      counts.activities = (
+        await tx
+          .update(activities)
+          .set({ recordId: survivorId })
+          .where(and(eq(activities.recordType, 'party'), eq(activities.recordId, duplicateId)))
+          .returning({ id: activities.id })
+      ).length;
+      counts.documents = (
+        await tx
+          .update(documents)
+          .set({ recordId: survivorId })
+          .where(and(eq(documents.recordType, 'party'), eq(documents.recordId, duplicateId)))
+          .returning({ id: documents.id })
+      ).length;
+
+      await tx
+        .update(parties)
+        .set({
+          isActive: false,
+          mergedIntoId: survivorId,
+          mergedAt: sql`now()`,
+          mergedByMemberId: auth.memberId,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(parties.id, duplicateId));
+      return counts;
+    });
+    return { party: await this.parties.get(auth, survivorId), moved };
+  }
+
+  // Helpers -----------------------------------------------------------------
+
+  /**
+   * Credit: refused when both parties have a request waiting, or both have a
+   * profile and the duplicate's gives credit (merge the other way, or end one's
+   * credit first). The duplicate's profile moves when the survivor has none; a
+   * duplicate profile without credit stays with the duplicate.
+   */
+  private async creditProfile(
+    tx: Transaction,
+    duplicateId: string,
+    survivorId: string,
+    counts: Record<string, number>,
+  ): Promise<void> {
+    const pending = await tx
+      .select({ partyId: creditRequests.partyId })
+      .from(creditRequests)
+      .where(
+        and(
+          inArray(creditRequests.partyId, [duplicateId, survivorId]),
+          eq(creditRequests.status, 'pending'),
+        ),
+      );
+    if (pending.length === 2) {
+      throw new ConflictException('Both parties have a credit request waiting; decide one first');
+    }
+    const profiles = await tx
+      .select({ partyId: creditProfiles.partyId, status: creditProfiles.status })
+      .from(creditProfiles)
+      .where(inArray(creditProfiles.partyId, [duplicateId, survivorId]));
+    const duplicate = profiles.find((row) => row.partyId === duplicateId);
+    const survivor = profiles.find((row) => row.partyId === survivorId);
+    if (duplicate && survivor && duplicate.status !== 'none') {
+      throw new ConflictException(
+        'Both parties have a credit profile; merge the other way or end one’s credit first',
+      );
+    }
+    counts['credit_profiles.party_id'] =
+      duplicate && !survivor
+        ? (
+            await tx
+              .update(creditProfiles)
+              .set({ partyId: survivorId, updatedAt: sql`now()` })
+              .where(eq(creditProfiles.partyId, duplicateId))
+              .returning({ id: creditProfiles.id })
+          ).length
+        : 0;
+  }
+
+  /** The survivor gains the duplicate's roles; the duplicate keeps them for its history. */
+  private async roles(
+    tx: Transaction,
+    auth: AuthContext,
+    duplicateId: string,
+    survivorId: string,
+  ): Promise<number> {
+    const added = await tx.execute(sql`
+      insert into party_roles (organization_id, party_id, role)
+      select ${auth.organization.id}, ${survivorId}, r.role from party_roles r where r.party_id = ${duplicateId}
+      on conflict do nothing`);
+    return Number(added.rowCount);
+  }
+
+  /** Moves the duplicate's one-per-party row when the survivor has none. */
+  private async onePerParty(
+    tx: Transaction,
+    table: typeof customerProfiles | typeof supplierProfiles,
+    column: AnyColumn,
+    duplicateId: string,
+    survivorId: string,
+  ): Promise<number> {
+    const [survivorRow] = await tx
+      .select({ one: sql`1` })
+      .from(table)
+      .where(eq(column, survivorId));
+    if (survivorRow) return 0;
+    return (
+      await tx
+        .update(table)
+        .set({ partyId: survivorId })
+        .where(eq(column, duplicateId))
+        .returning({ one: sql`1` })
+    ).length;
+  }
+
+  /** Moves the duplicate's rows unless the survivor already has the same one (same `match`). */
+  private async unlessDuplicate(
+    tx: Transaction,
+    duplicateId: string,
+    survivorId: string,
+    table: 'supplier_products' | 'project_parties',
+    column: string,
+    match: string,
+  ): Promise<number> {
+    // Names come only from the constants above; the ids are parameters.
+    const same = sql.raw(
+      match
+        .split(', ')
+        .map((key) => `s.${key} = d.${key}`)
+        .join(' and '),
+    );
+    const name = sql.identifier(table);
+    const party = sql.identifier(column);
+    const result = await tx.execute(sql`
+      update ${name} d set ${party} = ${survivorId}
+      where d.${party} = ${duplicateId}
+        and not exists (select 1 from ${name} s where s.${party} = ${survivorId} and ${same})`);
+    return Number(result.rowCount);
+  }
+
+  /**
+   * Loyalty: the duplicate's account moves when the survivor has none.
+   * Otherwise its unused points move as adjustments (the ledger is append-only),
+   * each lot keeping its expiry date, and the duplicate's account is closed.
+   */
+  private async loyalty(
+    tx: Transaction,
+    auth: AuthContext,
+    duplicateId: string,
+    survivorId: string,
+  ): Promise<number> {
+    const accounts = await tx
+      .select({ id: loyaltyAccounts.id, partyId: loyaltyAccounts.partyId })
+      .from(loyaltyAccounts)
+      .where(inArray(loyaltyAccounts.partyId, [duplicateId, survivorId]))
+      .for('update');
+    const duplicate = accounts.find((row) => row.partyId === duplicateId);
+    const survivor = accounts.find((row) => row.partyId === survivorId);
+    if (!duplicate) return 0;
+    if (!survivor) {
+      await tx
+        .update(loyaltyAccounts)
+        .set({ partyId: survivorId, updatedAt: sql`now()` })
+        .where(eq(loyaltyAccounts.id, duplicate.id));
+      return 1;
+    }
+    const organizationId = auth.organization.id;
+    const today = todayInIndia();
+    await expireAccount(tx, organizationId, duplicate.id, today);
+    const { unused } = pointLots(await entriesOf(tx, organizationId, duplicate.id), today);
+    const total = unused.reduce((sum, lot) => sum + lot.points, 0);
+    if (total > 0) {
+      const note = 'Moved when duplicate parties were merged';
+      await tx.insert(loyaltyLedger).values([
+        {
+          organizationId,
+          accountId: duplicate.id,
+          kind: 'adjust',
+          points: -total,
+          note,
+          createdByMemberId: auth.memberId,
+        },
+        ...unused.map((lot) => ({
+          organizationId,
+          accountId: survivor.id,
+          kind: 'adjust' as const,
+          points: lot.points,
+          expiresOn: lot.expiresOn,
+          note,
+          createdByMemberId: auth.memberId,
+        })),
+      ]);
+    }
+    await tx
+      .update(loyaltyAccounts)
+      .set({ status: 'closed', updatedAt: sql`now()` })
+      .where(eq(loyaltyAccounts.id, duplicate.id));
+    return 0;
+  }
+}

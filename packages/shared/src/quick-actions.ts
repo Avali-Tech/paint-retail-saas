@@ -40,6 +40,22 @@ export const QUICK_ACTIONS: readonly QuickAction[] = [
     keywords: ['site', 'add'],
   },
   {
+    key: 'new_credit_request',
+    label: '+ Credit request',
+    path: '/credit-requests/new',
+    shortcut: 'N K',
+    anyOf: ['credit:manage'],
+    keywords: ['limit', 'udhaar', 'credit days', 'approval'],
+  },
+  {
+    key: 'new_loyalty_account',
+    label: '+ Loyalty',
+    path: '/loyalty/new',
+    shortcut: 'N Y',
+    anyOf: ['loyalty:manage'],
+    keywords: ['points', 'reward', 'enrol', 'painter'],
+  },
+  {
     key: 'new_transfer',
     label: '+ Transfer',
     path: '/transfers/new',

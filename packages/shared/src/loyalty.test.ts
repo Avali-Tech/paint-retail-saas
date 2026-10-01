@@ -66,7 +66,11 @@ describe('pointLots', () => {
         ],
         today,
       ),
-    ).toEqual({ expired: 100, nextExpiry: { points: 50, expiresOn: '2026-10-01' } });
+    ).toEqual({
+      expired: 100,
+      nextExpiry: { points: 50, expiresOn: '2026-10-01' },
+      unused: [{ points: 50, expiresOn: '2026-10-01' }],
+    });
   });
 
   it('uses the soonest-expiring points first, whatever order they were earned in', () => {
@@ -79,6 +83,7 @@ describe('pointLots', () => {
     expect(pointLots(entries, today)).toEqual({
       expired: 0,
       nextExpiry: { points: 50, expiresOn: '2027-03-01' },
+      unused: [{ points: 50, expiresOn: '2027-03-01' }],
     });
   });
 
@@ -95,6 +100,7 @@ describe('pointLots', () => {
     expect(pointLots([...entries, { points: -200, expiresOn: null }], today)).toEqual({
       expired: 0,
       nextExpiry: null,
+      unused: [],
     });
   });
 
@@ -105,7 +111,11 @@ describe('pointLots', () => {
       { points: -120, expiresOn: null },
     ];
 
-    expect(pointLots(entries, today)).toEqual({ expired: 0, nextExpiry: null });
+    expect(pointLots(entries, today)).toEqual({
+      expired: 0,
+      nextExpiry: null,
+      unused: [{ points: 80, expiresOn: null }],
+    });
     expect(pointLots([{ points: 100, expiresOn: null }], today).expired).toBe(0);
   });
 

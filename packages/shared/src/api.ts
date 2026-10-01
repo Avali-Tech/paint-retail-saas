@@ -14,6 +14,21 @@ export interface SessionGrant {
   readonly organizationId: string;
 }
 
+/** The second step of a sign-in, when two-factor sign-in applies. */
+export interface PendingSignIn {
+  /** Send with the code to POST /auth/2fa/verify (or /platform/login/2fa); lasts 5 minutes. */
+  readonly pendingToken: string;
+  readonly expiresAt: string;
+  /** True when the person must first add an authenticator app (POST …/2fa/setup). */
+  readonly setupRequired: boolean;
+}
+
+/** POST /auth/login and /auth/otp/verify: a session, or the two-factor step first. */
+export type SignInResult = SessionGrant | { readonly twoFactor: PendingSignIn };
+
+/** POST /auth/2fa/verify: the session, plus recovery codes when an app was just added. */
+export type TwoFactorSignIn = SessionGrant & { readonly recoveryCodes?: string[] };
+
 /** GET /auth/me. */
 export interface AuthProfile {
   readonly user: {
@@ -98,6 +113,11 @@ export interface SearchResults {
   readonly opportunities: SearchHit[] | null;
   readonly projects: SearchHit[] | null;
   readonly contracts: SearchHit[] | null;
+  /**
+   * Parties with loyalty accounts, by name or mobile number, with their points.
+   * Always sent by the API; optional only until the web app shows it.
+   */
+  readonly loyalty?: SearchHit[] | null;
   /** Transfers, purchase orders, goods receipts and stock counts found by number. */
   readonly documents: SearchHit[];
 }

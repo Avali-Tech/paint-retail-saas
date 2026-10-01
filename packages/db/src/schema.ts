@@ -52,6 +52,8 @@ export const organizations = pgTable(
     /** A suspended business cannot sign in. */
     suspendedAt: timestamp('suspended_at', { withTimezone: true }),
     suspendReason: text('suspend_reason'),
+    /** Owners and organization admins must use two-factor sign-in (TOTP). */
+    twoFactorRequired: boolean('two_factor_required').notNull().default(true),
     ...timestamps,
   },
   (table) => [
@@ -214,6 +216,8 @@ export const organizationMembers = pgTable(
     /** The platform's support staff, here for an approved support grant; hidden from member lists. */
     isSupport: boolean('is_support').notNull().default(false),
     isActive: boolean('is_active').notNull().default(true),
+    /** When an owner last reset this member's two-factor sign-in (audited). */
+    twoFactorResetAt: timestamp('two_factor_reset_at', { withTimezone: true }),
     ...timestamps,
   },
   (table) => [
@@ -313,6 +317,62 @@ export const otpChallenges = pgTable(
   (table) => [index('otp_challenges_phone_created_at_idx').on(table.phone, table.createdAt)],
 ).enableRLS();
 
+/**
+ * A person's authenticator app (TOTP, RFC 6238). Belongs to the person, so it
+ * covers every business they work for and the platform console. The secret is
+ * encrypted (AES-256-GCM); it counts only once confirmed with a code.
+ */
+export const userTotp = pgTable('user_totp', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  secretCiphertext: text('secret_ciphertext').notNull(),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  /** The last time step accepted, so a code cannot be used twice. */
+  lastUsedStep: bigint('last_used_step', { mode: 'bigint' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  // Row-level security with no tenant policy: only sign-in code reads it.
+}).enableRLS();
+
+/** One-time recovery codes for a lost phone; stored as keyed hashes. */
+export const userRecoveryCodes = pgTable(
+  'user_recovery_codes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    codeHash: text('code_hash').notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique('user_recovery_codes_unique').on(table.userId, table.codeHash)],
+).enableRLS();
+
+/**
+ * The second step of a sign-in: issued after the password or SMS code, it
+ * becomes a session once a TOTP or recovery code is given. Short-lived, with a
+ * limited number of tries. No organisation = the platform console.
+ */
+export const twoFactorChallenges = pgTable(
+  'two_factor_challenges',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tokenHash: text('token_hash').notNull().unique(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
+    attempts: integer('attempts').notNull().default(0),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check('two_factor_challenges_attempts', sql`${table.attempts} >= 0`)],
+).enableRLS();
+
 /** Whether a party is an individual or a business. */
 export const partyKind = pgEnum('party_kind', ['person', 'organization']);
 
@@ -372,6 +432,10 @@ export const parties = pgTable(
       .notNull()
       .default(sql`'{}'::text[]`),
     isActive: boolean('is_active').notNull().default(true),
+    /** Set when this party was a duplicate merged into another; old links lead there. */
+    mergedIntoId: uuid('merged_into_id'),
+    mergedAt: timestamp('merged_at', { withTimezone: true }),
+    mergedByMemberId: uuid('merged_by_member_id'),
     ...timestamps,
   },
   (table) => [
@@ -394,6 +458,22 @@ export const parties = pgTable(
     ),
     check('parties_pan_format', sql`${table.pan} ~ '^[A-Z]{5}[0-9]{4}[A-Z]$'`),
     check('parties_pincode_format', sql`${table.pincode} ~ '^[1-9][0-9]{5}$'`),
+    foreignKey({
+      name: 'parties_merged_into_fk',
+      columns: [table.organizationId, table.mergedIntoId],
+      foreignColumns: [table.organizationId, table.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'parties_merged_by_fk',
+      columns: [table.organizationId, table.mergedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'parties_merge_complete',
+      sql`(${table.mergedIntoId} is null) = (${table.mergedAt} is null) and (${table.mergedAt} is null) = (${table.mergedByMemberId} is null)`,
+    ),
+    check('parties_not_merged_into_self', sql`${table.mergedIntoId} <> ${table.id}`),
+    check('parties_merged_inactive', sql`${table.mergedIntoId} is null or not ${table.isActive}`),
     pgPolicy('parties_tenant_isolation', {
       for: 'all',
       to: tenantRole,

@@ -81,6 +81,9 @@ describe('migrateDatabase', () => {
       'support_grants',
       'transfer_lines',
       'transfers',
+      'two_factor_challenges',
+      'user_recovery_codes',
+      'user_totp',
       'users',
     ]);
 
@@ -156,6 +159,13 @@ describe('migrateDatabase', () => {
         .filter((t) => t.policies === 0)
         .map((t) => t.table_name)
         .sort(),
-    ).toEqual(['otp_challenges', 'platform_admins', 'platform_sessions']);
+    ).toEqual([
+      'otp_challenges',
+      'platform_admins',
+      'platform_sessions',
+      'two_factor_challenges',
+      'user_recovery_codes',
+      'user_totp',
+    ]);
   });
 });

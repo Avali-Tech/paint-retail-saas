@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { AuthService } from './auth.service.js';
 import { authSettingsFrom } from './auth.tokens.js';
 import { DisabledSmsSender } from './sms.js';
+import { TwoFactorService } from './two-factor.service.js';
 
 const failingConnection = (error: unknown) =>
   ({
@@ -10,11 +11,17 @@ const failingConnection = (error: unknown) =>
     close: () => Promise.resolve(),
   }) as unknown as DatabaseConnection;
 
+const settings = authSettingsFrom({
+  authSecret: 's'.repeat(32),
+  sessionTtlDays: 30,
+  signupPlan: 'trial',
+});
 const service = (connection: DatabaseConnection) =>
   new AuthService(
     connection,
     new DisabledSmsSender(),
-    authSettingsFrom({ authSecret: 's'.repeat(32), sessionTtlDays: 30, signupPlan: 'trial' }),
+    settings,
+    new TwoFactorService(connection, settings),
   );
 
 const signupInput = {
