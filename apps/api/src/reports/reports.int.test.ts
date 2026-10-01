@@ -90,9 +90,18 @@ describe('stock reports', () => {
   it('lists the stock ledger, filtered by movement type and India-time days', async () => {
     const all = await report('stock-ledger', 'limit=500');
     const damage = await report('stock-ledger', 'movementType=damage');
-    const today = await report('stock-ledger', `from=${istDate(0)}&to=${istDate(0)}`);
-    const tomorrow = await report('stock-ledger', `from=${istDate(1)}`);
-    const before = await report('stock-ledger', `to=${istDate(-1)}`);
+    // The India-time days the entries were made on, read back from the report
+    // itself, so a run that crosses midnight still checks the right days.
+    const days = column(all, 'at')
+      .map((at) => String(at).slice(0, 10))
+      .sort();
+    const first = String(days[0]);
+    const last = String(days.at(-1));
+    const shift = (day: string, by: number) =>
+      new Date(Date.parse(`${day}T00:00:00Z`) + by * 86_400_000).toISOString().slice(0, 10);
+    const today = await report('stock-ledger', `from=${first}&to=${last}`);
+    const tomorrow = await report('stock-ledger', `from=${shift(last, 1)}`);
+    const before = await report('stock-ledger', `to=${shift(first, -1)}`);
 
     expect(all.total).toBe(all.rows.length);
     expect(damage.rows).toEqual([

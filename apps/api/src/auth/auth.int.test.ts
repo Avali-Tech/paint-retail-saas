@@ -26,6 +26,15 @@ afterAll(async () => {
   await database.stop();
 });
 
+/** A promise that settles when `resolve` is called. */
+function signal() {
+  let settle: ((value: undefined) => void) | undefined;
+  const promise = new Promise<undefined>((resolve) => {
+    settle = resolve;
+  });
+  return { promise, resolve: () => settle?.(undefined) };
+}
+
 interface Grant {
   token: string;
   expiresAt: string;
@@ -396,9 +405,30 @@ describe('OTP sign-in', () => {
     const { phone } = await signup();
     await requestOtp(phone);
     const code = t.sms.lastCodeFor(phone);
+    // Hold a lock on the code so both requests check it, then queue to use it
+    // up; only then let them go. Without this the second request may simply
+    // arrive late and never reach the race.
+    const gate = signal();
+    const locked = signal();
+    const holder = t.connection.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT 1 FROM otp_challenges WHERE phone = ${phone} FOR UPDATE`);
+      locked.resolve();
+      await gate.promise;
+    });
+    await locked.promise;
 
-    const results = await Promise.all([verifyOtp({ phone, code }), verifyOtp({ phone, code })]);
-    const statuses = results.map((r) => r.statusCode).sort();
+    const racing = Promise.all([verifyOtp({ phone, code }), verifyOtp({ phone, code })]);
+    for (;;) {
+      const waiting = await t.connection.db.execute<{ count: number }>(
+        sql`SELECT count(*)::int AS count FROM pg_stat_activity
+            WHERE wait_event_type = 'Lock' AND query LIKE 'update "otp_challenges"%'`,
+      );
+      if (waiting.rows[0]?.count === 2) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    gate.resolve();
+    await holder;
+    const statuses = (await racing).map((r) => r.statusCode).sort();
 
     expect(statuses).toEqual([200, 401]);
     expect((await verifyOtp({ phone, code })).statusCode).toBe(401);
