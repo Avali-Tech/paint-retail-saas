@@ -1,0 +1,77 @@
+import { QueryClient } from '@tanstack/react-query';
+import { createContext, use, type ReactNode } from 'react';
+import { createApiClient } from '../api/client.js';
+import { endpoints, type Endpoints } from '../api/endpoints.js';
+import { ApiError } from '../api/errors.js';
+import { createSessionStore, type SessionStore } from '../auth/session-store.js';
+import { localBrandingSource, type BrandingSource } from '../theme/branding-source.js';
+
+/** Everything the app talks to, created once at start-up (tests pass fakes). */
+export interface Services {
+  readonly sessions: SessionStore;
+  readonly api: Endpoints;
+  readonly branding: BrandingSource;
+  readonly queryClient: QueryClient;
+}
+
+export interface ServiceOptions {
+  readonly fetch: typeof fetch;
+  readonly storage: Storage;
+  /** Where the API is reached from the browser; "/api" is proxied to it (see vite.config.ts). */
+  readonly apiBaseUrl: string;
+}
+
+/** Retry only problems that may go away: the network or a server error, at most twice. */
+export function shouldRetry(failureCount: number, error: unknown): boolean {
+  const transient = !(error instanceof ApiError) || error.status === 0 || error.status >= 500;
+  return transient && failureCount < 2;
+}
+
+export function createQueryClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: shouldRetry, staleTime: 30_000 },
+      mutations: { retry: false },
+    },
+  });
+}
+
+export function createServices(options: ServiceOptions): Services {
+  const sessions = createSessionStore(options.storage);
+  const client = createApiClient({
+    baseUrl: options.apiBaseUrl,
+    fetch: options.fetch,
+    getToken: () => sessions.getToken(),
+    onUnauthorized: () => {
+      sessions.end('expired');
+    },
+  });
+  return {
+    sessions,
+    api: endpoints(client),
+    branding: localBrandingSource(options.storage),
+    queryClient: createQueryClient(),
+  };
+}
+
+const ServicesContext = createContext<Services | null>(null);
+
+export function ServicesProvider({
+  services,
+  children,
+}: {
+  readonly services: Services;
+  readonly children: ReactNode;
+}) {
+  return <ServicesContext value={services}>{children}</ServicesContext>;
+}
+
+export function useServices(): Services {
+  const services = use(ServicesContext);
+  if (!services) throw new Error('useServices must be used inside <ServicesProvider>');
+  return services;
+}
+
+export function useApi(): Endpoints {
+  return useServices().api;
+}

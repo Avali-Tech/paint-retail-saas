@@ -42,3 +42,34 @@ jobs:
           name: coverage
           path: coverage/
           retention-days: 7
+
+  e2e:
+    name: End-to-end (browser, real API and PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @paint/web exec playwright install --with-deps chromium
+
+      # Builds the API and the web app, then starts PostgreSQL (Testcontainers),
+      # the built API and `vite preview`, and runs Playwright against them.
+      - run: pnpm test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 7

@@ -3,7 +3,11 @@ import { defineConfig } from 'vitest/config';
 // Test layout (applies to every app and package):
 //   src/**/*.test.ts      -> unit tests: pure logic, no network, no database
 //   src/**/*.int.test.ts  -> integration tests: real PostgreSQL in Docker (Testcontainers)
-// Coverage is measured across both suites and must stay at 100%.
+//   apps/web, packages/ui -> component tests (*.test.ts, *.test.tsx) in a browser-like DOM (jsdom)
+//   apps/web/e2e          -> end-to-end tests with Playwright against the real API (pnpm test:e2e)
+// Coverage is measured across the suites and must stay at 100%.
+const DOM_PACKAGES = ['apps/web/src/**', 'packages/ui/src/**'];
+
 export default defineConfig({
   test: {
     projects: [
@@ -12,7 +16,17 @@ export default defineConfig({
         test: {
           name: 'unit',
           include: ['{apps,packages}/*/src/**/*.test.ts'],
+          exclude: ['**/*.int.test.ts', '**/node_modules/**', ...DOM_PACKAGES],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'web',
+          include: DOM_PACKAGES.map((folder) => `${folder}/*.test.{ts,tsx}`),
           exclude: ['**/*.int.test.ts', '**/node_modules/**'],
+          environment: 'jsdom',
+          setupFiles: ['./vitest.dom-setup.ts'],
         },
       },
       {
@@ -28,15 +42,16 @@ export default defineConfig({
     ],
     coverage: {
       provider: 'v8',
-      include: ['{apps,packages}/*/src/**/*.ts'],
+      include: ['{apps,packages}/*/src/**/*.{ts,tsx}'],
       exclude: [
-        '**/*.test.ts',
+        '**/*.test.{ts,tsx}',
         '**/*.d.ts',
         // Fixtures and helpers used only by tests.
         '**/test-support/**',
         // Entry shims: they only call tested code and run outside the coverage process.
         'packages/testing/src/vitest-global-setup.ts',
         'apps/api/src/main.ts',
+        'apps/web/src/main.tsx',
       ],
       reporter: ['text', 'html', 'lcov'],
       thresholds: {
