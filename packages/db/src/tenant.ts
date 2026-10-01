@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { currentActor } from './actor.js';
 import type { Database, Transaction } from './client.js';
 
 /** The transaction handle passed to work inside withTenant. */
@@ -42,5 +43,10 @@ export async function withTenant<T>(
 export async function enterTenantScope(tx: Transaction, organizationId: string): Promise<void> {
   assertOrganizationId(organizationId);
   await tx.execute(sql`select set_config('app.current_organization_id', ${organizationId}, true)`);
+  // Recorded by audit triggers as who made the change.
+  const memberId = currentActor();
+  if (memberId) {
+    await tx.execute(sql`select set_config('app.current_member_id', ${memberId}, true)`);
+  }
   await tx.execute(sql`set local role app_tenant`);
 }

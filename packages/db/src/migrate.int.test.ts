@@ -29,6 +29,7 @@ describe('migrateDatabase', () => {
     });
     expect(tables).toEqual([
       'activities',
+      'audit_log',
       'brands',
       'categories',
       'customer_profiles',

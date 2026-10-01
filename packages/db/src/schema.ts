@@ -7,6 +7,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgPolicy,
@@ -1998,6 +1999,40 @@ export const activities = pgTable(
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,
       withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const auditAction = pgEnum('audit_action', ['insert', 'update', 'delete']);
+
+/**
+ * Who changed what and when, with old and new values (roadmap P1-M20).
+ * Written only by the audit_row_change() trigger on sensitive tables, never by
+ * the application, and never changed afterwards.
+ */
+export const auditLog = pgTable(
+  'audit_log',
+  {
+    id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    organizationId: uuid('organization_id').notNull(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+    /** The signed-in member who made the change; null for system work. */
+    actorMemberId: uuid('actor_member_id'),
+    tableName: text('table_name').notNull(),
+    recordId: text('record_id').notNull(),
+    action: auditAction('action').notNull(),
+    /** The watched columns before the change (null for inserts). */
+    oldValues: jsonb('old_values'),
+    /** The watched columns after the change (null for deletes). */
+    newValues: jsonb('new_values'),
+  },
+  (table) => [
+    index('audit_log_organization_time_idx').on(table.organizationId, table.occurredAt),
+    index('audit_log_record_idx').on(table.organizationId, table.tableName, table.recordId),
+    pgPolicy('audit_log_tenant_read', {
+      for: 'select',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
     }),
   ],
 ).enableRLS();

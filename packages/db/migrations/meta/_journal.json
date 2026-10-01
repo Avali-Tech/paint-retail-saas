@@ -169,6 +169,20 @@
       "when": 1790861079699,
       "tag": "0023_activities",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790863539943,
+      "tag": "0024_audit_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790863540366,
+      "tag": "0025_audit_triggers",
+      "breakpoints": true
     }
   ]
 }

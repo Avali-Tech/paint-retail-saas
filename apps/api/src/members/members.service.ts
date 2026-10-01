@@ -17,7 +17,7 @@ import {
   type Transaction,
 } from '@paint/db';
 import { isPermission, type Permission } from '@paint/shared';
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { hashPassword } from '../auth/credentials.js';
 import { DATABASE } from '../database/database.module.js';
@@ -307,11 +307,17 @@ export class MembersService {
     memberId: string,
     storeIds: readonly string[],
   ): Promise<void> {
-    await tx.delete(memberStores).where(eq(memberStores.memberId, memberId));
+    // Only the difference, so the audit log shows exactly which stores changed.
+    await tx
+      .delete(memberStores)
+      .where(
+        and(eq(memberStores.memberId, memberId), notInArray(memberStores.storeId, [...storeIds])),
+      );
     if (storeIds.length > 0) {
       await tx
         .insert(memberStores)
-        .values(storeIds.map((storeId) => ({ organizationId, memberId, storeId })));
+        .values(storeIds.map((storeId) => ({ organizationId, memberId, storeId })))
+        .onConflictDoNothing();
     }
   }
 }

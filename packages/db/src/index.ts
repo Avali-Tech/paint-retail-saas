@@ -1,3 +1,4 @@
+export { currentActor, runAsMember } from './actor.js';
 export {
   createDatabase,
   type Database,
