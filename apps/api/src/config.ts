@@ -6,6 +6,7 @@ export const LOG_LEVELS = ['fatal', 'error', 'warn', 'log', 'debug', 'verbose'] 
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
 export const SMS_PROVIDERS = ['disabled', 'log'] as const;
+export const EMAIL_PROVIDERS = ['disabled', 'smtp'] as const;
 export type SmsProvider = (typeof SMS_PROVIDERS)[number];
 
 const environmentSchema = z
@@ -29,6 +30,15 @@ const environmentSchema = z
     /** ClamAV daemon that scans every upload; required with STORAGE_BUCKET. */
     CLAMAV_HOST: z.string().min(1).optional(),
     CLAMAV_PORT: z.coerce.number().int().min(1).max(65_535).default(3310),
+    /** The web app's address, for links in emails. */
+    APP_URL: z.url({ protocol: /^https?$/ }).default('http://localhost:5173'),
+    /** "smtp" sends notification emails (Amazon SES's SMTP endpoint in production). */
+    EMAIL_PROVIDER: z.enum(EMAIL_PROVIDERS).default('disabled'),
+    /** smtp://user:password@host:port (smtps:// for TLS from the start). */
+    SMTP_URL: z.url({ protocol: /^smtps?$/ }).optional(),
+    EMAIL_FROM: z.string().min(3).optional(),
+    /** How often the background worker sends email and checks stock; 0 turns it off. */
+    WORKER_INTERVAL_SECONDS: z.coerce.number().int().min(0).max(3600).default(60),
   })
   .refine((env) => !(env.NODE_ENV === 'production' && env.SMS_PROVIDER === 'log'), {
     path: ['SMS_PROVIDER'],
@@ -42,6 +52,12 @@ const environmentSchema = z
     path: ['CLAMAV_HOST'],
     message: 'is required to scan uploads when STORAGE_BUCKET is set',
   })
+  .refine(
+    (env) =>
+      env.EMAIL_PROVIDER === 'disabled' ||
+      (env.SMTP_URL !== undefined && env.EMAIL_FROM !== undefined),
+    { path: ['SMTP_URL'], message: 'SMTP_URL and EMAIL_FROM are required to send email' },
+  )
   .refine(
     (env) =>
       (env.STORAGE_ACCESS_KEY_ID === undefined) === (env.STORAGE_SECRET_ACCESS_KEY === undefined),
@@ -63,6 +79,12 @@ export interface AppConfig {
   readonly smsProvider: SmsProvider;
   /** Where documents are stored and scanned; null when uploads are off. */
   readonly documents: DocumentsConfig | null;
+  /** The web app's address, for links in emails. */
+  readonly appUrl: string;
+  /** How notification emails are sent; null when email is off. */
+  readonly email: { readonly smtpUrl: string; readonly from: string } | null;
+  /** Seconds between background worker runs; 0 = off. */
+  readonly workerIntervalSeconds: number;
 }
 
 export interface DocumentsConfig {
@@ -116,5 +138,12 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
             // Required with STORAGE_BUCKET (checked above).
             clamav: { host: String(data.CLAMAV_HOST), port: data.CLAMAV_PORT },
           },
+    appUrl: data.APP_URL.replace(/\/$/, ''),
+    // Both are required with EMAIL_PROVIDER=smtp (checked above).
+    email:
+      data.EMAIL_PROVIDER === 'smtp'
+        ? { smtpUrl: String(data.SMTP_URL), from: String(data.EMAIL_FROM) }
+        : null,
+    workerIntervalSeconds: data.WORKER_INTERVAL_SECONDS,
   };
 }

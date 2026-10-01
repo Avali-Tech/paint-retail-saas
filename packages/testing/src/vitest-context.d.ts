@@ -8,5 +8,9 @@ declare module 'vitest' {
     objectStorageEndpoint: string;
     /** host:port of the ClamAV daemon started for the run. */
     virusScannerAddress: string;
+    /** smtp:// URL of the mail catcher started for the run. */
+    mailSmtpUrl: string;
+    /** http:// URL of the mail catcher's API. */
+    mailApiUrl: string;
   }
 }

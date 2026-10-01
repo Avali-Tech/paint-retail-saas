@@ -22,6 +22,7 @@ import { and, count, desc, eq, inArray, or, sql, type AnyColumn, type SQL } from
 import { alias, type PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
+import { Notifier } from '../notifications/notifier.js';
 import type {
   CreateTransferInput,
   ListTransfersQuery,
@@ -158,7 +159,10 @@ const EVERY_LINE = 'List every product on the transfer, exactly once';
 
 @Injectable()
 export class TransfersService {
-  constructor(@Inject(DATABASE) private readonly connection: DatabaseConnection) {}
+  constructor(
+    @Inject(DATABASE) private readonly connection: DatabaseConnection,
+    @Inject(Notifier) private readonly notifier: Notifier,
+  ) {}
 
   /** The receiving store asks another store for stock. */
   create(auth: AuthContext, input: CreateTransferInput): Promise<TransferView> {
@@ -204,7 +208,18 @@ export class TransfersService {
           requestedQuantity: line.quantity,
         })),
       );
-      return this.view(tx, auth, id);
+      const view = await this.view(tx, auth, id);
+      await this.notifier.notify(tx, {
+        organizationId,
+        event: 'transfer_awaiting_approval',
+        storeId: input.fromStoreId,
+        permission: 'inventory:manage',
+        actorMemberId: auth.memberId,
+        title: `Transfer ${number} needs your approval`,
+        body: `${view.to.name} has asked ${view.from.name} for ${String(view.lines.length)} product(s).`,
+        link: `/transfers/${id}`,
+      });
+      return view;
     });
   }
 
@@ -343,6 +358,17 @@ export class TransfersService {
             quantity: -quantity,
           })),
         );
+        const { from, to } = await this.load(tx, auth, transfer.id);
+        await this.notifier.notify(tx, {
+          organizationId: auth.organization.id,
+          event: 'transfer_awaiting_receipt',
+          storeId: transfer.toStoreId,
+          permission: 'inventory:manage',
+          actorMemberId: auth.memberId,
+          title: `Transfer ${transfer.number} is on its way`,
+          body: `${from.name} has dispatched ${String(sending.length)} product(s) to ${to.name}. Record what arrives.`,
+          link: `/transfers/${transfer.id}`,
+        });
         return { dispatchedByMemberId: auth.memberId, dispatchedAt: sql`now()` };
       },
     );

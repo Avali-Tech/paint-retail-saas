@@ -3,6 +3,7 @@ import type {} from './vitest-context.js';
 
 export { POSTGRES_IMAGE, startTestDatabase, type TestDatabase } from './postgres.js';
 export { createIsolatedDatabase } from './isolated-database.js';
+export { MAIL_SERVER_IMAGE, startTestMailServer, type TestMailServer } from './mail-server.js';
 export {
   OBJECT_STORAGE_IMAGE,
   startTestObjectStorage,

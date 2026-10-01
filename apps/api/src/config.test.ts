@@ -18,6 +18,9 @@ describe('loadConfig', () => {
       sessionTtlDays: 30,
       smsProvider: 'disabled',
       documents: null,
+      appUrl: 'http://localhost:5173',
+      email: null,
+      workerIntervalSeconds: 60,
     });
   });
 
@@ -40,6 +43,11 @@ describe('loadConfig', () => {
         STORAGE_SECRET_ACCESS_KEY: 'key-secret',
         CLAMAV_HOST: 'clamav.internal',
         CLAMAV_PORT: '3311',
+        APP_URL: 'https://app.paintsaas.in/',
+        EMAIL_PROVIDER: 'smtp',
+        SMTP_URL: 'smtp://user:pass@email-smtp.ap-south-1.amazonaws.com:587',
+        EMAIL_FROM: 'ABC Paints <alerts@paintsaas.in>',
+        WORKER_INTERVAL_SECONDS: '0',
       }),
     ).toEqual({
       nodeEnv: 'production',
@@ -58,6 +66,12 @@ describe('loadConfig', () => {
         credentials: { accessKeyId: 'key-id', secretAccessKey: 'key-secret' },
         clamav: { host: 'clamav.internal', port: 3311 },
       },
+      appUrl: 'https://app.paintsaas.in',
+      email: {
+        smtpUrl: 'smtp://user:pass@email-smtp.ap-south-1.amazonaws.com:587',
+        from: 'ABC Paints <alerts@paintsaas.in>',
+      },
+      workerIntervalSeconds: 0,
     });
   });
 
@@ -106,6 +120,14 @@ describe('loadConfig', () => {
     ],
     [{ ...required, STORAGE_ENDPOINT: 'ftp://files' }, /STORAGE_ENDPOINT/],
     [{ ...required, CLAMAV_PORT: '0' }, /CLAMAV_PORT/],
+    [{ ...required, EMAIL_PROVIDER: 'smtp' }, /SMTP_URL: SMTP_URL and EMAIL_FROM are required/],
+    [
+      { ...required, EMAIL_PROVIDER: 'smtp', SMTP_URL: 'smtp://localhost:25' },
+      /SMTP_URL: SMTP_URL and EMAIL_FROM are required/,
+    ],
+    [{ ...required, SMTP_URL: 'http://localhost' }, /SMTP_URL/],
+    [{ ...required, EMAIL_PROVIDER: 'ses' }, /EMAIL_PROVIDER/],
+    [{ ...required, WORKER_INTERVAL_SECONDS: '-1' }, /WORKER_INTERVAL_SECONDS/],
   ])('rejects %o, naming the bad variable', (env, variable) => {
     expect(() => loadConfig(env)).toThrow(ConfigError);
     expect(() => loadConfig(env)).toThrow(variable);

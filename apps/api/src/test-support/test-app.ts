@@ -44,6 +44,8 @@ export async function startTestApp(
     AUTH_SECRET: TEST_AUTH_SECRET,
     NODE_ENV: 'test',
     LOG_LEVEL: 'fatal',
+    // Tests run the background worker by hand.
+    WORKER_INTERVAL_SECONDS: '0',
     ...env,
   });
   const app = await createApp(config, connection, fakeSms ? { smsSender: sms } : {});

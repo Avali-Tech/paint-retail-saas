@@ -23,6 +23,7 @@ import { and, count, desc, eq, inArray, isNull, or, sql, type SQL } from 'drizzl
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
+import { Notifier } from '../notifications/notifier.js';
 import type {
   ApproveCountInput,
   COUNT_STATUSES,
@@ -116,7 +117,10 @@ const round3 = (value: number) => Math.round(value * 1000) / 1000;
 
 @Injectable()
 export class StockCountsService {
-  constructor(@Inject(DATABASE) private readonly connection: DatabaseConnection) {}
+  constructor(
+    @Inject(DATABASE) private readonly connection: DatabaseConnection,
+    @Inject(Notifier) private readonly notifier: Notifier,
+  ) {}
 
   /** Starts a count, recording the books for every product in scope that the store holds. */
   async start(auth: AuthContext, input: StartCountInput): Promise<CountView> {
@@ -241,6 +245,17 @@ export class StockCountsService {
         .where(
           and(eq(stockCountLines.countId, stockCount.id), isNull(stockCountLines.countedQuantity)),
         );
+      const { store, lines } = await this.view(tx, auth, stockCount.id);
+      await this.notifier.notify(tx, {
+        organizationId: auth.organization.id,
+        event: 'stock_count_awaiting_approval',
+        storeId: stockCount.storeId,
+        permission: 'inventory:manage',
+        actorMemberId: auth.memberId,
+        title: `Stock count ${stockCount.number} needs your approval`,
+        body: `${auth.user.fullName} has counted ${String(lines.length)} product(s) at ${store.name}. Check the differences and approve.`,
+        link: `/stock-counts/${stockCount.id}`,
+      });
       return { submittedByMemberId: auth.memberId, submittedAt: sql`now()` };
     });
   }

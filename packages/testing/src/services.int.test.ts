@@ -1,6 +1,6 @@
 import { Socket } from 'node:net';
 import { describe, expect, inject, it } from 'vitest';
-import { startTestObjectStorage, startTestVirusScanner } from './index.js';
+import { startTestMailServer, startTestObjectStorage, startTestVirusScanner } from './index.js';
 
 /** Sends one clamd command and returns its reply. */
 function clamd(address: string, command: string): Promise<string> {
@@ -51,4 +51,22 @@ describe('virus scanner', () => {
     await expect(clamd(address, 'PING')).rejects.toThrow();
     // Loading signatures takes 10–60 s depending on how busy the machine is.
   }, 180_000);
+});
+
+describe('mail server', () => {
+  it('is provided to every integration test, and answers its API', async () => {
+    const response = await fetch(`${inject('mailApiUrl')}/api/v1/info`);
+
+    expect(response.status).toBe(200);
+    expect(inject('mailSmtpUrl')).toMatch(/^smtp:\/\/.+:\d+$/);
+  });
+
+  it('starts a fresh mail server and stops it', async () => {
+    const mail = await startTestMailServer();
+    expect((await fetch(`${mail.apiUrl}/livez`)).status).toBe(200);
+
+    await mail.stop();
+
+    await expect(fetch(`${mail.apiUrl}/livez`)).rejects.toThrow();
+  });
 });

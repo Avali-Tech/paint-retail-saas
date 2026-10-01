@@ -12,6 +12,7 @@ import { HealthModule } from './health/health.module.js';
 import { ImportsModule } from './imports/imports.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { MembersModule } from './members/members.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 import { OnboardingModule } from './onboarding/onboarding.module.js';
 import { PartiesModule } from './parties/parties.module.js';
 import { PurchasingModule } from './purchasing/purchasing.module.js';
@@ -44,6 +45,11 @@ export class AppModule {
         ImportsModule,
         InventoryModule,
         MembersModule,
+        NotificationsModule.forRoot({
+          appUrl: config.appUrl,
+          email: config.email,
+          workerIntervalSeconds: config.workerIntervalSeconds,
+        }),
         OnboardingModule,
         PartiesModule,
         PurchasingModule,
