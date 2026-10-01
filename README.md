@@ -111,6 +111,15 @@ Every route requires `Authorization: Bearer <token>` unless marked public.
 | GET · DELETE   | `/reorder-rules`, `/reorder-rules/:storeId/:variantId`          | read / manage                                 | List (search, paging) and remove rules                                                                                                   |
 | GET            | `/stock/low`                                                    | `inventory:read`                              | At or below reorder level: out of stock, below minimum, reorder; suggested quantity up to max                                            |
 | GET            | `/stock/slow-movers?days=90`                                    | `inventory:read`                              | In stock with no sale or transfer out for N days, by money tied up                                                                       |
+| GET            | `/suppliers`, `/suppliers/:id`                                  | `purchasing:read`                             | Parties with the supplier role: terms, lead time, products with their last cost                                                          |
+| PUT            | `/suppliers/:id/profile`                                        | `purchasing:manage`                           | Payment terms (days of credit) and lead time                                                                                             |
+| PUT · DELETE   | `/suppliers/:id/products`, `/suppliers/:id/products/:variantId` | `purchasing:manage`                           | Products the supplier provides, with the supplier's own code                                                                             |
+| POST           | `/purchase-orders`                                              | `purchasing:manage`                           | Order for one store; numbered PO-000001…; cost defaults to the supplier's last cost                                                      |
+| POST           | `/purchase-orders/from-low-stock`                               | `purchasing:manage`                           | Quick reorder: every low product the supplier provides (or chosen ones), up to max                                                       |
+| GET            | `/purchase-orders`, `/purchase-orders/:id`                      | `purchasing:read`                             | Orders at the member's stores; filter by `status`, `storeId`, `supplierId`                                                               |
+| POST           | `/purchase-orders/:id/cancel` · `/close`                        | `purchasing:manage`                           | Cancel before anything arrives, or short-close a partly received order                                                                   |
+| POST           | `/goods-receipts`                                               | `purchasing:manage`                           | GRN against an order or a supplier invoice; free scheme units at zero cost                                                               |
+| GET            | `/goods-receipts`, `/goods-receipts/:id`                        | `purchasing:read`                             | Receipts at the member's stores; filter by `storeId`, `supplierId`, `purchaseOrderId`                                                    |
 
 **Access model:** `User → Role → Permissions`, plus store access (`all stores` or a list). Permission
 keys and the standard roles live in `packages/shared/src/permissions.ts`. Routes declare
@@ -144,6 +153,13 @@ units are written off at the destination and shortages stay on the transfer.
 **Stock counts** (roadmap P1-M13): corrections are `counted − books at the start`, posted on
 approval as `count_correction` ledger entries, so movements during the count are kept. The
 person who submitted a count cannot approve it unless they have all-store access.
+
+**Purchasing** (roadmap P1-M15, P1-M16): suppliers are parties with the supplier role. A purchase
+order is open → partially received → received (or cancelled before anything arrives, or closed
+short). Goods receipts (GRN-000001…) post `purchase_receipt` entries; scheme free units are a
+separate entry at zero cost, so they lower the average cost. Receipts lock their order, so two
+entered at once cannot over-receive, and a supplier's invoice number can be entered only once.
+Each receipt records the supplier's latest cost for the next order.
 
 ## Database
 
