@@ -17,6 +17,8 @@ export const PERMISSIONS = [
   'inventory:manage',
   'purchasing:read',
   'purchasing:manage',
+  'leads:read',
+  'leads:manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -52,6 +54,8 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'inventory:read',
       'inventory:manage',
       'purchasing:read',
+      'leads:read',
+      'leads:manage',
     ],
     allStores: false,
   },
@@ -79,13 +83,22 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'parties:manage',
       'catalog:read',
       'inventory:read',
+      'leads:read',
+      'leads:manage',
     ],
     allStores: false,
   },
   {
     key: 'crm_executive',
     name: 'CRM Executive',
-    permissions: ['stores:read', 'parties:read', 'parties:manage', 'catalog:read'],
+    permissions: [
+      'stores:read',
+      'parties:read',
+      'parties:manage',
+      'catalog:read',
+      'leads:read',
+      'leads:manage',
+    ],
     allStores: false,
   },
   {

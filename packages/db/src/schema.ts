@@ -1564,3 +1564,196 @@ export const lowStockAlerts = pgTable(
     }),
   ],
 ).enableRLS();
+
+/** How a lead reached us (roadmap P1-M07). */
+export const leadSource = pgEnum('lead_source', [
+  'walk_in',
+  'phone_call',
+  'referral',
+  'architect',
+  'contractor',
+  'painter',
+  'website',
+  'social_media',
+  'exhibition',
+  'other',
+]);
+
+export const leadStage = pgEnum('lead_stage', [
+  'new',
+  'contacted',
+  'qualified',
+  'opportunity',
+  'won',
+  'lost',
+]);
+
+/**
+ * A potential piece of business, e.g. a contractor calling about a 4-floor
+ * building. Becomes an opportunity once qualified.
+ */
+export const leads = pgTable(
+  'leads',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** Gap-free, e.g. LD-000007. */
+    number: text('number').notNull(),
+    storeId: uuid('store_id').notNull(),
+    /** Who the lead is with. */
+    partyId: uuid('party_id').notNull(),
+    title: text('title').notNull(),
+    requirement: text('requirement'),
+    source: leadSource('source').notNull(),
+    /** The architect, contractor or customer who referred it. */
+    referredByPartyId: uuid('referred_by_party_id'),
+    estimatedValuePaise: bigint('estimated_value_paise', { mode: 'number' }),
+    expectedOrderDate: date('expected_order_date', { mode: 'string' }),
+    assignedMemberId: uuid('assigned_member_id'),
+    stage: leadStage('stage').notNull().default('new'),
+    lostReason: text('lost_reason'),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    /** When it was won or lost. */
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+  },
+  (table) => [
+    unique('leads_organization_number_unique').on(table.organizationId, table.number),
+    unique('leads_organization_id_id_unique').on(table.organizationId, table.id),
+    index('leads_store_stage_idx').on(table.organizationId, table.storeId, table.stage),
+    index('leads_assigned_idx').on(table.assignedMemberId),
+    index('leads_party_idx').on(table.partyId),
+    foreignKey({
+      name: 'leads_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'leads_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'leads_referred_by_fk',
+      columns: [table.organizationId, table.referredByPartyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'leads_assigned_member_fk',
+      columns: [table.organizationId, table.assignedMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'leads_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('leads_value_not_negative', sql`${table.estimatedValuePaise} >= 0`),
+    check('leads_lost_reason', sql`(${table.stage} = 'lost') = (${table.lostReason} is not null)`),
+    check(
+      'leads_closed_when_closed',
+      sql`(${table.stage} in ('won', 'lost')) = (${table.closedAt} is not null)`,
+    ),
+    pgPolicy('leads_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const opportunityStage = pgEnum('opportunity_stage', [
+  'discovery',
+  'proposal',
+  'negotiation',
+  'won',
+  'lost',
+]);
+
+/** A qualified lead with an expected order: what, how much, when, how likely. */
+export const opportunities = pgTable(
+  'opportunities',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** Gap-free, e.g. OP-000003. */
+    number: text('number').notNull(),
+    storeId: uuid('store_id').notNull(),
+    /** The customer. */
+    partyId: uuid('party_id').notNull(),
+    /** The lead it came from, if any. */
+    leadId: uuid('lead_id'),
+    title: text('title').notNull(),
+    expectedValuePaise: bigint('expected_value_paise', { mode: 'number' }).notNull(),
+    /** Litres of paint expected. */
+    expectedQuantity: numeric('expected_quantity', { precision: 12, scale: 3, mode: 'number' }),
+    expectedOrderDate: date('expected_order_date', { mode: 'string' }),
+    categoryId: uuid('category_id'),
+    salespersonMemberId: uuid('salesperson_member_id'),
+    /** Chance of winning, 0–100 %. */
+    probability: integer('probability').notNull(),
+    stage: opportunityStage('stage').notNull().default('discovery'),
+    lostReason: text('lost_reason'),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+  },
+  (table) => [
+    unique('opportunities_organization_number_unique').on(table.organizationId, table.number),
+    unique('opportunities_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('opportunities_lead_unique').on(table.leadId),
+    index('opportunities_store_stage_idx').on(table.organizationId, table.storeId, table.stage),
+    index('opportunities_salesperson_idx').on(table.salespersonMemberId),
+    index('opportunities_party_idx').on(table.partyId),
+    foreignKey({
+      name: 'opportunities_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'opportunities_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'opportunities_lead_fk',
+      columns: [table.organizationId, table.leadId],
+      foreignColumns: [leads.organizationId, leads.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'opportunities_category_fk',
+      columns: [table.organizationId, table.categoryId],
+      foreignColumns: [categories.organizationId, categories.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'opportunities_salesperson_fk',
+      columns: [table.organizationId, table.salespersonMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'opportunities_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('opportunities_value_not_negative', sql`${table.expectedValuePaise} >= 0`),
+    check('opportunities_quantity_positive', sql`${table.expectedQuantity} > 0`),
+    check('opportunities_probability_range', sql`${table.probability} between 0 and 100`),
+    check(
+      'opportunities_lost_reason',
+      sql`(${table.stage} = 'lost') = (${table.lostReason} is not null)`,
+    ),
+    check(
+      'opportunities_closed_when_closed',
+      sql`(${table.stage} in ('won', 'lost')) = (${table.closedAt} is not null)`,
+    ),
+    pgPolicy('opportunities_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();

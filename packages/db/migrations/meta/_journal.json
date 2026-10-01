@@ -134,6 +134,20 @@
       "when": 1790856739993,
       "tag": "0018_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790859163642,
+      "tag": "0019_leads",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790859164048,
+      "tag": "0020_grant_leads_permissions",
+      "breakpoints": true
     }
   ]
 }
