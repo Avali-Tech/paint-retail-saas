@@ -19,7 +19,7 @@ services:
   # S3-compatible storage for documents (Amazon S3 in production).
   storage:
     image: chrislusf/seaweedfs:4.48
-    command: ['server', '-s3', '-dir=/data']
+    command: ['server', '-s3', '-dir=/data', '-volume.max=100', '-master.volumeSizeLimitMB=64']
     ports:
       - '58333:8333'
     volumes:

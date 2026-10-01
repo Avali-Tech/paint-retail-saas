@@ -17,7 +17,9 @@ export async function startTestObjectStorage(
   image: string = OBJECT_STORAGE_IMAGE,
 ): Promise<TestObjectStorage> {
   const container = await new GenericContainer(image)
-    .withCommand(['server', '-s3', '-dir=/data'])
+    // Each bucket needs its own volume; the default limit follows free disk
+    // space and can run out on CI runners, so allow plenty of small volumes.
+    .withCommand(['server', '-s3', '-dir=/data', '-volume.max=100', '-master.volumeSizeLimitMB=64'])
     .withExposedPorts(8333)
     .withWaitStrategy(Wait.forHttp('/', 8333).forStatusCode(200))
     .start();
