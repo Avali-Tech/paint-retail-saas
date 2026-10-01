@@ -31,6 +31,7 @@ describe('migrateDatabase', () => {
       'brands',
       'categories',
       'customer_profiles',
+      'document_sequences',
       'member_stores',
       'organization_members',
       'organizations',
@@ -46,6 +47,8 @@ describe('migrateDatabase', () => {
       'stock_balances',
       'stock_ledger',
       'stores',
+      'transfer_lines',
+      'transfers',
       'users',
     ]);
 

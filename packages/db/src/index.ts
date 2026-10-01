@@ -8,6 +8,7 @@ export {
 export { isCheckViolation, isUniqueViolation, uniqueViolationConstraint } from './errors.js';
 export { MIGRATIONS_FOLDER, migrateDatabase } from './migrate.js';
 export * as schema from './schema.js';
+export { nextDocumentNumber } from './sequences.js';
 export {
   InsufficientStockError,
   findStockMismatches,

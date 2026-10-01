@@ -763,3 +763,154 @@ export const stockBalances = pgTable(
     }),
   ],
 ).enableRLS();
+
+/**
+ * Gap-free document numbers per organisation and series (transfers now; GST
+ * invoices later, which must be numbered without gaps per financial year).
+ * Incremented inside the transaction that creates the document, so a rolled-back
+ * document never consumes a number.
+ */
+export const documentSequences = pgTable(
+  'document_sequences',
+  {
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'restrict' }),
+    /** e.g. "transfer", or later "invoice:36AABCU9603R1ZO:2026-27". */
+    series: text('series').notNull(),
+    lastValue: bigint('last_value', { mode: 'number' }).notNull().default(0),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.series] }),
+    check('document_sequences_last_value_not_negative', sql`${table.lastValue} >= 0`),
+    pgPolicy('document_sequences_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const transferStatus = pgEnum('transfer_status', [
+  'requested',
+  'approved',
+  'in_transit',
+  'received',
+  'rejected',
+  'cancelled',
+]);
+
+/** Stock moving from one store to another (roadmap §3.15). */
+export const transfers = pgTable(
+  'transfers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** Human-readable, gap-free, e.g. TR-000042. */
+    number: text('number').notNull(),
+    fromStoreId: uuid('from_store_id').notNull(),
+    toStoreId: uuid('to_store_id').notNull(),
+    status: transferStatus('status').notNull().default('requested'),
+    note: text('note'),
+    /** Why it was rejected or cancelled. */
+    closingReason: text('closing_reason'),
+    requestedByMemberId: uuid('requested_by_member_id').notNull(),
+    approvedByMemberId: uuid('approved_by_member_id'),
+    dispatchedByMemberId: uuid('dispatched_by_member_id'),
+    receivedByMemberId: uuid('received_by_member_id'),
+    closedByMemberId: uuid('closed_by_member_id'),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    dispatchedAt: timestamp('dispatched_at', { withTimezone: true }),
+    receivedAt: timestamp('received_at', { withTimezone: true }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('transfers_organization_number_unique').on(table.organizationId, table.number),
+    unique('transfers_organization_id_id_unique').on(table.organizationId, table.id),
+    index('transfers_from_store_status_idx').on(
+      table.organizationId,
+      table.fromStoreId,
+      table.status,
+    ),
+    index('transfers_to_store_status_idx').on(table.organizationId, table.toStoreId, table.status),
+    foreignKey({
+      name: 'transfers_from_store_fk',
+      columns: [table.organizationId, table.fromStoreId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'transfers_to_store_fk',
+      columns: [table.organizationId, table.toStoreId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'transfers_requested_by_fk',
+      columns: [table.organizationId, table.requestedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('transfers_different_stores', sql`${table.fromStoreId} <> ${table.toStoreId}`),
+    pgPolicy('transfers_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** A product on a transfer, with the quantity at each stage. */
+export const transferLines = pgTable(
+  'transfer_lines',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    transferId: uuid('transfer_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    requestedQuantity: numeric('requested_quantity', {
+      precision: 14,
+      scale: 3,
+      mode: 'number',
+    }).notNull(),
+    approvedQuantity: numeric('approved_quantity', { precision: 14, scale: 3, mode: 'number' }),
+    dispatchedQuantity: numeric('dispatched_quantity', { precision: 14, scale: 3, mode: 'number' }),
+    /** Arrived in good condition. */
+    receivedQuantity: numeric('received_quantity', { precision: 14, scale: 3, mode: 'number' }),
+    /** Arrived damaged (written off at the destination). */
+    damagedQuantity: numeric('damaged_quantity', { precision: 14, scale: 3, mode: 'number' }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.transferId, table.variantId] }),
+    foreignKey({
+      name: 'transfer_lines_transfer_fk',
+      columns: [table.organizationId, table.transferId],
+      foreignColumns: [transfers.organizationId, transfers.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'transfer_lines_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('restrict'),
+    check('transfer_lines_requested_positive', sql`${table.requestedQuantity} > 0`),
+    check(
+      'transfer_lines_approved_within_requested',
+      sql`${table.approvedQuantity} >= 0 and ${table.approvedQuantity} <= ${table.requestedQuantity}`,
+    ),
+    check(
+      'transfer_lines_dispatched_within_approved',
+      sql`${table.dispatchedQuantity} >= 0 and ${table.dispatchedQuantity} <= ${table.approvedQuantity}`,
+    ),
+    check(
+      'transfer_lines_received_within_dispatched',
+      sql`${table.receivedQuantity} >= 0 and ${table.damagedQuantity} >= 0
+        and ${table.receivedQuantity} + ${table.damagedQuantity} <= ${table.dispatchedQuantity}`,
+    ),
+    pgPolicy('transfer_lines_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();

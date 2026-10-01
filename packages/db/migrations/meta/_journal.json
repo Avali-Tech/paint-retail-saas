@@ -78,6 +78,13 @@
       "when": 1790805992045,
       "tag": "0010_grant_inventory_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790846417607,
+      "tag": "0011_transfers",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,7 @@ export {
   percentToBasisPoints,
 } from './catalog.js';
 export { normalizeEmail, normalizePhone } from './contact.js';
+export { formatDocumentNumber } from './documents.js';
 export {
   assertPaise,
   formatINR,
