@@ -9,13 +9,17 @@ export const CONTACT_METHODS = schema.contactMethod.enumValues;
 
 const unique = <T>(values: T[]) => [...new Set(values)];
 const text = (max: number) => z.string().trim().min(1).max(max);
-const gstin = z
+export const gstin = z
   .string()
   .trim()
   .toUpperCase()
   .refine(isValidGstin, 'Enter a valid GSTIN (check for typos)');
-const pan = z.string().trim().toUpperCase().refine(isValidPan, 'Enter a valid 10-character PAN');
-const pincode = z.string().trim().refine(isValidPincode, 'Enter a 6-digit PIN code');
+export const pan = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .refine(isValidPan, 'Enter a valid 10-character PAN');
+export const pincode = z.string().trim().refine(isValidPincode, 'Enter a 6-digit PIN code');
 const tags = z.array(z.string().trim().toLowerCase().min(1).max(30)).max(20).transform(unique);
 const roles = z.array(z.enum(PARTY_ROLES)).min(1).max(PARTY_ROLES.length).transform(unique);
 

@@ -5,22 +5,22 @@ import { z } from 'zod';
 export const PRODUCT_TYPES = schema.productType.enumValues;
 export const UNITS = schema.unitOfMeasure.enumValues;
 
-const name = z.string().trim().min(2).max(120);
+export const catalogName = z.string().trim().min(2).max(120);
+const name = catalogName;
 const unique = <T>(values: T[]) => [...new Set(values)];
 const paise = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
-const sku = z
+export const sku = z
   .string()
   .trim()
   .toUpperCase()
   .regex(/^[A-Z0-9][A-Z0-9._/-]{1,39}$/, 'Use 2 to 40 letters, digits or . _ / -');
-const barcodes = z
-  .array(
-    z.string().trim().refine(isValidBarcode, 'Barcode is not valid (check digit or characters)'),
-  )
-  .max(10)
-  .transform(unique);
-const packSize = z
+export const barcode = z
+  .string()
+  .trim()
+  .refine(isValidBarcode, 'Barcode is not valid (check digit or characters)');
+const barcodes = z.array(barcode).max(10).transform(unique);
+export const packSize = z
   .number()
   .positive()
   .max(1_000_000)
@@ -28,8 +28,8 @@ const packSize = z
     (value) => Math.abs(Math.round(value * 1000) - value * 1000) < 1e-6,
     'Use at most 3 decimals',
   );
-const hsnCode = z.string().trim().refine(isValidHsn, 'Enter a 4, 6 or 8-digit HSN code');
-const gstRatePercent = z
+export const hsnCode = z.string().trim().refine(isValidHsn, 'Enter a 4, 6 or 8-digit HSN code');
+export const gstRatePercent = z
   .number()
   .refine((rate) => (GST_RATES_PERCENT as readonly number[]).includes(rate), {
     message: `Use a GST rate of ${GST_RATES_PERCENT.join(', ')}%`,

@@ -8,6 +8,7 @@ import { smsSenderFor, type SmsSender } from './auth/sms.js';
 import type { AppConfig } from './config.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
+import { ImportsModule } from './imports/imports.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { MembersModule } from './members/members.module.js';
 import { PartiesModule } from './parties/parties.module.js';
@@ -37,6 +38,7 @@ export class AppModule {
         }),
         CatalogModule,
         HealthModule,
+        ImportsModule,
         InventoryModule,
         MembersModule,
         PartiesModule,

@@ -15,7 +15,8 @@ export async function createApp(
 ): Promise<NestFastifyApplication> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule.forRoot({ config, connection, ...overrides }),
-    new FastifyAdapter(),
+    // CSV imports of up to 5,000 rows need more than Fastify's 1 MB default.
+    new FastifyAdapter({ bodyLimit: 4 * 1024 * 1024 }),
     { logger: createLogger(config) },
   );
   app.enableShutdownHooks();
