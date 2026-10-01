@@ -1,7 +1,7 @@
 # Paint Retail SaaS
 
 Multi-store, multi-brand paint dealer platform for India. Product plans live in the
-[roadmap repo](https://github.com/kamaljeet121/paint-retail-saas-roadmap).
+[roadmap repo](https://github.com/Avali-Tech/paint-retail-saas-roadmap).
 
 ## The first rule: every line of code is tested
 
