@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   check,
+  date,
   foreignKey,
   index,
   integer,
@@ -1071,6 +1072,264 @@ export const reorderRules = pgTable(
         and ${table.reorderLevel} <= ${table.maxQuantity} and ${table.maxQuantity} > 0`,
     ),
     pgPolicy('reorder_rules_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** Purchasing terms for a party with the supplier role (roadmap §3.18). */
+export const supplierProfiles = pgTable(
+  'supplier_profiles',
+  {
+    partyId: uuid('party_id').primaryKey(),
+    organizationId: uuid('organization_id').notNull(),
+    /** Days of credit the supplier gives. */
+    paymentTermsDays: integer('payment_terms_days').notNull().default(0),
+    /** Typical days from order to delivery. */
+    leadTimeDays: integer('lead_time_days'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: 'supplier_profiles_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('cascade'),
+    check(
+      'supplier_profiles_payment_terms_range',
+      sql`${table.paymentTermsDays} between 0 and 365`,
+    ),
+    check('supplier_profiles_lead_time_range', sql`${table.leadTimeDays} between 0 and 365`),
+    pgPolicy('supplier_profiles_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** Products a supplier provides, with the last cost paid (updated on each receipt). */
+export const supplierProducts = pgTable(
+  'supplier_products',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    supplierPartyId: uuid('supplier_party_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    /** The supplier's own code for the product, if different. */
+    supplierSku: text('supplier_sku'),
+    lastCostPaise: bigint('last_cost_paise', { mode: 'number' }),
+    lastReceivedAt: timestamp('last_received_at', { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.supplierPartyId, table.variantId] }),
+    foreignKey({
+      name: 'supplier_products_party_fk',
+      columns: [table.organizationId, table.supplierPartyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'supplier_products_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('cascade'),
+    check('supplier_products_last_cost_not_negative', sql`${table.lastCostPaise} >= 0`),
+    pgPolicy('supplier_products_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const purchaseOrderStatus = pgEnum('purchase_order_status', [
+  'open',
+  'partially_received',
+  'received',
+  'closed',
+  'cancelled',
+]);
+
+/** An order to a supplier for delivery to one store (roadmap §3.19). */
+export const purchaseOrders = pgTable(
+  'purchase_orders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** Gap-free, e.g. PO-000012. */
+    number: text('number').notNull(),
+    supplierPartyId: uuid('supplier_party_id').notNull(),
+    storeId: uuid('store_id').notNull(),
+    status: purchaseOrderStatus('status').notNull().default('open'),
+    expectedDate: date('expected_date', { mode: 'string' }),
+    note: text('note'),
+    closingReason: text('closing_reason'),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    closedByMemberId: uuid('closed_by_member_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('purchase_orders_organization_number_unique').on(table.organizationId, table.number),
+    unique('purchase_orders_organization_id_id_unique').on(table.organizationId, table.id),
+    index('purchase_orders_store_status_idx').on(table.organizationId, table.storeId, table.status),
+    foreignKey({
+      name: 'purchase_orders_supplier_fk',
+      columns: [table.organizationId, table.supplierPartyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'purchase_orders_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'purchase_orders_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    pgPolicy('purchase_orders_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const purchaseOrderLines = pgTable(
+  'purchase_order_lines',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    purchaseOrderId: uuid('purchase_order_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    orderedQuantity: numeric('ordered_quantity', {
+      precision: 14,
+      scale: 3,
+      mode: 'number',
+    }).notNull(),
+    /** Agreed cost per unit, in paise. */
+    unitCostPaise: bigint('unit_cost_paise', { mode: 'number' }),
+    /** Paid units received so far (free scheme units are not counted against the order). */
+    receivedQuantity: numeric('received_quantity', { precision: 14, scale: 3, mode: 'number' })
+      .notNull()
+      .default(0),
+  },
+  (table) => [
+    primaryKey({ columns: [table.purchaseOrderId, table.variantId] }),
+    foreignKey({
+      name: 'purchase_order_lines_order_fk',
+      columns: [table.organizationId, table.purchaseOrderId],
+      foreignColumns: [purchaseOrders.organizationId, purchaseOrders.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'purchase_order_lines_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('restrict'),
+    check('purchase_order_lines_ordered_positive', sql`${table.orderedQuantity} > 0`),
+    check('purchase_order_lines_cost_not_negative', sql`${table.unitCostPaise} >= 0`),
+    check(
+      'purchase_order_lines_received_within_ordered',
+      sql`${table.receivedQuantity} >= 0 and ${table.receivedQuantity} <= ${table.orderedQuantity}`,
+    ),
+    pgPolicy('purchase_order_lines_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * Goods received at a store (GRN), against a purchase order or directly against
+ * the supplier's invoice. A supplier invoice can be entered only once.
+ */
+export const goodsReceipts = pgTable(
+  'goods_receipts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** Gap-free, e.g. GRN-000034. */
+    number: text('number').notNull(),
+    storeId: uuid('store_id').notNull(),
+    supplierPartyId: uuid('supplier_party_id').notNull(),
+    purchaseOrderId: uuid('purchase_order_id'),
+    supplierInvoiceNumber: text('supplier_invoice_number'),
+    supplierInvoiceDate: date('supplier_invoice_date', { mode: 'string' }),
+    note: text('note'),
+    receivedByMemberId: uuid('received_by_member_id').notNull(),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('goods_receipts_organization_number_unique').on(table.organizationId, table.number),
+    unique('goods_receipts_organization_id_id_unique').on(table.organizationId, table.id),
+    uniqueIndex('goods_receipts_supplier_invoice_unique')
+      .on(table.organizationId, table.supplierPartyId, sql`lower(${table.supplierInvoiceNumber})`)
+      .where(sql`${table.supplierInvoiceNumber} is not null`),
+    index('goods_receipts_purchase_order_idx').on(table.purchaseOrderId),
+    foreignKey({
+      name: 'goods_receipts_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'goods_receipts_supplier_fk',
+      columns: [table.organizationId, table.supplierPartyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'goods_receipts_purchase_order_fk',
+      columns: [table.organizationId, table.purchaseOrderId],
+      foreignColumns: [purchaseOrders.organizationId, purchaseOrders.id],
+    }).onDelete('restrict'),
+    pgPolicy('goods_receipts_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const goodsReceiptLines = pgTable(
+  'goods_receipt_lines',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    goodsReceiptId: uuid('goods_receipt_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    /** Paid units received. */
+    quantity: numeric('quantity', { precision: 14, scale: 3, mode: 'number' }).notNull(),
+    /** Scheme free units, received at zero cost. */
+    freeQuantity: numeric('free_quantity', { precision: 14, scale: 3, mode: 'number' })
+      .notNull()
+      .default(0),
+    unitCostPaise: bigint('unit_cost_paise', { mode: 'number' }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.goodsReceiptId, table.variantId] }),
+    foreignKey({
+      name: 'goods_receipt_lines_receipt_fk',
+      columns: [table.organizationId, table.goodsReceiptId],
+      foreignColumns: [goodsReceipts.organizationId, goodsReceipts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'goods_receipt_lines_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('restrict'),
+    check(
+      'goods_receipt_lines_quantities',
+      sql`${table.quantity} >= 0 and ${table.freeQuantity} >= 0 and ${table.quantity} + ${table.freeQuantity} > 0`,
+    ),
+    check('goods_receipt_lines_cost_not_negative', sql`${table.unitCostPaise} >= 0`),
+    pgPolicy('goods_receipt_lines_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

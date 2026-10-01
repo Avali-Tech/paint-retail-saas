@@ -101,9 +101,13 @@ describe('SYSTEM_ROLES', () => {
     }
   });
 
-  it('uses only catalogue permissions', () => {
+  it('uses only catalogue permissions, with no gaps or duplicates', () => {
     for (const role of SYSTEM_ROLES) {
-      expect(role.permissions.every(isPermission)).toBe(true);
+      // Array.from turns empty slots into undefined, which every() alone would skip.
+      expect(Array.from(role.permissions).every((permission) => isPermission(permission))).toBe(
+        true,
+      );
+      expect(new Set(role.permissions).size).toBe(role.permissions.length);
     }
   });
 });
