@@ -7,16 +7,19 @@ import {
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { schema, type DatabaseConnection } from '@paint/db';
-import { and, asc, eq, isNull, lte, notExists, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, lt, lte, notExists, or, sql } from 'drizzle-orm';
 import { RECORD_PATHS, recordLabel } from '../activities/activity-records.js';
+import { todayInIndia } from '../contracts/contract-dates.js';
 import { todayIst } from '../contracts/contract-sql.js';
 import { DATABASE } from '../database/database.module.js';
+import { expireAccount } from '../loyalty/loyalty-lookups.js';
 import type { EmailSender } from './email-sender.js';
 import { Notifier } from './notifier.js';
 
 const {
   activities,
   contracts,
+  loyaltyAccounts,
   emailOutbox,
   lowStockAlerts,
   parties,
@@ -40,6 +43,7 @@ export const MAX_EMAIL_ATTEMPTS = 5;
 const EMAIL_BATCH = 50;
 const REMINDER_BATCH = 200;
 const LOW_STOCK_LOCK = sql`hashtext('paint:low-stock-check')`;
+const LOYALTY_EXPIRY_LOCK = sql`hashtext('paint:loyalty-expiry')`;
 
 export interface WorkerRun {
   /** Products newly reported as low. */
@@ -48,6 +52,8 @@ export interface WorkerRun {
   readonly followUps: number;
   /** Contracts whose assignees were reminded to renew them. */
   readonly contractRenewals: number;
+  /** Loyalty accounts whose unused points expired. */
+  readonly loyaltyExpiries: number;
   readonly emailsSent: number;
   readonly emailsFailed: number;
 }
@@ -94,11 +100,23 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
       () => this.remindContractRenewals(),
       0,
     );
+    const loyaltyExpiries = await this.attempt(
+      'Loyalty points expiry',
+      () => this.expireLoyaltyPoints(),
+      0,
+    );
     const { sent, failed } = await this.attempt('Sending email', () => this.sendDueEmails(), {
       sent: 0,
       failed: 0,
     });
-    return { lowStock, followUps, contractRenewals, emailsSent: sent, emailsFailed: failed };
+    return {
+      lowStock,
+      followUps,
+      contractRenewals,
+      loyaltyExpiries,
+      emailsSent: sent,
+      emailsFailed: failed,
+    };
   }
 
   private async attempt<T>(name: string, job: () => Promise<T>, fallback: T): Promise<T> {
@@ -308,6 +326,53 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
           .where(eq(contracts.id, contract.id));
       }
       return due.length;
+    });
+  }
+
+  /**
+   * Writes off loyalty points that expired unused (soonest-expiring lots are
+   * used first), checking each account at most once a day (India time). One
+   * server at a time; accounts are locked so a redemption cannot race it.
+   */
+  expireLoyaltyPoints(): Promise<number> {
+    return this.connection.db.transaction(async (tx) => {
+      const [lock] = (
+        await tx.execute<{ locked: boolean }>(
+          sql`select pg_try_advisory_xact_lock(${LOYALTY_EXPIRY_LOCK}) as locked`,
+        )
+      ).rows;
+      // Another server is expiring points right now.
+      if (!lock?.locked) return 0;
+      const today = todayInIndia();
+      const due = await tx
+        .select({ id: loyaltyAccounts.id, organizationId: loyaltyAccounts.organizationId })
+        .from(loyaltyAccounts)
+        .where(
+          and(
+            or(isNull(loyaltyAccounts.expiryCheckedOn), lt(loyaltyAccounts.expiryCheckedOn, today)),
+            // Explicit names and the business: Drizzle leaves single-table columns unqualified.
+            sql`exists (select 1 from loyalty_ledger l where l.organization_id = "loyalty_accounts"."organization_id" and l.account_id = "loyalty_accounts"."id" and l.expires_on < ${today})`,
+          ),
+        )
+        .orderBy(asc(loyaltyAccounts.id))
+        .limit(REMINDER_BATCH)
+        .for('update');
+      let expired = 0;
+      for (const account of due) {
+        if ((await expireAccount(tx, account.organizationId, account.id, today)) > 0) {
+          expired += 1;
+        }
+        await tx
+          .update(loyaltyAccounts)
+          .set({ expiryCheckedOn: today })
+          .where(
+            and(
+              eq(loyaltyAccounts.organizationId, account.organizationId),
+              eq(loyaltyAccounts.id, account.id),
+            ),
+          );
+      }
+      return expired;
     });
   }
 

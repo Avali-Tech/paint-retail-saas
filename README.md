@@ -182,6 +182,9 @@ Every route requires `Authorization: Bearer <token>` unless marked public.
 | PATCH · POST       | `/parties/:id/credit`, `/parties/:id/credit/hold`                                                | `credit:manage`                                          | Risk, notes and (until billing) what the party owes and how many days overdue; put the account on hold with a reason                                                                                                               |
 | POST · GET         | `/credit-requests`, `/credit-requests/:id`                                                       | `credit:manage` to ask, `credit:read` to see             | Ask for credit or a new limit / days (CR-000001…); approvers are notified                                                                                                                                                          |
 | POST · PUT         | `/credit-requests/:id/approve`, `/:id/reject`, `/parties/:id/credit/release`, `/credit-rules`    | `credit:approve` (owners, admins)                        | Decide requests (the requester is notified), release a hold, set the credit rules (`GET /credit-rules` with `credit:read`)                                                                                                         |
+| GET                | `/parties/:id/loyalty?limit=&offset=`, `/loyalty-accounts`, `/loyalty-settings`                  | `loyalty:read`                                           | A party's points (balance, earned, redeemed, tier, next tier, next expiry) and ledger, newest first; enrolled parties, most points first; the programme                                                                            |
+| POST · PATCH       | `/parties/:id/loyalty`, `/:id/loyalty/purchases`, `/awards`, `/redemptions`, `/adjustments`      | `loyalty:manage`                                         | Enrol (with a salesperson), close or reassign; points for a purchase entered by hand; a manual or campaign award; redeem; adjust with a reason                                                                                     |
+| PUT                | `/loyalty-settings`                                                                              | `loyalty:manage` and all-store access                    | Earn rate, tiers, expiry days, minimum redemption                                                                                                                                                                                  |
 | POST               | `/activities`                                                                                    | the record's manage permission                           | Log a call, meeting, visit, WhatsApp, email or note on a party, lead, opportunity or project; with `dueAt` it is scheduled                                                                                                         |
 | GET                | `/activities?recordType=&recordId=`                                                              | the record's read permission                             | The record's timeline, latest first                                                                                                                                                                                                |
 | GET                | `/activities/follow-ups?when=today`                                                              | signed in                                                | My (or `assignedTo`) open follow-ups: `overdue`, `today`, `upcoming` or `open`, in India time, with badge counts                                                                                                                   |
@@ -297,6 +300,20 @@ approval (configurable per business with `PUT /credit-rules`). Until billing (Re
 exposure from invoices, what a party owes and how late it is are entered by hand
 (`manualExposurePaise`, `overdueDays`). Changes to limits, days, status, holds and the rules are in the
 audit log; the customer 360 shows the credit position.
+
+**Loyalty** (roadmap P1-M26, spec §3.23): a party (typically a painter or contractor) gets a
+loyalty account, optionally looked after by a salesperson. Points live only in an append-only ledger
+(a trigger refuses edits and deletes; corrections are adjustments with a reason), so the balance is
+always the sum of the entries and is never stored. Entries are purchases (points at the programme's
+earn rate, default 1 point per ₹100, on an amount entered by hand until billing exists:
+`manualPurchasePaise`), manual and campaign awards, redemptions, adjustments and expiries.
+Redemptions and negative adjustments lock the account and can never take the balance below zero, and
+redemptions respect the minimum. With `expiryDays` set, each entry that adds points expires that many
+days later; points are used soonest-expiring first, and the background worker writes off unused expired
+points once a day (expired points are also written off before any redemption, so they cannot be spent).
+Tiers go by lifetime points earned; reaching a new one tells the account's salesperson
+(`loyalty_tier_reached`). Programme changes, account status and every adjustment are in the audit log;
+the customer 360 shows the points.
 
 **Activities & follow-ups** (roadmap P1-M09): every call, visit and note is an activity on a party
 (customer, contractor, dealer, supplier…), lead, opportunity or project, and access follows that

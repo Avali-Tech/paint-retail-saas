@@ -1454,6 +1454,7 @@ export const notificationEvent = pgEnum('notification_event', [
   'contract_renewal_due',
   'credit_request_awaiting_approval',
   'credit_request_decided',
+  'loyalty_tier_reached',
 ]);
 
 /** An in-app notification for one member. */
@@ -2330,6 +2331,181 @@ export const creditRules = pgTable(
     ),
     check('credit_rules_hold_days_positive', sql`${table.holdAfterOverdueDays} >= 1`),
     pgPolicy('credit_rules_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * A business's loyalty programme (roadmap P1-M26): `earn_points` points for
+ * every `earn_per_paise` of purchases, optional tiers by points earned, and
+ * points that expire after `expiry_days` (null = never). No row = the defaults.
+ */
+export const loyaltySettings = pgTable(
+  'loyalty_settings',
+  {
+    organizationId: uuid('organization_id')
+      .primaryKey()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    earnPoints: integer('earn_points').notNull().default(1),
+    earnPerPaise: bigint('earn_per_paise', { mode: 'number' }).notNull().default(10_000),
+    /** [{ name, minPoints }], by lifetime points earned, lowest first. */
+    tiers: jsonb('tiers').$type<{ name: string; minPoints: number }[]>().notNull().default([]),
+    expiryDays: integer('expiry_days'),
+    minRedemptionPoints: integer('min_redemption_points').notNull().default(0),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'loyalty_settings_earn_positive',
+      sql`${table.earnPoints} > 0 and ${table.earnPerPaise} > 0`,
+    ),
+    check('loyalty_settings_expiry_positive', sql`${table.expiryDays} > 0`),
+    check('loyalty_settings_min_redemption', sql`${table.minRedemptionPoints} >= 0`),
+    check('loyalty_settings_tiers_array', sql`jsonb_typeof(${table.tiers}) = 'array'`),
+    pgPolicy('loyalty_settings_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const loyaltyStatus = pgEnum('loyalty_status', ['active', 'closed']);
+
+/**
+ * A party's loyalty account, typically a painter or contractor. Its points
+ * balance is never stored: it is the sum of its ledger entries.
+ */
+export const loyaltyAccounts = pgTable(
+  'loyalty_accounts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    partyId: uuid('party_id').notNull(),
+    status: loyaltyStatus('status').notNull().default('active'),
+    /** The salesperson who looks after the party; told when it reaches a new tier. */
+    assignedMemberId: uuid('assigned_member_id'),
+    /** The day (in India) the expiry job last checked this account. */
+    expiryCheckedOn: date('expiry_checked_on', { mode: 'string' }),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('loyalty_accounts_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('loyalty_accounts_party_unique').on(table.partyId),
+    foreignKey({
+      name: 'loyalty_accounts_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'loyalty_accounts_assigned_member_fk',
+      columns: [table.organizationId, table.assignedMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'loyalty_accounts_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    pgPolicy('loyalty_accounts_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * Why points moved: a purchase recorded by hand (until billing exists), a
+ * manual or campaign award, a redemption, an adjustment with a reason, or
+ * expiry of unused points.
+ */
+export const loyaltyEntryKind = pgEnum('loyalty_entry_kind', [
+  'purchase',
+  'award',
+  'campaign',
+  'redeem',
+  'adjust',
+  'expire',
+]);
+
+/**
+ * The points ledger: append-only (a trigger refuses changes and deletes). Each
+ * entry that adds points is a lot that expires on `expires_on`; points are used
+ * soonest-expiring first.
+ */
+export const loyaltyLedger = pgTable(
+  'loyalty_ledger',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    accountId: uuid('account_id').notNull(),
+    kind: loyaltyEntryKind('kind').notNull(),
+    /** Positive adds points, negative takes them away. */
+    points: integer('points').notNull(),
+    /** The purchase the points were earned on, entered by hand until billing exists. */
+    manualPurchasePaise: bigint('manual_purchase_paise', { mode: 'number' }),
+    /** Bill number for a purchase, campaign name for a campaign award. */
+    reference: text('reference'),
+    /** What it was for; the reason, for an adjustment. */
+    note: text('note'),
+    expiresOn: date('expires_on', { mode: 'string' }),
+    /** Null for points expired by the system. */
+    createdByMemberId: uuid('created_by_member_id'),
+    /** Clock time, not transaction time, so entries written together keep their order. */
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (table) => [
+    index('loyalty_ledger_account_idx').on(table.organizationId, table.accountId, table.createdAt),
+    index('loyalty_ledger_expiry_idx')
+      .on(table.expiresOn)
+      .where(sql`${table.expiresOn} is not null`),
+    foreignKey({
+      name: 'loyalty_ledger_account_fk',
+      columns: [table.organizationId, table.accountId],
+      foreignColumns: [loyaltyAccounts.organizationId, loyaltyAccounts.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'loyalty_ledger_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'loyalty_ledger_points_sign',
+      sql`case ${table.kind}
+        when 'redeem' then ${table.points} < 0
+        when 'expire' then ${table.points} < 0
+        when 'adjust' then ${table.points} <> 0
+        else ${table.points} > 0 end`,
+    ),
+    check(
+      'loyalty_ledger_purchase',
+      sql`(${table.kind} = 'purchase') = (${table.manualPurchasePaise} is not null) and (${table.manualPurchasePaise} is null or ${table.manualPurchasePaise} > 0)`,
+    ),
+    check(
+      'loyalty_ledger_reference',
+      sql`${table.kind} not in ('purchase', 'campaign') or ${table.reference} is not null`,
+    ),
+    check(
+      'loyalty_ledger_adjust_reason',
+      sql`${table.kind} <> 'adjust' or ${table.note} is not null`,
+    ),
+    check('loyalty_ledger_expiry_on_lots', sql`${table.expiresOn} is null or ${table.points} > 0`),
+    check(
+      'loyalty_ledger_system_expiry',
+      sql`(${table.kind} = 'expire') = (${table.createdByMemberId} is null)`,
+    ),
+    pgPolicy('loyalty_ledger_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

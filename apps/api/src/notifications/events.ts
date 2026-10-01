@@ -14,4 +14,5 @@ export const EVENT_TITLES: Record<NotificationEvent, string> = {
   contract_renewal_due: 'A contract assigned to you is due for renewal',
   credit_request_awaiting_approval: 'A credit request needs your approval',
   credit_request_decided: 'Your credit request is approved or rejected',
+  loyalty_tier_reached: 'A customer you look after reaches a new loyalty tier',
 };

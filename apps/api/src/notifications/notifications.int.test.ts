@@ -289,6 +289,12 @@ describe('preferences', () => {
         inApp: true,
         email: true,
       },
+      {
+        event: 'loyalty_tier_reached',
+        title: 'A customer you look after reaches a new loyalty tier',
+        inApp: true,
+        email: true,
+      },
     ]);
     expect(saved.statusCode).toBe(200);
     expect(
@@ -305,6 +311,7 @@ describe('preferences', () => {
       ['contract_renewal_due', true, true],
       ['credit_request_awaiting_approval', true, true],
       ['credit_request_decided', true, true],
+      ['loyalty_tier_reached', true, true],
     ]);
     const duplicate = await api(hydManager).put('/notifications/preferences', {
       preferences: [

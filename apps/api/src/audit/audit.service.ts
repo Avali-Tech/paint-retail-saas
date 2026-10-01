@@ -75,6 +75,12 @@ const FIELD_LABELS: Record<string, string> = {
   normal_up_to_percent: 'Normal up to (%)',
   manager_up_to_percent: 'Manager approval up to (%)',
   hold_after_overdue_days: 'Hold after overdue (days)',
+  earn_points: 'Points earned',
+  earn_per_paise: 'For every',
+  tiers: 'Tiers',
+  expiry_days: 'Points expire after (days)',
+  min_redemption_points: 'Minimum redemption',
+  points: 'Points',
 };
 
 const recordLabel = sql<string | null>`case ${auditLog.tableName}
@@ -87,6 +93,9 @@ const recordLabel = sql<string | null>`case ${auditLog.tableName}
   when 'contracts' then (select c.number || ' · ' || c.title from contracts c where c.id::text = ${auditLog.recordId})
   when 'credit_profiles' then (select p.display_name from credit_profiles cp join parties p on p.id = cp.party_id where cp.id::text = ${auditLog.recordId})
   when 'credit_rules' then 'Credit rules'
+  when 'loyalty_settings' then 'Loyalty programme'
+  when 'loyalty_accounts' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id::text = ${auditLog.recordId})
+  when 'loyalty_ledger' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id::text = ${auditLog.recordId})
   else (select ${users.fullName} from ${organizationMembers} join ${users} on ${users.id} = ${organizationMembers.userId} where ${organizationMembers.id}::text = ${auditLog.recordId})
 end`;
 

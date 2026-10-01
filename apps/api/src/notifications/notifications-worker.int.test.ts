@@ -159,6 +159,7 @@ describe('low stock', () => {
       lowStock: 1,
       followUps: 0,
       contractRenewals: 0,
+      loyaltyExpiries: 0,
       emailsSent: 1,
       emailsFailed: 0,
     });
@@ -166,6 +167,7 @@ describe('low stock', () => {
       lowStock: 0,
       followUps: 0,
       contractRenewals: 0,
+      loyaltyExpiries: 0,
       emailsSent: 0,
       emailsFailed: 0,
     });

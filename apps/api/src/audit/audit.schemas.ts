@@ -13,6 +13,9 @@ export const AUDIT_AREAS = {
   contracts: 'Contracts',
   credit_profiles: 'Credit',
   credit_rules: 'Credit rules',
+  loyalty_settings: 'Loyalty programme',
+  loyalty_accounts: 'Loyalty accounts',
+  loyalty_ledger: 'Loyalty adjustments',
 } as const;
 export type AuditTable = keyof typeof AUDIT_AREAS;
 

@@ -45,6 +45,14 @@ export {
   type FeatureFlag,
   type PlanKey,
 } from './plans.js';
+export {
+  pointLots,
+  pointsForPurchase,
+  tierFor,
+  type EarnRate,
+  type LoyaltyTier,
+  type PointsEntry,
+} from './loyalty.js';
 export { QUICK_ACTIONS, quickActions, type QuickAction } from './quick-actions.js';
 export {
   CsvError,

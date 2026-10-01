@@ -26,6 +26,8 @@ export const PERMISSIONS = [
   'credit:read',
   'credit:manage',
   'credit:approve',
+  'loyalty:read',
+  'loyalty:manage',
   'audit:read',
 ] as const;
 
@@ -70,6 +72,8 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'contracts:manage',
       'credit:read',
       'credit:manage',
+      'loyalty:read',
+      'loyalty:manage',
     ],
     allStores: false,
   },
@@ -105,6 +109,8 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'contracts:read',
       'credit:read',
       'credit:manage',
+      'loyalty:read',
+      'loyalty:manage',
     ],
     allStores: false,
   },
@@ -124,13 +130,15 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'contracts:manage',
       'credit:read',
       'credit:manage',
+      'loyalty:read',
+      'loyalty:manage',
     ],
     allStores: false,
   },
   {
     key: 'store_employee',
     name: 'Store Employee',
-    permissions: ['stores:read', 'parties:read', 'catalog:read', 'inventory:read'],
+    permissions: ['stores:read', 'parties:read', 'catalog:read', 'inventory:read', 'loyalty:read'],
     allStores: false,
   },
 ];

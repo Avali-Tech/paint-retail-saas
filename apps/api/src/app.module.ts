@@ -17,6 +17,7 @@ import { HealthModule } from './health/health.module.js';
 import { ImportsModule } from './imports/imports.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { LeadsModule } from './leads/leads.module.js';
+import { LoyaltyModule } from './loyalty/loyalty.module.js';
 import { MembersModule } from './members/members.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { OnboardingModule } from './onboarding/onboarding.module.js';
@@ -60,6 +61,7 @@ export class AppModule {
         ImportsModule,
         InventoryModule,
         LeadsModule,
+        LoyaltyModule,
         MembersModule,
         NotificationsModule.forRoot({
           appUrl: config.appUrl,
