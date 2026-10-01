@@ -51,7 +51,7 @@ pnpm verify
 ## Run the API locally
 
 ```sh
-docker compose up -d                        # PostgreSQL 17 (55432), S3 storage (58333), ClamAV (53310)
+docker compose up -d                        # PostgreSQL (55432), S3 (58333), ClamAV (53310), Mailpit (58025)
 cp apps/api/.env.example apps/api/.env
 pnpm --filter @paint/api build
 pnpm --filter @paint/api start              # http://localhost:3000
@@ -128,6 +128,9 @@ Every route requires `Authorization: Bearer <token>` unless marked public.
 | POST           | `/documents` (multipart: `recordType`, `recordId`, `category`, `file`) | the record's manage permission                           | Attach a file (≤ 10 MB; PDF, JPG, PNG, WebP, HEIC, DOCX, XLSX) after a virus scan                                                        |
 | GET            | `/documents?recordType=&recordId=`, `/documents/:id/download`          | the record's read permission                             | A record's documents; downloads always as an attachment                                                                                  |
 | DELETE         | `/documents/:id`                                                       | the record's manage permission                           | Hide a document (the file is kept for the audit trail)                                                                                   |
+| GET            | `/notifications?unread=true`                                           | signed in (own only)                                     | Notification centre, newest first, with the unread count for the badge                                                                   |
+| POST           | `/notifications/:id/read` · `/notifications/read-all`                  | signed in (own only)                                     | Mark one or all as read                                                                                                                  |
+| GET · PUT      | `/notifications/preferences`                                           | signed in (own only)                                     | Turn in-app and email on or off per event                                                                                                |
 
 **Access model:** `User → Role → Permissions`, plus store access (`all stores` or a list). Permission
 keys and the standard roles live in `packages/shared/src/permissions.ts`. Routes declare
@@ -183,6 +186,15 @@ Excel archives — and refused if infected or if scanning is down. The type come
 not its name; names are cleaned of paths and direction tricks; downloads are always attachments with
 `nosniff`, so an uploaded page can never run in our site. Bytes live in S3 (Mumbai) under
 `<organization>/documents/<id>`.
+
+**Notifications** (roadmap P1-M19): a transfer request goes to the sending store's stock managers,
+a dispatch to the receiving store's, a submitted stock count to whoever else can approve it, and a
+product falling to its reorder level to that store's stock managers — once per dip, grouped by
+store. Never to the person who acted. Notifications are written in the same transaction as the
+event; emails go to an outbox and the background worker (every `WORKER_INTERVAL_SECONDS`) sends
+them over SMTP (Amazon SES in production, Mailpit locally at http://localhost:58025), retrying 4
+times with growing gaps. Several servers can run the worker safely. Follow-up reminders arrive with
+P1-M09.
 
 ## Database
 
