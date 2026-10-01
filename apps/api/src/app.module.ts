@@ -12,6 +12,7 @@ import { InventoryModule } from './inventory/inventory.module.js';
 import { MembersModule } from './members/members.module.js';
 import { PartiesModule } from './parties/parties.module.js';
 import { StoresModule } from './stores/stores.module.js';
+import { TransfersModule } from './transfers/transfers.module.js';
 
 export interface AppModuleOptions {
   readonly config: AppConfig;
@@ -37,6 +38,7 @@ export class AppModule {
         MembersModule,
         PartiesModule,
         StoresModule,
+        TransfersModule,
       ],
     };
   }

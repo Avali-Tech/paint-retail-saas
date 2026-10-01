@@ -879,6 +879,11 @@ export const transferLines = pgTable(
     receivedQuantity: numeric('received_quantity', { precision: 14, scale: 3, mode: 'number' }),
     /** Arrived damaged (written off at the destination). */
     damagedQuantity: numeric('damaged_quantity', { precision: 14, scale: 3, mode: 'number' }),
+    /**
+     * The sending store's average cost per unit at dispatch, in paise. The
+     * receiving store takes the stock in at this cost, so stock value is preserved.
+     */
+    unitCostPaise: bigint('unit_cost_paise', { mode: 'number' }),
   },
   (table) => [
     primaryKey({ columns: [table.transferId, table.variantId] }),

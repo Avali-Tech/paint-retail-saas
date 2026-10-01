@@ -1,0 +1,1 @@
+ALTER TABLE "transfer_lines" ADD COLUMN "unit_cost_paise" bigint;
