@@ -45,6 +45,8 @@ describe('migrateDatabase', () => {
       'roles',
       'sessions',
       'stock_balances',
+      'stock_count_lines',
+      'stock_counts',
       'stock_ledger',
       'stores',
       'transfer_lines',

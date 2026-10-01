@@ -919,3 +919,118 @@ export const transferLines = pgTable(
     }),
   ],
 ).enableRLS();
+
+export const stockCountStatus = pgEnum('stock_count_status', [
+  'counting',
+  'submitted',
+  'approved',
+  'cancelled',
+]);
+
+/** What a count covers: the whole store, one brand, or one category (with subcategories). */
+export const stockCountScope = pgEnum('stock_count_scope', ['full', 'brand', 'category']);
+
+/** Why counted stock differs from the books (roadmap P1-M13). */
+export const varianceReason = pgEnum('variance_reason', [
+  'damage',
+  'theft',
+  'expiry',
+  'counting_error',
+  'other',
+]);
+
+/** A physical stock count at one store. */
+export const stockCounts = pgTable(
+  'stock_counts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** Gap-free, e.g. SC-000007. */
+    number: text('number').notNull(),
+    storeId: uuid('store_id').notNull(),
+    scope: stockCountScope('scope').notNull(),
+    /** Brand or category id for a partial count. */
+    scopeId: uuid('scope_id'),
+    status: stockCountStatus('status').notNull().default('counting'),
+    note: text('note'),
+    closingReason: text('closing_reason'),
+    startedByMemberId: uuid('started_by_member_id').notNull(),
+    submittedByMemberId: uuid('submitted_by_member_id'),
+    approvedByMemberId: uuid('approved_by_member_id'),
+    closedByMemberId: uuid('closed_by_member_id'),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('stock_counts_organization_number_unique').on(table.organizationId, table.number),
+    unique('stock_counts_organization_id_id_unique').on(table.organizationId, table.id),
+    // One open count per store at a time.
+    uniqueIndex('stock_counts_one_open_per_store')
+      .on(table.organizationId, table.storeId)
+      .where(sql`${table.status} in ('counting', 'submitted')`),
+    foreignKey({
+      name: 'stock_counts_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'stock_counts_started_by_fk',
+      columns: [table.organizationId, table.startedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'stock_counts_scope_id_matches_scope',
+      sql`(${table.scope} = 'full') = (${table.scopeId} is null)`,
+    ),
+    pgPolicy('stock_counts_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** One product on a count: the books at the start, and what was physically counted. */
+export const stockCountLines = pgTable(
+  'stock_count_lines',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    countId: uuid('count_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    /** On hand when the count started (or when the product was first counted). */
+    expectedQuantity: numeric('expected_quantity', {
+      precision: 14,
+      scale: 3,
+      mode: 'number',
+    }).notNull(),
+    countedQuantity: numeric('counted_quantity', { precision: 14, scale: 3, mode: 'number' }),
+    reason: varianceReason('reason'),
+    countedByMemberId: uuid('counted_by_member_id'),
+    countedAt: timestamp('counted_at', { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.countId, table.variantId] }),
+    foreignKey({
+      name: 'stock_count_lines_count_fk',
+      columns: [table.organizationId, table.countId],
+      foreignColumns: [stockCounts.organizationId, stockCounts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'stock_count_lines_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('restrict'),
+    check('stock_count_lines_expected_not_negative', sql`${table.expectedQuantity} >= 0`),
+    check('stock_count_lines_counted_not_negative', sql`${table.countedQuantity} >= 0`),
+    pgPolicy('stock_count_lines_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
