@@ -1,7 +1,8 @@
 import { findStockMismatches, migrateDatabase, schema } from '@paint/db';
 import { and, eq } from 'drizzle-orm';
-import { createIsolatedDatabase, type TestDatabase } from '@paint/testing';
-import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { createIsolatedDatabase, withPgClient, type TestDatabase } from '@paint/testing';
+import pg from 'pg';
+import { afterAll, beforeAll, describe, expect, inject, it, vi } from 'vitest';
 import { bearer, startTestApp, uniquePhone, type TestApp } from '../test-support/test-app.js';
 
 interface Line {
@@ -536,12 +537,44 @@ describe('races', () => {
     await api(puneManager).post(`/transfers/${id}/approve`);
     const before = (await stockAt(pune, a))?.onHand ?? 0;
 
-    const results = await Promise.all([
-      api(puneManager).post(`/transfers/${id}/dispatch`),
-      api(owner).post(`/transfers/${id}/dispatch`),
-    ]);
+    // Make the race deterministic: hold a lock on the transfer so both requests
+    // read "approved" and then queue at the status update. When the lock is
+    // released, one wins and the other finds the status already changed.
+    const blocker = new pg.Client({ connectionString: database.connectionString });
+    await blocker.connect();
+    let results: { statusCode: number; json: <T>() => T }[];
+    try {
+      await blocker.query('BEGIN');
+      await blocker.query('SELECT id FROM transfers WHERE id = $1 FOR UPDATE', [id]);
+      const racing = Promise.all([
+        api(puneManager).post(`/transfers/${id}/dispatch`),
+        api(owner).post(`/transfers/${id}/dispatch`),
+      ]);
+      await vi.waitFor(
+        async () => {
+          // Polled from a separate connection: inside the blocker's transaction
+          // pg_stat_activity would keep returning its first snapshot.
+          const waiting = await withPgClient(database.connectionString, (client) =>
+            client.query(
+              `SELECT count(*)::int AS n FROM pg_stat_activity
+             WHERE datname = current_database() AND wait_event_type = 'Lock'`,
+            ),
+          );
+          expect((waiting.rows[0] as { n: number }).n).toBe(2);
+        },
+        { timeout: 10_000, interval: 50 },
+      );
+      await blocker.query('ROLLBACK');
+      results = await racing;
+    } finally {
+      await blocker.end();
+    }
 
     expect(results.map((r) => r.statusCode).sort()).toEqual([200, 409]);
+    const loser = results.find((r) => r.statusCode === 409);
+    expect(loser?.json<{ message: string }>().message).toBe(
+      'Someone else just changed this transfer; reload it',
+    );
     expect((await stockAt(pune, a))?.onHand).toBe(before - 2);
   });
 });
