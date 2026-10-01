@@ -8,6 +8,7 @@ import { CatalogModule } from './catalog/catalog.module.js';
 import { authSettingsFrom } from './auth/auth.tokens.js';
 import { smsSenderFor, type SmsSender } from './auth/sms.js';
 import type { AppConfig } from './config.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { DocumentsModule } from './documents/documents.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -21,6 +22,7 @@ import { PartiesModule } from './parties/parties.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { PurchasingModule } from './purchasing/purchasing.module.js';
 import { ReorderModule } from './reorder/reorder.module.js';
+import { ReportsModule } from './reports/reports.module.js';
 import { SearchModule } from './search/search.module.js';
 import { StockCountsModule } from './stock-counts/stock-counts.module.js';
 import { StoresModule } from './stores/stores.module.js';
@@ -42,6 +44,7 @@ export class AppModule {
         DatabaseModule.forRoot(connection),
         ActivitiesModule,
         AuditModule,
+        DashboardModule,
         AuthModule.forRoot({
           settings: authSettingsFrom(config),
           smsSender: smsSender ?? smsSenderFor(config.smsProvider),
@@ -63,6 +66,7 @@ export class AppModule {
         ProjectsModule,
         PurchasingModule,
         ReorderModule,
+        ReportsModule,
         SearchModule,
         StockCountsModule,
         StoresModule,
