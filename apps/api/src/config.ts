@@ -19,11 +19,34 @@ const environmentSchema = z
     AUTH_SECRET: z.string().min(32, 'must be at least 32 characters'),
     SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
     SMS_PROVIDER: z.enum(SMS_PROVIDERS).default('disabled'),
+    /** S3 bucket for documents; unset turns document uploads off (not allowed in production). */
+    STORAGE_BUCKET: z.string().min(3).optional(),
+    STORAGE_REGION: z.string().min(1).default('ap-south-1'),
+    /** For S3-compatible stores in development and tests; unset = Amazon S3. */
+    STORAGE_ENDPOINT: z.url({ protocol: /^https?$/ }).optional(),
+    STORAGE_ACCESS_KEY_ID: z.string().min(1).optional(),
+    STORAGE_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+    /** ClamAV daemon that scans every upload; required with STORAGE_BUCKET. */
+    CLAMAV_HOST: z.string().min(1).optional(),
+    CLAMAV_PORT: z.coerce.number().int().min(1).max(65_535).default(3310),
   })
   .refine((env) => !(env.NODE_ENV === 'production' && env.SMS_PROVIDER === 'log'), {
     path: ['SMS_PROVIDER'],
     message: '"log" prints sign-in codes to the console and is not allowed in production',
-  });
+  })
+  .refine((env) => env.NODE_ENV !== 'production' || env.STORAGE_BUCKET !== undefined, {
+    path: ['STORAGE_BUCKET'],
+    message: 'is required in production',
+  })
+  .refine((env) => env.STORAGE_BUCKET === undefined || env.CLAMAV_HOST !== undefined, {
+    path: ['CLAMAV_HOST'],
+    message: 'is required to scan uploads when STORAGE_BUCKET is set',
+  })
+  .refine(
+    (env) =>
+      (env.STORAGE_ACCESS_KEY_ID === undefined) === (env.STORAGE_SECRET_ACCESS_KEY === undefined),
+    { path: ['STORAGE_SECRET_ACCESS_KEY'], message: 'set both storage keys, or neither' },
+  );
 
 export interface AppConfig {
   readonly nodeEnv: 'development' | 'test' | 'production';
@@ -38,6 +61,17 @@ export interface AppConfig {
   readonly sessionTtlDays: number;
   /** How one-time sign-in codes are delivered. */
   readonly smsProvider: SmsProvider;
+  /** Where documents are stored and scanned; null when uploads are off. */
+  readonly documents: DocumentsConfig | null;
+}
+
+export interface DocumentsConfig {
+  readonly bucket: string;
+  readonly region: string;
+  readonly endpoint: string | null;
+  /** Null = the AWS default credential chain (the server's IAM role). */
+  readonly credentials: { readonly accessKeyId: string; readonly secretAccessKey: string } | null;
+  readonly clamav: { readonly host: string; readonly port: number };
 }
 
 /** Thrown when environment variables are missing or invalid. Never includes their values. */
@@ -65,5 +99,22 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
     authSecret: data.AUTH_SECRET,
     sessionTtlDays: data.SESSION_TTL_DAYS,
     smsProvider: data.SMS_PROVIDER,
+    documents:
+      data.STORAGE_BUCKET === undefined
+        ? null
+        : {
+            bucket: data.STORAGE_BUCKET,
+            region: data.STORAGE_REGION,
+            endpoint: data.STORAGE_ENDPOINT ?? null,
+            credentials:
+              data.STORAGE_ACCESS_KEY_ID === undefined
+                ? null
+                : {
+                    accessKeyId: data.STORAGE_ACCESS_KEY_ID,
+                    secretAccessKey: String(data.STORAGE_SECRET_ACCESS_KEY),
+                  },
+            // Required with STORAGE_BUCKET (checked above).
+            clamav: { host: String(data.CLAMAV_HOST), port: data.CLAMAV_PORT },
+          },
   };
 }

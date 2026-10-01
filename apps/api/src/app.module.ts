@@ -7,6 +7,7 @@ import { authSettingsFrom } from './auth/auth.tokens.js';
 import { smsSenderFor, type SmsSender } from './auth/sms.js';
 import type { AppConfig } from './config.js';
 import { DatabaseModule } from './database/database.module.js';
+import { DocumentsModule } from './documents/documents.module.js';
 import { HealthModule } from './health/health.module.js';
 import { ImportsModule } from './imports/imports.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
@@ -38,6 +39,7 @@ export class AppModule {
           smsSender: smsSender ?? smsSenderFor(config.smsProvider),
         }),
         CatalogModule,
+        DocumentsModule.forRoot(config.documents),
         HealthModule,
         ImportsModule,
         InventoryModule,

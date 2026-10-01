@@ -1,10 +1,12 @@
 import 'reflect-metadata';
+import multipart from '@fastify/multipart';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { DatabaseConnection } from '@paint/db';
 import { AppModule } from './app.module.js';
 import type { SmsSender } from './auth/sms.js';
 import type { AppConfig } from './config.js';
+import { MAX_DOCUMENT_BYTES } from './documents/file-checks.js';
 import { createLogger } from './logger.js';
 
 /** Builds and initialises the Nest app without listening, so tests can drive it directly. */
@@ -19,6 +21,11 @@ export async function createApp(
     new FastifyAdapter({ bodyLimit: 4 * 1024 * 1024 }),
     { logger: createLogger(config) },
   );
+  // Document uploads: one file of at most 10 MB; larger ones are cut short and refused.
+  await app.register(multipart, {
+    limits: { fileSize: MAX_DOCUMENT_BYTES, files: 1, fields: 10, fieldSize: 1024 },
+    throwFileSizeLimit: false,
+  });
   app.enableShutdownHooks();
   await app.init();
   return app;

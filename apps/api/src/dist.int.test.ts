@@ -55,6 +55,10 @@ beforeAll(async () => {
       LOG_LEVEL: 'error',
       RUN_MIGRATIONS: 'true',
       AUTH_SECRET: 'dist-test-secret-of-at-least-32-characters',
+      STORAGE_BUCKET: 'dist-test-documents',
+      STORAGE_ENDPOINT: inject('objectStorageEndpoint'),
+      CLAMAV_HOST: inject('virusScannerAddress').split(':')[0],
+      CLAMAV_PORT: inject('virusScannerAddress').split(':')[1],
     },
     stdio: 'ignore',
   });

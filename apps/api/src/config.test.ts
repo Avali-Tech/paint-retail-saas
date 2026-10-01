@@ -17,6 +17,7 @@ describe('loadConfig', () => {
       authSecret: AUTH_SECRET,
       sessionTtlDays: 30,
       smsProvider: 'disabled',
+      documents: null,
     });
   });
 
@@ -32,6 +33,13 @@ describe('loadConfig', () => {
         AUTH_SECRET,
         SESSION_TTL_DAYS: '7',
         SMS_PROVIDER: 'disabled',
+        STORAGE_BUCKET: 'paint-documents',
+        STORAGE_REGION: 'ap-south-2',
+        STORAGE_ENDPOINT: 'http://localhost:8333',
+        STORAGE_ACCESS_KEY_ID: 'key-id',
+        STORAGE_SECRET_ACCESS_KEY: 'key-secret',
+        CLAMAV_HOST: 'clamav.internal',
+        CLAMAV_PORT: '3311',
       }),
     ).toEqual({
       nodeEnv: 'production',
@@ -43,6 +51,26 @@ describe('loadConfig', () => {
       authSecret: AUTH_SECRET,
       sessionTtlDays: 7,
       smsProvider: 'disabled',
+      documents: {
+        bucket: 'paint-documents',
+        region: 'ap-south-2',
+        endpoint: 'http://localhost:8333',
+        credentials: { accessKeyId: 'key-id', secretAccessKey: 'key-secret' },
+        clamav: { host: 'clamav.internal', port: 3311 },
+      },
+    });
+  });
+
+  it('uses Amazon S3 in Mumbai with the server role by default once a bucket is set', () => {
+    expect(
+      loadConfig({ ...required, STORAGE_BUCKET: 'paint-documents', CLAMAV_HOST: 'clamav' })
+        .documents,
+    ).toEqual({
+      bucket: 'paint-documents',
+      region: 'ap-south-1',
+      endpoint: null,
+      credentials: null,
+      clamav: { host: 'clamav', port: 3310 },
     });
   });
 
@@ -70,6 +98,14 @@ describe('loadConfig', () => {
     [{ ...required, LOG_LEVEL: 'loud' }, /LOG_LEVEL/],
     [{ ...required, RUN_MIGRATIONS: 'yes' }, /RUN_MIGRATIONS/],
     [{ ...required, HOST: '' }, /HOST/],
+    [{ ...required, NODE_ENV: 'production' }, /STORAGE_BUCKET: is required in production/],
+    [{ ...required, STORAGE_BUCKET: 'docs' }, /CLAMAV_HOST: is required to scan uploads/],
+    [
+      { ...required, STORAGE_BUCKET: 'docs', CLAMAV_HOST: 'c', STORAGE_ACCESS_KEY_ID: 'k' },
+      /STORAGE_SECRET_ACCESS_KEY: set both/,
+    ],
+    [{ ...required, STORAGE_ENDPOINT: 'ftp://files' }, /STORAGE_ENDPOINT/],
+    [{ ...required, CLAMAV_PORT: '0' }, /CLAMAV_PORT/],
   ])('rejects %o, naming the bad variable', (env, variable) => {
     expect(() => loadConfig(env)).toThrow(ConfigError);
     expect(() => loadConfig(env)).toThrow(variable);

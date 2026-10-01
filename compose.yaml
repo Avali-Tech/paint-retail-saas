@@ -1,4 +1,4 @@
-# Local development database. Start with `docker compose up -d`.
+# Local development services. Start with `docker compose up -d`.
 services:
   postgres:
     image: postgres:17-alpine
@@ -16,5 +16,26 @@ services:
       timeout: 5s
       retries: 15
 
+  # S3-compatible storage for documents (Amazon S3 in production).
+  storage:
+    image: chrislusf/seaweedfs:4.48
+    command: ['server', '-s3', '-dir=/data']
+    ports:
+      - '58333:8333'
+    volumes:
+      - storage-data:/data
+  # Creates the documents bucket once storage is up.
+  storage-init:
+    image: curlimages/curl:8.16.0
+    depends_on: [storage]
+    restart: on-failure
+    command: ['-fsS', '-X', 'PUT', 'http://storage:8333/paint-documents']
+  # Virus scanning for every upload. Takes ~15 s to load signatures after starting.
+  clamav:
+    image: clamav/clamav-debian:1.5.4
+    ports:
+      - '53310:3310'
+
 volumes:
   postgres-data:
+  storage-data:

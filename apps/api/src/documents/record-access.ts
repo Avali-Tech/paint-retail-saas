@@ -1,0 +1,127 @@
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { schema, type Transaction } from '@paint/db';
+import { canAccessStore, type Permission } from '@paint/shared';
+import { eq } from 'drizzle-orm';
+import type { AuthContext } from '../auth/auth-context.js';
+
+const { goodsReceipts, parties, products, purchaseOrders, stockCounts, stores, transfers } = schema;
+
+export const RECORD_TYPES = schema.documentRecordType.enumValues;
+export type RecordType = (typeof RECORD_TYPES)[number];
+
+interface RecordRule {
+  readonly read: Permission;
+  readonly manage: Permission;
+  /**
+   * The stores the record belongs to (empty = the whole business), or null if
+   * there is no such record. Members see it if they work at any of them.
+   */
+  stores(tx: Transaction, id: string): Promise<string[] | null>;
+}
+
+const first = async <T>(rows: Promise<T[]>) => (await rows)[0];
+
+/** Who may see and change each kind of record — and so its documents. */
+const RULES: Record<RecordType, RecordRule> = {
+  party: {
+    read: 'parties:read',
+    manage: 'parties:manage',
+    stores: async (tx, id) => {
+      const party = await first(
+        tx.select({ homeStoreId: parties.homeStoreId }).from(parties).where(eq(parties.id, id)),
+      );
+      return party ? (party.homeStoreId ? [party.homeStoreId] : []) : null;
+    },
+  },
+  product: {
+    read: 'catalog:read',
+    manage: 'catalog:manage',
+    stores: async (tx, id) =>
+      (await first(tx.select({ id: products.id }).from(products).where(eq(products.id, id))))
+        ? []
+        : null,
+  },
+  store: {
+    read: 'stores:read',
+    manage: 'stores:manage',
+    stores: async (tx, id) =>
+      (await first(tx.select({ id: stores.id }).from(stores).where(eq(stores.id, id))))
+        ? [id]
+        : null,
+  },
+  purchase_order: {
+    read: 'purchasing:read',
+    manage: 'purchasing:manage',
+    stores: async (tx, id) => {
+      const order = await first(
+        tx
+          .select({ storeId: purchaseOrders.storeId })
+          .from(purchaseOrders)
+          .where(eq(purchaseOrders.id, id)),
+      );
+      return order ? [order.storeId] : null;
+    },
+  },
+  goods_receipt: {
+    read: 'purchasing:read',
+    manage: 'purchasing:manage',
+    stores: async (tx, id) => {
+      const receipt = await first(
+        tx
+          .select({ storeId: goodsReceipts.storeId })
+          .from(goodsReceipts)
+          .where(eq(goodsReceipts.id, id)),
+      );
+      return receipt ? [receipt.storeId] : null;
+    },
+  },
+  transfer: {
+    read: 'inventory:read',
+    manage: 'inventory:manage',
+    stores: async (tx, id) => {
+      const transfer = await first(
+        tx
+          .select({ from: transfers.fromStoreId, to: transfers.toStoreId })
+          .from(transfers)
+          .where(eq(transfers.id, id)),
+      );
+      return transfer ? [transfer.from, transfer.to] : null;
+    },
+  },
+  stock_count: {
+    read: 'inventory:read',
+    manage: 'inventory:manage',
+    stores: async (tx, id) => {
+      const count = await first(
+        tx.select({ storeId: stockCounts.storeId }).from(stockCounts).where(eq(stockCounts.id, id)),
+      );
+      return count ? [count.storeId] : null;
+    },
+  },
+};
+
+/**
+ * Checks the member may see (`read`) or change (`manage`) the record's documents:
+ * 403 without the record's permission, 404 if the record does not exist or
+ * belongs to stores they do not work at.
+ */
+export async function requireRecordAccess(
+  tx: Transaction,
+  auth: AuthContext,
+  recordType: RecordType,
+  recordId: string,
+  need: 'read' | 'manage',
+): Promise<void> {
+  const rule = RULES[recordType];
+  if (!auth.permissions.has(rule[need])) {
+    throw new ForbiddenException(
+      need === 'read'
+        ? 'You cannot see documents on this record'
+        : 'You cannot change documents on this record',
+    );
+  }
+  const storeIds = await rule.stores(tx, recordId);
+  if (!storeIds || (storeIds.length > 0 && !storeIds.some((id) => canAccessStore(auth, id)))) {
+    throw new NotFoundException('Record not found');
+  }
+}
