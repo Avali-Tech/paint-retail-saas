@@ -2091,6 +2091,8 @@ export const supportGrants = pgTable(
     platformUserId: uuid('platform_user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
+    /** Kept on the grant: the business cannot see platform staff's accounts. */
+    requestedByName: text('requested_by_name').notNull().default(''),
     reason: text('reason').notNull(),
     /** How long access lasts once approved. */
     minutes: integer('minutes').notNull(),

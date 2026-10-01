@@ -53,3 +53,12 @@ export const listTenantsSchema = z.object({
 export type ListTenantsQuery = z.output<typeof listTenantsSchema>;
 
 export const reasonSchema = z.object({ reason: z.string().trim().min(3).max(500) });
+
+export const supportRequestSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+  /** How long access lasts once approved: 15 minutes to 8 hours. */
+  minutes: z.number().int().min(15).max(480).default(60),
+});
+export type SupportRequestInput = z.output<typeof supportRequestSchema>;
+
+export const listGrantsSchema = z.object({ tenantId: z.uuid().optional() });

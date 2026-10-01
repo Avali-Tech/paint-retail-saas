@@ -12,6 +12,8 @@ export interface AuthContext extends MemberAccess {
   };
   readonly organization: { readonly id: string; readonly name: string };
   readonly role: { readonly key: string; readonly name: string };
+  /** Set when platform support is signed in through an approved support grant. */
+  readonly supportGrantId?: string;
 }
 
 /** The shape returned by GET /auth/me. */

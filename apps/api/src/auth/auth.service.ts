@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { isUniqueViolation, schema, type DatabaseConnection, type Transaction } from '@paint/db';
 import { isPermission, normalizeEmail, normalizePhone } from '@paint/shared';
-import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.module.js';
 import { setUpOrganization } from './organization-setup.js';
 import type { AuthContext } from './auth-context.js';
@@ -41,6 +41,8 @@ const {
   rolePermissions,
   roles,
   sessions,
+  supportAccessLog,
+  supportGrants,
   users,
 } = schema;
 
@@ -221,6 +223,7 @@ export class AuthService {
         roleId: roles.id,
         roleKey: roles.key,
         roleName: roles.name,
+        supportGrantId: sessions.supportGrantId,
       })
       .from(sessions)
       .innerJoin(users, eq(users.id, sessions.userId))
@@ -233,6 +236,7 @@ export class AuthService {
         ),
       )
       .innerJoin(roles, eq(roles.id, organizationMembers.roleId))
+      .leftJoin(supportGrants, eq(supportGrants.id, sessions.supportGrantId))
       .where(
         and(
           eq(sessions.tokenHash, hashSessionToken(token)),
@@ -240,8 +244,17 @@ export class AuthService {
           gt(sessions.expiresAt, sql`now()`),
           eq(users.isActive, true),
           eq(organizationMembers.isActive, true),
-          // A suspended business is signed out at once.
-          isNull(organizations.suspendedAt),
+          or(
+            isNull(sessions.supportGrantId),
+            // Support sessions last only while their grant is approved and running.
+            and(
+              isNotNull(supportGrants.approvedAt),
+              isNull(supportGrants.endedAt),
+              gt(supportGrants.expiresAt, sql`now()`),
+            ),
+          ),
+          // A suspended business is signed out at once; support can still look in.
+          or(isNull(organizations.suspendedAt), isNotNull(sessions.supportGrantId)),
         ),
       );
     if (!row) return null;
@@ -266,7 +279,20 @@ export class AuthService {
       permissions: new Set(permissionRows.map((r) => r.permission).filter(isPermission)),
       allStores: row.allStores,
       storeIds: new Set(storeRows.map((r) => r.storeId)),
+      ...(row.supportGrantId ? { supportGrantId: row.supportGrantId } : {}),
     };
+  }
+
+  /** Records one request made with platform support access; platform scope. */
+  async recordSupportAccess(
+    organizationId: string,
+    grantId: string,
+    method: string,
+    path: string,
+  ): Promise<void> {
+    await this.connection.db
+      .insert(supportAccessLog)
+      .values({ organizationId, grantId, method, path: path.slice(0, 500) });
   }
 
   /** Signs out this device: the token stops working immediately. */

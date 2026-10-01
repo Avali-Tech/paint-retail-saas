@@ -180,7 +180,14 @@ export class TenantsService {
       await tx
         .update(sessions)
         .set({ revokedAt: sql`now()` })
-        .where(and(eq(sessions.organizationId, tenantId), isNull(sessions.revokedAt)));
+        .where(
+          and(
+            eq(sessions.organizationId, tenantId),
+            isNull(sessions.revokedAt),
+            // Platform support may still need to look in.
+            isNull(sessions.supportGrantId),
+          ),
+        );
     });
     return this.get(tenantId);
   }

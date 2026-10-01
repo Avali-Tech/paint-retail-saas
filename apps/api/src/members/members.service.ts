@@ -17,11 +17,12 @@ import {
   type Transaction,
 } from '@paint/db';
 import { isPermission, type Permission } from '@paint/shared';
-import { and, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { hashPassword } from '../auth/credentials.js';
 import { DATABASE } from '../database/database.module.js';
 import { requireRoomFor } from '../platform/plan-limits.js';
+import { SUPPORT_ROLE_KEY } from '../platform/support-role.js';
 import { canSeeMember, grantProblem, manageProblem } from './access-rules.js';
 import type { CreateMemberInput, UpdateMemberInput } from './members.schemas.js';
 
@@ -72,6 +73,7 @@ export class MembersService {
       const roleRows = await tx
         .select({ id: roles.id, key: roles.key, name: roles.name, isSystem: roles.isSystem })
         .from(roles)
+        .where(ne(roles.key, SUPPORT_ROLE_KEY))
         .orderBy(roles.name);
       const permissionRows = await tx.select().from(rolePermissions);
       return roleRows.map((role) => ({
@@ -291,7 +293,8 @@ export class MembersService {
     const [role] = await tx
       .select({ id: roles.id, key: roles.key })
       .from(roles)
-      .where(eq(roles.id, roleId));
+      // Only the platform gives anyone the support role.
+      .where(and(eq(roles.id, roleId), ne(roles.key, SUPPORT_ROLE_KEY)));
     if (!role) throw new BadRequestException('Unknown role');
     const permissionRows = await tx
       .select({ permission: rolePermissions.permission })

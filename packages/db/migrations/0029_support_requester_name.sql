@@ -1,0 +1,1 @@
+ALTER TABLE "support_grants" ADD COLUMN "requested_by_name" text DEFAULT '' NOT NULL;

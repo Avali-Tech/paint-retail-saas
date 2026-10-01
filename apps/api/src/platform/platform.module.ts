@@ -8,6 +8,8 @@ import {
 } from './platform-auth.service.js';
 import { PlatformAuthController, TenantsController } from './platform.controller.js';
 import { PlatformGuard } from './platform.guard.js';
+import { PlatformSupportController, SupportRequestsController } from './support.controller.js';
+import { SupportService } from './support.service.js';
 import { TenantsService } from './tenants.service.js';
 
 @Module({})
@@ -15,11 +17,18 @@ export class PlatformModule {
   static forRoot(settings: PlatformSettings): DynamicModule {
     return {
       module: PlatformModule,
-      controllers: [PlatformAuthController, TenantsController, FeaturesController],
+      controllers: [
+        PlatformAuthController,
+        TenantsController,
+        FeaturesController,
+        PlatformSupportController,
+        SupportRequestsController,
+      ],
       providers: [
         PlatformAuthService,
         PlatformGuard,
         TenantsService,
+        SupportService,
         { provide: PLATFORM_SETTINGS, useValue: settings },
       ],
     };
