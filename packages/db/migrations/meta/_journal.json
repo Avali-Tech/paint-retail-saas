@@ -99,6 +99,13 @@
       "when": 1790848521827,
       "tag": "0013_stock_counts",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790849649056,
+      "tag": "0014_reorder_rules",
+      "breakpoints": true
     }
   ]
 }

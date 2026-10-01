@@ -11,6 +11,7 @@ import { HealthModule } from './health/health.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { MembersModule } from './members/members.module.js';
 import { PartiesModule } from './parties/parties.module.js';
+import { ReorderModule } from './reorder/reorder.module.js';
 import { StockCountsModule } from './stock-counts/stock-counts.module.js';
 import { StoresModule } from './stores/stores.module.js';
 import { TransfersModule } from './transfers/transfers.module.js';
@@ -38,6 +39,7 @@ export class AppModule {
         InventoryModule,
         MembersModule,
         PartiesModule,
+        ReorderModule,
         StockCountsModule,
         StoresModule,
         TransfersModule,

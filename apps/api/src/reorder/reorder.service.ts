@@ -1,0 +1,349 @@
+import 'reflect-metadata';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { schema, withTenant, type DatabaseConnection, type Transaction } from '@paint/db';
+import { canAccessStore } from '@paint/shared';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  ilike,
+  inArray,
+  or,
+  sql,
+  type AnyColumn,
+  type SQL,
+} from 'drizzle-orm';
+import type { AuthContext } from '../auth/auth-context.js';
+import { DATABASE } from '../database/database.module.js';
+import { containsPattern } from '../parties/party-access.js';
+import type {
+  ListRulesQuery,
+  LowStockQuery,
+  SaveRulesInput,
+  SlowMoversQuery,
+} from './reorder.schemas.js';
+
+const { brands, productVariants, products, reorderRules, stockBalances, stockLedger, stores } =
+  schema;
+
+export interface ItemRef {
+  readonly store: { readonly id: string; readonly code: string };
+  readonly variant: { readonly id: string; readonly sku: string };
+  readonly product: { readonly name: string };
+  readonly brand: { readonly name: string };
+}
+
+export interface RuleView extends ItemRef {
+  readonly minQuantity: number;
+  readonly reorderLevel: number;
+  readonly maxQuantity: number;
+}
+
+export type Severity = 'out_of_stock' | 'below_minimum' | 'reorder';
+
+export interface LowStockItem extends RuleView {
+  readonly onHand: number;
+  readonly available: number;
+  readonly severity: Severity;
+  /** Enough to bring available stock back up to the maximum. */
+  readonly suggestedQuantity: number;
+}
+
+export interface SlowMover extends ItemRef {
+  readonly onHand: number;
+  /** When it last sold or was sent to another store; null if never. */
+  readonly lastDemandAt: string | null;
+  readonly daysIdle: number;
+  /** Money tied up: on hand × average cost, in paise; null without a cost. */
+  readonly valuePaise: number | null;
+}
+
+export interface Page<T> {
+  readonly items: T[];
+  readonly total: number;
+}
+
+const itemColumns = {
+  storeId: stores.id,
+  storeCode: stores.code,
+  variantId: productVariants.id,
+  sku: productVariants.sku,
+  productName: products.name,
+  brandName: brands.name,
+};
+
+const itemRef = (row: {
+  storeId: string;
+  storeCode: string;
+  variantId: string;
+  sku: string;
+  productName: string;
+  brandName: string;
+}): ItemRef => ({
+  store: { id: row.storeId, code: row.storeCode },
+  variant: { id: row.variantId, sku: row.sku },
+  product: { name: row.productName },
+  brand: { name: row.brandName },
+});
+
+const round3 = (value: number) => Math.round(value * 1000) / 1000;
+
+@Injectable()
+export class ReorderService {
+  constructor(@Inject(DATABASE) private readonly connection: DatabaseConnection) {}
+
+  /** Creates or replaces reorder rules, several at once. */
+  saveRules(auth: AuthContext, input: SaveRulesInput): Promise<{ saved: number }> {
+    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      const storeIds = [...new Set(input.rules.map((rule) => rule.storeId))];
+      const variantIds = [...new Set(input.rules.map((rule) => rule.variantId))];
+      const found = await tx
+        .select({ id: stores.id })
+        .from(stores)
+        .where(inArray(stores.id, storeIds));
+      if (found.length !== storeIds.length || !storeIds.every((id) => canAccessStore(auth, id))) {
+        throw new NotFoundException('Store not found');
+      }
+      const variants = await tx
+        .select({ id: productVariants.id })
+        .from(productVariants)
+        .where(inArray(productVariants.id, variantIds));
+      if (variants.length !== variantIds.length)
+        throw new BadRequestException('Unknown product variant');
+
+      for (const rule of input.rules) {
+        const levels = {
+          minQuantity: rule.minQuantity,
+          reorderLevel: rule.reorderLevel,
+          maxQuantity: rule.maxQuantity,
+          updatedByMemberId: auth.memberId,
+        };
+        await tx
+          .insert(reorderRules)
+          .values({
+            organizationId: auth.organization.id,
+            storeId: rule.storeId,
+            variantId: rule.variantId,
+            ...levels,
+          })
+          .onConflictDoUpdate({
+            target: [reorderRules.storeId, reorderRules.variantId],
+            set: { ...levels, updatedAt: sql`now()` },
+          });
+      }
+      return { saved: input.rules.length };
+    });
+  }
+
+  removeRule(auth: AuthContext, storeId: string, variantId: string): Promise<void> {
+    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      if (!canAccessStore(auth, storeId)) throw new NotFoundException('Reorder rule not found');
+      const removed = await tx
+        .delete(reorderRules)
+        .where(and(eq(reorderRules.storeId, storeId), eq(reorderRules.variantId, variantId)))
+        .returning({ storeId: reorderRules.storeId });
+      if (removed.length === 0) throw new NotFoundException('Reorder rule not found');
+    });
+  }
+
+  listRules(auth: AuthContext, query: ListRulesQuery): Promise<Page<RuleView>> {
+    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      this.assertStoreFilter(auth, query.storeId);
+      const where = and(
+        this.storeScope(auth, reorderRules.storeId, query.storeId),
+        query.q
+          ? or(
+              ilike(productVariants.sku, containsPattern(query.q)),
+              ilike(products.name, containsPattern(query.q)),
+              ilike(brands.name, containsPattern(query.q)),
+            )
+          : undefined,
+      );
+      const rows = await this.ruleRows(tx)
+        .where(where)
+        .orderBy(asc(stores.code), asc(productVariants.sku))
+        .limit(query.limit)
+        .offset(query.offset);
+      const total = await this.countRules(tx, where);
+      return {
+        items: rows.map((row) => ({
+          ...itemRef(row),
+          minQuantity: row.minQuantity,
+          reorderLevel: row.reorderLevel,
+          maxQuantity: row.maxQuantity,
+        })),
+        total,
+      };
+    });
+  }
+
+  /** Products at or below their reorder level, most urgent first. */
+  lowStock(auth: AuthContext, query: LowStockQuery): Promise<Page<LowStockItem>> {
+    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      this.assertStoreFilter(auth, query.storeId);
+      const available = sql`coalesce(${stockBalances.onHand}, 0) - coalesce(${stockBalances.reserved}, 0)`;
+      const where = and(
+        this.storeScope(auth, reorderRules.storeId, query.storeId),
+        eq(productVariants.isActive, true),
+        eq(products.isActive, true),
+        sql`${available} <= ${reorderRules.reorderLevel}`,
+      );
+      const severityRank = sql`case
+        when ${available} <= 0 then 0
+        when ${available} < ${reorderRules.minQuantity} then 1
+        else 2 end`;
+      const rows = await this.ruleRows(tx)
+        .where(where)
+        .orderBy(
+          severityRank,
+          sql`${available} - ${reorderRules.reorderLevel}`,
+          asc(stores.code),
+          asc(productVariants.sku),
+        )
+        .limit(query.limit)
+        .offset(query.offset);
+      const total = await this.countRules(tx, where);
+      return {
+        items: rows.map((row) => {
+          const availableNow = round3(row.onHand - row.reserved);
+          const severity: Severity =
+            availableNow <= 0
+              ? 'out_of_stock'
+              : availableNow < row.minQuantity
+                ? 'below_minimum'
+                : 'reorder';
+          return {
+            ...itemRef(row),
+            minQuantity: row.minQuantity,
+            reorderLevel: row.reorderLevel,
+            maxQuantity: row.maxQuantity,
+            onHand: row.onHand,
+            available: availableNow,
+            severity,
+            suggestedQuantity: round3(row.maxQuantity - availableNow),
+          };
+        }),
+        total,
+      };
+    });
+  }
+
+  /** In-stock products with no sale or transfer out for at least `days` days, biggest value first. */
+  slowMovers(auth: AuthContext, query: SlowMoversQuery): Promise<Page<SlowMover>> {
+    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      this.assertStoreFilter(auth, query.storeId);
+      const lastDemand = sql<Date | null>`(
+        select max(${stockLedger.createdAt}) from ${stockLedger}
+        where ${stockLedger.storeId} = ${stockBalances.storeId}
+          and ${stockLedger.variantId} = ${stockBalances.variantId}
+          and ${stockLedger.movementType} in ('sale', 'transfer_out')
+      )`;
+      const firstIn = sql`(
+        select min(${stockLedger.createdAt}) from ${stockLedger}
+        where ${stockLedger.storeId} = ${stockBalances.storeId}
+          and ${stockLedger.variantId} = ${stockBalances.variantId}
+          and ${stockLedger.quantity} > 0
+      )`;
+      const daysIdle = sql<number>`floor(extract(epoch from now() - coalesce(${lastDemand}, ${firstIn})) / 86400)::int`;
+      const value = sql<
+        string | null
+      >`round(${stockBalances.onHand} * ${stockBalances.avgCostPaise})`;
+      const where = and(
+        this.storeScope(auth, stockBalances.storeId, query.storeId),
+        gt(stockBalances.onHand, 0),
+        sql`${daysIdle} >= ${query.days}`,
+      );
+      const base = () =>
+        tx
+          .select({
+            ...itemColumns,
+            onHand: stockBalances.onHand,
+            lastDemandAt: lastDemand,
+            daysIdle,
+            valuePaise: value,
+          })
+          .from(stockBalances)
+          .innerJoin(stores, eq(stores.id, stockBalances.storeId))
+          .innerJoin(productVariants, eq(productVariants.id, stockBalances.variantId))
+          .innerJoin(products, eq(products.id, productVariants.productId))
+          .innerJoin(brands, eq(brands.id, products.brandId));
+      const rows = await base()
+        .where(where)
+        .orderBy(sql`${value} desc nulls last`, desc(daysIdle), asc(productVariants.sku))
+        .limit(query.limit)
+        .offset(query.offset);
+      const [totals] = await tx.select({ total: count() }).from(stockBalances).where(where);
+      return {
+        items: rows.map((row) => ({
+          ...itemRef(row),
+          onHand: row.onHand,
+          lastDemandAt: row.lastDemandAt ? new Date(row.lastDemandAt).toISOString() : null,
+          daysIdle: row.daysIdle,
+          valuePaise: row.valuePaise === null ? null : Number(row.valuePaise),
+        })),
+        total: Number(totals?.total),
+      };
+    });
+  }
+
+  // Helpers -----------------------------------------------------------------
+
+  private ruleRows(tx: Transaction) {
+    return tx
+      .select({
+        ...itemColumns,
+        minQuantity: reorderRules.minQuantity,
+        reorderLevel: reorderRules.reorderLevel,
+        maxQuantity: reorderRules.maxQuantity,
+        onHand: sql<number>`coalesce(${stockBalances.onHand}, 0)::float8`,
+        reserved: sql<number>`coalesce(${stockBalances.reserved}, 0)::float8`,
+      })
+      .from(reorderRules)
+      .innerJoin(stores, eq(stores.id, reorderRules.storeId))
+      .innerJoin(productVariants, eq(productVariants.id, reorderRules.variantId))
+      .innerJoin(products, eq(products.id, productVariants.productId))
+      .innerJoin(brands, eq(brands.id, products.brandId))
+      .leftJoin(
+        stockBalances,
+        and(
+          eq(stockBalances.storeId, reorderRules.storeId),
+          eq(stockBalances.variantId, reorderRules.variantId),
+        ),
+      )
+      .$dynamic();
+  }
+
+  private async countRules(tx: Transaction, where: SQL | undefined): Promise<number> {
+    const [totals] = await tx
+      .select({ total: count() })
+      .from(reorderRules)
+      .innerJoin(productVariants, eq(productVariants.id, reorderRules.variantId))
+      .innerJoin(products, eq(products.id, productVariants.productId))
+      .innerJoin(brands, eq(brands.id, products.brandId))
+      .leftJoin(
+        stockBalances,
+        and(
+          eq(stockBalances.storeId, reorderRules.storeId),
+          eq(stockBalances.variantId, reorderRules.variantId),
+        ),
+      )
+      .where(where);
+    return Number(totals?.total);
+  }
+
+  private assertStoreFilter(auth: AuthContext, storeId: string | undefined): void {
+    if (storeId && !canAccessStore(auth, storeId)) throw new NotFoundException('Store not found');
+  }
+
+  private storeScope(
+    auth: AuthContext,
+    column: AnyColumn,
+    storeId: string | undefined,
+  ): SQL | undefined {
+    if (storeId) return eq(column, storeId);
+    return auth.allStores ? undefined : inArray(column, [...auth.storeIds]);
+  }
+}

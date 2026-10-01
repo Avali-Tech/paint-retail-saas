@@ -41,6 +41,7 @@ describe('migrateDatabase', () => {
       'product_barcodes',
       'product_variants',
       'products',
+      'reorder_rules',
       'role_permissions',
       'roles',
       'sessions',

@@ -1034,3 +1034,47 @@ export const stockCountLines = pgTable(
     }),
   ],
 ).enableRLS();
+
+/**
+ * When to reorder a product at a store (roadmap §3.17). Alert when available
+ * stock falls to the reorder level; it is critical below the minimum; order up
+ * to the maximum.
+ */
+export const reorderRules = pgTable(
+  'reorder_rules',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    storeId: uuid('store_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    minQuantity: numeric('min_quantity', { precision: 14, scale: 3, mode: 'number' }).notNull(),
+    reorderLevel: numeric('reorder_level', { precision: 14, scale: 3, mode: 'number' }).notNull(),
+    maxQuantity: numeric('max_quantity', { precision: 14, scale: 3, mode: 'number' }).notNull(),
+    updatedByMemberId: uuid('updated_by_member_id'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.storeId, table.variantId] }),
+    index('reorder_rules_organization_store_idx').on(table.organizationId, table.storeId),
+    foreignKey({
+      name: 'reorder_rules_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'reorder_rules_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('cascade'),
+    check(
+      'reorder_rules_levels_in_order',
+      sql`0 <= ${table.minQuantity} and ${table.minQuantity} <= ${table.reorderLevel}
+        and ${table.reorderLevel} <= ${table.maxQuantity} and ${table.maxQuantity} > 0`,
+    ),
+    pgPolicy('reorder_rules_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
