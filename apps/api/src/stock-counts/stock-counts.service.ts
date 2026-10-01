@@ -249,8 +249,7 @@ export class StockCountsService {
       await this.notifier.notify(tx, {
         organizationId: auth.organization.id,
         event: 'stock_count_awaiting_approval',
-        storeId: stockCount.storeId,
-        permission: 'inventory:manage',
+        to: { storeId: stockCount.storeId, permission: 'inventory:manage' },
         actorMemberId: auth.memberId,
         title: `Stock count ${stockCount.number} needs your approval`,
         body: `${auth.user.fullName} has counted ${String(lines.length)} product(s) at ${store.name}. Check the differences and approve.`,

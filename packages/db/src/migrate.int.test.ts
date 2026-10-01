@@ -28,6 +28,7 @@ describe('migrateDatabase', () => {
       return result.rows.map((row) => row.table_name);
     });
     expect(tables).toEqual([
+      'activities',
       'brands',
       'categories',
       'customer_profiles',

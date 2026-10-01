@@ -1424,12 +1424,13 @@ export const documents = pgTable(
   ],
 ).enableRLS();
 
-/** What a notification is about (roadmap P1-M19). Follow-ups arrive with P1-M09. */
+/** What a notification is about (roadmap P1-M19). */
 export const notificationEvent = pgEnum('notification_event', [
   'transfer_awaiting_approval',
   'transfer_awaiting_receipt',
   'stock_count_awaiting_approval',
   'low_stock',
+  'follow_up_due',
 ]);
 
 /** An in-app notification for one member. */
@@ -1904,6 +1905,95 @@ export const projectParties = pgTable(
       foreignColumns: [parties.organizationId, parties.id],
     }).onDelete('restrict'),
     pgPolicy('project_parties_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const activityType = pgEnum('activity_type', [
+  'call',
+  'meeting',
+  'visit',
+  'whatsapp',
+  'email',
+  'follow_up',
+  'note',
+]);
+
+/** Records an activity can be about; customers, contractors, dealers and suppliers are parties. */
+export const activityRecordType = pgEnum('activity_record_type', [
+  'party',
+  'lead',
+  'opportunity',
+  'project',
+]);
+
+/**
+ * Something done or to do about a record (roadmap P1-M09): a call made, a
+ * visit planned, a follow-up due. Done when completed_at is set; scheduled
+ * while due_at is set and it is neither done nor cancelled.
+ */
+export const activities = pgTable(
+  'activities',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    recordType: activityRecordType('record_type').notNull(),
+    recordId: uuid('record_id').notNull(),
+    /** The record's store, for store-level lists; null for business-wide parties. */
+    storeId: uuid('store_id'),
+    type: activityType('type').notNull(),
+    subject: text('subject').notNull(),
+    notes: text('notes'),
+    /** What came of it, written when it is done. */
+    outcome: text('outcome'),
+    dueAt: timestamp('due_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    /** When the assignee was reminded that it is due. */
+    remindedAt: timestamp('reminded_at', { withTimezone: true }),
+    assignedMemberId: uuid('assigned_member_id').notNull(),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('activities_record_idx').on(table.organizationId, table.recordType, table.recordId),
+    index('activities_assignee_open_idx')
+      .on(table.assignedMemberId, table.dueAt)
+      .where(sql`${table.completedAt} is null and ${table.cancelledAt} is null`),
+    index('activities_reminder_idx')
+      .on(table.dueAt)
+      .where(
+        sql`${table.completedAt} is null and ${table.cancelledAt} is null and ${table.remindedAt} is null`,
+      ),
+    foreignKey({
+      name: 'activities_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'activities_assigned_member_fk',
+      columns: [table.organizationId, table.assignedMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'activities_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'activities_scheduled_or_done',
+      sql`${table.dueAt} is not null or ${table.completedAt} is not null`,
+    ),
+    check(
+      'activities_done_or_cancelled',
+      sql`not (${table.completedAt} is not null and ${table.cancelledAt} is not null)`,
+    ),
+    pgPolicy('activities_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

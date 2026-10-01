@@ -46,7 +46,8 @@ export async function requireCategory(tx: Transaction, categoryId: string): Prom
 export async function requireSalesperson(
   tx: Transaction,
   memberId: string,
-  storeId: string,
+  /** Null for business-wide records: any store will do. */
+  storeId: string | null,
   permission: Permission = 'leads:manage',
 ): Promise<void> {
   const [member] = await tx
@@ -63,16 +64,18 @@ export async function requireSalesperson(
       and(
         eq(organizationMembers.id, memberId),
         eq(organizationMembers.isActive, true),
-        or(
-          eq(organizationMembers.allStores, true),
-          inArray(
-            organizationMembers.id,
-            tx
-              .select({ id: memberStores.memberId })
-              .from(memberStores)
-              .where(eq(memberStores.storeId, storeId)),
-          ),
-        ),
+        storeId === null
+          ? undefined
+          : or(
+              eq(organizationMembers.allStores, true),
+              inArray(
+                organizationMembers.id,
+                tx
+                  .select({ id: memberStores.memberId })
+                  .from(memberStores)
+                  .where(eq(memberStores.storeId, storeId)),
+              ),
+            ),
       ),
     );
   if (!member) {

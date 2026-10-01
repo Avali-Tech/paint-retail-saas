@@ -259,6 +259,12 @@ describe('preferences', () => {
         inApp: true,
         email: true,
       },
+      {
+        event: 'follow_up_due',
+        title: 'A follow-up assigned to you is due',
+        inApp: true,
+        email: true,
+      },
     ]);
     expect(saved.statusCode).toBe(200);
     expect(
@@ -270,6 +276,7 @@ describe('preferences', () => {
       ['transfer_awaiting_receipt', false, true],
       ['stock_count_awaiting_approval', true, true],
       ['low_stock', false, false],
+      ['follow_up_due', true, true],
     ]);
     const duplicate = await api(hydManager).put('/notifications/preferences', {
       preferences: [

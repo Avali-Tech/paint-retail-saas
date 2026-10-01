@@ -212,8 +212,7 @@ export class TransfersService {
       await this.notifier.notify(tx, {
         organizationId,
         event: 'transfer_awaiting_approval',
-        storeId: input.fromStoreId,
-        permission: 'inventory:manage',
+        to: { storeId: input.fromStoreId, permission: 'inventory:manage' },
         actorMemberId: auth.memberId,
         title: `Transfer ${number} needs your approval`,
         body: `${view.to.name} has asked ${view.from.name} for ${String(view.lines.length)} product(s).`,
@@ -362,8 +361,7 @@ export class TransfersService {
         await this.notifier.notify(tx, {
           organizationId: auth.organization.id,
           event: 'transfer_awaiting_receipt',
-          storeId: transfer.toStoreId,
-          permission: 'inventory:manage',
+          to: { storeId: transfer.toStoreId, permission: 'inventory:manage' },
           actorMemberId: auth.memberId,
           title: `Transfer ${transfer.number} is on its way`,
           body: `${from.name} has dispatched ${String(sending.length)} product(s) to ${to.name}. Record what arrives.`,

@@ -162,6 +162,13 @@
       "when": 1790860467146,
       "tag": "0022_grant_projects_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790861079699,
+      "tag": "0023_activities",
+      "breakpoints": true
     }
   ]
 }

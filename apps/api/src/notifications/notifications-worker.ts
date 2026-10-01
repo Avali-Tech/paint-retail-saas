@@ -7,12 +7,14 @@ import {
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { schema, type DatabaseConnection } from '@paint/db';
-import { and, asc, eq, lte, notExists, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, lte, notExists, sql } from 'drizzle-orm';
+import { RECORD_PATHS, recordLabel } from '../activities/activity-records.js';
 import { DATABASE } from '../database/database.module.js';
 import type { EmailSender } from './email-sender.js';
 import { Notifier } from './notifier.js';
 
 const {
+  activities,
   emailOutbox,
   lowStockAlerts,
   productVariants,
@@ -33,11 +35,14 @@ export interface WorkerSettings {
 /** Give up on an email after this many failed attempts. */
 export const MAX_EMAIL_ATTEMPTS = 5;
 const EMAIL_BATCH = 50;
+const REMINDER_BATCH = 200;
 const LOW_STOCK_LOCK = sql`hashtext('paint:low-stock-check')`;
 
 export interface WorkerRun {
   /** Products newly reported as low. */
   readonly lowStock: number;
+  /** Follow-ups whose assignees were reminded. */
+  readonly followUps: number;
   readonly emailsSent: number;
   readonly emailsFailed: number;
 }
@@ -78,11 +83,12 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
   /** Runs every job once; one failing does not stop the others. */
   async runOnce(): Promise<WorkerRun> {
     const lowStock = await this.attempt('Low stock check', () => this.checkLowStock(), 0);
+    const followUps = await this.attempt('Follow-up reminders', () => this.remindFollowUps(), 0);
     const { sent, failed } = await this.attempt('Sending email', () => this.sendDueEmails(), {
       sent: 0,
       failed: 0,
     });
-    return { lowStock, emailsSent: sent, emailsFailed: failed };
+    return { lowStock, followUps, emailsSent: sent, emailsFailed: failed };
   }
 
   private async attempt<T>(name: string, job: () => Promise<T>, fallback: T): Promise<T> {
@@ -183,8 +189,7 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
         await this.notifier.notify(tx, {
           organizationId,
           event: 'low_stock',
-          storeId,
-          permission: 'inventory:manage',
+          to: { storeId, permission: 'inventory:manage' },
           title: `Low stock at ${storeName}: ${String(items.length)} product(s)`,
           body: items
             .map(
@@ -196,6 +201,54 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
         });
       }
       return low.length;
+    });
+  }
+
+  /**
+   * Reminds each assignee of their follow-ups due in the next 15 minutes (or
+   * already late), once per follow-up.
+   */
+  remindFollowUps(): Promise<number> {
+    return this.connection.db.transaction(async (tx) => {
+      // SKIP LOCKED: several servers can share the work without reminding twice.
+      const due = await tx
+        .select({
+          id: activities.id,
+          organizationId: activities.organizationId,
+          recordType: activities.recordType,
+          recordId: activities.recordId,
+          subject: activities.subject,
+          assignedMemberId: activities.assignedMemberId,
+          label: recordLabel,
+          dueAt: sql<string>`to_char(${activities.dueAt} at time zone 'Asia/Kolkata', 'DD Mon YYYY, HH12:MI AM')`,
+        })
+        .from(activities)
+        .where(
+          and(
+            isNull(activities.completedAt),
+            isNull(activities.cancelledAt),
+            isNull(activities.remindedAt),
+            lte(activities.dueAt, sql`now() + interval '15 minutes'`),
+          ),
+        )
+        .orderBy(asc(activities.dueAt))
+        .limit(REMINDER_BATCH)
+        .for('update', { skipLocked: true });
+      for (const followUp of due) {
+        await this.notifier.notify(tx, {
+          organizationId: followUp.organizationId,
+          event: 'follow_up_due',
+          to: { memberIds: [followUp.assignedMemberId] },
+          title: `Follow-up due: ${followUp.subject}`,
+          body: `${followUp.label} — due ${followUp.dueAt} (IST)`,
+          link: `${RECORD_PATHS[followUp.recordType]}${followUp.recordId}`,
+        });
+        await tx
+          .update(activities)
+          .set({ remindedAt: sql`now()` })
+          .where(eq(activities.id, followUp.id));
+      }
+      return due.length;
     });
   }
 

@@ -32,7 +32,7 @@ interface RecordRule {
 
 const first = async <T>(rows: Promise<T[]>) => (await rows)[0];
 
-/** Who may see and change each kind of record — and so its documents. */
+/** Who may see and change each kind of record — and so what is attached to it. */
 const RULES: Record<RecordType, RecordRule> = {
   party: {
     read: 'parties:read',
@@ -145,7 +145,8 @@ const RULES: Record<RecordType, RecordRule> = {
 };
 
 /**
- * Checks the member may see (`read`) or change (`manage`) the record's documents:
+ * Checks the member may see (`read`) or change (`manage`) the record and what is
+ * attached to it, and returns the stores it belongs to (empty = business-wide):
  * 403 without the record's permission, 404 if the record does not exist or
  * belongs to stores they do not work at.
  */
@@ -155,17 +156,29 @@ export async function requireRecordAccess(
   recordType: RecordType,
   recordId: string,
   need: 'read' | 'manage',
-): Promise<void> {
+  /** What is being checked, for the message. */
+  what = 'documents',
+): Promise<string[]> {
   const rule = RULES[recordType];
   if (!auth.permissions.has(rule[need])) {
     throw new ForbiddenException(
       need === 'read'
-        ? 'You cannot see documents on this record'
-        : 'You cannot change documents on this record',
+        ? `You cannot see ${what} on this record`
+        : `You cannot change ${what} on this record`,
     );
   }
   const storeIds = await rule.stores(tx, recordId);
   if (!storeIds || (storeIds.length > 0 && !storeIds.some((id) => canAccessStore(auth, id)))) {
     throw new NotFoundException('Record not found');
   }
+  return storeIds;
+}
+
+/** The permissions that let someone see and change a kind of record. */
+export function recordPermissions(recordType: RecordType): {
+  read: Permission;
+  manage: Permission;
+} {
+  const { read, manage } = RULES[recordType];
+  return { read, manage };
 }

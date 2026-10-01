@@ -9,4 +9,5 @@ export const EVENT_TITLES: Record<NotificationEvent, string> = {
   transfer_awaiting_receipt: 'A transfer is on its way to your store',
   stock_count_awaiting_approval: 'A stock count needs your approval',
   low_stock: 'A product falls to its reorder level',
+  follow_up_due: 'A follow-up assigned to you is due',
 };

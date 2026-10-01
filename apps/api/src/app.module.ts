@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { Module, type DynamicModule } from '@nestjs/common';
 import type { DatabaseConnection } from '@paint/db';
+import { ActivitiesModule } from './activities/activities.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
 import { authSettingsFrom } from './auth/auth.tokens.js';
@@ -37,6 +38,7 @@ export class AppModule {
       module: AppModule,
       imports: [
         DatabaseModule.forRoot(connection),
+        ActivitiesModule,
         AuthModule.forRoot({
           settings: authSettingsFrom(config),
           smsSender: smsSender ?? smsSenderFor(config.smsProvider),

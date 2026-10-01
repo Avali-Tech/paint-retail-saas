@@ -155,8 +155,8 @@ describe('low stock', () => {
     await move(dipping.id, -4);
     const afterDip = await worker().runOnce();
 
-    expect(first).toEqual({ lowStock: 1, emailsSent: 1, emailsFailed: 0 });
-    expect(again).toEqual({ lowStock: 0, emailsSent: 0, emailsFailed: 0 });
+    expect(first).toEqual({ lowStock: 1, followUps: 0, emailsSent: 1, emailsFailed: 0 });
+    expect(again).toEqual({ lowStock: 0, followUps: 0, emailsSent: 0, emailsFailed: 0 });
     expect(afterDip.lowStock).toBe(1);
     const notices = await lowNotices(manager);
     expect(notices).toEqual([
@@ -319,6 +319,9 @@ describe('running on a timer', () => {
       await vi.waitFor(
         () => {
           expect(errors).toHaveBeenCalledWith(expect.stringMatching(/^Low stock check failed: /));
+          expect(errors).toHaveBeenCalledWith(
+            expect.stringMatching(/^Follow-up reminders failed: /),
+          );
           expect(errors).toHaveBeenCalledWith(expect.stringMatching(/^Sending email failed: /));
         },
         { timeout: 10_000, interval: 200 },

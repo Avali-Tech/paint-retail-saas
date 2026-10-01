@@ -140,6 +140,10 @@ Every route requires `Authorization: Bearer <token>` unless marked public.
 | POST               | `/projects`, `/opportunities/:id/project`                                         | `projects:manage`                                        | A project (PJ-000001…) with customer, site and map pin, dates, area, paint litres, value; or started from an opportunity                 |
 | GET                | `/projects`, `/projects/:id`, `/projects/pipeline`                                | `projects:read`                                          | Filter by `stage`, `partyId` (customer or anyone linked), `assignedTo`, `q`; per-stage totals                                            |
 | PATCH · PUT · POST | `/projects/:id`, `/:id/parties`, `/:id/assign`, `/:id/stage`, `/:id/cancel`       | `projects:manage`                                        | Edit, set architects / contractors / painters / dealers, reassign, move stages, cancel with a reason                                     |
+| POST               | `/activities`                                                                     | the record's manage permission                           | Log a call, meeting, visit, WhatsApp, email or note on a party, lead, opportunity or project; with `dueAt` it is scheduled               |
+| GET                | `/activities?recordType=&recordId=`                                               | the record's read permission                             | The record's timeline, latest first                                                                                                      |
+| GET                | `/activities/follow-ups?when=today`                                               | signed in                                                | My (or `assignedTo`) open follow-ups: `overdue`, `today`, `upcoming` or `open`, in India time, with badge counts                         |
+| PATCH · POST       | `/activities/:id`, `/:id/complete`, `/:id/cancel`                                 | the record's manage permission                           | Reschedule or reassign; complete with an outcome and optionally schedule the next step; cancel                                           |
 
 **Access model:** `User → Role → Permissions`, plus store access (`all stores` or a list). Permission
 keys and the standard roles live in `packages/shared/src/permissions.ts`. Routes declare
@@ -202,8 +206,8 @@ product falling to its reorder level to that store's stock managers — once per
 store. Never to the person who acted. Notifications are written in the same transaction as the
 event; emails go to an outbox and the background worker (every `WORKER_INTERVAL_SECONDS`) sends
 them over SMTP (Amazon SES in production, Mailpit locally at http://localhost:58025), retrying 4
-times with growing gaps. Several servers can run the worker safely. Follow-up reminders arrive with
-P1-M09.
+times with growing gaps. Several servers can run the worker safely. Follow-ups remind their assignee
+(see Activities below).
 
 **Leads & opportunities** (roadmap P1-M07): a lead moves new → contacted → qualified, then converts
 into an opportunity (discovery → proposal → negotiation → won / lost), or is won directly or lost
@@ -215,6 +219,11 @@ negotiation → order → execution → completed (or cancelled with a reason). 
 customer, any number of architects, contractors, painters and dealers, and the opportunity it came
 from. Site photos are documents on the project (categories `before_photo`, `after_photo`, with a
 note); documents also attach to leads and opportunities. No shade or tinting data until Phase 2.
+
+**Activities & follow-ups** (roadmap P1-M09): every call, visit and note is an activity on a party
+(customer, contractor, dealer, supplier…), lead, opportunity or project, and access follows that
+record. A follow-up's assignee is reminded once, in the app and by email, when it is within 15
+minutes of due (`follow_up_due`); rescheduling reminds again.
 
 ## Database
 

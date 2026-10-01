@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { Inject, Injectable } from '@nestjs/common';
 import { schema, type Transaction } from '@paint/db';
 import type { Permission } from '@paint/shared';
-import { and, eq, inArray, ne, or, sql } from 'drizzle-orm';
+import { and, eq, exists, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { NotificationEvent } from './events.js';
 
 const {
@@ -25,9 +25,10 @@ export interface NotifierSettings {
 export interface Notice {
   readonly organizationId: string;
   readonly event: NotificationEvent;
-  /** Everyone who has this permission at this store hears about it… */
-  readonly storeId: string;
-  readonly permission: Permission;
+  /** Everyone with the permission at the store, or particular members… */
+  readonly to:
+    | { readonly storeId: string; readonly permission: Permission }
+    | { readonly memberIds: readonly string[] };
   /** …except the person who caused it. */
   readonly actorMemberId?: string;
   readonly title: string;
@@ -56,13 +57,6 @@ export class Notifier {
       })
       .from(organizationMembers)
       .innerJoin(users, eq(users.id, organizationMembers.userId))
-      .innerJoin(
-        rolePermissions,
-        and(
-          eq(rolePermissions.roleId, organizationMembers.roleId),
-          eq(rolePermissions.permission, notice.permission),
-        ),
-      )
       .leftJoin(
         notificationPreferences,
         and(
@@ -77,16 +71,7 @@ export class Notifier {
           eq(organizationMembers.organizationId, notice.organizationId),
           eq(organizationMembers.isActive, true),
           notice.actorMemberId ? ne(organizationMembers.id, notice.actorMemberId) : undefined,
-          or(
-            eq(organizationMembers.allStores, true),
-            inArray(
-              organizationMembers.id,
-              tx
-                .select({ memberId: memberStores.memberId })
-                .from(memberStores)
-                .where(eq(memberStores.storeId, notice.storeId)),
-            ),
-          ),
+          this.audience(tx, notice.to),
         ),
       );
 
@@ -127,5 +112,32 @@ export class Notifier {
       );
     }
     return recipients.length;
+  }
+
+  private audience(tx: Transaction, to: Notice['to']): SQL | undefined {
+    if ('memberIds' in to) return inArray(organizationMembers.id, [...to.memberIds]);
+    return and(
+      exists(
+        tx
+          .select({ one: sql`1` })
+          .from(rolePermissions)
+          .where(
+            and(
+              eq(rolePermissions.roleId, organizationMembers.roleId),
+              eq(rolePermissions.permission, to.permission),
+            ),
+          ),
+      ),
+      or(
+        eq(organizationMembers.allStores, true),
+        inArray(
+          organizationMembers.id,
+          tx
+            .select({ memberId: memberStores.memberId })
+            .from(memberStores)
+            .where(eq(memberStores.storeId, to.storeId)),
+        ),
+      ),
+    );
   }
 }
