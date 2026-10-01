@@ -22,10 +22,14 @@ import {
   type UpdatePartyInput,
 } from './parties.schemas.js';
 import { PartiesService, type PartyPage, type PartyView } from './parties.service.js';
+import { PartyOverviewService, type PartyOverview } from './party-overview.service.js';
 
 @Controller('parties')
 export class PartiesController {
-  constructor(@Inject(PartiesService) private readonly parties: PartiesService) {}
+  constructor(
+    @Inject(PartiesService) private readonly parties: PartiesService,
+    @Inject(PartyOverviewService) private readonly overviews: PartyOverviewService,
+  ) {}
 
   @Get()
   @RequirePermissions('parties:read')
@@ -43,6 +47,16 @@ export class PartiesController {
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<PartyView> {
     return this.parties.get(auth, id);
+  }
+
+  /** The customer 360: the party with its leads, opportunities, projects, activities and documents. */
+  @Get(':id/overview')
+  @RequirePermissions('parties:read')
+  overview(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<PartyOverview> {
+    return this.overviews.overview(auth, id);
   }
 
   @Post()
