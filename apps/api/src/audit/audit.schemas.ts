@@ -10,6 +10,7 @@ export const AUDIT_AREAS = {
   stock_ledger: 'Stock adjustments',
   organizations: 'Plan and account',
   support_grants: 'Support access',
+  contracts: 'Contracts',
 } as const;
 export type AuditTable = keyof typeof AUDIT_AREAS;
 

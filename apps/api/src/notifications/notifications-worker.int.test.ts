@@ -155,8 +155,20 @@ describe('low stock', () => {
     await move(dipping.id, -4);
     const afterDip = await worker().runOnce();
 
-    expect(first).toEqual({ lowStock: 1, followUps: 0, emailsSent: 1, emailsFailed: 0 });
-    expect(again).toEqual({ lowStock: 0, followUps: 0, emailsSent: 0, emailsFailed: 0 });
+    expect(first).toEqual({
+      lowStock: 1,
+      followUps: 0,
+      contractRenewals: 0,
+      emailsSent: 1,
+      emailsFailed: 0,
+    });
+    expect(again).toEqual({
+      lowStock: 0,
+      followUps: 0,
+      contractRenewals: 0,
+      emailsSent: 0,
+      emailsFailed: 0,
+    });
     expect(afterDip.lowStock).toBe(1);
     const notices = await lowNotices(manager);
     expect(notices).toEqual([

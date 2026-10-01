@@ -11,4 +11,5 @@ export const EVENT_TITLES: Record<NotificationEvent, string> = {
   low_stock: 'A product falls to its reorder level',
   follow_up_due: 'A follow-up assigned to you is due',
   support_access_requested: 'Platform support asks to access your business',
+  contract_renewal_due: 'A contract assigned to you is due for renewal',
 };

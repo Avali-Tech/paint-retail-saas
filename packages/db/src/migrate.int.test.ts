@@ -32,6 +32,7 @@ describe('migrateDatabase', () => {
       'audit_log',
       'brands',
       'categories',
+      'contracts',
       'customer_profiles',
       'document_sequences',
       'documents',

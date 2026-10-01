@@ -271,6 +271,12 @@ describe('preferences', () => {
         inApp: true,
         email: true,
       },
+      {
+        event: 'contract_renewal_due',
+        title: 'A contract assigned to you is due for renewal',
+        inApp: true,
+        email: true,
+      },
     ]);
     expect(saved.statusCode).toBe(200);
     expect(
@@ -284,6 +290,7 @@ describe('preferences', () => {
       ['low_stock', false, false],
       ['follow_up_due', true, true],
       ['support_access_requested', true, true],
+      ['contract_renewal_due', true, true],
     ]);
     const duplicate = await api(hydManager).put('/notifications/preferences', {
       preferences: [

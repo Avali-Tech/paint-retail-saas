@@ -9,14 +9,17 @@ import {
 import { schema, type DatabaseConnection } from '@paint/db';
 import { and, asc, eq, isNull, lte, notExists, sql } from 'drizzle-orm';
 import { RECORD_PATHS, recordLabel } from '../activities/activity-records.js';
+import { todayIst } from '../contracts/contract-sql.js';
 import { DATABASE } from '../database/database.module.js';
 import type { EmailSender } from './email-sender.js';
 import { Notifier } from './notifier.js';
 
 const {
   activities,
+  contracts,
   emailOutbox,
   lowStockAlerts,
+  parties,
   productVariants,
   products,
   reorderRules,
@@ -43,6 +46,8 @@ export interface WorkerRun {
   readonly lowStock: number;
   /** Follow-ups whose assignees were reminded. */
   readonly followUps: number;
+  /** Contracts whose assignees were reminded to renew them. */
+  readonly contractRenewals: number;
   readonly emailsSent: number;
   readonly emailsFailed: number;
 }
@@ -84,11 +89,16 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
   async runOnce(): Promise<WorkerRun> {
     const lowStock = await this.attempt('Low stock check', () => this.checkLowStock(), 0);
     const followUps = await this.attempt('Follow-up reminders', () => this.remindFollowUps(), 0);
+    const contractRenewals = await this.attempt(
+      'Contract renewal reminders',
+      () => this.remindContractRenewals(),
+      0,
+    );
     const { sent, failed } = await this.attempt('Sending email', () => this.sendDueEmails(), {
       sent: 0,
       failed: 0,
     });
-    return { lowStock, followUps, emailsSent: sent, emailsFailed: failed };
+    return { lowStock, followUps, contractRenewals, emailsSent: sent, emailsFailed: failed };
   }
 
   private async attempt<T>(name: string, job: () => Promise<T>, fallback: T): Promise<T> {
@@ -247,6 +257,55 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
           .update(activities)
           .set({ remindedAt: sql`now()` })
           .where(eq(activities.id, followUp.id));
+      }
+      return due.length;
+    });
+  }
+
+  /**
+   * Reminds each assignee of their active contracts whose renewal date has
+   * come (in India), once per contract; moving the renewal date re-arms it.
+   */
+  remindContractRenewals(): Promise<number> {
+    return this.connection.db.transaction(async (tx) => {
+      const day = (column: typeof contracts.endDate) =>
+        sql<string>`to_char(${column}, 'DD Mon YYYY')`;
+      const due = await tx
+        .select({
+          id: contracts.id,
+          organizationId: contracts.organizationId,
+          number: contracts.number,
+          title: contracts.title,
+          party: parties.displayName,
+          assignedMemberId: contracts.assignedMemberId,
+          endDate: day(contracts.endDate),
+        })
+        .from(contracts)
+        .innerJoin(parties, eq(parties.id, contracts.partyId))
+        .where(
+          and(
+            eq(contracts.status, 'active'),
+            isNull(contracts.remindedAt),
+            lte(contracts.renewalDate, todayIst),
+          ),
+        )
+        .orderBy(asc(contracts.renewalDate), asc(contracts.number))
+        .limit(REMINDER_BATCH)
+        // SKIP LOCKED: several servers can share the work without reminding twice.
+        .for('update', { of: contracts, skipLocked: true });
+      for (const contract of due) {
+        await this.notifier.notify(tx, {
+          organizationId: contract.organizationId,
+          event: 'contract_renewal_due',
+          to: { memberIds: [contract.assignedMemberId] },
+          title: `Contract due for renewal: ${contract.number} · ${contract.title}`,
+          body: `${contract.party} — ends ${contract.endDate}`,
+          link: `/contracts/${contract.id}`,
+        });
+        await tx
+          .update(contracts)
+          .set({ remindedAt: sql`now()` })
+          .where(eq(contracts.id, contract.id));
       }
       return due.length;
     });

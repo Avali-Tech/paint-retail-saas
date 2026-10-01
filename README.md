@@ -140,6 +140,9 @@ Every route requires `Authorization: Bearer <token>` unless marked public.
 | POST               | `/projects`, `/opportunities/:id/project`                                                        | `projects:manage`                                        | A project (PJ-000001…) with customer, site and map pin, dates, area, paint litres, value; or started from an opportunity                                                                                                           |
 | GET                | `/projects`, `/projects/:id`, `/projects/pipeline`                                               | `projects:read`                                          | Filter by `stage`, `partyId` (customer or anyone linked), `assignedTo`, `q`; per-stage totals                                                                                                                                      |
 | PATCH · PUT · POST | `/projects/:id`, `/:id/parties`, `/:id/assign`, `/:id/stage`, `/:id/cancel`                      | `projects:manage`                                        | Edit, set architects / contractors / painters / dealers, reassign, move stages, cancel with a reason                                                                                                                               |
+| POST               | `/contracts`                                                                                     | `contracts:manage`                                       | A contract (CT-000001…) with a party, optional store and project, start/end and renewal date (default 30 days before the end), value, terms, credit and discount terms; starts as a draft                                          |
+| GET                | `/contracts`, `/contracts/:id`                                                                   | `contracts:read`                                         | Filter by `status` (incl. `expired`), `type`, `partyId`, `storeId`, `projectId`, `assignedTo`, `q`; `renewalDue=30` lists active contracts ending within 30 days (or already ended), soonest first                                 |
+| PATCH · POST       | `/contracts/:id`, `/:id/activate`, `/:id/terminate`, `/:id/renew`                                | `contracts:manage`                                       | Edit, put in force, terminate with a reason, renew (creates the follow-on contract, 201)                                                                                                                                           |
 | POST               | `/activities`                                                                                    | the record's manage permission                           | Log a call, meeting, visit, WhatsApp, email or note on a party, lead, opportunity or project; with `dueAt` it is scheduled                                                                                                         |
 | GET                | `/activities?recordType=&recordId=`                                                              | the record's read permission                             | The record's timeline, latest first                                                                                                                                                                                                |
 | GET                | `/activities/follow-ups?when=today`                                                              | signed in                                                | My (or `assignedTo`) open follow-ups: `overdue`, `today`, `upcoming` or `open`, in India time, with badge counts                                                                                                                   |
@@ -203,7 +206,7 @@ mobile number, opening stock by store and SKU. Blank cells keep saved values. Op
 refused once a product has other movements at that store; use a stock count instead.
 
 **Documents** (roadmap P1-M18): files attach to parties, products, stores, purchase orders, goods
-receipts, transfers and stock counts. Whoever can see the record sees its documents; whoever can
+receipts, transfers, stock counts, leads, opportunities, projects and contracts. Whoever can see the record sees its documents; whoever can
 change it can add or remove them, and store access applies (a Pune order's documents are invisible to
 Hyderabad staff). Every file is scanned by ClamAV before it is stored — including inside Word and
 Excel archives — and refused if infected or if scanning is down. The type comes from the file's bytes,
@@ -230,6 +233,17 @@ negotiation → order → execution → completed (or cancelled with a reason). 
 customer, any number of architects, contractors, painters and dealers, and the opportunity it came
 from. Site photos are documents on the project (categories `before_photo`, `after_photo`, with a
 note); documents also attach to leads and opportunities. No shade or tinting data until Phase 2.
+
+**Contracts** (roadmap P1-M24): contractor, supplier, customer and dealer agreements as a record
+with terms, dates, documents and status, not a legal engine. Draft → active → terminated (with a
+reason) or renewed; an active contract past its end date (India time) shows as `expired` until it is
+renewed or terminated. Renewing creates a new contract (new number, active, linked both ways via
+`renewalOf` / `renewedBy`), by default starting the day after the old one ends and copying its
+terms. The signed agreement is a document on the contract (record type `contract`). Contracts with
+a store are visible to that store's staff; those without are business-wide. On the renewal date
+the assignee is reminded once, in the app and by email (`contract_renewal_due`); moving the date
+reminds again. Status, dates and value changes are in the audit log; the customer 360 and search
+include contracts.
 
 **Activities & follow-ups** (roadmap P1-M09): every call, visit and note is an activity on a party
 (customer, contractor, dealer, supplier…), lead, opportunity or project, and access follows that

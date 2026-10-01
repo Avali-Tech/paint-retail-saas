@@ -17,6 +17,7 @@ import {
 } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
+import { contractStatusSql, visibleContracts } from '../contracts/contract-sql.js';
 import { DATABASE } from '../database/database.module.js';
 import { storeScope } from '../leads/crm-lookups.js';
 import { containsPattern, phoneSearchDigits } from '../parties/party-access.js';
@@ -24,6 +25,7 @@ import type { SearchQuery } from './search.schemas.js';
 
 const {
   brands,
+  contracts,
   goodsReceipts,
   leads,
   opportunities,
@@ -60,6 +62,7 @@ export interface SearchResults {
   readonly leads: SearchHit[] | null;
   readonly opportunities: SearchHit[] | null;
   readonly projects: SearchHit[] | null;
+  readonly contracts: SearchHit[] | null;
   /** Transfers, purchase orders, goods receipts and stock counts found by number. */
   readonly documents: SearchHit[];
 }
@@ -96,6 +99,9 @@ export class SearchService {
         : null,
       projects: can('projects:read')
         ? await this.projects(tx, auth, term, words, query.limit)
+        : null,
+      contracts: can('contracts:read')
+        ? await this.contracts(tx, auth, term, words, query.limit)
         : null,
       documents: /\d/.test(term) ? await this.documents(tx, auth, term, query.limit) : [],
     }));
@@ -299,6 +305,41 @@ export class SearchService {
       title: `${row.number} · ${row.name}`,
       subtitle: [row.customer, row.city, row.stage].filter(Boolean).join(' · '),
       path: `/projects/${row.id}`,
+    }));
+  }
+
+  /** Contracts by number, title or party. */
+  private async contracts(
+    tx: Transaction,
+    auth: AuthContext,
+    term: string,
+    words: string[],
+    limit: number,
+  ): Promise<SearchHit[]> {
+    const rows = await tx
+      .select({
+        id: contracts.id,
+        number: contracts.number,
+        title: contracts.title,
+        status: contractStatusSql,
+        endDate: contracts.endDate,
+        party: parties.displayName,
+      })
+      .from(contracts)
+      .innerJoin(parties, eq(parties.id, contracts.partyId))
+      .where(
+        and(
+          visibleContracts(auth),
+          allWords(words, [contracts.number, contracts.title, parties.displayName]),
+        ),
+      )
+      .orderBy(rank(contracts.number, term), rank(contracts.title, term), asc(contracts.number))
+      .limit(limit);
+    return rows.map((row) => ({
+      id: row.id,
+      title: `${row.number} · ${row.title}`,
+      subtitle: `${row.party} · ${row.status} · ends ${row.endDate}`,
+      path: `/contracts/${row.id}`,
     }));
   }
 
