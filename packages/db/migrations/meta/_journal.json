@@ -183,6 +183,13 @@
       "when": 1790863540366,
       "tag": "0025_audit_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790864748461,
+      "tag": "0026_search_indexes",
+      "breakpoints": true
     }
   ]
 }

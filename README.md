@@ -146,6 +146,8 @@ Every route requires `Authorization: Bearer <token>` unless marked public.
 | PATCH · POST       | `/activities/:id`, `/:id/complete`, `/:id/cancel`                                 | the record's manage permission                           | Reschedule or reassign; complete with an outcome and optionally schedule the next step; cancel                                                        |
 | GET                | `/parties/:id/overview`                                                           | `parties:read`                                           | Customer 360: the party with its leads, opportunities (open and won value), projects (with its roles there), activities, next follow-up and documents |
 | GET                | `/audit-log`                                                                      | `audit:read` (owners, admins)                            | Who changed what and when: filter by `table`, `recordId`, `actorMemberId`, `from`, `to`; old and new values ready to read                             |
+| GET                | `/search?q=`                                                                      | signed in (each group checks its own permission)         | One search box: customers by name / mobile / GSTIN, products by name / brand / SKU / barcode, leads, opportunities, projects, and documents by number |
+| GET                | `/search/actions?q=`                                                              | signed in                                                | Quick actions the member may use (+ Customer, + Transfer, Receive goods…), with two-key shortcuts such as `N C`                                       |
 
 **Access model:** `User → Role → Permissions`, plus store access (`all stores` or a list). Permission
 keys and the standard roles live in `packages/shared/src/permissions.ts`. Routes declare
@@ -237,6 +239,11 @@ count corrections, with the watched columns' old and new values. No code path ca
 application can only read the log: it cannot add, edit or delete entries, and even the database owner
 cannot change or empty it. Each request runs as its member (`runAsMember`), so entries name who acted;
 background and setup work appears as system. Credit limits join the list with P1-M25.
+
+**Search** (roadmap P1-M21): every word must match somewhere, exact matches (a SKU, barcode,
+mobile number or document number) come first, and `%` and `_` are ordinary characters. Each group
+appears only with its read permission and keeps to the member's stores. Trigram indexes (`pg_trgm`)
+keep "contains" searches fast: about 40 ms through the API with 10,000 customers and products.
 
 ## Database
 

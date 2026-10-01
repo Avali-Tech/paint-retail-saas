@@ -21,6 +21,7 @@ import { PartiesModule } from './parties/parties.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { PurchasingModule } from './purchasing/purchasing.module.js';
 import { ReorderModule } from './reorder/reorder.module.js';
+import { SearchModule } from './search/search.module.js';
 import { StockCountsModule } from './stock-counts/stock-counts.module.js';
 import { StoresModule } from './stores/stores.module.js';
 import { TransfersModule } from './transfers/transfers.module.js';
@@ -62,6 +63,7 @@ export class AppModule {
         ProjectsModule,
         PurchasingModule,
         ReorderModule,
+        SearchModule,
         StockCountsModule,
         StoresModule,
         TransfersModule,
