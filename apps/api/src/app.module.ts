@@ -11,6 +11,7 @@ import { HealthModule } from './health/health.module.js';
 import { ImportsModule } from './imports/imports.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { MembersModule } from './members/members.module.js';
+import { OnboardingModule } from './onboarding/onboarding.module.js';
 import { PartiesModule } from './parties/parties.module.js';
 import { PurchasingModule } from './purchasing/purchasing.module.js';
 import { ReorderModule } from './reorder/reorder.module.js';
@@ -41,6 +42,7 @@ export class AppModule {
         ImportsModule,
         InventoryModule,
         MembersModule,
+        OnboardingModule,
         PartiesModule,
         PurchasingModule,
         ReorderModule,
