@@ -30,7 +30,8 @@ import type {
   UpdateOpportunityInput,
 } from './leads.schemas.js';
 
-const { categories, leads, opportunities, organizationMembers, parties, stores, users } = schema;
+const { categories, leads, opportunities, organizationMembers, parties, projects, stores, users } =
+  schema;
 
 type OpportunityStage = (typeof OPPORTUNITY_STAGES)[number];
 type OpportunityRow = typeof opportunities.$inferSelect;
@@ -52,6 +53,7 @@ export interface OpportunityView {
   readonly store: { readonly id: string; readonly code: string; readonly name: string };
   readonly party: { readonly id: string; readonly name: string; readonly phone: string | null };
   readonly lead: { readonly id: string; readonly number: string } | null;
+  readonly project: { readonly id: string; readonly number: string } | null;
   readonly title: string;
   readonly expectedValuePaise: number;
   /** Expected value × probability. */
@@ -298,6 +300,7 @@ export class OpportunitiesService {
         store: { id: stores.id, code: stores.code, name: stores.name },
         party: { id: parties.id, name: parties.displayName, phone: parties.phone },
         lead: { id: leads.id, number: leads.number },
+        project: { id: projects.id, number: projects.number },
         category: { id: categories.id, name: categories.name },
         salespersonName: salespersonUsers.fullName,
       })
@@ -305,6 +308,7 @@ export class OpportunitiesService {
       .innerJoin(stores, eq(stores.id, opportunities.storeId))
       .innerJoin(parties, eq(parties.id, opportunities.partyId))
       .leftJoin(leads, eq(leads.id, opportunities.leadId))
+      .leftJoin(projects, eq(projects.opportunityId, opportunities.id))
       .leftJoin(categories, eq(categories.id, opportunities.categoryId))
       .leftJoin(salespeople, eq(salespeople.id, opportunities.salespersonMemberId))
       .leftJoin(salespersonUsers, eq(salespersonUsers.id, salespeople.userId))
@@ -331,6 +335,7 @@ export class OpportunitiesService {
       store: row.store,
       party: row.party,
       lead: row.lead,
+      project: row.project,
       title: opportunity.title,
       expectedValuePaise: opportunity.expectedValuePaise,
       weightedValuePaise: Math.round(

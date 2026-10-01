@@ -4,7 +4,18 @@ import { canAccessStore, type Permission } from '@paint/shared';
 import { eq } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 
-const { goodsReceipts, parties, products, purchaseOrders, stockCounts, stores, transfers } = schema;
+const {
+  goodsReceipts,
+  leads,
+  opportunities,
+  parties,
+  products,
+  projects,
+  purchaseOrders,
+  stockCounts,
+  stores,
+  transfers,
+} = schema;
 
 export const RECORD_TYPES = schema.documentRecordType.enumValues;
 export type RecordType = (typeof RECORD_TYPES)[number];
@@ -86,6 +97,39 @@ const RULES: Record<RecordType, RecordRule> = {
           .where(eq(transfers.id, id)),
       );
       return transfer ? [transfer.from, transfer.to] : null;
+    },
+  },
+  lead: {
+    read: 'leads:read',
+    manage: 'leads:manage',
+    stores: async (tx, id) => {
+      const lead = await first(
+        tx.select({ storeId: leads.storeId }).from(leads).where(eq(leads.id, id)),
+      );
+      return lead ? [lead.storeId] : null;
+    },
+  },
+  opportunity: {
+    read: 'leads:read',
+    manage: 'leads:manage',
+    stores: async (tx, id) => {
+      const opportunity = await first(
+        tx
+          .select({ storeId: opportunities.storeId })
+          .from(opportunities)
+          .where(eq(opportunities.id, id)),
+      );
+      return opportunity ? [opportunity.storeId] : null;
+    },
+  },
+  project: {
+    read: 'projects:read',
+    manage: 'projects:manage',
+    stores: async (tx, id) => {
+      const project = await first(
+        tx.select({ storeId: projects.storeId }).from(projects).where(eq(projects.id, id)),
+      );
+      return project ? [project.storeId] : null;
     },
   },
   stock_count: {

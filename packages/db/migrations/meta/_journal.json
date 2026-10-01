@@ -148,6 +148,20 @@
       "when": 1790859164048,
       "tag": "0020_grant_leads_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790860466681,
+      "tag": "0021_projects",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1790860467146,
+      "tag": "0022_grant_projects_permissions",
+      "breakpoints": true
     }
   ]
 }

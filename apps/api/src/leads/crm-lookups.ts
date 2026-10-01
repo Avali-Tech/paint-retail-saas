@@ -1,6 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { schema, type Transaction } from '@paint/db';
-import { canAccessStore } from '@paint/shared';
+import { canAccessStore, type Permission } from '@paint/shared';
 import { and, eq, inArray, or, type AnyColumn, type SQL } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { canSeeParty } from '../parties/party-access.js';
@@ -42,11 +42,12 @@ export async function requireCategory(tx: Transaction, categoryId: string): Prom
   if (!category) throw new BadRequestException('Unknown category');
 }
 
-/** An active member who works at the store and handles leads; 400 otherwise. */
+/** An active member who works at the store and has the permission (leads by default); 400 otherwise. */
 export async function requireSalesperson(
   tx: Transaction,
   memberId: string,
   storeId: string,
+  permission: Permission = 'leads:manage',
 ): Promise<void> {
   const [member] = await tx
     .select({ id: organizationMembers.id })
@@ -55,7 +56,7 @@ export async function requireSalesperson(
       rolePermissions,
       and(
         eq(rolePermissions.roleId, organizationMembers.roleId),
-        eq(rolePermissions.permission, 'leads:manage'),
+        eq(rolePermissions.permission, permission),
       ),
     )
     .where(
@@ -75,7 +76,9 @@ export async function requireSalesperson(
       ),
     );
   if (!member) {
-    throw new BadRequestException('Choose someone who works at this store and handles leads');
+    throw new BadRequestException(
+      `Choose someone who works at this store and handles ${permission.slice(0, permission.indexOf(':'))}`,
+    );
   }
 }
 

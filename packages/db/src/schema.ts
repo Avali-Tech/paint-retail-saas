@@ -1347,6 +1347,9 @@ export const documentRecordType = pgEnum('document_record_type', [
   'goods_receipt',
   'transfer',
   'stock_count',
+  'lead',
+  'opportunity',
+  'project',
 ]);
 
 export const documentCategory = pgEnum('document_category', [
@@ -1360,6 +1363,8 @@ export const documentCategory = pgEnum('document_category', [
   'delivery_challan',
   'photo',
   'other',
+  'before_photo',
+  'after_photo',
 ]);
 
 /**
@@ -1382,6 +1387,8 @@ export const documents = pgTable(
     sizeBytes: integer('size_bytes').notNull(),
     sha256: text('sha256').notNull(),
     storageKey: text('storage_key').notNull(),
+    /** What the file shows, e.g. "North wall before repair". */
+    note: text('note'),
     uploadedByMemberId: uuid('uploaded_by_member_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     deletedByMemberId: uuid('deleted_by_member_id'),
@@ -1750,6 +1757,153 @@ export const opportunities = pgTable(
       sql`(${table.stage} in ('won', 'lost')) = (${table.closedAt} is not null)`,
     ),
     pgPolicy('opportunities_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const projectStage = pgEnum('project_stage', [
+  'identified',
+  'survey',
+  'specification',
+  'quotation',
+  'negotiation',
+  'order',
+  'execution',
+  'completed',
+  'cancelled',
+]);
+
+/**
+ * A painting job at a site (roadmap P1-M08), not just another lead: the
+ * customer, the people involved, the site and how much paint it needs.
+ */
+export const projects = pgTable(
+  'projects',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** Gap-free, e.g. PJ-000004. */
+    number: text('number').notNull(),
+    storeId: uuid('store_id').notNull(),
+    name: text('name').notNull(),
+    customerPartyId: uuid('customer_party_id').notNull(),
+    /** The opportunity it came from, if any. */
+    opportunityId: uuid('opportunity_id'),
+    addressLine: text('address_line'),
+    city: text('city'),
+    state: text('state'),
+    pincode: text('pincode'),
+    /** Map pin. */
+    latitude: numeric('latitude', { precision: 9, scale: 6, mode: 'number' }),
+    longitude: numeric('longitude', { precision: 9, scale: 6, mode: 'number' }),
+    startDate: date('start_date', { mode: 'string' }),
+    expectedCompletionDate: date('expected_completion_date', { mode: 'string' }),
+    estimatedAreaSqFt: numeric('estimated_area_sq_ft', { precision: 12, scale: 2, mode: 'number' }),
+    /** Litres of paint the job needs. */
+    estimatedPaintLitres: numeric('estimated_paint_litres', {
+      precision: 12,
+      scale: 3,
+      mode: 'number',
+    }),
+    expectedOrderValuePaise: bigint('expected_order_value_paise', { mode: 'number' }),
+    stage: projectStage('stage').notNull().default('identified'),
+    cancelReason: text('cancel_reason'),
+    notes: text('notes'),
+    assignedMemberId: uuid('assigned_member_id').notNull(),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+  },
+  (table) => [
+    unique('projects_organization_number_unique').on(table.organizationId, table.number),
+    unique('projects_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('projects_opportunity_unique').on(table.opportunityId),
+    index('projects_store_stage_idx').on(table.organizationId, table.storeId, table.stage),
+    index('projects_customer_idx').on(table.customerPartyId),
+    foreignKey({
+      name: 'projects_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'projects_customer_fk',
+      columns: [table.organizationId, table.customerPartyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'projects_opportunity_fk',
+      columns: [table.organizationId, table.opportunityId],
+      foreignColumns: [opportunities.organizationId, opportunities.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'projects_assigned_member_fk',
+      columns: [table.organizationId, table.assignedMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'projects_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('projects_pin_complete', sql`(${table.latitude} is null) = (${table.longitude} is null)`),
+    check('projects_latitude_range', sql`${table.latitude} between -90 and 90`),
+    check('projects_longitude_range', sql`${table.longitude} between -180 and 180`),
+    check('projects_area_positive', sql`${table.estimatedAreaSqFt} > 0`),
+    check('projects_paint_positive', sql`${table.estimatedPaintLitres} > 0`),
+    check('projects_value_not_negative', sql`${table.expectedOrderValuePaise} >= 0`),
+    check('projects_dates_in_order', sql`${table.expectedCompletionDate} >= ${table.startDate}`),
+    check(
+      'projects_cancel_reason',
+      sql`(${table.stage} = 'cancelled') = (${table.cancelReason} is not null)`,
+    ),
+    check(
+      'projects_closed_when_closed',
+      sql`(${table.stage} in ('completed', 'cancelled')) = (${table.closedAt} is not null)`,
+    ),
+    pgPolicy('projects_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const projectPartyRole = pgEnum('project_party_role', [
+  'architect',
+  'contractor',
+  'painter',
+  'dealer',
+]);
+
+/** The people working on a project besides the customer; any number of each. */
+export const projectParties = pgTable(
+  'project_parties',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    projectId: uuid('project_id').notNull(),
+    partyId: uuid('party_id').notNull(),
+    role: projectPartyRole('role').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.partyId, table.role] }),
+    index('project_parties_party_idx').on(table.partyId),
+    foreignKey({
+      name: 'project_parties_project_fk',
+      columns: [table.organizationId, table.projectId],
+      foreignColumns: [projects.organizationId, projects.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'project_parties_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    pgPolicy('project_parties_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

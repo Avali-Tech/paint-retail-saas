@@ -155,6 +155,37 @@ beforeAll(async () => {
     o.post('/transfers', { fromStoreId: records.pune, toStoreId: records.hyd, lines: line }),
   );
   records.puneCount = await idOf(o.post('/stock-counts', { storeId: records.pune }));
+  records.lead = await idOf(
+    o.post('/leads', {
+      storeId: records.hyd,
+      partyId: records.supplier,
+      title: 'Repaint',
+      source: 'walk_in',
+    }),
+  );
+  records.puneLead = await idOf(
+    o.post('/leads', {
+      storeId: records.pune,
+      partyId: records.supplier,
+      title: 'Pune job',
+      source: 'walk_in',
+    }),
+  );
+  records.opportunity = await idOf(
+    o.post('/opportunities', {
+      storeId: records.hyd,
+      partyId: records.supplier,
+      title: 'Showroom repaint',
+      expectedValuePaise: 100,
+    }),
+  );
+  records.project = await idOf(
+    o.post('/projects', {
+      storeId: records.hyd,
+      customerPartyId: records.supplier,
+      name: 'Showroom',
+    }),
+  );
 });
 
 afterAll(async () => {
@@ -166,7 +197,12 @@ describe('uploading and downloading', () => {
   it('stores a scanned file against a record and gives back the exact bytes', async () => {
     const response = await upload(
       owner,
-      { recordType: 'party', recordId: String(records.supplier), category: 'gst_certificate' },
+      {
+        recordType: 'party',
+        recordId: String(records.supplier),
+        category: 'gst_certificate',
+        note: 'Valid till March 2027',
+      },
       [{ fileName: 'C:\\scans\\GST Certificate.pdf', data: PDF, contentType: 'text/html' }],
     );
 
@@ -177,6 +213,7 @@ describe('uploading and downloading', () => {
       recordId: records.supplier,
       category: 'gst_certificate',
       fileName: 'GST Certificate.pdf',
+      note: 'Valid till March 2027',
       // From the content, not the type the browser claimed.
       contentType: 'application/pdf',
       sizeBytes: PDF.length,
@@ -207,6 +244,9 @@ describe('uploading and downloading', () => {
       ['transfer', 'transfer'],
       ['stock_count', 'puneCount'],
       ['party', 'puneCustomer'],
+      ['lead', 'lead'],
+      ['opportunity', 'opportunity'],
+      ['project', 'project'],
     ] as const) {
       const recordId = String(records[key]);
       const first = await attach(
@@ -246,8 +286,12 @@ describe('who can see and change documents', () => {
         ['purchase_order', 'puneOrder'],
         ['stock_count', 'puneCount'],
         ['party', 'puneCustomer'],
+        ['lead', 'lead'],
+        ['opportunity', 'opportunity'],
+        ['project', 'project'],
+        ['lead', 'puneLead'],
       ]),
-    ).toEqual([200, 200, 200, 200, 200, 200, 404, 404, 404, 404]);
+    ).toEqual([200, 200, 200, 200, 200, 200, 404, 404, 404, 404, 200, 200, 200, 404]);
     // A store employee cannot see purchasing at all.
     expect(
       await statuses(cashier, [
@@ -308,6 +352,9 @@ describe('who can see and change documents', () => {
       'goods_receipt',
       'transfer',
       'stock_count',
+      'lead',
+      'opportunity',
+      'project',
     ]) {
       expect([type, (await listOf(owner, type, ghost)).statusCode]).toEqual([type, 404]);
     }

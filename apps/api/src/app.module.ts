@@ -16,6 +16,7 @@ import { MembersModule } from './members/members.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { OnboardingModule } from './onboarding/onboarding.module.js';
 import { PartiesModule } from './parties/parties.module.js';
+import { ProjectsModule } from './projects/projects.module.js';
 import { PurchasingModule } from './purchasing/purchasing.module.js';
 import { ReorderModule } from './reorder/reorder.module.js';
 import { StockCountsModule } from './stock-counts/stock-counts.module.js';
@@ -54,6 +55,7 @@ export class AppModule {
         }),
         OnboardingModule,
         PartiesModule,
+        ProjectsModule,
         PurchasingModule,
         ReorderModule,
         StockCountsModule,

@@ -50,6 +50,8 @@ describe('migrateDatabase', () => {
       'product_barcodes',
       'product_variants',
       'products',
+      'project_parties',
+      'projects',
       'purchase_order_lines',
       'purchase_orders',
       'reorder_rules',

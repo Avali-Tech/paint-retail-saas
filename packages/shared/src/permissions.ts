@@ -19,6 +19,8 @@ export const PERMISSIONS = [
   'purchasing:manage',
   'leads:read',
   'leads:manage',
+  'projects:read',
+  'projects:manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -56,6 +58,8 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'purchasing:read',
       'leads:read',
       'leads:manage',
+      'projects:read',
+      'projects:manage',
     ],
     allStores: false,
   },
@@ -85,6 +89,8 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'inventory:read',
       'leads:read',
       'leads:manage',
+      'projects:read',
+      'projects:manage',
     ],
     allStores: false,
   },
@@ -98,6 +104,8 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'catalog:read',
       'leads:read',
       'leads:manage',
+      'projects:read',
+      'projects:manage',
     ],
     allStores: false,
   },

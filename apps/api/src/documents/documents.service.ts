@@ -35,6 +35,7 @@ export interface DocumentView {
   readonly category: (typeof documents.$inferSelect)['category'];
   readonly fileName: string;
   readonly contentType: string;
+  readonly note: string | null;
   readonly sizeBytes: number;
   readonly sha256: string;
   readonly uploadedBy: { readonly memberId: string; readonly name: string };
@@ -88,6 +89,7 @@ export class DocumentsService {
         sizeBytes: file.data.length,
         sha256: createHash('sha256').update(file.data).digest('hex'),
         storageKey,
+        note: fields.note,
         uploadedByMemberId: auth.memberId,
       });
       return this.visible(tx, auth, id, 'manage');
@@ -185,6 +187,7 @@ export class DocumentsService {
       category: document.category,
       fileName: document.fileName,
       contentType: document.contentType,
+      note: document.note,
       sizeBytes: document.sizeBytes,
       sha256: document.sha256,
       uploadedBy: { memberId: document.uploadedByMemberId, name: uploaderName },
