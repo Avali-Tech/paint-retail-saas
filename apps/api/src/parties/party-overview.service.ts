@@ -5,6 +5,7 @@ import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql, type SQL } fro
 import { recordLabel } from '../activities/activity-records.js';
 import type { AuthContext } from '../auth/auth-context.js';
 import { contractStatusSql, renewalDueSql, visibleContracts } from '../contracts/contract-sql.js';
+import { creditSummaryOf, type CreditSummary } from '../credit/credit-lookups.js';
 import { DATABASE } from '../database/database.module.js';
 import { storeScope } from '../leads/crm-lookups.js';
 import { PartiesService, type PartyView } from './parties.service.js';
@@ -75,6 +76,8 @@ export interface PartyOverview {
         valuePaise: number | null;
       }> & { readonly active: number; readonly renewalDue: number })
     | null;
+  /** Credit limit, days, status and the current check; null when the member cannot see credit. */
+  readonly credit: CreditSummary | null;
   /** Activities on the party and on its visible leads, opportunities and projects. */
   readonly activities: Section<{
     id: string;
@@ -107,8 +110,9 @@ export class PartyOverviewService {
     // 404 unless the member can see the party.
     const party = await this.parties.get(auth, partyId);
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
-      const canSee = (permission: 'leads:read' | 'projects:read' | 'contracts:read') =>
-        auth.permissions.has(permission);
+      const canSee = (
+        permission: 'leads:read' | 'projects:read' | 'contracts:read' | 'credit:read',
+      ) => auth.permissions.has(permission);
       const leadSection = canSee('leads:read') ? await this.leads(tx, auth, partyId) : null;
       const opportunitySection = canSee('leads:read')
         ? await this.opportunities(tx, auth, partyId)
@@ -137,6 +141,9 @@ export class PartyOverviewService {
         opportunities: opportunitySection?.view ?? null,
         projects: projectSection?.view ?? null,
         contracts: canSee('contracts:read') ? await this.contracts(tx, auth, partyId) : null,
+        credit: canSee('credit:read')
+          ? await creditSummaryOf(tx, auth.organization.id, partyId)
+          : null,
         activities: await this.activities(tx, sql`(${sql.join(records, sql` or `)})`),
         documents: await this.documents(tx, partyId),
       };

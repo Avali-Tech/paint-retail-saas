@@ -1452,6 +1452,8 @@ export const notificationEvent = pgEnum('notification_event', [
   'follow_up_due',
   'support_access_requested',
   'contract_renewal_due',
+  'credit_request_awaiting_approval',
+  'credit_request_decided',
 ]);
 
 /** An in-app notification for one member. */
@@ -2136,6 +2138,198 @@ export const contracts = pgTable(
     ),
     check('contracts_not_own_renewal', sql`${table.renewalOfId} <> ${table.id}`),
     pgPolicy('contracts_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** Whether a party buys on credit (roadmap P1-M25). */
+export const creditStatus = pgEnum('credit_status', ['none', 'active', 'on_hold']);
+
+/** How risky the business judges a credit customer to be. */
+export const creditRisk = pgEnum('credit_risk', ['low', 'medium', 'high']);
+
+/**
+ * A party's credit (roadmap P1-M25, spec §3.21): limit, days to pay, status and
+ * risk. Limits and days change only by an approved credit request. Until billing
+ * exists (Release 2.0), exposure and overdue days are entered by hand.
+ */
+export const creditProfiles = pgTable(
+  'credit_profiles',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    partyId: uuid('party_id').notNull(),
+    status: creditStatus('status').notNull().default('none'),
+    limitPaise: bigint('limit_paise', { mode: 'number' }).notNull().default(0),
+    /** Days the party has to pay. */
+    creditDays: integer('credit_days').notNull().default(0),
+    risk: creditRisk('risk').notNull().default('low'),
+    /** What the party owes now, entered by hand until invoices exist. */
+    manualExposurePaise: bigint('manual_exposure_paise', { mode: 'number' }).notNull().default(0),
+    /** Days the oldest unpaid amount is overdue, entered by hand until invoices exist. */
+    overdueDays: integer('overdue_days').notNull().default(0),
+    exposureUpdatedAt: timestamp('exposure_updated_at', { withTimezone: true }),
+    exposureUpdatedByMemberId: uuid('exposure_updated_by_member_id'),
+    holdReason: text('hold_reason'),
+    heldAt: timestamp('held_at', { withTimezone: true }),
+    heldByMemberId: uuid('held_by_member_id'),
+    notes: text('notes'),
+    /** Who approved the current limit and days. */
+    approvedByMemberId: uuid('approved_by_member_id'),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('credit_profiles_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('credit_profiles_party_unique').on(table.partyId),
+    index('credit_profiles_status_idx').on(table.organizationId, table.status),
+    foreignKey({
+      name: 'credit_profiles_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'credit_profiles_exposure_updated_by_fk',
+      columns: [table.organizationId, table.exposureUpdatedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'credit_profiles_held_by_fk',
+      columns: [table.organizationId, table.heldByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'credit_profiles_approved_by_fk',
+      columns: [table.organizationId, table.approvedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('credit_profiles_limit_not_negative', sql`${table.limitPaise} >= 0`),
+    check('credit_profiles_days_range', sql`${table.creditDays} between 0 and 365`),
+    check('credit_profiles_exposure_not_negative', sql`${table.manualExposurePaise} >= 0`),
+    check('credit_profiles_overdue_not_negative', sql`${table.overdueDays} >= 0`),
+    check(
+      'credit_profiles_limit_when_enabled',
+      sql`${table.status} = 'none' or ${table.limitPaise} > 0`,
+    ),
+    check(
+      'credit_profiles_hold_reason',
+      sql`(${table.status} = 'on_hold') = (${table.holdReason} is not null)`,
+    ),
+    check(
+      'credit_profiles_hold_complete',
+      sql`(${table.holdReason} is null) = (${table.heldAt} is null) and (${table.heldAt} is null) = (${table.heldByMemberId} is null)`,
+    ),
+    pgPolicy('credit_profiles_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const creditRequestStatus = pgEnum('credit_request_status', [
+  'pending',
+  'approved',
+  'rejected',
+]);
+
+/**
+ * A request to give a party credit or change its limit or days, decided by
+ * someone with credit:approve. One pending request per party at a time.
+ */
+export const creditRequests = pgTable(
+  'credit_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** Gap-free, e.g. CR-000004. */
+    number: text('number').notNull(),
+    partyId: uuid('party_id').notNull(),
+    limitPaise: bigint('limit_paise', { mode: 'number' }).notNull(),
+    creditDays: integer('credit_days').notNull(),
+    /** The limit and days when the request was made, for the approver. */
+    previousLimitPaise: bigint('previous_limit_paise', { mode: 'number' }).notNull(),
+    previousCreditDays: integer('previous_credit_days').notNull(),
+    /** Why the party should get it. */
+    note: text('note'),
+    status: creditRequestStatus('status').notNull().default('pending'),
+    requestedByMemberId: uuid('requested_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    decidedByMemberId: uuid('decided_by_member_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    /** The approver's comment; required to reject. */
+    decisionNote: text('decision_note'),
+  },
+  (table) => [
+    unique('credit_requests_organization_number_unique').on(table.organizationId, table.number),
+    uniqueIndex('credit_requests_one_pending_per_party')
+      .on(table.partyId)
+      .where(sql`${table.status} = 'pending'`),
+    index('credit_requests_status_idx').on(table.organizationId, table.status, table.createdAt),
+    foreignKey({
+      name: 'credit_requests_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'credit_requests_requested_by_fk',
+      columns: [table.organizationId, table.requestedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'credit_requests_decided_by_fk',
+      columns: [table.organizationId, table.decidedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('credit_requests_limit_positive', sql`${table.limitPaise} > 0`),
+    check('credit_requests_days_range', sql`${table.creditDays} between 0 and 365`),
+    check(
+      'credit_requests_decided_when_decided',
+      sql`(${table.status} = 'pending') = (${table.decidedAt} is null and ${table.decidedByMemberId} is null)`,
+    ),
+    check(
+      'credit_requests_rejection_note',
+      sql`${table.status} <> 'rejected' or ${table.decisionNote} is not null`,
+    ),
+    pgPolicy('credit_requests_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * A business's credit rules (spec §3.22): up to `normal_up_to_percent` of the
+ * limit sells normally, up to `manager_up_to_percent` needs a manager, above
+ * that the owner; overdue beyond `hold_after_overdue_days` blocks credit. No
+ * row = the defaults.
+ */
+export const creditRules = pgTable(
+  'credit_rules',
+  {
+    organizationId: uuid('organization_id')
+      .primaryKey()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    normalUpToPercent: integer('normal_up_to_percent').notNull().default(80),
+    managerUpToPercent: integer('manager_up_to_percent').notNull().default(100),
+    holdAfterOverdueDays: integer('hold_after_overdue_days').notNull().default(30),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'credit_rules_percent_order',
+      sql`0 <= ${table.normalUpToPercent} and ${table.normalUpToPercent} <= ${table.managerUpToPercent} and ${table.managerUpToPercent} <= 1000`,
+    ),
+    check('credit_rules_hold_days_positive', sql`${table.holdAfterOverdueDays} >= 1`),
+    pgPolicy('credit_rules_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

@@ -232,6 +232,27 @@
       "when": 1790871497381,
       "tag": "0032_audit_contracts",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1790876778154,
+      "tag": "0033_credit",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790876778789,
+      "tag": "0034_grant_credit_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1790876779402,
+      "tag": "0035_audit_credit",
+      "breakpoints": true
     }
   ]
 }

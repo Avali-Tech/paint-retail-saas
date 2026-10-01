@@ -8,6 +8,16 @@ export {
 } from './catalog.js';
 export { normalizeEmail, normalizePhone } from './contact.js';
 export {
+  DEFAULT_CREDIT_RULES,
+  checkCredit,
+  type CreditBlock,
+  type CreditCheck,
+  type CreditDecision,
+  type CreditPosition,
+  type CreditRules,
+  type CreditStatus,
+} from './credit.js';
+export {
   FEATURE_FLAG_KEYS,
   FEATURE_FLAGS,
   PLAN_KEYS,

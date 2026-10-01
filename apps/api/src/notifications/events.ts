@@ -12,4 +12,6 @@ export const EVENT_TITLES: Record<NotificationEvent, string> = {
   follow_up_due: 'A follow-up assigned to you is due',
   support_access_requested: 'Platform support asks to access your business',
   contract_renewal_due: 'A contract assigned to you is due for renewal',
+  credit_request_awaiting_approval: 'A credit request needs your approval',
+  credit_request_decided: 'Your credit request is approved or rejected',
 };

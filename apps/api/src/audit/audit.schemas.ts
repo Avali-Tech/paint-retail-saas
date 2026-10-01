@@ -11,6 +11,8 @@ export const AUDIT_AREAS = {
   organizations: 'Plan and account',
   support_grants: 'Support access',
   contracts: 'Contracts',
+  credit_profiles: 'Credit',
+  credit_rules: 'Credit rules',
 } as const;
 export type AuditTable = keyof typeof AUDIT_AREAS;
 
