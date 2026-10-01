@@ -1416,3 +1416,151 @@ export const documents = pgTable(
     }),
   ],
 ).enableRLS();
+
+/** What a notification is about (roadmap P1-M19). Follow-ups arrive with P1-M09. */
+export const notificationEvent = pgEnum('notification_event', [
+  'transfer_awaiting_approval',
+  'transfer_awaiting_receipt',
+  'stock_count_awaiting_approval',
+  'low_stock',
+]);
+
+/** An in-app notification for one member. */
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    memberId: uuid('member_id').notNull(),
+    event: notificationEvent('event').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    /** Where in the app to open, e.g. /transfers/<id>. */
+    link: text('link').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    readAt: timestamp('read_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('notifications_member_idx').on(table.memberId, table.createdAt),
+    index('notifications_member_unread_idx')
+      .on(table.memberId)
+      .where(sql`${table.readAt} is null`),
+    foreignKey({
+      name: 'notifications_member_fk',
+      columns: [table.organizationId, table.memberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('cascade'),
+    pgPolicy('notifications_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** A member's choice of channels for one event; no row = every channel on. */
+export const notificationPreferences = pgTable(
+  'notification_preferences',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    memberId: uuid('member_id').notNull(),
+    event: notificationEvent('event').notNull(),
+    inApp: boolean('in_app').notNull(),
+    email: boolean('email').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.memberId, table.event] }),
+    foreignKey({
+      name: 'notification_preferences_member_fk',
+      columns: [table.organizationId, table.memberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('cascade'),
+    pgPolicy('notification_preferences_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const emailStatus = pgEnum('email_status', ['pending', 'sent', 'failed']);
+
+/**
+ * Emails waiting to be sent (the outbox pattern): written in the same
+ * transaction as the event, sent afterwards by the worker, with retries.
+ */
+export const emailOutbox = pgTable(
+  'email_outbox',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    memberId: uuid('member_id').notNull(),
+    event: notificationEvent('event').notNull(),
+    toAddress: text('to_address').notNull(),
+    subject: text('subject').notNull(),
+    textBody: text('text_body').notNull(),
+    status: emailStatus('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    lastError: text('last_error'),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('email_outbox_due_idx')
+      .on(table.nextAttemptAt)
+      .where(sql`${table.status} = 'pending'`),
+    foreignKey({
+      name: 'email_outbox_member_fk',
+      columns: [table.organizationId, table.memberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('cascade'),
+    check('email_outbox_attempts_not_negative', sql`${table.attempts} >= 0`),
+    check(
+      'email_outbox_sent_when_sent',
+      sql`(${table.status} = 'sent') = (${table.sentAt} is not null)`,
+    ),
+    pgPolicy('email_outbox_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * Products already reported as low at a store, so each dip below the reorder
+ * level is announced once. Cleared when stock recovers above the level.
+ */
+export const lowStockAlerts = pgTable(
+  'low_stock_alerts',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    storeId: uuid('store_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    alertedAt: timestamp('alerted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.storeId, table.variantId] }),
+    foreignKey({
+      name: 'low_stock_alerts_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'low_stock_alerts_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('cascade'),
+    pgPolicy('low_stock_alerts_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();

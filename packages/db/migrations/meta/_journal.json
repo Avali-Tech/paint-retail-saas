@@ -127,6 +127,13 @@
       "when": 1790853674132,
       "tag": "0017_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790856739993,
+      "tag": "0018_notifications",
+      "breakpoints": true
     }
   ]
 }
