@@ -32,6 +32,7 @@ describe('migrateDatabase', () => {
       'categories',
       'customer_profiles',
       'document_sequences',
+      'documents',
       'goods_receipt_lines',
       'goods_receipts',
       'member_stores',

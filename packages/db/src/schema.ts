@@ -1337,3 +1337,82 @@ export const goodsReceiptLines = pgTable(
     }),
   ],
 ).enableRLS();
+
+/** Records that can carry documents; access to a document follows access to its record. */
+export const documentRecordType = pgEnum('document_record_type', [
+  'party',
+  'product',
+  'store',
+  'purchase_order',
+  'goods_receipt',
+  'transfer',
+  'stock_count',
+]);
+
+export const documentCategory = pgEnum('document_category', [
+  'gst_certificate',
+  'pan_card',
+  'trade_licence',
+  'cancelled_cheque',
+  'contract',
+  'quotation',
+  'invoice',
+  'delivery_challan',
+  'photo',
+  'other',
+]);
+
+/**
+ * A file attached to a record (roadmap P1-M18). The bytes live in object
+ * storage under `storage_key`; only files that passed the virus scan are saved.
+ * Deleting hides the document but keeps the file for the audit trail.
+ */
+export const documents = pgTable(
+  'documents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    recordType: documentRecordType('record_type').notNull(),
+    recordId: uuid('record_id').notNull(),
+    category: documentCategory('category').notNull(),
+    /** The uploader's file name, cleaned of paths and control characters. */
+    fileName: text('file_name').notNull(),
+    /** Detected from the file's content, not taken from the uploader. */
+    contentType: text('content_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    sha256: text('sha256').notNull(),
+    storageKey: text('storage_key').notNull(),
+    uploadedByMemberId: uuid('uploaded_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    deletedByMemberId: uuid('deleted_by_member_id'),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => [
+    unique('documents_storage_key_unique').on(table.storageKey),
+    index('documents_record_idx')
+      .on(table.organizationId, table.recordType, table.recordId)
+      .where(sql`${table.deletedAt} is null`),
+    foreignKey({
+      name: 'documents_uploaded_by_fk',
+      columns: [table.organizationId, table.uploadedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'documents_deleted_by_fk',
+      columns: [table.organizationId, table.deletedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('documents_size_positive', sql`${table.sizeBytes} > 0`),
+    check('documents_sha256_format', sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'documents_deleted_together',
+      sql`(${table.deletedAt} is null) = (${table.deletedByMemberId} is null)`,
+    ),
+    pgPolicy('documents_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
