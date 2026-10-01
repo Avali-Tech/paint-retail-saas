@@ -1,9 +1,19 @@
 import eslint from '@eslint/js';
+import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['**/node_modules/**', '**/dist/**', '**/coverage/**', '**/.turbo/**'] },
+  {
+    ignores: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/coverage/**',
+      '**/.turbo/**',
+      '**/playwright-report/**',
+      '**/test-results/**',
+    ],
+  },
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
@@ -27,9 +37,15 @@ export default tseslint.config(
     },
   },
   {
+    // Browser code: the web app and the design system (React).
+    files: ['apps/web/src/**/*.{ts,tsx}', 'packages/ui/src/**/*.{ts,tsx}', 'vitest.dom-setup.ts'],
+    ...reactHooks.configs.flat.recommended,
+    languageOptions: { globals: globals.browser },
+  },
+  {
     // Test-only patterns: Vitest matchers such as expect.any() are typed as any,
     // tests reject with raw driver error objects, and decorator tests use empty classes.
-    files: ['**/*.test.ts', '**/test-support/**/*.ts'],
+    files: ['**/*.test.ts', '**/*.test.tsx', '**/test-support/**/*.ts', 'apps/web/e2e/**/*.ts'],
     rules: {
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/prefer-promise-reject-errors': 'off',

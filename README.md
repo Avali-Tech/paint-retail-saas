@@ -61,6 +61,41 @@ curl localhost:3000/health/ready            # {"status":"ok","checks":{"database
 `GET /health` answers while the process runs (liveness). `GET /health/ready` also checks
 PostgreSQL and answers 503 when it is unreachable (readiness).
 
+## Run the web app locally
+
+The web app (`apps/web`, React + Vite, installable as a PWA) calls the API at `/api/...` on its own
+origin; Vite forwards that to the API, so the API needs no CORS. Production puts the same rule in the
+CDN or load balancer (or set `VITE_API_BASE_URL` at build time).
+
+```sh
+pnpm --filter @paint/api start              # API on http://localhost:3000 (see above)
+pnpm --filter @paint/web dev                # http://localhost:5173, /api proxied to :3000
+API_URL=http://localhost:4000 pnpm --filter @paint/web dev   # a different API
+pnpm --filter @paint/web build && pnpm --filter @paint/web preview   # production build + service worker
+```
+
+With `SMS_PROVIDER=log` in `apps/api/.env`, sign-in codes for **Mobile code** sign-in appear in the
+API's console.
+
+**Theming (white-label).** Every colour, radius, spacing step, shadow and the font is a CSS custom
+property derived at runtime from a business's branding (`appName`, `primary`, `accent`, `mode`,
+`radius`, `density`, `font`) by `deriveTheme()` in `@paint/shared`, which also enforces WCAG AA
+contrast. Components (`packages/ui`) and screens use only these tokens; `theme-guard.test.ts` fails
+the build if a colour literal appears in their sources. Try it at **Settings → Appearance**
+(`/settings/appearance`, owners and admins).
+
+| Command                              | What it does                                                         |
+| ------------------------------------ | -------------------------------------------------------------------- |
+| `pnpm exec vitest run --project web` | Component tests for `apps/web` and `packages/ui` (jsdom, no network) |
+| `pnpm test:e2e`                      | Builds API + web, then Playwright against a real API and PostgreSQL  |
+| `pnpm --filter @paint/web test:e2e`  | Playwright only (after building both)                                |
+
+End-to-end tests (`apps/web/e2e`) start a throwaway PostgreSQL with Testcontainers, the built API
+(migrating on start, `SMS_PROVIDER=log` so the OTP test reads codes from its log) and `vite preview`,
+then drive Chromium on desktop and phone (Pixel 5) viewports, including axe WCAG AA checks. First run:
+`pnpm --filter @paint/web exec playwright install chromium`. They run in CI as their own job, not in
+`pnpm verify`.
+
 ## API
 
 Every route requires `Authorization: Bearer <token>` unless marked public.
@@ -280,7 +315,9 @@ business to review.
 
 ```
 apps/api              HTTP API (NestJS on Fastify), built with Vite into dist/server
+apps/web              Web app (React + Vite PWA): sign-in, app shell, dashboard, appearance
+packages/ui           Design system: theme runtime and accessible components on design tokens
 packages/db           PostgreSQL schema, migrations, tenant isolation (Drizzle)
-packages/shared       code shared by all apps (money in paise, …)
+packages/shared       code shared by all apps (money in paise, branding and theme derivation, …)
 packages/testing      test helpers (throwaway PostgreSQL for integration tests)
 ```
