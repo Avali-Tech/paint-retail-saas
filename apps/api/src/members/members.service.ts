@@ -21,6 +21,7 @@ import { and, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { hashPassword } from '../auth/credentials.js';
 import { DATABASE } from '../database/database.module.js';
+import { requireRoomFor } from '../platform/plan-limits.js';
 import { canSeeMember, grantProblem, manageProblem } from './access-rules.js';
 import type { CreateMemberInput, UpdateMemberInput } from './members.schemas.js';
 
@@ -119,6 +120,7 @@ export class MembersService {
         const userId = existing?.id ?? (await this.createUser(tx, input));
 
         await enterTenantScope(tx, organizationId);
+        await requireRoomFor(tx, organizationId, 'members');
         const role = await this.findRole(tx, input.roleId);
         await this.assertStoresExist(tx, input.storeIds);
         const problem = grantProblem(auth, {
@@ -177,6 +179,9 @@ export class MembersService {
         storeIds,
       });
       if (grantIssue) throw new ForbiddenException(grantIssue);
+      if (input.isActive === true && !target.isActive) {
+        await requireRoomFor(tx, organizationId, 'members');
+      }
 
       await tx
         .update(organizationMembers)
@@ -227,7 +232,13 @@ export class MembersService {
       .from(organizationMembers)
       .innerJoin(users, eq(users.id, organizationMembers.userId))
       .innerJoin(roles, eq(roles.id, organizationMembers.roleId))
-      .where(memberId ? eq(organizationMembers.id, memberId) : undefined)
+      // Platform support staff are not part of the team.
+      .where(
+        and(
+          eq(organizationMembers.isSupport, false),
+          memberId ? eq(organizationMembers.id, memberId) : undefined,
+        ),
+      )
       .orderBy(users.fullName, organizationMembers.id);
     const storeRows = await tx.select().from(memberStores);
     const permissionRows = await tx.select().from(rolePermissions);

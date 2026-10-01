@@ -53,6 +53,16 @@ const FIELD_LABELS: Record<string, string> = {
   movement_type: 'Type',
   quantity: 'Quantity',
   note: 'Note',
+  plan: 'Plan',
+  feature_flags: 'Features',
+  suspended_at: 'Suspended',
+  suspend_reason: 'Suspension reason',
+  reason: 'Reason',
+  minutes: 'Minutes',
+  approved_at: 'Approved',
+  declined_at: 'Declined',
+  expires_at: 'Expires',
+  ended_at: 'Ended',
 };
 
 const recordLabel = sql<string | null>`case ${auditLog.tableName}
@@ -60,6 +70,8 @@ const recordLabel = sql<string | null>`case ${auditLog.tableName}
   when 'stock_ledger' then (select ${productVariants.sku} from ${stockLedger} join ${productVariants} on ${productVariants.id} = ${stockLedger.variantId} where ${stockLedger.id}::text = ${auditLog.recordId})
   when 'roles' then (select ${roles.name} from ${roles} where ${roles.id}::text = ${auditLog.recordId})
   when 'role_permissions' then (select ${roles.name} from ${roles} where ${roles.id}::text = ${auditLog.recordId})
+  when 'organizations' then (select o.name from organizations o where o.id::text = ${auditLog.recordId})
+  when 'support_grants' then (select g.reason from support_grants g where g.id::text = ${auditLog.recordId})
   else (select ${users.fullName} from ${organizationMembers} join ${users} on ${users.id} = ${organizationMembers.userId} where ${organizationMembers.id}::text = ${auditLog.recordId})
 end`;
 

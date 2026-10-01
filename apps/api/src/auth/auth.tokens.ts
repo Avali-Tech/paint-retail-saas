@@ -1,3 +1,5 @@
+import type { PlanKey } from '@paint/shared';
+
 /** Injection token for AuthSettings. */
 export const AUTH_SETTINGS = Symbol('AUTH_SETTINGS');
 
@@ -15,11 +17,14 @@ export interface AuthSettings {
   readonly otpResendCooldownMs: number;
   /** Codes allowed per phone per hour. */
   readonly otpMaxPerHour: number;
+  /** The plan a business starts on when it signs itself up. */
+  readonly signupPlan: PlanKey;
 }
 
 export function authSettingsFrom(config: {
   authSecret: string;
   sessionTtlDays: number;
+  signupPlan: PlanKey;
 }): AuthSettings {
   return {
     secret: config.authSecret,
@@ -28,5 +33,6 @@ export function authSettingsFrom(config: {
     otpMaxAttempts: 5,
     otpResendCooldownMs: 30 * 1000,
     otpMaxPerHour: 5,
+    signupPlan: config.signupPlan,
   };
 }

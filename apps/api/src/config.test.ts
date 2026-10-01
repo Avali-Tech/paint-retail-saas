@@ -21,6 +21,8 @@ describe('loadConfig', () => {
       appUrl: 'http://localhost:5173',
       email: null,
       workerIntervalSeconds: 60,
+      platformBootstrapToken: null,
+      signupPlan: 'trial',
     });
   });
 
@@ -48,6 +50,8 @@ describe('loadConfig', () => {
         SMTP_URL: 'smtp://user:pass@email-smtp.ap-south-1.amazonaws.com:587',
         EMAIL_FROM: 'ABC Paints <alerts@paintsaas.in>',
         WORKER_INTERVAL_SECONDS: '0',
+        PLATFORM_BOOTSTRAP_TOKEN: 'bootstrap-token-of-at-least-32-characters',
+        SIGNUP_PLAN: 'standard',
       }),
     ).toEqual({
       nodeEnv: 'production',
@@ -72,6 +76,8 @@ describe('loadConfig', () => {
         from: 'ABC Paints <alerts@paintsaas.in>',
       },
       workerIntervalSeconds: 0,
+      platformBootstrapToken: 'bootstrap-token-of-at-least-32-characters',
+      signupPlan: 'standard',
     });
   });
 
@@ -128,6 +134,11 @@ describe('loadConfig', () => {
     [{ ...required, SMTP_URL: 'http://localhost' }, /SMTP_URL/],
     [{ ...required, EMAIL_PROVIDER: 'ses' }, /EMAIL_PROVIDER/],
     [{ ...required, WORKER_INTERVAL_SECONDS: '-1' }, /WORKER_INTERVAL_SECONDS/],
+    [{ ...required, SIGNUP_PLAN: 'free' }, /SIGNUP_PLAN/],
+    [
+      { ...required, PLATFORM_BOOTSTRAP_TOKEN: 'short' },
+      /PLATFORM_BOOTSTRAP_TOKEN: must be at least 32/,
+    ],
   ])('rejects %o, naming the bad variable', (env, variable) => {
     expect(() => loadConfig(env)).toThrow(ConfigError);
     expect(() => loadConfig(env)).toThrow(variable);

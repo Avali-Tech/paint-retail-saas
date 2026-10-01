@@ -1,3 +1,4 @@
+import { PLAN_KEYS, type PlanKey } from '@paint/shared';
 import { z } from 'zod';
 
 const booleanString = z.enum(['true', 'false']).transform((value) => value === 'true');
@@ -39,6 +40,10 @@ const environmentSchema = z
     EMAIL_FROM: z.string().min(3).optional(),
     /** How often the background worker sends email and checks stock; 0 turns it off. */
     WORKER_INTERVAL_SECONDS: z.coerce.number().int().min(0).max(3600).default(60),
+    /** One-time secret that creates the first platform operator; unset afterwards. */
+    PLATFORM_BOOTSTRAP_TOKEN: z.string().min(32, 'must be at least 32 characters').optional(),
+    /** The plan a business starts on when it signs itself up. */
+    SIGNUP_PLAN: z.enum(PLAN_KEYS).default('trial'),
   })
   .refine((env) => !(env.NODE_ENV === 'production' && env.SMS_PROVIDER === 'log'), {
     path: ['SMS_PROVIDER'],
@@ -85,6 +90,10 @@ export interface AppConfig {
   readonly email: { readonly smtpUrl: string; readonly from: string } | null;
   /** Seconds between background worker runs; 0 = off. */
   readonly workerIntervalSeconds: number;
+  /** Lets the first platform operator be created through the API; null = off. */
+  readonly platformBootstrapToken: string | null;
+  /** The plan a business starts on when it signs itself up. */
+  readonly signupPlan: PlanKey;
 }
 
 export interface DocumentsConfig {
@@ -145,5 +154,7 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
         ? { smtpUrl: String(data.SMTP_URL), from: String(data.EMAIL_FROM) }
         : null,
     workerIntervalSeconds: data.WORKER_INTERVAL_SECONDS,
+    platformBootstrapToken: data.PLATFORM_BOOTSTRAP_TOKEN ?? null,
+    signupPlan: data.SIGNUP_PLAN,
   };
 }

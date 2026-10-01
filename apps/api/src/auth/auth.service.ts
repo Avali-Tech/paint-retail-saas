@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
 import {
   ConflictException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Inject,
@@ -9,9 +10,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { isUniqueViolation, schema, type DatabaseConnection, type Transaction } from '@paint/db';
-import { SYSTEM_ROLES, isPermission, normalizeEmail, normalizePhone } from '@paint/shared';
+import { isPermission, normalizeEmail, normalizePhone } from '@paint/shared';
 import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.module.js';
+import { setUpOrganization } from './organization-setup.js';
 import type { AuthContext } from './auth-context.js';
 import type {
   OtpRequestInput,
@@ -73,32 +75,8 @@ export class AuthService {
     const passwordHash = await hashPassword(input.password);
     const organizationId = randomUUID();
     const userId = randomUUID();
-    const ownerRoleId = randomUUID();
-    const systemRoles = SYSTEM_ROLES.map((role) => ({
-      ...role,
-      id: role.key === 'owner' ? ownerRoleId : randomUUID(),
-    }));
     try {
       return await this.connection.db.transaction(async (tx) => {
-        await tx.insert(organizations).values({ id: organizationId, name: input.organizationName });
-        await tx.insert(roles).values(
-          systemRoles.map((role) => ({
-            id: role.id,
-            organizationId,
-            key: role.key,
-            name: role.name,
-            isSystem: true,
-          })),
-        );
-        await tx.insert(rolePermissions).values(
-          systemRoles.flatMap((role) =>
-            role.permissions.map((permission) => ({
-              organizationId,
-              roleId: role.id,
-              permission,
-            })),
-          ),
-        );
         await tx.insert(users).values({
           id: userId,
           fullName: input.fullName,
@@ -106,11 +84,11 @@ export class AuthService {
           email: input.email ?? null,
           passwordHash,
         });
-        await tx.insert(organizationMembers).values({
+        await setUpOrganization(tx, {
           organizationId,
-          userId,
-          roleId: ownerRoleId,
-          allStores: true,
+          name: input.organizationName,
+          ownerUserId: userId,
+          plan: this.settings.signupPlan,
         });
         return this.issueSession(tx, userId, organizationId);
       });
@@ -262,6 +240,8 @@ export class AuthService {
           gt(sessions.expiresAt, sql`now()`),
           eq(users.isActive, true),
           eq(organizationMembers.isActive, true),
+          // A suspended business is signed out at once.
+          isNull(organizations.suspendedAt),
         ),
       );
     if (!row) return null;
@@ -308,12 +288,17 @@ export class AuthService {
 
   /** Picks the organisation to sign in to, then issues a session for it. */
   private async startSession(userId: string, organizationId?: string): Promise<SessionGrant> {
-    const memberships: OrganizationChoice[] = await this.connection.db
-      .select({ id: organizations.id, name: organizations.name })
-      .from(organizationMembers)
-      .innerJoin(organizations, eq(organizations.id, organizationMembers.organizationId))
-      .where(and(eq(organizationMembers.userId, userId), eq(organizationMembers.isActive, true)))
-      .orderBy(organizations.name);
+    const memberships: (OrganizationChoice & { suspendedAt: Date | null })[] =
+      await this.connection.db
+        .select({
+          id: organizations.id,
+          name: organizations.name,
+          suspendedAt: organizations.suspendedAt,
+        })
+        .from(organizationMembers)
+        .innerJoin(organizations, eq(organizations.id, organizationMembers.organizationId))
+        .where(and(eq(organizationMembers.userId, userId), eq(organizationMembers.isActive, true)))
+        .orderBy(organizations.name);
 
     const chosen = organizationId
       ? memberships.find((membership) => membership.id === organizationId)
@@ -325,10 +310,13 @@ export class AuthService {
       throw new ConflictException({
         statusCode: 409,
         message: 'Choose which business to sign in to',
-        organizations: memberships,
+        organizations: memberships.map(({ id, name }) => ({ id, name })),
       });
     }
     if (!chosen) throw new UnauthorizedException(INVALID_CREDENTIALS);
+    if (chosen.suspendedAt) {
+      throw new ForbiddenException('This business is suspended. Please contact support.');
+    }
 
     return this.connection.db.transaction((tx) => this.issueSession(tx, userId, chosen.id));
   }

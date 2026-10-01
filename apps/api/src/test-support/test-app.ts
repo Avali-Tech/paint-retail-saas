@@ -46,6 +46,8 @@ export async function startTestApp(
     LOG_LEVEL: 'fatal',
     // Tests run the background worker by hand.
     WORKER_INTERVAL_SECONDS: '0',
+    // Tests build businesses of every size; plan limits have their own tests.
+    SIGNUP_PLAN: 'enterprise',
     ...env,
   });
   const app = await createApp(config, connection, fakeSms ? { smsSender: sms } : {});

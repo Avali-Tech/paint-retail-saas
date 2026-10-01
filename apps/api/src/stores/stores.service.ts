@@ -5,6 +5,7 @@ import { canAccessStore } from '@paint/shared';
 import { eq, inArray } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
+import { requireRoomFor } from '../platform/plan-limits.js';
 import type { CreateStoreInput } from './stores.schemas.js';
 
 const { memberStores, stores } = schema;
@@ -61,6 +62,7 @@ export class StoresService {
     const organizationId = auth.organization.id;
     try {
       return await withTenant(this.connection.db, organizationId, async (tx) => {
+        await requireRoomFor(tx, organizationId, 'stores');
         const [store] = (await tx
           .insert(stores)
           .values({ ...input, organizationId })

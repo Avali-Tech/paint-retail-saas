@@ -14,7 +14,7 @@ const service = (connection: DatabaseConnection) =>
   new AuthService(
     connection,
     new DisabledSmsSender(),
-    authSettingsFrom({ authSecret: 's'.repeat(32), sessionTtlDays: 30 }),
+    authSettingsFrom({ authSecret: 's'.repeat(32), sessionTtlDays: 30, signupPlan: 'trial' }),
   );
 
 const signupInput = {

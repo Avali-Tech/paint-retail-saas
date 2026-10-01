@@ -19,6 +19,7 @@ import { MembersModule } from './members/members.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { OnboardingModule } from './onboarding/onboarding.module.js';
 import { PartiesModule } from './parties/parties.module.js';
+import { PlatformModule } from './platform/platform.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { PurchasingModule } from './purchasing/purchasing.module.js';
 import { ReorderModule } from './reorder/reorder.module.js';
@@ -63,6 +64,7 @@ export class AppModule {
         }),
         OnboardingModule,
         PartiesModule,
+        PlatformModule.forRoot({ bootstrapToken: config.platformBootstrapToken }),
         ProjectsModule,
         PurchasingModule,
         ReorderModule,

@@ -8,6 +8,8 @@ export const AUDIT_AREAS = {
   organization_members: 'Member access',
   member_stores: 'Member stores',
   stock_ledger: 'Stock adjustments',
+  organizations: 'Plan and account',
+  support_grants: 'Support access',
 } as const;
 export type AuditTable = keyof typeof AUDIT_AREAS;
 
