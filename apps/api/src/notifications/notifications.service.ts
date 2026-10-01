@@ -6,25 +6,11 @@ import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { EVENT_TITLES, NOTIFICATION_EVENTS, type NotificationEvent } from './events.js';
 import type { ListNotificationsQuery, PreferencesInput } from './notifications.schemas.js';
+import type { NotificationPage, NotificationView } from '@paint/shared';
+
+export type { NotificationPage, NotificationView };
 
 const { notificationPreferences, notifications } = schema;
-
-export interface NotificationView {
-  readonly id: string;
-  readonly event: NotificationEvent;
-  readonly title: string;
-  readonly body: string;
-  readonly link: string;
-  readonly createdAt: string;
-  readonly readAt: string | null;
-}
-
-export interface NotificationPage {
-  readonly items: NotificationView[];
-  readonly total: number;
-  /** Unread notifications in all, for the badge. */
-  readonly unread: number;
-}
 
 export interface PreferenceView {
   readonly event: NotificationEvent;

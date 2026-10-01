@@ -81,6 +81,7 @@ const FIELD_LABELS: Record<string, string> = {
   expiry_days: 'Points expire after (days)',
   min_redemption_points: 'Minimum redemption',
   points: 'Points',
+  branding: 'Branding',
 };
 
 const recordLabel = sql<string | null>`case ${auditLog.tableName}
@@ -94,6 +95,7 @@ const recordLabel = sql<string | null>`case ${auditLog.tableName}
   when 'credit_profiles' then (select p.display_name from credit_profiles cp join parties p on p.id = cp.party_id where cp.id::text = ${auditLog.recordId})
   when 'credit_rules' then 'Credit rules'
   when 'loyalty_settings' then 'Loyalty programme'
+  when 'organization_branding' then 'Branding'
   when 'loyalty_accounts' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id::text = ${auditLog.recordId})
   when 'loyalty_ledger' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id::text = ${auditLog.recordId})
   else (select ${users.fullName} from ${organizationMembers} join ${users} on ${users.id} = ${organizationMembers.userId} where ${organizationMembers.id}::text = ${auditLog.recordId})

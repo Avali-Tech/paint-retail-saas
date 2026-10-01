@@ -404,6 +404,64 @@ describe('OTP sign-in', () => {
     expect((await verifyOtp({ phone, code })).statusCode).toBe(401);
   });
 
+  describe('for someone who works for two businesses', () => {
+    async function twoBusinesses() {
+      const first = await signup({ organizationName: 'Alpha Paints' });
+      const second = await signup({ organizationName: 'Beta Paints' });
+      const [user] = await t.connection.db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(eq(schema.users.phone, first.phone));
+      await addMembership(t.connection, user?.id ?? '', {
+        organizationId: second.grant.organizationId,
+        roleKey: 'branch_manager',
+      });
+      await requestOtp(first.phone);
+      return { phone: first.phone, code: t.sms.lastCodeFor(first.phone), second };
+    }
+
+    it('keeps the code while they choose, so they need not wait for a new one', async () => {
+      const { phone, code, second } = await twoBusinesses();
+
+      const choice = await verifyOtp({ phone, code });
+      const chosen = await verifyOtp({ phone, code, organizationId: second.grant.organizationId });
+      const reused = await verifyOtp({ phone, code, organizationId: second.grant.organizationId });
+
+      expect(choice.statusCode).toBe(409);
+      expect(
+        choice.json<{ organizations: { name: string }[] }>().organizations.map((o) => o.name),
+      ).toEqual(['Alpha Paints', 'Beta Paints']);
+      expect(chosen.statusCode).toBe(200);
+      expect(chosen.json<Grant>().organizationId).toBe(second.grant.organizationId);
+      expect(reused.statusCode).toBe(401);
+    });
+
+    it('counts each answer without a choice as an attempt', async () => {
+      const { phone, code, second } = await twoBusinesses();
+
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        expect((await verifyOtp({ phone, code })).statusCode).toBe(409);
+      }
+
+      expect(
+        (await verifyOtp({ phone, code, organizationId: second.grant.organizationId })).statusCode,
+      ).toBe(401);
+    });
+
+    it('keeps the code when they choose a business they do not belong to', async () => {
+      const { phone, code, second } = await twoBusinesses();
+      const stranger = await signup();
+
+      expect(
+        (await verifyOtp({ phone, code, organizationId: stranger.grant.organizationId }))
+          .statusCode,
+      ).toBe(401);
+      expect(
+        (await verifyOtp({ phone, code, organizationId: second.grant.organizationId })).statusCode,
+      ).toBe(200);
+    });
+  });
+
   it('rejects a code for a number that never requested one', async () => {
     expect((await verifyOtp({ phone: uniquePhone(), code: '123456' })).statusCode).toBe(401);
   });

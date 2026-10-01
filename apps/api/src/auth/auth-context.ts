@@ -1,4 +1,7 @@
-import type { MemberAccess, Permission } from '@paint/shared';
+import type { AuthProfile, MemberAccess } from '@paint/shared';
+
+/** The shape returned by GET /auth/me. */
+export type { AuthProfile };
 
 /** Who is making the request, in which organisation, and what they may do. */
 export interface AuthContext extends MemberAccess {
@@ -14,16 +17,6 @@ export interface AuthContext extends MemberAccess {
   readonly role: { readonly key: string; readonly name: string };
   /** Set when platform support is signed in through an approved support grant. */
   readonly supportGrantId?: string;
-}
-
-/** The shape returned by GET /auth/me. */
-export interface AuthProfile {
-  readonly user: AuthContext['user'];
-  readonly organization: AuthContext['organization'];
-  readonly role: AuthContext['role'];
-  readonly permissions: Permission[];
-  readonly allStores: boolean;
-  readonly storeIds: string[];
 }
 
 export function toProfile(auth: AuthContext): AuthProfile {

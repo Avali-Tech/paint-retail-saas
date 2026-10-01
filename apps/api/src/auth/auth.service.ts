@@ -10,7 +10,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { isUniqueViolation, schema, type DatabaseConnection, type Transaction } from '@paint/db';
-import { isPermission, normalizeEmail, normalizePhone } from '@paint/shared';
+import { isPermission, normalizeEmail, normalizePhone, type SessionGrant } from '@paint/shared';
 import { and, desc, eq, gt, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.module.js';
 import { setUpOrganization } from './organization-setup.js';
@@ -49,12 +49,7 @@ const {
 /** Same message for every sign-in failure, so responses never reveal who has an account. */
 const INVALID_CREDENTIALS = 'Invalid sign-in details';
 
-export interface SessionGrant {
-  /** Give to the client once; send back as "Authorization: Bearer <token>". */
-  readonly token: string;
-  readonly expiresAt: string;
-  readonly organizationId: string;
-}
+export type { SessionGrant };
 
 interface OrganizationChoice {
   readonly id: string;
@@ -191,19 +186,38 @@ export class AuthService {
       throw new UnauthorizedException(INVALID_CREDENTIALS);
     }
 
+    const [user] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.phone, input.phone), eq(users.isActive, true)));
+    if (!user) throw new UnauthorizedException(INVALID_CREDENTIALS);
+
+    // Choose the business before using up the code: someone in several
+    // businesses is asked to choose (409) and sends the same code again with
+    // the choice. Each such answer counts as an attempt, so a code can be
+    // reused only a few times, and only until it expires.
+    let organizationId: string;
+    try {
+      organizationId = await this.chooseOrganization(user.id, input.organizationId);
+    } catch (error: unknown) {
+      if (error instanceof ConflictException) {
+        await db
+          .update(otpChallenges)
+          .set({ attempts: sql`${otpChallenges.attempts} + 1` })
+          .where(eq(otpChallenges.id, challenge.id));
+      }
+      throw error;
+    }
+
     // Consume atomically: of two simultaneous correct attempts, only one wins.
     const consumed = await db
       .update(otpChallenges)
       .set({ consumedAt: sql`now()` })
       .where(and(eq(otpChallenges.id, challenge.id), isNull(otpChallenges.consumedAt)))
       .returning({ id: otpChallenges.id });
-    const [user] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(and(eq(users.phone, input.phone), eq(users.isActive, true)));
-    if (consumed.length === 0 || !user) throw new UnauthorizedException(INVALID_CREDENTIALS);
+    if (consumed.length === 0) throw new UnauthorizedException(INVALID_CREDENTIALS);
 
-    return this.startSession(user.id, input.organizationId);
+    return this.connection.db.transaction((tx) => this.issueSession(tx, user.id, organizationId));
   }
 
   /** Resolves a session token to the signed-in member, or null if it isn't valid now. */
@@ -314,6 +328,16 @@ export class AuthService {
 
   /** Picks the organisation to sign in to, then issues a session for it. */
   private async startSession(userId: string, organizationId?: string): Promise<SessionGrant> {
+    const chosen = await this.chooseOrganization(userId, organizationId);
+    return this.connection.db.transaction((tx) => this.issueSession(tx, userId, chosen));
+  }
+
+  /**
+   * The business to sign in to: the one asked for, or the only one. 409 with
+   * the list when the person works for several and has not chosen; 401 when
+   * they do not belong to it; 403 when it is suspended.
+   */
+  private async chooseOrganization(userId: string, organizationId?: string): Promise<string> {
     const memberships: (OrganizationChoice & { suspendedAt: Date | null })[] =
       await this.connection.db
         .select({
@@ -343,8 +367,7 @@ export class AuthService {
     if (chosen.suspendedAt) {
       throw new ForbiddenException('This business is suspended. Please contact support.');
     }
-
-    return this.connection.db.transaction((tx) => this.issueSession(tx, userId, chosen.id));
+    return chosen.id;
   }
 
   private async issueSession(

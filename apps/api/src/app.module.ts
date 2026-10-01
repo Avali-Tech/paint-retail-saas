@@ -4,6 +4,7 @@ import type { DatabaseConnection } from '@paint/db';
 import { ActivitiesModule } from './activities/activities.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { BrandingModule } from './branding/branding.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
 import { ContractsModule } from './contracts/contracts.module.js';
 import { CreditModule } from './credit/credit.module.js';
@@ -48,6 +49,7 @@ export class AppModule {
         DatabaseModule.forRoot(connection),
         ActivitiesModule,
         AuditModule,
+        BrandingModule,
         DashboardModule,
         AuthModule.forRoot({
           settings: authSettingsFrom(config),

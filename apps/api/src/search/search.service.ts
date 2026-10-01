@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { Inject, Injectable } from '@nestjs/common';
 import { schema, withTenant, type DatabaseConnection, type Transaction } from '@paint/db';
-import { quickActions, type QuickAction } from '@paint/shared';
+import { quickActions } from '@paint/shared';
 import {
   and,
   asc,
@@ -22,6 +22,9 @@ import { DATABASE } from '../database/database.module.js';
 import { storeScope } from '../leads/crm-lookups.js';
 import { containsPattern, phoneSearchDigits } from '../parties/party-access.js';
 import type { SearchQuery } from './search.schemas.js';
+import type { SearchHit, SearchResults } from '@paint/shared';
+
+export type { SearchHit, SearchResults };
 
 const {
   brands,
@@ -42,30 +45,6 @@ const {
 
 const fromStores = alias(stores, 'from_store');
 const toStores = alias(stores, 'to_store');
-
-export interface SearchHit {
-  readonly id: string;
-  /** Main line, e.g. a name or "Asian Paints Apex Ultima 20 l". */
-  readonly title: string;
-  /** Second line, e.g. a mobile number, SKU or stage. */
-  readonly subtitle: string | null;
-  /** Where the web app opens it. */
-  readonly path: string;
-}
-
-export interface SearchResults {
-  readonly query: string;
-  readonly actions: QuickAction[];
-  /** Each group is null when the member cannot see that kind of record. */
-  readonly parties: SearchHit[] | null;
-  readonly products: SearchHit[] | null;
-  readonly leads: SearchHit[] | null;
-  readonly opportunities: SearchHit[] | null;
-  readonly projects: SearchHit[] | null;
-  readonly contracts: SearchHit[] | null;
-  /** Transfers, purchase orders, goods receipts and stock counts found by number. */
-  readonly documents: SearchHit[];
-}
 
 /** Every word must appear in at least one of the columns. */
 const allWords = (words: string[], columns: AnyColumn[]): SQL | undefined =>

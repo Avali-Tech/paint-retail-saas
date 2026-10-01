@@ -6,6 +6,9 @@ import { and, asc, count, eq, inArray, isNotNull, isNull, or, sql } from 'drizzl
 import { startOfTodayIst } from '../activities/activity-records.js';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
+import type { Dashboard, StorePosition } from '@paint/shared';
+
+export type { Dashboard, StorePosition };
 
 const {
   activities,
@@ -20,56 +23,6 @@ const {
   stores,
   transfers,
 } = schema;
-
-export interface StorePosition {
-  readonly store: { readonly id: string; readonly code: string; readonly name: string };
-  /** Null without inventory:read. */
-  readonly stock: {
-    readonly valuePaise: number;
-    readonly units: number;
-    readonly skus: number;
-    /** In stock but without a cost, so missing from the value. */
-    readonly uncostedSkus: number;
-  } | null;
-  readonly lowStock: {
-    readonly outOfStock: number;
-    readonly belowMinimum: number;
-    readonly reorder: number;
-  } | null;
-  readonly transfers: {
-    /** Requested from this store, waiting for its approval. */
-    readonly awaitingApproval: number;
-    /** Approved here, waiting to be dispatched. */
-    readonly toDispatch: number;
-    /** Dispatched to this store, not yet received. */
-    readonly incoming: number;
-  } | null;
-  /** Null without purchasing:read. */
-  readonly purchaseOrders: { readonly open: number; readonly dueValuePaise: number } | null;
-}
-
-export interface Dashboard {
-  readonly generatedAt: string;
-  readonly stores: StorePosition[];
-  /** Everything above added up across the stores shown. */
-  readonly totals: Omit<StorePosition, 'store'>;
-  /** Null without leads:read. */
-  readonly leads:
-    { readonly stage: string; readonly count: number; readonly valuePaise: number }[] | null;
-  readonly opportunities:
-    | {
-        readonly stage: string;
-        readonly count: number;
-        readonly valuePaise: number;
-        readonly weightedValuePaise: number;
-      }[]
-    | null;
-  /** Null without projects:read. */
-  readonly projects:
-    { readonly stage: string; readonly count: number; readonly valuePaise: number }[] | null;
-  /** Open follow-ups at these stores (and business-wide ones), by India time. */
-  readonly followUps: { readonly overdue: number; readonly today: number };
-}
 
 const OPEN_TRANSFER_STATUSES = ['requested', 'approved', 'in_transit'] as const;
 const OPEN_PO_STATUSES = ['open', 'partially_received'] as const;

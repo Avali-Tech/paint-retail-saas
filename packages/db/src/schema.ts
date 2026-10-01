@@ -2514,6 +2514,37 @@ export const loyaltyLedger = pgTable(
   ],
 ).enableRLS();
 
+/**
+ * A business's look (white-label): the choices validated and normalised by
+ * validateBranding in @paint/shared, from which the web app derives its theme.
+ * No row = the product's default look.
+ */
+export const organizationBranding = pgTable(
+  'organization_branding',
+  {
+    organizationId: uuid('organization_id')
+      .primaryKey()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    branding: jsonb('branding').$type<Record<string, string>>().notNull(),
+    updatedByMemberId: uuid('updated_by_member_id').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: 'organization_branding_updated_by_fk',
+      columns: [table.organizationId, table.updatedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('organization_branding_object', sql`jsonb_typeof(${table.branding}) = 'object'`),
+    pgPolicy('organization_branding_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
 export const auditAction = pgEnum('audit_action', ['insert', 'update', 'delete']);
 
 /**

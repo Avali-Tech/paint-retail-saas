@@ -1,3 +1,16 @@
+export type {
+  AuthProfile,
+  BrandingSaved,
+  BrandingView,
+  Dashboard,
+  NotificationPage,
+  NotificationView,
+  SearchHit,
+  SearchResults,
+  SessionGrant,
+  StageCount,
+  StorePosition,
+} from './api.js';
 export {
   APP_NAME_MAX_LENGTH,
   COLOR_MODES,
