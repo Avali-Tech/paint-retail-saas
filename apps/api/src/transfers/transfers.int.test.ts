@@ -542,7 +542,7 @@ describe('races', () => {
     // released, one wins and the other finds the status already changed.
     const blocker = new pg.Client({ connectionString: database.connectionString });
     await blocker.connect();
-    let results: { statusCode: number; json: <T>() => T }[];
+    let results: Awaited<ReturnType<ReturnType<typeof api>['post']>>[];
     try {
       await blocker.query('BEGIN');
       await blocker.query('SELECT id FROM transfers WHERE id = $1 FOR UPDATE', [id]);
