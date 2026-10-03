@@ -1,0 +1,64 @@
+name: Container images
+
+# Builds the production images (API, ops) and runs them against a real PostgreSQL:
+# migrate with the ops image, start the API, check /health/ready, the non-root
+# user, the restore drill and a clean SIGTERM (packages/ops/src/images.docker.test.ts).
+# A few minutes, so only when something that shapes the images changes; deploys
+# build the same Dockerfiles.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/Dockerfile'
+      - 'apps/*/package.json'
+      - 'packages/*/package.json'
+      - 'apps/api/vite.config.ts'
+      - 'packages/ops/**'
+      - 'packages/db/migrations/**'
+      - '.dockerignore'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'vitest.docker.config.ts'
+      - '.github/workflows/images.yml'
+  pull_request:
+    paths:
+      - 'apps/api/Dockerfile'
+      - 'apps/*/package.json'
+      - 'packages/*/package.json'
+      - 'apps/api/vite.config.ts'
+      - 'packages/ops/**'
+      - 'packages/db/migrations/**'
+      - '.dockerignore'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'vitest.docker.config.ts'
+      - '.github/workflows/images.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  images:
+    name: Build and run the API and ops images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm test:docker

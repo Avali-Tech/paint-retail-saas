@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // The drill runs straight from source under Node's type stripping, which needs
+    // real file extensions in imports (and no enums or parameter properties).
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src"]
+}

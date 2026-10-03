@@ -1,0 +1,24 @@
+{
+  "name": "@paint/ops",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Operations tooling: the backup restore drill and the container image checks.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "restore-drill": "node src/restore-drill-cli.ts",
+    "migrate": "node src/migrate-cli.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.3",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@paint/db": "workspace:*",
+    "@paint/testing": "workspace:*",
+    "@testcontainers/postgresql": "^12.2.0",
+    "@types/node": "^24.19.0",
+    "@types/pg": "^8.23.1",
+    "testcontainers": "^12.2.0"
+  }
+}
