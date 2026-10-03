@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiError, type BusinessChoice } from '../api/errors.js';
-import type { SessionGrant } from '../api/types.js';
+import type { SignInResult } from '../api/types.js';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { ChooseBusiness } from './ChooseBusiness.js';
@@ -19,7 +19,8 @@ interface Values {
 export function PasswordSignIn({
   onSignedIn,
 }: {
-  readonly onSignedIn: (grant: SessionGrant) => void;
+  /** A session, or the two-factor step that comes first. */
+  readonly onSignedIn: (result: SignInResult) => void;
 }) {
   const api = useApi();
   const { t } = useI18n();

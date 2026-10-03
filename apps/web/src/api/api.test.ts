@@ -175,6 +175,17 @@ describe('endpoints', () => {
       'GET /notifications': ok,
       'POST /notifications/n1/read': ok,
       'POST /notifications/read-all': ok,
+      'POST /auth/2fa/setup': ok,
+      'POST /auth/2fa/verify': ok,
+      'GET /auth/2fa': ok,
+      'POST /auth/2fa/enrol': ok,
+      'POST /auth/2fa/confirm': ok,
+      'POST /auth/2fa/recovery-codes': ok,
+      'POST /auth/2fa/disable': ok,
+      'GET /organization/security': ok,
+      'PUT /organization/security': ok,
+      'GET /members': ok,
+      'POST /members/m1/two-factor/reset': ok,
     });
     const calls = endpoints(api);
     await calls.auth.login({ identifier: 'a@b.in', password: 'pw' });
@@ -191,6 +202,17 @@ describe('endpoints', () => {
     await calls.notifications.list(30);
     await calls.notifications.markRead('n1');
     await calls.notifications.markAllRead();
+    await calls.twoFactor.setUp('pending');
+    await calls.twoFactor.verify('pending', '123456');
+    await calls.twoFactor.status();
+    await calls.twoFactor.enrol();
+    await calls.twoFactor.confirm('123456');
+    await calls.twoFactor.renewRecoveryCodes('k7pq-2mxa');
+    await calls.twoFactor.disable('654321');
+    await calls.organization.security();
+    await calls.organization.setSecurity({ twoFactorRequired: false });
+    await calls.members.list();
+    await calls.members.resetTwoFactor('m1');
     expect(
       requests.map((request) => `${request.method} ${request.path}?${request.query.toString()}`),
     ).toEqual([
@@ -208,6 +230,30 @@ describe('endpoints', () => {
       'GET /notifications?limit=30',
       'POST /notifications/n1/read?',
       'POST /notifications/read-all?',
+      'POST /auth/2fa/setup?',
+      'POST /auth/2fa/verify?',
+      'GET /auth/2fa?',
+      'POST /auth/2fa/enrol?',
+      'POST /auth/2fa/confirm?',
+      'POST /auth/2fa/recovery-codes?',
+      'POST /auth/2fa/disable?',
+      'GET /organization/security?',
+      'PUT /organization/security?',
+      'GET /members?',
+      'POST /members/m1/two-factor/reset?',
+    ]);
+    expect(requests.slice(14).map((request) => request.body)).toEqual([
+      { pendingToken: 'pending' },
+      { pendingToken: 'pending', code: '123456' },
+      undefined,
+      {},
+      { code: '123456' },
+      { code: 'k7pq-2mxa' },
+      { code: '654321' },
+      undefined,
+      { twoFactorRequired: false },
+      undefined,
+      {},
     ]);
     expect(requests[1]?.body).toEqual({ phone: '9876543210' });
     expect(requests[2]?.body).toEqual({

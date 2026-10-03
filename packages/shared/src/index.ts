@@ -5,11 +5,14 @@ export type {
   Dashboard,
   NotificationPage,
   NotificationView,
+  PendingSignIn,
   SearchHit,
   SearchResults,
   SessionGrant,
+  SignInResult,
   StageCount,
   StorePosition,
+  TwoFactorSignIn,
 } from './api.js';
 export {
   APP_NAME_MAX_LENGTH,

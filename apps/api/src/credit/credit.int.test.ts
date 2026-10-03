@@ -6,6 +6,7 @@ import type { AuditPage } from '../audit/audit.service.js';
 import type { PartyOverview } from '../parties/party-overview.service.js';
 import { bearer, startTestApp, uniquePhone, type TestApp } from '../test-support/test-app.js';
 import type { CreditListItem, CreditRequestView, CreditView } from './credit.service.js';
+import { finishSignIn } from '../test-support/two-factor.js';
 
 let database: TestDatabase;
 let t: TestApp;
@@ -73,10 +74,8 @@ async function hire(roleKey: string, storeIds: string[], allStores = false) {
     url: '/auth/login',
     payload: { identifier: phone, password: 'Staff@2026' },
   });
-  return {
-    token: login.json<{ token: string }>().token,
-    memberId: member.json<{ id: string }>().id,
-  };
+  const { token } = await finishSignIn<{ token: string }>(t, login, phone);
+  return { token, memberId: member.json<{ id: string }>().id };
 }
 
 beforeAll(async () => {

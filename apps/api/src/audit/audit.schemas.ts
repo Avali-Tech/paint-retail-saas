@@ -17,6 +17,7 @@ export const AUDIT_AREAS = {
   loyalty_accounts: 'Loyalty accounts',
   loyalty_ledger: 'Loyalty adjustments',
   organization_branding: 'Branding',
+  parties: 'Party merges',
 } as const;
 export type AuditTable = keyof typeof AUDIT_AREAS;
 

@@ -57,6 +57,8 @@ export function pointLots(
   readonly expired: number;
   /** The soonest unused, unexpired lot that will expire. */
   readonly nextExpiry: { readonly points: number; readonly expiresOn: string } | null;
+  /** Every lot with unused, unexpired points, soonest-expiring first (null = never expires). */
+  readonly unused: { readonly points: number; readonly expiresOn: string | null }[];
 } {
   const never = '9999-12-31';
   const lots = entries
@@ -68,11 +70,16 @@ export function pointLots(
   let used = -entries.filter((entry) => entry.points < 0).reduce((sum, e) => sum + e.points, 0);
   let expired = 0;
   let nextExpiry: { points: number; expiresOn: string } | null = null;
+  const unused: { points: number; expiresOn: string | null }[] = [];
   for (const lot of lots) {
     const fromLot = Math.min(lot.points, used);
     used -= fromLot;
     const left = lot.points - fromLot;
-    if (left === 0 || lot.expiresOn === null) continue;
+    if (left === 0) continue;
+    if (lot.expiresOn === null || lot.expiresOn >= today) {
+      unused.push({ points: left, expiresOn: lot.expiresOn });
+    }
+    if (lot.expiresOn === null) continue;
     if (lot.expiresOn < today) {
       expired += left;
     } else if (nextExpiry === null) {
@@ -81,5 +88,5 @@ export function pointLots(
       nextExpiry.points += left;
     }
   }
-  return { expired, nextExpiry };
+  return { expired, nextExpiry, unused };
 }

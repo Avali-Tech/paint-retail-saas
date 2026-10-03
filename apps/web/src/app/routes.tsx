@@ -4,6 +4,7 @@ import { SignInPage } from '../auth/SignInPage.js';
 import { DashboardPage } from '../dashboard/DashboardPage.js';
 import { useI18n } from '../i18n/i18n.js';
 import { AppearancePage } from '../settings/AppearancePage.js';
+import { SecurityPage } from '../settings/SecurityPage.js';
 import { AppShell } from '../shell/AppShell.js';
 import { HomeRedirect, RequireAuth, RequirePermission } from '../shell/guards.js';
 
@@ -52,7 +53,25 @@ export function AppRoutes() {
             </RequirePermission>
           }
         />
-        {/* Customers, products, stock, quick actions and search results land here for now. */}
+        <Route path="settings/security" element={<SecurityPage />} />
+        {/* Quick actions whose screens come with their modules. */}
+        <Route
+          path="credit-requests/new"
+          element={
+            <RequirePermission permission="credit:manage">
+              <ComingSoonPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="loyalty/new"
+          element={
+            <RequirePermission permission="loyalty:manage">
+              <ComingSoonPage />
+            </RequirePermission>
+          }
+        />
+        {/* Customers, products, stock, other quick actions and search results land here for now. */}
         <Route path="*" element={<ComingSoonPage />} />
       </Route>
     </Routes>

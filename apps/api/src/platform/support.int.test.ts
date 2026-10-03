@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { hashPassword } from '../auth/credentials.js';
 import { bearer, startTestApp, uniquePhone, type TestApp } from '../test-support/test-app.js';
 import type { AccessLogEntry, GrantView } from './support.service.js';
+import { finishSignIn } from '../test-support/two-factor.js';
 
 const BOOTSTRAP_TOKEN = 'platform-bootstrap-token-for-support-tests';
 
@@ -42,9 +43,8 @@ const supportToken = async (grantId: string) =>
   (await startSession(grantId)).json<{ token: string }>().token;
 
 async function signInOperator(email: string, password: string): Promise<string> {
-  return (await call('POST', '/platform/login', undefined, { identifier: email, password })).json<{
-    token: string;
-  }>().token;
+  const first = await call('POST', '/platform/login', undefined, { identifier: email, password });
+  return (await finishSignIn<{ token: string }>(t, first, email, { platform: true })).token;
 }
 
 beforeAll(async () => {
@@ -220,6 +220,12 @@ describe('approved access', () => {
     }>();
     expect(audit.items.map((e) => e.action)).toEqual(expect.arrayContaining(['insert', 'update']));
     expect(audit.items[0]?.recordLabel).toBe('Stock looks wrong at HYD');
+    // Support sessions are exempt from two-factor sign-in, and cannot change anyone's.
+    const twoFactor = await call('POST', '/auth/2fa/enrol', support.token);
+    expect([twoFactor.statusCode, message(twoFactor)]).toEqual([
+      403,
+      'Support access cannot change two-factor sign-in',
+    ]);
 
     // Another session on the same grant reuses the support membership.
     expect((await startSession(grant.id)).statusCode).toBe(201);
@@ -310,13 +316,15 @@ describe('special cases', () => {
     });
     await call('POST', `/platform/tenants/${tenantId}/reactivate`, operator);
     owner = (
-      await call('POST', '/auth/login', undefined, {
-        identifier: ownerPhone,
-        password: 'Owner@2026',
-      })
-    ).json<{
-      token: string;
-    }>().token;
+      await finishSignIn<{ token: string }>(
+        t,
+        await call('POST', '/auth/login', undefined, {
+          identifier: ownerPhone,
+          password: 'Owner@2026',
+        }),
+        ownerPhone,
+      )
+    ).token;
 
     expect(supportStill.statusCode).toBe(200);
     expect(ownerOut.statusCode).toBe(403);

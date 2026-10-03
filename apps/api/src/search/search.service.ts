@@ -18,6 +18,7 @@ import {
 import { alias } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
 import { contractStatusSql, visibleContracts } from '../contracts/contract-sql.js';
+import { visibleParties } from '../credit/credit-lookups.js';
 import { DATABASE } from '../database/database.module.js';
 import { storeScope } from '../leads/crm-lookups.js';
 import { containsPattern, phoneSearchDigits } from '../parties/party-access.js';
@@ -29,6 +30,7 @@ export type { SearchHit, SearchResults };
 const {
   brands,
   contracts,
+  loyaltyAccounts,
   goodsReceipts,
   leads,
   opportunities,
@@ -82,6 +84,7 @@ export class SearchService {
       contracts: can('contracts:read')
         ? await this.contracts(tx, auth, term, words, query.limit)
         : null,
+      loyalty: can('loyalty:read') ? await this.loyalty(tx, auth, term, words, query.limit) : null,
       documents: /\d/.test(term) ? await this.documents(tx, auth, term, query.limit) : [],
     }));
   }
@@ -284,6 +287,44 @@ export class SearchService {
       title: `${row.number} · ${row.name}`,
       subtitle: [row.customer, row.city, row.stage].filter(Boolean).join(' · '),
       path: `/projects/${row.id}`,
+    }));
+  }
+
+  /** Loyalty accounts by the party's name or mobile number, with points to spend. */
+  private async loyalty(
+    tx: Transaction,
+    auth: AuthContext,
+    term: string,
+    words: string[],
+    limit: number,
+  ): Promise<SearchHit[]> {
+    const phoneDigits = phoneSearchDigits(term);
+    const rows = await tx
+      .select({
+        partyId: parties.id,
+        name: parties.displayName,
+        status: loyaltyAccounts.status,
+        // Explicit names: the subquery must not pick up the outer query's columns.
+        balance: sql<number>`(select coalesce(sum(l.points), 0)::int from loyalty_ledger l where l.account_id = "loyalty_accounts"."id")`,
+      })
+      .from(loyaltyAccounts)
+      .innerJoin(parties, eq(parties.id, loyaltyAccounts.partyId))
+      .where(
+        and(
+          visibleParties(auth),
+          or(
+            allWords(words, [parties.displayName]),
+            phoneDigits ? ilike(parties.phone, containsPattern(phoneDigits)) : undefined,
+          ),
+        ),
+      )
+      .orderBy(rank(parties.displayName, term), asc(parties.displayName))
+      .limit(limit);
+    return rows.map((row) => ({
+      id: row.partyId,
+      title: row.name,
+      subtitle: `${String(row.balance)} points${row.status === 'closed' ? ' · closed' : ''}`,
+      path: `/parties/${row.partyId}/loyalty`,
     }));
   }
 

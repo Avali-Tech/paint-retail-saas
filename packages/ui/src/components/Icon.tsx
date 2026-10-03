@@ -23,6 +23,7 @@ const PATHS = {
   refresh: 'M23 4v6h-6 M20.49 15a9 9 0 1 1-2.12-9.36L23 10',
   store: 'M3 9l1-5h16l1 5 M3 9v11h18V9 M3 9h18 M9 20v-6h6v6',
   calendar: 'M3 4h18v18H3z M16 2v4 M8 2v4 M3 10h18',
+  lock: 'M5 11h14v11H5z M8 11V7a4 4 0 0 1 8 0v4',
 } as const;
 
 export type IconName = keyof typeof PATHS;

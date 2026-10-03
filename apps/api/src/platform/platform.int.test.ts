@@ -3,6 +3,7 @@ import { createIsolatedDatabase, type TestDatabase } from '@paint/testing';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { bearer, startTestApp, uniquePhone, type TestApp } from '../test-support/test-app.js';
 import type { TenantDetail, TenantView } from './tenants.service.js';
+import { completeSignIn, finishSignIn } from '../test-support/two-factor.js';
 
 const BOOTSTRAP_TOKEN = 'platform-bootstrap-token-for-integration-tests';
 
@@ -23,11 +24,12 @@ const message = (response: Reply) => response.json<{ message: string }>().messag
 /** Signs a business's owner in with a one-time code, as they would on their phone. */
 async function otpSignIn(phone: string, organizationId?: string): Promise<Reply> {
   await call('POST', '/auth/otp/request', undefined, { phone });
-  return call('POST', '/auth/otp/verify', undefined, {
+  const verify = await call('POST', '/auth/otp/verify', undefined, {
     phone,
     code: t.sms.lastCodeFor(phone),
     ...(organizationId ? { organizationId } : {}),
   });
+  return completeSignIn(t, verify, phone);
 }
 
 async function newTenant(name: string, phone = uniquePhone(), extra: object = {}) {
@@ -119,7 +121,12 @@ describe('platform sign-in', () => {
       identifier: 'PRIYA@paintsaas.example',
       password: 'Platform@2026',
     });
-    const session = right.json<{ token: string; expiresAt: string }>();
+    const session = await finishSignIn<{ token: string; expiresAt: string }>(
+      t,
+      right,
+      'priya@paintsaas.example',
+      { platform: true },
+    );
     const signup = await call('POST', '/auth/signup', undefined, {
       organizationName: 'Self Signup Paints',
       fullName: 'Self Owner',
@@ -346,12 +353,16 @@ describe('suspension', () => {
       password: 'Owner@2026',
     });
     const { tenant } = await newTenant('Late Payer Paints', phone);
-    const signIn = () =>
-      call('POST', '/auth/login', undefined, {
-        identifier: phone,
-        password: 'Owner@2026',
-        organizationId: tenant.id,
-      });
+    const signIn = async () =>
+      completeSignIn(
+        t,
+        await call('POST', '/auth/login', undefined, {
+          identifier: phone,
+          password: 'Owner@2026',
+          organizationId: tenant.id,
+        }),
+        phone,
+      );
     const owner = (await signIn()).json<{ token: string }>().token;
 
     const suspended = (

@@ -6,6 +6,8 @@ import { AuthGuard } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
 import { AUTH_SETTINGS, SMS_SENDER, type AuthSettings } from './auth.tokens.js';
 import { PermissionsGuard } from './permissions.guard.js';
+import { TwoFactorController } from './two-factor.controller.js';
+import { TwoFactorService } from './two-factor.service.js';
 import type { SmsSender } from './sms.js';
 
 @Module({})
@@ -13,16 +15,19 @@ export class AuthModule {
   static forRoot(options: { settings: AuthSettings; smsSender: SmsSender }): DynamicModule {
     return {
       module: AuthModule,
-      controllers: [AuthController],
+      // Global, so the platform console can use two-factor sign-in too.
+      global: true,
+      controllers: [AuthController, TwoFactorController],
       providers: [
         AuthService,
+        TwoFactorService,
         { provide: AUTH_SETTINGS, useValue: options.settings },
         { provide: SMS_SENDER, useValue: options.smsSender },
         // Order matters: AuthGuard identifies the user, then PermissionsGuard checks them.
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_GUARD, useClass: PermissionsGuard },
       ],
-      exports: [AuthService],
+      exports: [AuthService, TwoFactorService],
     };
   }
 }

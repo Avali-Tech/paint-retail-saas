@@ -288,6 +288,34 @@
       "when": 1790878815656,
       "tag": "0040_audit_branding",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1790880415783,
+      "tag": "0041_two_factor",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1790880416459,
+      "tag": "0042_two_factor_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1790881697664,
+      "tag": "0043_party_merge",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1790881698344,
+      "tag": "0044_audit_party_merges",
+      "breakpoints": true
     }
   ]
 }

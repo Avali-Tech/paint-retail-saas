@@ -12,6 +12,7 @@ import {
   type PasswordLoginInput,
   type SignupInput,
 } from './auth.schemas.js';
+import type { SignInResult } from '@paint/shared';
 import { AuthService, type SessionGrant } from './auth.service.js';
 import { CurrentAuth, Public } from './decorators.js';
 
@@ -31,7 +32,7 @@ export class AuthController {
   @HttpCode(200)
   login(
     @Body(new ZodValidationPipe(passwordLoginSchema)) body: PasswordLoginInput,
-  ): Promise<SessionGrant> {
+  ): Promise<SignInResult> {
     return this.auth.loginWithPassword(body);
   }
 
@@ -50,7 +51,7 @@ export class AuthController {
   @HttpCode(200)
   verifyOtp(
     @Body(new ZodValidationPipe(otpVerifySchema)) body: OtpVerifyInput,
-  ): Promise<SessionGrant> {
+  ): Promise<SignInResult> {
     return this.auth.verifyOtp(body);
   }
 

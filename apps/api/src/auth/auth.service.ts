@@ -10,8 +10,16 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { isUniqueViolation, schema, type DatabaseConnection, type Transaction } from '@paint/db';
-import { isPermission, normalizeEmail, normalizePhone, type SessionGrant } from '@paint/shared';
+import {
+  isPermission,
+  normalizeEmail,
+  normalizePhone,
+  type SessionGrant,
+  type SignInResult,
+  type TwoFactorSignIn,
+} from '@paint/shared';
 import { and, desc, eq, gt, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { only } from '../common/only.js';
 import { DATABASE } from '../database/database.module.js';
 import { setUpOrganization } from './organization-setup.js';
 import type { AuthContext } from './auth-context.js';
@@ -32,6 +40,7 @@ import {
   verifyPassword,
 } from './credentials.js';
 import type { SmsSender } from './sms.js';
+import { TwoFactorService, type Enrolment } from './two-factor.service.js';
 
 const {
   memberStores,
@@ -49,6 +58,11 @@ const {
 /** Same message for every sign-in failure, so responses never reveal who has an account. */
 const INVALID_CREDENTIALS = 'Invalid sign-in details';
 
+/** Roles a business can require two-factor sign-in of. */
+export const TWO_FACTOR_ROLES: readonly string[] = ['owner', 'org_admin'];
+/** How authenticator apps label the account. */
+export const TOTP_ISSUER = 'Paint Retail';
+
 export type { SessionGrant };
 
 interface OrganizationChoice {
@@ -65,6 +79,7 @@ export class AuthService {
     @Inject(DATABASE) private readonly connection: DatabaseConnection,
     @Inject(SMS_SENDER) private readonly sms: SmsSender,
     @Inject(AUTH_SETTINGS) private readonly settings: AuthSettings,
+    @Inject(TwoFactorService) private readonly twoFactor: TwoFactorService,
   ) {}
 
   /** Creates an organisation with the standard roles, its owner, and a session for the owner. */
@@ -99,7 +114,7 @@ export class AuthService {
     }
   }
 
-  async loginWithPassword(input: PasswordLoginInput): Promise<SessionGrant> {
+  async loginWithPassword(input: PasswordLoginInput): Promise<SignInResult> {
     const user = await this.findUser(input.identifier);
     const matches = await verifyPassword(
       input.password,
@@ -159,7 +174,7 @@ export class AuthService {
     });
   }
 
-  async verifyOtp(input: OtpVerifyInput): Promise<SessionGrant> {
+  async verifyOtp(input: OtpVerifyInput): Promise<SignInResult> {
     const { db } = this.connection;
     const [challenge] = await db
       .select()
@@ -217,7 +232,7 @@ export class AuthService {
       .returning({ id: otpChallenges.id });
     if (consumed.length === 0) throw new UnauthorizedException(INVALID_CREDENTIALS);
 
-    return this.connection.db.transaction((tx) => this.issueSession(tx, user.id, organizationId));
+    return this.secondStep(user.id, organizationId);
   }
 
   /** Resolves a session token to the signed-in member, or null if it isn't valid now. */
@@ -327,9 +342,66 @@ export class AuthService {
   }
 
   /** Picks the organisation to sign in to, then issues a session for it. */
-  private async startSession(userId: string, organizationId?: string): Promise<SessionGrant> {
-    const chosen = await this.chooseOrganization(userId, organizationId);
-    return this.connection.db.transaction((tx) => this.issueSession(tx, userId, chosen));
+  private async startSession(userId: string, organizationId?: string): Promise<SignInResult> {
+    return this.secondStep(userId, await this.chooseOrganization(userId, organizationId));
+  }
+
+  /**
+   * After the password or SMS code: a session, or a two-factor challenge for
+   * people with an authenticator app, and for owners and admins of businesses
+   * that require one (who add an app first).
+   */
+  private async secondStep(userId: string, organizationId: string): Promise<SignInResult> {
+    if ((await this.twoFactor.status(userId)).enabled) {
+      return { twoFactor: await this.twoFactor.challenge(userId, organizationId, false) };
+    }
+    if (await this.twoFactorRequired(userId, organizationId)) {
+      return { twoFactor: await this.twoFactor.challenge(userId, organizationId, true) };
+    }
+    return this.connection.db.transaction((tx) => this.issueSession(tx, userId, organizationId));
+  }
+
+  /** True when the business requires two-factor sign-in of this member's role. */
+  async twoFactorRequired(userId: string, organizationId: string): Promise<boolean> {
+    const row = only(
+      await this.connection.db
+        .select({ required: organizations.twoFactorRequired, roleKey: roles.key })
+        .from(organizationMembers)
+        .innerJoin(organizations, eq(organizations.id, organizationMembers.organizationId))
+        .innerJoin(roles, eq(roles.id, organizationMembers.roleId))
+        .where(
+          and(
+            eq(organizationMembers.userId, userId),
+            eq(organizationMembers.organizationId, organizationId),
+          ),
+        ),
+      'Membership',
+    );
+    return row.required && TWO_FACTOR_ROLES.includes(row.roleKey);
+  }
+
+  /** Adds an authenticator app during a sign-in that requires one. */
+  async setUpTwoFactor(pendingToken: string): Promise<Enrolment> {
+    const { userId } = await this.twoFactor.pending(pendingToken);
+    return this.twoFactor.startEnrolment(
+      userId,
+      await this.twoFactor.accountLabel(userId),
+      TOTP_ISSUER,
+    );
+  }
+
+  /** The second step: a code from the app (or a recovery code) turns the challenge into a session. */
+  async completeTwoFactor(pendingToken: string, code: string): Promise<TwoFactorSignIn> {
+    const result = await this.twoFactor.completeChallenge(pendingToken, code, false);
+    // Checked again: the member may have been removed, or the business suspended, meanwhile.
+    const organizationId = await this.chooseOrganization(
+      result.userId,
+      String(result.organizationId),
+    );
+    const grant = await this.connection.db.transaction((tx) =>
+      this.issueSession(tx, result.userId, organizationId),
+    );
+    return { ...grant, ...(result.recoveryCodes ? { recoveryCodes: result.recoveryCodes } : {}) };
   }
 
   /**

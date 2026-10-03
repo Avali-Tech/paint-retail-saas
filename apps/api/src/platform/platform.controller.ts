@@ -18,6 +18,7 @@ import {
   PlatformAuthService,
   type Operator,
   type PlatformSession,
+  type PlatformPending,
 } from './platform-auth.service.js';
 import { CurrentOperator, PlatformGuard } from './platform.guard.js';
 import {
@@ -34,6 +35,8 @@ import {
   type UpdateTenantInput,
 } from './platform.schemas.js';
 import { TenantsService, type TenantDetail, type TenantView } from './tenants.service.js';
+import { pendingCodeSchema, pendingSchema } from '../auth/two-factor.schemas.js';
+import type { Enrolment } from '../auth/two-factor.service.js';
 
 const id = () => new ParseUUIDPipe();
 
@@ -51,12 +54,30 @@ export class PlatformAuthController {
     return this.platformAuth.bootstrap(body);
   }
 
+  /** The password; answers a two-factor challenge (operators always use an authenticator app). */
   @Post('login')
   @HttpCode(200)
   login(
     @Body(new ZodValidationPipe(platformLoginSchema)) body: PlatformLoginInput,
-  ): Promise<PlatformSession> {
+  ): Promise<PlatformPending> {
     return this.platformAuth.login(body);
+  }
+
+  /** First sign-in: adds the authenticator app (scan the URI as a QR code). */
+  @Post('login/2fa/setup')
+  @HttpCode(200)
+  setUpTwoFactor(
+    @Body(new ZodValidationPipe(pendingSchema)) body: { pendingToken: string },
+  ): Promise<Enrolment> {
+    return this.platformAuth.setUpTwoFactor(body.pendingToken);
+  }
+
+  @Post('login/2fa')
+  @HttpCode(200)
+  completeTwoFactor(
+    @Body(new ZodValidationPipe(pendingCodeSchema)) body: { pendingToken: string; code: string },
+  ): Promise<PlatformSession & { recoveryCodes?: string[] }> {
+    return this.platformAuth.completeTwoFactor(body.pendingToken, body.code);
   }
 
   @Post('logout')
