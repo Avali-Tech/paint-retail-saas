@@ -77,6 +77,14 @@ pnpm --filter @paint/web build && pnpm --filter @paint/web preview   # productio
 With `SMS_PROVIDER=log` in `apps/api/.env`, sign-in codes for **Mobile code** sign-in appear in the
 API's console.
 
+**Two-factor sign-in.** Owners and organization admins (when their business requires it, the
+default) add an authenticator app at their next sign-in: a QR code plus the setup key, then ten
+recovery codes to copy or download, shown once. Later sign-ins ask for a code from the app or a
+recovery code. **Account security** (`/settings/security`, everyone) turns it on or off and renews
+recovery codes; owners and admins set the business rule there, and owners reset a member's
+two-factor sign-in (there is no team screen yet). The e2e tests act as the authenticator app with
+`apps/web/e2e/totp.ts`.
+
 **Theming (white-label).** Every colour, radius, spacing step, shadow and the font is a CSS custom
 property derived at runtime from a business's branding (`appName`, `primary`, `accent`, `mode`,
 `radius`, `density`, `font`) by `deriveTheme()` in `@paint/shared`, which also enforces WCAG AA
@@ -401,7 +409,7 @@ business to review.
 
 ```
 apps/api              HTTP API (NestJS on Fastify), built with Vite into dist/server
-apps/web              Web app (React + Vite PWA): sign-in, app shell, dashboard, appearance
+apps/web              Web app (React + Vite PWA): sign-in (with two-factor), app shell, dashboard, appearance, account security
 packages/ui           Design system: theme runtime and accessible components on design tokens
 packages/db           PostgreSQL schema, migrations, tenant isolation (Drizzle)
 packages/shared       code shared by all apps (money in paise, branding and theme derivation, …)

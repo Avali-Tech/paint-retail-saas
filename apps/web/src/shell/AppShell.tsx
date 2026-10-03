@@ -53,6 +53,19 @@ export function AppShell() {
     },
   );
 
+  const securityLink = (
+    <NavLink
+      to="/settings/security"
+      className="nav-link"
+      onClick={() => {
+        setMoreOpen(false);
+      }}
+    >
+      <Icon name="lock" />
+      <span>{t('shell.security')}</span>
+    </NavLink>
+  );
+
   const signOutButton = (
     <button
       type="button"
@@ -98,6 +111,7 @@ export function AppShell() {
           <p className="muted">
             {t('shell.signedInAs', { name: profile.user.fullName, role: profile.role.name })}
           </p>
+          {securityLink}
           {signOutButton}
         </div>
       </nav>
@@ -140,6 +154,7 @@ export function AppShell() {
               />
             </li>
           ))}
+          <li>{securityLink}</li>
           <li>{signOutButton}</li>
         </ul>
       </Dialog>

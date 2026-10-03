@@ -113,11 +113,8 @@ export interface SearchResults {
   readonly opportunities: SearchHit[] | null;
   readonly projects: SearchHit[] | null;
   readonly contracts: SearchHit[] | null;
-  /**
-   * Parties with loyalty accounts, by name or mobile number, with their points.
-   * Always sent by the API; optional only until the web app shows it.
-   */
-  readonly loyalty?: SearchHit[] | null;
+  /** Parties with loyalty accounts, by name or mobile number, with their points. */
+  readonly loyalty: SearchHit[] | null;
   /** Transfers, purchase orders, goods receipts and stock counts found by number. */
   readonly documents: SearchHit[];
 }
