@@ -1,0 +1,98 @@
+/* Catalogue, stock and purchasing screens. Only design tokens: branding restyles everything. */
+
+/* Links between the screens of a section; they scroll sideways on a phone. */
+.section-nav {
+  display: flex;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-4);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border);
+  scrollbar-width: thin;
+}
+
+.section-nav__link {
+  flex: none;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.section-nav__link:hover {
+  color: var(--color-text);
+}
+
+.section-nav__link[aria-current='page'] {
+  border-bottom-color: var(--color-primary);
+  color: var(--color-primary-text);
+}
+
+/* The lines of a document (movement, transfer, order, receipt) as cards that
+   stack on a phone: a heading, then its quantity fields side by side. */
+.doc-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.doc-line {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.doc-line__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.doc-line__title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.doc-line__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9rem), 1fr));
+  gap: var(--space-2) var(--space-3);
+}
+
+/* Totals and key facts under a document. */
+.doc-total {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2) var(--space-4);
+  font-weight: 600;
+}
+
+/* The steps a document moves through (requested → approved → …). */
+.timeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-sm);
+}
+
+.timeline li {
+  color: var(--color-text-muted);
+}
+
+.timeline li[data-done] {
+  color: var(--color-text);
+  font-weight: 600;
+}

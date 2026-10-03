@@ -18,6 +18,10 @@ describe('visibleNav', () => {
     expect(visibleNav((permission) => permission === 'leads:read').map((item) => item.key)).toEqual(
       ['leads'],
     );
+    // Imports need any one of the permissions to change what they import.
+    expect(
+      visibleNav((permission) => permission === 'parties:manage').map((item) => item.key),
+    ).toEqual(['imports']);
   });
 });
 
@@ -97,6 +101,7 @@ describe('navigation by role', () => {
       'Credit requests',
       'Credit rules',
       'Loyalty programme',
+      'Import data',
       'Appearance',
     ]);
     expect(screen.getByText('ABC Paints')).toBeInTheDocument();
@@ -151,6 +156,7 @@ describe('navigation by role', () => {
       'Credit requests',
       'Credit rules',
       'Loyalty programme',
+      'Import data',
       'Appearance',
     ]);
     await user.click(within(more).getByRole('link', { name: 'Leads' }));
@@ -160,7 +166,7 @@ describe('navigation by role', () => {
 
   it('links back to the dashboard from screens still to come', async () => {
     const { user } = renderApp({
-      path: '/products',
+      path: '/leads',
       routes: { 'GET /auth/me': () => json(OWNER), 'GET /dashboard': () => json(DASHBOARD) },
     });
     await user.click(await screen.findByRole('link', { name: 'Back to the dashboard' }));

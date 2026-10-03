@@ -1,6 +1,8 @@
 import type { Permission } from '@paint/shared';
 import type { IconName } from '@paint/ui';
 import type { MessageKey } from '../i18n/i18n.js';
+import { IMPORT_NAV_ITEMS } from '../imports/nav.js';
+import type { AnyOf } from '../lib/guard.js';
 import { CUSTOMER_NAV_ITEMS } from '../parties/nav.js';
 
 export interface NavItem {
@@ -8,8 +10,8 @@ export interface NavItem {
   readonly label: MessageKey;
   readonly path: string;
   readonly icon: IconName;
-  /** Shown only to members holding this permission. */
-  readonly permission: Permission;
+  /** Shown only to members holding this permission (or any of these). */
+  readonly permission: Permission | AnyOf;
 }
 
 /** The main sections, in order. Phones show the first four in the bottom bar and the rest under "More". */
@@ -60,6 +62,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   // Each feature keeps its own entries in its own file.
   ...CUSTOMER_NAV_ITEMS,
+  ...IMPORT_NAV_ITEMS,
   {
     key: 'appearance',
     label: 'nav.appearance',
@@ -73,5 +76,7 @@ export const BOTTOM_BAR_SIZE = 4;
 
 /** The sections a member may open. */
 export function visibleNav(can: (permission: Permission) => boolean): NavItem[] {
-  return NAV_ITEMS.filter((item) => can(item.permission));
+  return NAV_ITEMS.filter((item) =>
+    typeof item.permission === 'string' ? can(item.permission) : item.permission.some(can),
+  );
 }

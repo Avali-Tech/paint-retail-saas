@@ -1,6 +1,13 @@
+import { catalogEn, catalogEnumsEn } from './en-catalog.js';
 import { creditEn, creditEnumsEn } from './en-credit.js';
+import { importsEn } from './en-imports.js';
 import { loyaltyEn, loyaltyEnumsEn } from './en-loyalty.js';
 import { partiesEn, partyEnumsEn } from './en-parties.js';
+import { purchasingEn, purchasingEnumsEn } from './en-purchasing.js';
+import { stockCountEnumsEn, stockCountsEn } from './en-stock-counts.js';
+import { stockEn, stockEnumsEn } from './en-stock.js';
+import { transferEnumsEn, transfersEn } from './en-transfers.js';
+import { workflowEn } from './en-workflow.js';
 
 /**
  * English messages. Every language (Hindi, Telugu next) is a file of this same
@@ -200,11 +207,23 @@ export const en = {
   ...partiesEn,
   ...creditEn,
   ...loyaltyEn,
+  ...catalogEn,
+  ...stockEn,
+  ...transfersEn,
+  ...stockCountsEn,
+  ...purchasingEn,
+  ...importsEn,
+  ...workflowEn,
   /** Names of API values, for label(group, value). */
   enums: {
     ...partyEnumsEn,
     ...creditEnumsEn,
     ...loyaltyEnumsEn,
+    ...catalogEnumsEn,
+    ...stockEnumsEn,
+    ...transferEnumsEn,
+    ...stockCountEnumsEn,
+    ...purchasingEnumsEn,
   },
   pages: {
     comingSoonTitle: 'Coming soon',

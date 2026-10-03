@@ -1,8 +1,14 @@
 import type { QuickAction } from '@paint/shared';
+import { catalogEndpoints } from './catalog.js';
 import type { ApiClient } from './client.js';
 import { creditEndpoints } from './credit.js';
+import { importEndpoints } from './imports.js';
 import { loyaltyEndpoints } from './loyalty.js';
 import { partyEndpoints } from './parties.js';
+import { purchasingEndpoints } from './purchasing.js';
+import { stockCountEndpoints } from './stock-counts.js';
+import { stockEndpoints } from './stock.js';
+import { transferEndpoints } from './transfers.js';
 import type { Dashboard, NotificationPage, Profile, SearchResults, SessionGrant } from './types.js';
 
 export interface PasswordSignIn {
@@ -40,6 +46,12 @@ export function endpoints(api: ApiClient) {
     parties: partyEndpoints(api),
     credit: creditEndpoints(api),
     loyalty: loyaltyEndpoints(api),
+    catalog: catalogEndpoints(api),
+    stock: stockEndpoints(api),
+    transfers: transferEndpoints(api),
+    stockCounts: stockCountEndpoints(api),
+    purchasing: purchasingEndpoints(api),
+    imports: importEndpoints(api),
   };
 }
 

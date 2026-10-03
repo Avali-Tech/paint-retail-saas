@@ -1,0 +1,13 @@
+/* Stock counts: the scan box result and the count inputs inside the lines table. */
+
+.scan-feedback {
+  flex: 1 1 100%;
+  min-height: 1.5em;
+  margin: 0;
+  font-weight: 600;
+}
+
+.count-input {
+  width: 6.5rem;
+  text-align: right;
+}

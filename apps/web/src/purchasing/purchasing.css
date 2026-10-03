@@ -1,0 +1,12 @@
+/* Purchasing screens. Only design tokens: branding restyles everything. */
+
+/* .subheading comes from customers.css, loaded with every route. */
+
+.line-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}

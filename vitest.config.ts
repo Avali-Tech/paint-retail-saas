@@ -27,6 +27,8 @@ export default defineConfig({
           exclude: ['**/*.int.test.ts', '**/node_modules/**'],
           environment: 'jsdom',
           setupFiles: ['./vitest.dom-setup.ts'],
+          // Screens driven through many keystrokes take a few seconds under coverage.
+          testTimeout: 15_000,
         },
       },
       {

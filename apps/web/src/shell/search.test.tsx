@@ -93,7 +93,10 @@ describe('SearchBox', () => {
         .map((request) => request.query.get('q')),
     ).toEqual(['apex']);
     await user.click(screen.getByRole('option', { name: /Apex 4 l/ }));
-    expect(location()).toBe('/products/v2');
+    // The product screen loads on first use; the address changes once it has.
+    await waitFor(() => {
+      expect(location()).toBe('/products/v2');
+    });
     expect(box).toHaveValue('');
   });
 

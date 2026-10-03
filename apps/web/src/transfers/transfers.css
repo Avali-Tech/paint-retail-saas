@@ -1,0 +1,19 @@
+/* Transfers: printing a page with a delivery challan prints only the challan.
+   Every route's styles load together, so these rules apply only where a challan is. */
+
+@media print {
+  body:has(.challan) :is(.shell__header, .shell__sidebar, .shell__bottom-bar, .section-nav),
+  .challan .no-print {
+    display: none !important;
+  }
+
+  .shell__main:has(.challan) > :not(.stack),
+  .shell__main > .stack:has(.challan) > :not(.challan) {
+    display: none !important;
+  }
+
+  .challan {
+    border: 0;
+    box-shadow: none;
+  }
+}
