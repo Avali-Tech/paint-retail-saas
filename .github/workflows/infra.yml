@@ -1,0 +1,44 @@
+name: Infrastructure
+
+# Terraform format, validation and lint. No AWS credentials: backends are skipped
+# and nothing is planned or applied. Runs only when Terraform files change.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/terraform/**'
+      - '.github/workflows/infra.yml'
+  pull_request:
+    paths:
+      - 'infra/terraform/**'
+      - '.github/workflows/infra.yml'
+
+concurrency:
+  group: infra-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: Terraform fmt, validate, tflint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      # Same images and scripts as running the checks locally (infra/terraform/*.sh).
+      - name: terraform fmt -check and validate
+        run: >-
+          docker run --rm -v "$PWD/infra/terraform:/tf" -w /tf --entrypoint sh
+          hashicorp/terraform:1.16.4 check.sh
+
+      # The token only avoids GitHub's API rate limit when tflint downloads its AWS ruleset.
+      - name: tflint
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          docker run --rm -v "$PWD/infra/terraform:/data" -w /data --entrypoint sh
+          -e GITHUB_TOKEN
+          ghcr.io/terraform-linters/tflint:v0.64.0 lint.sh

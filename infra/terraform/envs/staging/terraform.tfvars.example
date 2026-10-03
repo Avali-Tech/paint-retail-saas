@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars (not committed) and fill in.
+app_domain    = "staging.app.example.in"
+origin_domain = "origin.staging.app.example.in"
+email_domain  = "staging.notify.example.in"
+# Hosted zone for example.in in Route 53, or null to create DNS records by hand.
+route53_zone_id = null
+alert_emails    = ["ops@example.in"]
+# sentry_dsn    = "https://<key>@o<org>.ingest.sentry.io/<project>"
