@@ -9,6 +9,8 @@ export const loyaltyEn = {
     enrolTitle: 'Enrol in the loyalty programme',
     enrolHint: 'Purchases, awards and redemptions are recorded from now on.',
     enrolSubmit: 'Enrol',
+    chooseCustomer: 'Who joins?',
+    chooseSomeoneElse: 'Choose someone else',
     close: 'Close account',
     closedDone: 'Loyalty account closed',
     reopen: 'Reopen account',

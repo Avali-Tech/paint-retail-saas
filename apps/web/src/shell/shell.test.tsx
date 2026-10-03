@@ -1,5 +1,5 @@
 import { PERMISSIONS } from '@paint/shared';
-import { renderHook, screen, within } from '@testing-library/react';
+import { renderHook, screen, waitFor, within } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
@@ -98,6 +98,8 @@ describe('navigation by role', () => {
       'Credit rules',
       'Loyalty programme',
       'Appearance',
+      // Everyone's own sign-in settings, next to signing out.
+      'Account security',
     ]);
     expect(screen.getByText('ABC Paints')).toBeInTheDocument();
     expect(screen.getByText('Signed in as Anil Kumar · Owner')).toBeInTheDocument();
@@ -114,7 +116,7 @@ describe('navigation by role', () => {
       within(found(sidebar))
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['Dashboard', 'Customers', 'Products', 'Stock']);
+    ).toEqual(['Dashboard', 'Customers', 'Products', 'Stock', 'Account security']);
   });
 
   it('opens the first allowed section, or follow-ups when there is none', async () => {
@@ -152,10 +154,22 @@ describe('navigation by role', () => {
       'Credit rules',
       'Loyalty programme',
       'Appearance',
+      'Account security',
     ]);
     await user.click(within(more).getByRole('link', { name: 'Leads' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(location()).toBe('/leads');
+    await user.click(within(bottomBar).getByRole('button', { name: 'More' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'More' })).getByRole('link', {
+        name: 'Account security',
+      }),
+    );
+    expect(screen.queryByRole('dialog', { name: 'More' })).toBeNull();
+    // Screens load on first use, so the address changes once the screen has arrived.
+    await waitFor(() => {
+      expect(location()).toBe('/settings/security');
+    });
   });
 
   it('links back to the dashboard from screens still to come', async () => {

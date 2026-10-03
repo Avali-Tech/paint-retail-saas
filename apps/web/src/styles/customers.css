@@ -36,3 +36,18 @@
 .tier-row > .ui-field {
   flex: 1 1 12rem;
 }
+
+/* A party in the picker: name, contact and roles, beside its Choose button. */
+.picker__who {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A notice between a page's header and its content. */
+.page-notice {
+  margin-bottom: var(--space-4);
+}

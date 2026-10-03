@@ -82,6 +82,28 @@ test('the owner sets up loyalty, enrols a painter and works with points', async 
   await expect(loyalty.getByRole('button', { name: 'Award points' })).toBeVisible();
 });
 
+test('"+ Loyalty" finds a painter and enrols them (N Y)', async ({ page }) => {
+  const business = await createBusiness('Quick Loyal Paints');
+  const party = await call<{ id: string }>('POST', '/parties', {
+    token: business.token,
+    body: { displayName: 'Ravi Painter', roles: ['painter'] },
+  });
+  await signInWithPassword(page, business.ownerPhone);
+  await page.getByRole('heading', { name: 'Dashboard', level: 1 }).click();
+  await page.keyboard.press('n');
+  await page.keyboard.press('y');
+  await expect(page).toHaveURL(/\/loyalty\/new$/);
+  await page.getByRole('searchbox', { name: 'Search by name, mobile or GSTIN' }).fill('ravi');
+  await page.getByRole('button', { name: 'Choose Ravi Painter' }).click();
+  await page
+    .getByRole('combobox', { name: 'Looked after by' })
+    .selectOption({ label: 'Anil Owner · Owner' });
+  await expectUsable(page);
+  await page.getByRole('button', { name: 'Enrol', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/parties/${party.id}$`));
+  await expect(page.getByRole('region', { name: 'Loyalty points' })).toContainText('Anil Owner');
+});
+
 test('the points history fits a phone @phone', async ({ page }) => {
   const business = await createBusiness('Phone Loyal Paints');
   const party = await call<{ id: string }>('POST', '/parties', {
@@ -112,5 +134,14 @@ test('the points history fits a phone @phone', async ({ page }) => {
   await page.goto('/settings/loyalty');
   await page.getByRole('button', { name: 'Add tier' }).click();
   await expect(page.getByRole('textbox', { name: 'Tier 1 name' })).toBeVisible();
+  await expectUsable(page);
+  // A loyalty search result opens the 360 at the points.
+  await page.goto(`/parties/${party.id}/loyalty`);
+  await expect(page.getByRole('region', { name: 'Loyalty points' })).toBeInViewport();
+  await expectUsable(page);
+  await page.goto('/loyalty/new');
+  await page.getByRole('searchbox', { name: 'Search by name, mobile or GSTIN' }).fill('irfan');
+  await page.getByRole('button', { name: 'Choose Mohammed Irfan Painting Works' }).click();
+  await expect(page.getByRole('combobox', { name: 'Looked after by' })).toBeVisible();
   await expectUsable(page);
 });

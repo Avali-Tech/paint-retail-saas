@@ -34,6 +34,7 @@ const RESULT_GROUPS = [
   ['opportunities', 'search.opportunities'],
   ['projects', 'search.projects'],
   ['contracts', 'search.contracts'],
+  ['loyalty', 'search.loyalty'],
   ['documents', 'search.documents'],
 ] as const satisfies readonly (readonly [keyof SearchResults, MessageKey])[];
 
@@ -54,8 +55,8 @@ export function resultGroups(results: SearchResults): Group[] {
 }
 
 /**
- * The one search box (GET /search): customers, products, leads, projects and
- * documents, grouped, plus quick actions. Arrow keys move, Enter opens, Escape closes.
+ * The one search box (GET /search): customers, products, leads, projects,
+ * loyalty accounts and documents, grouped, plus quick actions. Arrow keys move, Enter opens, Escape closes.
  */
 export function SearchBox({ inputRef }: { readonly inputRef: RefObject<HTMLInputElement | null> }) {
   const api = useApi();

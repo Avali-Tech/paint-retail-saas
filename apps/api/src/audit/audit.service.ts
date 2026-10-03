@@ -7,8 +7,16 @@ import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { AUDIT_AREAS, type AuditTable, type ListAuditQuery } from './audit.schemas.js';
 
-const { auditLog, organizationMembers, productVariants, roles, stockLedger, stores, users } =
-  schema;
+const {
+  auditLog,
+  organizationMembers,
+  parties,
+  productVariants,
+  roles,
+  stockLedger,
+  stores,
+  users,
+} = schema;
 
 export interface AuditChange {
   readonly field: string;
@@ -48,6 +56,7 @@ const FIELD_LABELS: Record<string, string> = {
   role_id: 'Role',
   all_stores: 'All stores',
   is_active: 'Active',
+  two_factor_reset_at: 'Two-factor reset',
   store_id: 'Store',
   variant_id: 'Product',
   movement_type: 'Type',
@@ -57,6 +66,7 @@ const FIELD_LABELS: Record<string, string> = {
   feature_flags: 'Features',
   suspended_at: 'Suspended',
   suspend_reason: 'Suspension reason',
+  two_factor_required: 'Two-factor required',
   reason: 'Reason',
   minutes: 'Minutes',
   approved_at: 'Approved',
@@ -82,6 +92,7 @@ const FIELD_LABELS: Record<string, string> = {
   min_redemption_points: 'Minimum redemption',
   points: 'Points',
   branding: 'Branding',
+  merged_into_id: 'Merged into',
 };
 
 const recordLabel = sql<string | null>`case ${auditLog.tableName}
@@ -96,6 +107,7 @@ const recordLabel = sql<string | null>`case ${auditLog.tableName}
   when 'credit_rules' then 'Credit rules'
   when 'loyalty_settings' then 'Loyalty programme'
   when 'organization_branding' then 'Branding'
+  when 'parties' then (select p.display_name from parties p where p.id::text = ${auditLog.recordId})
   when 'loyalty_accounts' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id::text = ${auditLog.recordId})
   when 'loyalty_ledger' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id::text = ${auditLog.recordId})
   else (select ${users.fullName} from ${organizationMembers} join ${users} on ${users.id} = ${organizationMembers.userId} where ${organizationMembers.id}::text = ${auditLog.recordId})
@@ -195,6 +207,10 @@ export class AuditService {
         .select({ id: productVariants.id, name: productVariants.sku })
         .from(productVariants)
         .where(inArray(productVariants.id, ids('variant_id')))),
+      ...(await tx
+        .select({ id: parties.id, name: parties.displayName })
+        .from(parties)
+        .where(inArray(parties.id, ids('merged_into_id')))),
     ];
     return new Map(found.map(({ id, name }) => [id, name]));
   }

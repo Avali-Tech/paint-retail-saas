@@ -4,6 +4,7 @@ import { createIsolatedDatabase, type TestDatabase } from '@paint/testing';
 import { and, eq, isNull } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from 'vitest';
 import { bearer, startTestApp, uniquePhone, type TestApp } from '../test-support/test-app.js';
+import { finishSignIn } from '../test-support/two-factor.js';
 
 interface Grant {
   token: string;
@@ -55,7 +56,8 @@ async function login(identifier: string, organizationId?: string): Promise<strin
     url: '/auth/login',
     payload: { identifier, password: PASSWORD, organizationId },
   });
-  return response.json<Grant>().token;
+  if (response.statusCode !== 200) return '';
+  return (await finishSignIn<Grant>(t, response, identifier)).token;
 }
 
 const api = (token: string) => ({

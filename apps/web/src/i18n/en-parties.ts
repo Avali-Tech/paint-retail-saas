@@ -63,7 +63,15 @@ export const partiesEn = {
       duplicatePhone: 'Someone with this mobile number is already on file.',
       duplicateGstin: 'A business with this GSTIN is already on file.',
     },
+    picker: {
+      hint: 'Type a name, mobile number or GSTIN',
+      none: 'No one found for “{query}”',
+      choose: 'Choose',
+      chooseName: 'Choose {name}',
+    },
     detail: {
+      merged: 'This record was merged into another one.',
+      openMerged: 'Open the record that remains',
       error: 'Could not load this customer',
       contact: 'Contact',
       noContact: 'No contact details yet',

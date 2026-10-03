@@ -1,21 +1,17 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { PASSWORD, addMember, createBusiness, signInWithPassword, uniquePhone } from './support.js';
+import {
+  PASSWORD,
+  accessibilityProblems,
+  addMember,
+  createBusiness,
+  signInWithPassword,
+  uniquePhone,
+} from './support.js';
 
 const primaryButtonColor = (page: Page) =>
   page
     .getByRole('button', { name: 'Primary action' })
     .evaluate((button) => getComputedStyle(button).backgroundColor);
-
-/** WCAG 2 A and AA problems on the page, as "rule: target" lines. */
-async function accessibilityProblems(page: Page): Promise<string[]> {
-  const results = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
-    .analyze();
-  return results.violations.flatMap((violation) =>
-    violation.nodes.map((node) => `${violation.id}: ${node.target.join(' ')}`),
-  );
-}
 
 test('the owner rebrands the whole app live, and it stays after a reload', async ({ page }) => {
   const business = await createBusiness('Brand Paints');

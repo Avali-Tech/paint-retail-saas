@@ -58,6 +58,8 @@ export interface PartyView {
   readonly notes: string | null;
   readonly tags: string[];
   readonly isActive: boolean;
+  /** Set when this party was merged into another: open that one instead. */
+  readonly mergedIntoId: string | null;
   readonly roles: PartyRole[];
   readonly customer: CustomerView | null;
 }
@@ -229,7 +231,7 @@ export class PartiesService {
       .select()
       .from(customerProfiles)
       .where(inArray(customerProfiles.partyId, ids));
-    return ({ organizationId, createdAt, updatedAt, ...party }) => {
+    return ({ organizationId, createdAt, updatedAt, mergedAt, mergedByMemberId, ...party }) => {
       const customer = customerRows.find((row) => row.partyId === party.id);
       return {
         ...party,

@@ -26,6 +26,14 @@ const CreditRequestPage = lazy(() =>
     default: module.CreditRequestPage,
   })),
 );
+const NewCreditRequestPage = lazy(() =>
+  import('../credit/NewCreditRequestPage.js').then((module) => ({
+    default: module.NewCreditRequestPage,
+  })),
+);
+const EnrolPage = lazy(() =>
+  import('../loyalty/EnrolPage.js').then((module) => ({ default: module.EnrolPage })),
+);
 const CreditRulesPage = lazy(() =>
   import('../credit/CreditRulesPage.js').then((module) => ({ default: module.CreditRulesPage })),
 );
@@ -43,10 +51,14 @@ export function partyRoutes() {
       <Route path="parties/new" element={guarded('parties:manage', NewPartyPage)} />
       <Route path="parties/:id" element={guarded('parties:read', PartyDetailPage)} />
       <Route path="parties/:id/edit" element={guarded('parties:manage', EditPartyPage)} />
+      {/* Where a loyalty search result leads: the 360, scrolled to the points. */}
+      <Route path="parties/:id/loyalty" element={guarded('parties:read', PartyDetailPage)} />
       <Route path="credit-requests" element={guarded('credit:read', CreditRequestsPage)} />
+      <Route path="credit-requests/new" element={guarded('credit:manage', NewCreditRequestPage)} />
       <Route path="credit-requests/:id" element={guarded('credit:read', CreditRequestPage)} />
       <Route path="settings/credit" element={guarded('credit:read', CreditRulesPage)} />
       <Route path="settings/loyalty" element={guarded('loyalty:read', LoyaltySettingsPage)} />
+      <Route path="loyalty/new" element={guarded('loyalty:manage', EnrolPage)} />
     </>
   );
 }

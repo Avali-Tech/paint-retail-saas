@@ -1,0 +1,240 @@
+name: Deploy
+
+# Manual deploys to AWS (docs/runbooks/deploy.md). Never runs on push.
+#
+#   1. Build the API and ops images for the commit and push them to ECR (tag = SHA).
+#   2. Run database migrations as a one-off ECS task (ops image) and stop on failure.
+#   3. Roll the API service to a new task definition revision; wait until stable.
+#      The ECS deployment circuit breaker rolls back automatically if tasks fail.
+#   4. Upload the web build to S3 and invalidate CloudFront.
+#
+# Configuration: Terraform's `github_environment_variables` output for each
+# environment, stored as a repository variable DEPLOY_CONFIG_STAGING / DEPLOY_CONFIG_PROD
+# (JSON). AWS access is by OpenID Connect: no AWS keys are stored in GitHub.
+#
+# Approval: the organisation is on GitHub Free, where private repositories have no
+# environments or required reviewers, so a production deploy waits for an approver
+# listed in the PROD_APPROVERS variable to answer an issue the workflow opens.
+# With GitHub Team or Enterprise, switch to protected environments instead
+# (docs/runbooks/deploy.md, "Approvals").
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Where to deploy
+        type: choice
+        options: [staging, prod]
+        default: staging
+      ref:
+        description: Commit, branch or tag to deploy (production only accepts commits on main)
+        type: string
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  # One deploy per environment at a time; never cancel one half-way.
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Resolve the commit and settings
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - id: commit
+        name: Resolve the commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Production deploys only commits that are on main
+        if: inputs.environment == 'prod'
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "${{ steps.commit.outputs.sha }}" origin/main; then
+            echo "::error::${{ steps.commit.outputs.sha }} is not on main; merge it before deploying to production."
+            exit 1
+          fi
+
+      - name: Check the deploy settings exist
+        env:
+          CONFIG: ${{ inputs.environment == 'prod' && vars.DEPLOY_CONFIG_PROD || vars.DEPLOY_CONFIG_STAGING }}
+        run: |
+          if [ -z "$CONFIG" ]; then
+            echo "::error::Repository variable DEPLOY_CONFIG_${{ inputs.environment == 'prod' && 'PROD' || 'STAGING' }} is not set (Terraform output github_environment_variables)."
+            exit 1
+          fi
+          echo "$CONFIG" | jq -e '.AWS_DEPLOY_ROLE_ARN and .ECS_CLUSTER and .WEB_BUCKET' > /dev/null
+
+  approve:
+    name: Production approval
+    if: inputs.environment == 'prod'
+    needs: prepare
+    runs-on: ubuntu-latest
+    # The waiting job uses Actions minutes (GitHub Free: 2,000 a month for private repos),
+    # so an unanswered request gives up after an hour.
+    timeout-minutes: 60
+    permissions:
+      issues: write
+    steps:
+      # Third-party action with write access to issues: pinned to a reviewed commit (v1.13.1).
+      - uses: trstringer/manual-approval@fa642940caf8412403569b28b2db4a1df08a83a3
+        with:
+          secret: ${{ github.token }}
+          approvers: ${{ vars.PROD_APPROVERS }}
+          minimum-approvals: 1
+          exclude-workflow-initiator-as-approver: false
+          close-issue-means-denial: true
+          polling-interval-seconds: 15
+          issue-title: 'Deploy ${{ needs.prepare.outputs.sha }} to production'
+          issue-body: >-
+            ${{ github.actor }} wants to deploy
+            ${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.prepare.outputs.sha }}
+            to production. Comment "approve" or "deny" (closing the issue also denies).
+
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    needs: [prepare, approve]
+    # Runs after approval for production; the approval job is skipped for staging.
+    if: >-
+      always() && needs.prepare.result == 'success' &&
+      (needs.approve.result == 'success' || (inputs.environment == 'staging' && needs.approve.result == 'skipped'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      SHA: ${{ needs.prepare.outputs.sha }}
+      CONFIG: ${{ inputs.environment == 'prod' && vars.DEPLOY_CONFIG_PROD || vars.DEPLOY_CONFIG_STAGING }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - name: Load the environment's settings
+        run: |
+          echo "$CONFIG" | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> "$GITHUB_ENV"
+
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ fromJSON(env.CONFIG).AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ fromJSON(env.CONFIG).AWS_REGION }}
+          role-session-name: deploy-${{ inputs.environment }}-${{ github.run_id }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ---- 1. Images ----
+
+      - name: Build and push the images (skipped if this commit was pushed before)
+        run: |
+          for image in api ops; do
+            if [ "$image" = api ]; then repo="$ECR_API_REPOSITORY"; file=apps/api/Dockerfile; else repo="$ECR_OPS_REPOSITORY"; file=packages/ops/Dockerfile; fi
+            name="${repo##*/}"
+            if aws ecr describe-images --repository-name "$name" --image-ids imageTag="$SHA" > /dev/null 2>&1; then
+              echo "$repo:$SHA already exists"
+            else
+              docker build -f "$file" -t "$repo:$SHA" .
+              docker push "$repo:$SHA"
+            fi
+          done
+
+      # ---- 2. Migrations (one-off task) ----
+
+      - name: Register the ops task definition for this commit
+        run: |
+          aws ecs describe-task-definition --task-definition "$ECS_OPS_TASK_FAMILY" --query taskDefinition \
+            | jq --arg image "$ECR_OPS_REPOSITORY:$SHA" '
+                del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+                | .containerDefinitions[0].image = $image' > ops-task.json
+          echo "OPS_TASK_DEF=$(aws ecs register-task-definition --cli-input-json file://ops-task.json --query taskDefinition.taskDefinitionArn --output text)" >> "$GITHUB_ENV"
+
+      - name: Run migrations
+        run: |
+          task=$(aws ecs run-task --cluster "$ECS_CLUSTER" --task-definition "$OPS_TASK_DEF" --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$ECS_SUBNETS],securityGroups=[$ECS_OPS_SECURITY_GROUP],assignPublicIp=DISABLED}" \
+            --overrides '{"containerOverrides":[{"name":"ops","command":["node","src/migrate-cli.ts"]}]}' \
+            --started-by "deploy-$GITHUB_RUN_ID" --query 'tasks[0].taskArn' --output text)
+          echo "Migration task: $task"
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$task"
+          code=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$task" --query 'tasks[0].containers[0].exitCode' --output text)
+          aws logs get-log-events --log-group-name "$OPS_LOG_GROUP" --log-stream-name "ops/ops/${task##*/}" \
+            --query 'events[].message' --output text || true
+          if [ "$code" != "0" ]; then
+            echo "::error::Migrations failed (exit code $code). The API was not changed."
+            exit 1
+          fi
+
+      # ---- 3. API ----
+
+      - name: Register the API task definition for this commit
+        run: |
+          aws ecs describe-task-definition --task-definition "$ECS_API_TASK_FAMILY" --query taskDefinition \
+            | jq --arg image "$ECR_API_REPOSITORY:$SHA" --arg release "$SHA" '
+                del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+                | .containerDefinitions[0].image = $image
+                | .containerDefinitions[0].environment |= (map(select(.name != "SENTRY_RELEASE")) + [{name: "SENTRY_RELEASE", value: $release}])' > api-task.json
+          echo "API_TASK_DEF=$(aws ecs register-task-definition --cli-input-json file://api-task.json --query taskDefinition.taskDefinitionArn --output text)" >> "$GITHUB_ENV"
+
+      - name: Roll the API service
+        run: |
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_API_SERVICE" --task-definition "$API_TASK_DEF" > /dev/null
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_API_SERVICE"
+          current=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_API_SERVICE" --query 'services[0].taskDefinition' --output text)
+          if [ "$current" != "$API_TASK_DEF" ]; then
+            echo "::error::The deployment was rolled back by the circuit breaker (running $current)."
+            exit 1
+          fi
+
+      # ---- 4. Web app ----
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile --filter @paint/web...
+
+      - name: Build the web app
+        env:
+          VITE_SENTRY_DSN: ${{ inputs.environment == 'prod' && vars.WEB_SENTRY_DSN_PROD || vars.WEB_SENTRY_DSN_STAGING }}
+          VITE_SENTRY_ENVIRONMENT: ${{ inputs.environment }}
+          VITE_SENTRY_RELEASE: ${{ needs.prepare.outputs.sha }}
+        run: pnpm --filter @paint/web build
+
+      - name: Upload the web app
+        working-directory: apps/web/dist
+        run: |
+          # Hashed assets never change: cache for a year. Everything else must be revalidated
+          # so a new release (index.html, service worker, manifest) is picked up at once.
+          # Source maps are not published.
+          aws s3 sync . "s3://$WEB_BUCKET" --exclude '*' --include 'assets/*' --exclude '*.map' \
+            --cache-control 'public, max-age=31536000, immutable'
+          # Old assets stay, so pages still open in a browser can load their chunks.
+          aws s3 sync . "s3://$WEB_BUCKET" --exclude 'assets/*' --exclude '*.map' \
+            --cache-control 'no-cache' --delete
+
+      - name: Invalidate CloudFront
+        run: |
+          id=$(aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths '/*' --query Invalidation.Id --output text)
+          aws cloudfront wait invalidation-completed --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --id "$id"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Deployed \`$SHA\` to ${{ inputs.environment }}"
+            echo "- API: \`$API_TASK_DEF\`"
+            echo "- Web: $APP_URL"
+          } >> "$GITHUB_STEP_SUMMARY"

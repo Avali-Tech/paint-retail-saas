@@ -5,7 +5,6 @@ import {
   Field,
   Input,
   Pagination,
-  Select,
   Table,
   Textarea,
   useToast,
@@ -19,6 +18,7 @@ import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { FormDialog } from '../lib/FormDialog.js';
 import { QueryState } from '../lib/QueryState.js';
+import { SalespersonField } from './SalespersonField.js';
 import {
   ACTION_FIELDS,
   EMPTY_VALUES,
@@ -30,6 +30,8 @@ import {
 } from './actions.js';
 
 export const LEDGER_PAGE_SIZE = 10;
+/** The panel's element id, so /parties/:id/loyalty can scroll to it. */
+export const LOYALTY_PANEL_ID = 'loyalty';
 
 /** The points history, newest first, a page at a time. */
 function Ledger({ partyId }: { readonly partyId: string }) {
@@ -144,7 +146,7 @@ export function LoyaltyPanel({
 
   if (account === null) {
     return (
-      <Card title={t('loyalty.title')}>
+      <Card id={LOYALTY_PANEL_ID} title={t('loyalty.title')}>
         <div className="stack">
           <p className="muted">{t('loyalty.notEnrolled')}</p>
           {manage && (
@@ -203,6 +205,7 @@ export function LoyaltyPanel({
 
   return (
     <Card
+      id={LOYALTY_PANEL_ID}
       title={t('loyalty.title')}
       actions={
         <Badge tone={open ? 'success' : 'neutral'}>
@@ -273,14 +276,7 @@ function EnrolDialog({
   const { t } = useI18n();
   const toast = useToast();
   const queryClient = useQueryClient();
-  // Only members who can see the team choose a salesperson; others enrol without one.
-  const canChoose = usePermissions()('members:read');
   const [salesperson, setSalesperson] = useState('');
-  const people = useQuery({
-    queryKey: ['members'],
-    queryFn: ({ signal }) => api.loyalty.salespeople(signal),
-    enabled: canChoose,
-  });
   return (
     <FormDialog
       open
@@ -295,28 +291,7 @@ function EnrolDialog({
         return undefined;
       }}
     >
-      {canChoose && (
-        <Field label={t('loyalty.salesperson')}>
-          <Select
-            value={salesperson}
-            onChange={(event) => {
-              setSalesperson(event.target.value);
-            }}
-          >
-            <option value="">{t('loyalty.noSalesperson')}</option>
-            {(people.data ?? [])
-              .filter((person) => person.isActive)
-              .map((person) => (
-                <option key={person.id} value={person.id}>
-                  {t('loyalty.salespersonOption', {
-                    name: person.user.fullName,
-                    role: person.role.name,
-                  })}
-                </option>
-              ))}
-          </Select>
-        </Field>
-      )}
+      <SalespersonField value={salesperson} onChange={setSalesperson} />
     </FormDialog>
   );
 }

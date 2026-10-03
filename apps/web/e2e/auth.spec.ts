@@ -7,6 +7,7 @@ import {
   lastCodeFor,
   signInWithPassword,
   storedToken,
+  submitPassword,
   uniquePhone,
 } from './support.js';
 
@@ -38,7 +39,7 @@ test('an owner signs in with a password, sees the dashboard and signs out', asyn
 
 test('wrong details are refused with the API’s message', async ({ page }) => {
   const business = await createBusiness('Ravi Hardware');
-  await signInWithPassword(page, business.ownerPhone, 'not-the-password');
+  await submitPassword(page, business.ownerPhone, 'not-the-password');
   await expect(page.getByRole('alert')).toHaveText('Invalid sign-in details');
 });
 
@@ -48,7 +49,7 @@ test('a person in two businesses chooses which one to open', async ({ page }) =>
   // XYZ hires ABC's owner; they keep their own password.
   await addMember(second, 'branch_manager', { fullName: 'Anil Owner', phone: first.ownerPhone });
 
-  await signInWithPassword(page, first.ownerPhone);
+  await submitPassword(page, first.ownerPhone);
   const chooser = page.getByRole('dialog', { name: 'Choose a business' });
   await expect(chooser).toBeVisible();
   await chooser.getByRole('button', { name: 'XYZ Colours' }).click();
@@ -76,13 +77,23 @@ test('counter staff sign in with a code texted to their mobile', async ({ page }
   await expect(page.getByText('Signed in as Suresh Counter · Store Employee')).toBeVisible();
   // Their role sees stock but not purchasing or leads.
   const nav = page.getByRole('navigation', { name: 'Main' });
-  await expect(nav.getByRole('link')).toHaveText(['Dashboard', 'Customers', 'Products', 'Stock']);
+  await expect(nav.getByRole('link')).toHaveText([
+    'Dashboard',
+    'Customers',
+    'Products',
+    'Stock',
+    'Account security',
+  ]);
 });
 
 test('an ended session sends the user back to sign in', async ({ page }) => {
   const business = await createBusiness('Ganesh Paints');
   await signInWithPassword(page, business.ownerPhone, PASSWORD);
   await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+  // Loaded, so no request from signing in is still on its way when the session ends.
+  await expect(page.getByRole('table', { name: 'Stores' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Refresh' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Notifications' })).toBeVisible();
 
   // The session ends elsewhere (signed out on another device, or expired).
   await call('POST', '/auth/logout', { token: await storedToken(page) });

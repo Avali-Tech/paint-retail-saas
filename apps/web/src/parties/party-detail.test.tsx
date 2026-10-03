@@ -1,5 +1,5 @@
-import { screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { screen, waitFor, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { CASHIER, OWNER, json } from '../test-support/fake-api.js';
 import {
   BARE_OVERVIEW,
@@ -104,6 +104,48 @@ describe('PartyDetailPage (customer 360)', { timeout: 30_000 }, () => {
       expect(screen.queryByRole('region', { name: hidden })).toBeNull();
     }
     expect(screen.queryByRole('region', { name: 'Loyalty points' })).toBeNull();
+  });
+
+  it('points from a merged record to the one that remains', async () => {
+    renderApp({
+      path: `/parties/${BARE_PARTY.id}`,
+      routes: {
+        'GET /auth/me': () => json(CASHIER),
+        'GET /parties/:id/overview': () =>
+          json({ ...BARE_OVERVIEW, party: { ...BARE_PARTY, mergedIntoId: PARTY.id } }),
+      },
+    });
+    expect(await screen.findByText('This record was merged into another one.')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Open the record that remains' })).toHaveAttribute(
+      'href',
+      `/parties/${PARTY.id}`,
+    );
+  });
+
+  it('opens at the points when a loyalty search result leads here', async () => {
+    const scrolled: string[] = [];
+    const scroll = vi
+      .spyOn(Element.prototype, 'scrollIntoView')
+      .mockImplementation(function scrollIntoView(this: Element) {
+        scrolled.push(this.id);
+      });
+    try {
+      renderApp({
+        path: `/parties/${PARTY.id}/loyalty`,
+        routes: {
+          'GET /auth/me': () => json(OWNER),
+          'GET /parties/:id/overview': () => json(OVERVIEW),
+          'GET /parties/:id/loyalty': () => json(loyaltyView()),
+        },
+      });
+      await screen.findByRole('heading', { name: 'Apex Builders', level: 1 });
+      expect(screen.queryByText('This record was merged into another one.')).toBeNull();
+      await waitFor(() => {
+        expect(scrolled).toContain('loyalty');
+      });
+    } finally {
+      scroll.mockRestore();
+    }
   });
 
   it('says when the customer cannot be seen', async () => {

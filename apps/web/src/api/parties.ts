@@ -49,6 +49,8 @@ export interface Party {
   readonly notes: string | null;
   readonly tags: string[];
   readonly isActive: boolean;
+  /** Set when this party was merged into another: open that one instead. */
+  readonly mergedIntoId: string | null;
   readonly roles: PartyRole[];
   readonly customer: {
     readonly customerType: CustomerType;

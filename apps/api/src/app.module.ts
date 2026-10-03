@@ -21,6 +21,7 @@ import { LeadsModule } from './leads/leads.module.js';
 import { LoyaltyModule } from './loyalty/loyalty.module.js';
 import { MembersModule } from './members/members.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
+import { ObservabilityModule } from './observability/index.js';
 import { OnboardingModule } from './onboarding/onboarding.module.js';
 import { PartiesModule } from './parties/parties.module.js';
 import { PlatformModule } from './platform/platform.module.js';
@@ -47,6 +48,7 @@ export class AppModule {
       module: AppModule,
       imports: [
         DatabaseModule.forRoot(connection),
+        ObservabilityModule.forRoot(),
         ActivitiesModule,
         AuditModule,
         BrandingModule,
