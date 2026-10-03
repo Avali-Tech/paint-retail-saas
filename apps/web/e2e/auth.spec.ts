@@ -86,7 +86,9 @@ test('an ended session sends the user back to sign in', async ({ page }) => {
 
   // The session ends elsewhere (signed out on another device, or expired).
   await call('POST', '/auth/logout', { token: await storedToken(page) });
-  await page.getByRole('button', { name: 'Refresh' }).click();
+  // Its next request (here a reload) finds out. Clicking a button raced the app's own
+  // background requests (branding, notifications), which may find out first.
+  await page.reload();
 
   await expect(page.getByText('Your session has ended. Please sign in again.')).toBeVisible();
   await expect(page).toHaveURL(/\/sign-in$/);

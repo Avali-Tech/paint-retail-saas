@@ -82,7 +82,19 @@ property derived at runtime from a business's branding (`appName`, `primary`, `a
 `radius`, `density`, `font`) by `deriveTheme()` in `@paint/shared`, which also enforces WCAG AA
 contrast. Components (`packages/ui`) and screens use only these tokens; `theme-guard.test.ts` fails
 the build if a colour literal appears in their sources. Try it at **Settings → Appearance**
-(`/settings/appearance`, owners and admins).
+(`/settings/appearance`, owners and admins). Saving stores it for the whole business
+(`PUT /organization/branding`) and shows the readability adjustments the server made; every
+member's app loads it when they sign in, and keeps the last one on the device for a branded,
+offline-ready first paint.
+
+**Screens.** Customers (`/parties`: search, role filter, add and edit with the GSTIN checked as you
+type and the duplicate warning), the customer 360 (`/parties/:id`: contact, credit, loyalty points
+and history, activities, leads, opportunities, projects, contracts, documents), credit requests
+(`/credit-requests`), credit rules (`/settings/credit`) and the loyalty programme
+(`/settings/loyalty`). Actions show only to roles that may use them. Each screen is its own chunk
+(`React.lazy`), loaded when first opened. Features keep their routes (`src/<feature>/routes.tsx`),
+navigation entries (`src/<feature>/nav.ts`) and messages (`src/i18n/en-<feature>.ts`) in their own
+files.
 
 | Command                              | What it does                                                         |
 | ------------------------------------ | -------------------------------------------------------------------- |
@@ -374,7 +386,7 @@ business to review.
 
 ```
 apps/api              HTTP API (NestJS on Fastify), built with Vite into dist/server
-apps/web              Web app (React + Vite PWA): sign-in, app shell, dashboard, appearance
+apps/web              Web app (React + Vite PWA): sign-in, shell, dashboard, customers, credit, loyalty, appearance
 packages/ui           Design system: theme runtime and accessible components on design tokens
 packages/db           PostgreSQL schema, migrations, tenant isolation (Drizzle)
 packages/shared       code shared by all apps (money in paise, branding and theme derivation, …)

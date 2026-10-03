@@ -1,3 +1,7 @@
+import { creditEn, creditEnumsEn } from './en-credit.js';
+import { loyaltyEn, loyaltyEnumsEn } from './en-loyalty.js';
+import { partiesEn, partyEnumsEn } from './en-parties.js';
+
 /**
  * English messages. Every language (Hindi, Telugu next) is a file of this same
  * shape; TypeScript refuses one with a missing or extra key. "{name}" is filled in.
@@ -12,6 +16,14 @@ export const en = {
     dismiss: 'Dismiss',
     messages: 'Messages',
     backToDashboard: 'Back to the dashboard',
+    previous: 'Previous',
+    next: 'Next',
+    range: '{from}–{to} of {total}',
+    edit: 'Edit',
+    none: '—',
+    required: 'This is required',
+    notFound: 'This record does not exist, or you cannot see it.',
+    saved: 'Saved',
   },
   auth: {
     title: 'Sign in to {appName}',
@@ -146,7 +158,7 @@ export const en = {
   appearance: {
     title: 'Appearance',
     description:
-      'Your brand across the whole app. Changes show at once; save to keep them on this device.',
+      'Your brand across the whole app. Changes show at once; save to use them for everyone in your business.',
     appName: 'App name',
     primary: 'Primary colour',
     accent: 'Accent colour',
@@ -168,6 +180,9 @@ export const en = {
     save: 'Save appearance',
     reset: 'Back to the default',
     saved: 'Appearance saved',
+    savedForEveryone: 'Saved for everyone in your business',
+    serverReadable: 'Every colour stays as you chose it.',
+    serverAdjusted: 'To keep everything readable, the saved theme adjusts:',
     resetDone: 'Default appearance restored',
     sampleButton: 'Primary action',
     sampleSecondary: 'Secondary',
@@ -180,6 +195,16 @@ export const en = {
     warning: 'Low',
     danger: 'Out of stock',
     info: 'In transit',
+  },
+  // Each feature keeps its messages in its own file.
+  ...partiesEn,
+  ...creditEn,
+  ...loyaltyEn,
+  /** Names of API values, for label(group, value). */
+  enums: {
+    ...partyEnumsEn,
+    ...creditEnumsEn,
+    ...loyaltyEnumsEn,
   },
   pages: {
     comingSoonTitle: 'Coming soon',

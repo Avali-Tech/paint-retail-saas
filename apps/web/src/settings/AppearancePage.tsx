@@ -9,6 +9,7 @@ import {
   STATUSES,
   validateBranding,
   type Branding,
+  type ThemeAdjustment,
 } from '@paint/shared';
 import {
   Alert,
@@ -27,6 +28,7 @@ import {
   useToast,
 } from '@paint/ui';
 import { useEffect, useState } from 'react';
+import { errorMessage } from '../api/errors.js';
 import { useI18n } from '../i18n/i18n.js';
 import { useBranding } from '../theme/BrandingProvider.js';
 
@@ -166,15 +168,59 @@ function Readability() {
   );
 }
 
+/** What the server answered to the last save: the readability adjustments it made. */
+function SavedAdjustments({ adjustments }: { readonly adjustments: readonly ThemeAdjustment[] }) {
+  const { t } = useI18n();
+  return (
+    <Alert tone="success" title={t('appearance.savedForEveryone')}>
+      {adjustments.length === 0 ? (
+        <p>{t('appearance.serverReadable')}</p>
+      ) : (
+        <>
+          <p>{t('appearance.serverAdjusted')}</p>
+          <ul className="adjustments">
+            {adjustments.map((change) => (
+              <li key={`${change.mode}-${change.token}`}>{change.reason}</li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Alert>
+  );
+}
+
 /**
  * The theme playground: change the brand colours, corners, spacing and font
- * and the whole app follows at once. Saving keeps it; leaving without saving drops it.
+ * and the whole app follows at once. Saving keeps it for everyone in the
+ * business; leaving without saving drops it.
  */
 export function AppearancePage() {
+  const { saved } = useBranding();
+  const [adjustments, setAdjustments] = useState<ThemeAdjustment[] | null>(null);
+  // A fresh form whenever the saved branding changes (it loads, or is saved).
+  return (
+    <AppearanceEditor
+      key={JSON.stringify(saved)}
+      serverAdjustments={adjustments}
+      onSaved={setAdjustments}
+    />
+  );
+}
+
+function AppearanceEditor({
+  serverAdjustments,
+  onSaved,
+}: {
+  readonly serverAdjustments: readonly ThemeAdjustment[] | null;
+  readonly onSaved: (adjustments: ThemeAdjustment[] | null) => void;
+}) {
   const { t } = useI18n();
   const toast = useToast();
   const { saved, preview, save, reset } = useBranding();
   const [draft, setDraft] = useState<Draft>({ ...saved });
+  const failed = (error: unknown) => {
+    toast({ title: errorMessage(error), tone: 'danger' });
+  };
   const result = validateBranding(draft);
   const errors = new Map(
     result.ok ? [] : result.issues.map((issue) => [issue.path, issue.message]),
@@ -193,6 +239,7 @@ export function AppearancePage() {
   const set = (field: keyof Draft) => (value: string) => {
     const next = { ...draft, [field]: value };
     setDraft(next);
+    onSaved(null);
     const checked = validateBranding(next);
     if (checked.ok) preview(checked.branding);
   };
@@ -208,9 +255,10 @@ export function AppearancePage() {
             onSubmit={(event) => {
               event.preventDefault();
               if (!valid) return;
-              void save(valid).then(() => {
+              void save(valid).then((adjustments) => {
+                onSaved(adjustments);
                 toast({ title: t('appearance.saved'), tone: 'success' });
-              });
+              }, failed);
             }}
           >
             <Field label={t('appearance.appName')} error={errors.get('appName')}>
@@ -298,8 +346,9 @@ export function AppearancePage() {
                 onClick={() => {
                   void reset().then((branding) => {
                     setDraft({ ...branding });
+                    onSaved(null);
                     toast({ title: t('appearance.resetDone'), tone: 'info' });
-                  });
+                  }, failed);
                 }}
               >
                 {t('appearance.reset')}
@@ -308,6 +357,7 @@ export function AppearancePage() {
           </form>
         </Card>
         <div className="stack">
+          {serverAdjustments !== null && <SavedAdjustments adjustments={serverAdjustments} />}
           <Preview />
           <Readability />
           <Palette />

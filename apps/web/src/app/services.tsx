@@ -4,7 +4,7 @@ import { createApiClient } from '../api/client.js';
 import { endpoints, type Endpoints } from '../api/endpoints.js';
 import { ApiError } from '../api/errors.js';
 import { createSessionStore, type SessionStore } from '../auth/session-store.js';
-import { localBrandingSource, type BrandingSource } from '../theme/branding-source.js';
+import { apiBrandingSource, type BrandingSource } from '../theme/branding-source.js';
 
 /** Everything the app talks to, created once at start-up (tests pass fakes). */
 export interface Services {
@@ -49,7 +49,7 @@ export function createServices(options: ServiceOptions): Services {
   return {
     sessions,
     api: endpoints(client),
-    branding: localBrandingSource(options.storage),
+    branding: apiBrandingSource(client, options.storage),
     queryClient: createQueryClient(),
   };
 }

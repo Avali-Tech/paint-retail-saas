@@ -1,11 +1,12 @@
 import type { QuickAction } from '@paint/shared';
 import { Icon, Spinner } from '@paint/ui';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useId, useState, type KeyboardEvent, type RefObject } from 'react';
+import { useId, useState, type KeyboardEvent, type RefObject } from 'react';
 import { useNavigate } from 'react-router';
 import type { SearchHit, SearchResults } from '../api/types.js';
 import { useApi } from '../app/services.js';
 import { useI18n, type MessageKey } from '../i18n/i18n.js';
+import { useDebouncedValue } from '../lib/hooks.js';
 
 export const SEARCH_DELAY_MS = 250;
 export const MIN_QUERY_LENGTH = 2;
@@ -50,20 +51,6 @@ export function resultGroups(results: SearchResults): Group[] {
     ...RESULT_GROUPS.map(([key, label]) => ({ key, label, items: results[key] ?? [] })),
   ];
   return groups.filter((group) => group.items.length > 0);
-}
-
-/** `value`, once it has stopped changing for `delay` ms. */
-export function useDebouncedValue<T>(value: T, delay: number): T {
-  const [settled, setSettled] = useState(value);
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setSettled(value);
-    }, delay);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [value, delay]);
-  return settled;
 }
 
 /**

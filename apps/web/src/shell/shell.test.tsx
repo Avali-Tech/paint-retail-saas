@@ -94,6 +94,9 @@ describe('navigation by role', () => {
       'Leads',
       'Projects',
       'Contracts',
+      'Credit requests',
+      'Credit rules',
+      'Loyalty programme',
       'Appearance',
     ]);
     expect(screen.getByText('ABC Paints')).toBeInTheDocument();
@@ -128,7 +131,7 @@ describe('navigation by role', () => {
 
   it('puts the remaining sections and sign-out under "More" on phones', async () => {
     const { user } = renderApp({
-      path: '/parties',
+      path: '/projects',
       routes: { 'GET /auth/me': () => json(OWNER) },
     });
     await screen.findByText('Coming soon');
@@ -140,7 +143,16 @@ describe('navigation by role', () => {
       within(more)
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['Purchasing', 'Leads', 'Projects', 'Contracts', 'Appearance']);
+    ).toEqual([
+      'Purchasing',
+      'Leads',
+      'Projects',
+      'Contracts',
+      'Credit requests',
+      'Credit rules',
+      'Loyalty programme',
+      'Appearance',
+    ]);
     await user.click(within(more).getByRole('link', { name: 'Leads' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(location()).toBe('/leads');
@@ -159,7 +171,7 @@ describe('navigation by role', () => {
 describe('sign-out', () => {
   it('ends the session on the server and returns to sign-in', async () => {
     const { user, requests } = renderApp({
-      path: '/parties',
+      path: '/projects',
       routes: { 'GET /auth/me': () => json(OWNER), 'POST /auth/logout': () => ({ status: 204 }) },
     });
     await screen.findByText('Coming soon');
@@ -172,7 +184,7 @@ describe('sign-out', () => {
 
   it('signs out on this device even when the server cannot be reached', async () => {
     const { user } = renderApp({
-      path: '/parties',
+      path: '/projects',
       routes: {
         'GET /auth/me': () => json(OWNER),
         'POST /auth/logout': () => json({ message: 'Bad gateway' }, 502),

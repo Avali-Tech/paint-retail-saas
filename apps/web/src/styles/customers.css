@@ -1,0 +1,38 @@
+/* Customers, credit and loyalty screens (loaded with their routes). */
+
+/* A fieldset that only groups and disables its controls. */
+.plain-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* A card that spans every column of the customer 360. */
+.detail-grid__wide {
+  grid-column: 1 / -1;
+}
+
+.subheading {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+}
+
+.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* One loyalty tier: name, threshold and remove, wrapping on phones. */
+.tier-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.tier-row > .ui-field {
+  flex: 1 1 12rem;
+}

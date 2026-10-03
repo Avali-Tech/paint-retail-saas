@@ -5,7 +5,19 @@ import { BrowserRouter } from 'react-router';
 import { I18nProvider, useI18n } from '../i18n/i18n.js';
 import { BrandingProvider } from '../theme/BrandingProvider.js';
 import { AppRoutes } from './routes.js';
-import { ServicesProvider, type Services } from './services.js';
+import { ServicesProvider, useServices, type Services } from './services.js';
+import { useSession } from '../auth/session.js';
+
+/** The business's branding, loaded again whenever someone signs in. */
+function SessionBranding({ children }: { readonly children: ReactNode }) {
+  const { branding } = useServices();
+  const { session } = useSession();
+  return (
+    <BrandingProvider source={branding} sessionKey={session?.token ?? null}>
+      {children}
+    </BrandingProvider>
+  );
+}
 
 function Toasts({ children }: { readonly children: ReactNode }) {
   const { t } = useI18n();
@@ -28,9 +40,9 @@ export function AppProviders({
     <ServicesProvider services={services}>
       <QueryClientProvider client={services.queryClient}>
         <I18nProvider>
-          <BrandingProvider source={services.branding}>
+          <SessionBranding>
             <Toasts>{children}</Toasts>
-          </BrandingProvider>
+          </SessionBranding>
         </I18nProvider>
       </QueryClientProvider>
     </ServicesProvider>

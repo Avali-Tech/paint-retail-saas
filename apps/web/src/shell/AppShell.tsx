@@ -1,5 +1,5 @@
-import { Dialog, Icon } from '@paint/ui';
-import { useRef, useState } from 'react';
+import { Dialog, Icon, Spinner } from '@paint/ui';
+import { Suspense, useRef, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import { useCurrentProfile, usePermissions, useSignOut } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
@@ -103,7 +103,15 @@ export function AppShell() {
       </nav>
 
       <main className="shell__main" id="main" tabIndex={-1}>
-        <Outlet />
+        <Suspense
+          fallback={
+            <div className="query-state">
+              <Spinner label={t('common.loading')} />
+            </div>
+          }
+        >
+          <Outlet />
+        </Suspense>
       </main>
 
       <nav className="shell__bottom-bar" aria-label={t('shell.mainNav')}>
