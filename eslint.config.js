@@ -13,6 +13,7 @@ export default tseslint.config(
       '**/playwright-report/**',
       '**/test-results/**',
       '.claude/**',
+      '**/.terraform/**',
     ],
   },
   eslint.configs.recommended,

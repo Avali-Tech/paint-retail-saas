@@ -1,0 +1,13 @@
+{
+  "name": "@paint/observability",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Error-report scrubbing shared by the API and the web app (Sentry beforeSend).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

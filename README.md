@@ -47,6 +47,7 @@ pnpm verify
 | `pnpm test:watch`                              | Re-run tests on save                        |
 | `pnpm lint` / `pnpm typecheck` / `pnpm format` | Code quality                                |
 | `pnpm verify`                                  | Everything CI runs, in the same order       |
+| `pnpm test:docker`                             | Builds and runs the API and ops images      |
 
 ## Run the API locally
 
@@ -414,4 +415,10 @@ packages/ui           Design system: theme runtime and accessible components on 
 packages/db           PostgreSQL schema, migrations, tenant isolation (Drizzle)
 packages/shared       code shared by all apps (money in paise, branding and theme derivation, …)
 packages/testing      test helpers (throwaway PostgreSQL for integration tests)
+packages/observability  error-report scrubbing shared by the API and web Sentry setup
+packages/ops          one-off operations: migrations on deploy, the backup restore drill
+infra/terraform       AWS (ap-south-1): staging and production, never applied from CI
+docs                  architecture, environment variables, runbooks (deploy, restore, secrets, incidents)
 ```
+
+Production: [docs/architecture.md](docs/architecture.md) and [docs/runbooks](docs/runbooks).
