@@ -1,6 +1,7 @@
 import type { Permission } from '@paint/shared';
 import type { IconName } from '@paint/ui';
 import type { MessageKey } from '../i18n/i18n.js';
+import { CUSTOMER_NAV_ITEMS } from '../parties/nav.js';
 
 export interface NavItem {
   readonly key: string;
@@ -57,6 +58,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: 'contracts',
     permission: 'contracts:read',
   },
+  // Each feature keeps its own entries in its own file.
+  ...CUSTOMER_NAV_ITEMS,
   {
     key: 'appearance',
     label: 'nav.appearance',

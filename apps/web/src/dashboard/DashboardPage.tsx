@@ -17,18 +17,9 @@ import { useSearchParams } from 'react-router';
 import { errorMessage } from '../api/errors.js';
 import type { Dashboard, StageCount } from '../api/types.js';
 import { useApi } from '../app/services.js';
-import { en } from '../i18n/en.js';
-import { useI18n, type I18n } from '../i18n/i18n.js';
+import { stageLabel, useI18n } from '../i18n/i18n.js';
 
 export const dashboardKey = (storeId: string | null) => ['dashboard', storeId ?? 'all'] as const;
-
-type StageKey = keyof typeof en.stages;
-const isStageKey = (stage: string): stage is StageKey => stage in en.stages;
-
-/** A stage's name in the current language ("in_transit" style values fall back to themselves). */
-export function stageLabel(t: I18n['t'], stage: string): string {
-  return isStageKey(stage) ? t(`stages.${stage}`) : stage;
-}
 
 function Tile({
   title,

@@ -1,5 +1,5 @@
 import { PERMISSIONS } from '@paint/shared';
-import { renderHook, screen, within } from '@testing-library/react';
+import { renderHook, screen, waitFor, within } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
@@ -94,6 +94,9 @@ describe('navigation by role', () => {
       'Leads',
       'Projects',
       'Contracts',
+      'Credit requests',
+      'Credit rules',
+      'Loyalty programme',
       'Appearance',
       // Everyone's own sign-in settings, next to signing out.
       'Account security',
@@ -130,7 +133,7 @@ describe('navigation by role', () => {
 
   it('puts the remaining sections and sign-out under "More" on phones', async () => {
     const { user } = renderApp({
-      path: '/parties',
+      path: '/projects',
       routes: { 'GET /auth/me': () => json(OWNER) },
     });
     await screen.findByText('Coming soon');
@@ -142,7 +145,17 @@ describe('navigation by role', () => {
       within(more)
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['Purchasing', 'Leads', 'Projects', 'Contracts', 'Appearance', 'Account security']);
+    ).toEqual([
+      'Purchasing',
+      'Leads',
+      'Projects',
+      'Contracts',
+      'Credit requests',
+      'Credit rules',
+      'Loyalty programme',
+      'Appearance',
+      'Account security',
+    ]);
     await user.click(within(more).getByRole('link', { name: 'Leads' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(location()).toBe('/leads');
@@ -153,7 +166,10 @@ describe('navigation by role', () => {
       }),
     );
     expect(screen.queryByRole('dialog', { name: 'More' })).toBeNull();
-    expect(location()).toBe('/settings/security');
+    // Screens load on first use, so the address changes once the screen has arrived.
+    await waitFor(() => {
+      expect(location()).toBe('/settings/security');
+    });
   });
 
   it('links back to the dashboard from screens still to come', async () => {
@@ -169,7 +185,7 @@ describe('navigation by role', () => {
 describe('sign-out', () => {
   it('ends the session on the server and returns to sign-in', async () => {
     const { user, requests } = renderApp({
-      path: '/parties',
+      path: '/projects',
       routes: { 'GET /auth/me': () => json(OWNER), 'POST /auth/logout': () => ({ status: 204 }) },
     });
     await screen.findByText('Coming soon');
@@ -182,7 +198,7 @@ describe('sign-out', () => {
 
   it('signs out on this device even when the server cannot be reached', async () => {
     const { user } = renderApp({
-      path: '/parties',
+      path: '/projects',
       routes: {
         'GET /auth/me': () => json(OWNER),
         'POST /auth/logout': () => json({ message: 'Bad gateway' }, 502),

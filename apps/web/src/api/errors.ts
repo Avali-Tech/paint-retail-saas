@@ -20,6 +20,8 @@ export class ApiError extends Error {
     readonly issues: readonly FieldIssue[] = [],
     /** Sent with 409 on sign-in when the person belongs to several businesses. */
     readonly organizations: readonly BusinessChoice[] = [],
+    /** The whole error body, for extra fields such as a duplicate's existingPartyId. */
+    readonly body: Readonly<Record<string, unknown>> = {},
   ) {
     super(message);
   }
@@ -67,7 +69,14 @@ export function toApiError(status: number, body: unknown): ApiError {
       ? { id: item.id, name: item.name }
       : null,
   );
-  return new ApiError(status, messageFrom(status, body), issues, organizations);
+  return new ApiError(status, messageFrom(status, body), issues, organizations, record);
+}
+
+/** A string field of an error body (e.g. existingPartyId on a duplicate), if present. */
+export function errorDetail(error: unknown, field: string): string | null {
+  if (!(error instanceof ApiError)) return null;
+  const value = error.body[field];
+  return typeof value === 'string' ? value : null;
 }
 
 /** The message to show for any thrown value. */

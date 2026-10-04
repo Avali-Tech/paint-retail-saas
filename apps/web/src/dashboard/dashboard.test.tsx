@@ -1,10 +1,9 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { Dashboard } from '../api/types.js';
-import { createI18n } from '../i18n/i18n.js';
+import { createI18n, stageLabel } from '../i18n/i18n.js';
 import { CASHIER, DASHBOARD, OWNER, json } from '../test-support/fake-api.js';
 import { renderApp } from '../test-support/render-app.js';
-import { stageLabel } from './DashboardPage.js';
 import { found } from '../test-support/found.js';
 
 function renderDashboard(
@@ -24,7 +23,7 @@ describe('stageLabel', () => {
   it('names known stages and shows unknown ones as they are', () => {
     const { t } = createI18n('en');
     expect(stageLabel(t, 'qualified')).toBe('Qualified');
-    expect(stageLabel(t, 'on_hold')).toBe('on_hold');
+    expect(stageLabel(t, 'on_hold')).toBe('On hold');
   });
 });
 

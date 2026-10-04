@@ -301,15 +301,3 @@ describe('team two-factor resets', () => {
     ).toEqual(['/members/m2/two-factor/reset', '/members/m2/two-factor/reset']);
   });
 });
-
-describe('quick action screens', () => {
-  it('opens the new credit request and loyalty screens for members who may use them', async () => {
-    renderApp({ path: '/credit-requests/new', routes: { 'GET /auth/me': () => json(OWNER) } });
-    expect(await screen.findByText('Coming soon')).toBeInTheDocument();
-  });
-
-  it('tells others they have no access', async () => {
-    renderApp({ path: '/loyalty/new', routes: { 'GET /auth/me': () => json(CASHIER) } });
-    expect(await screen.findByText('No access')).toBeInTheDocument();
-  });
-});

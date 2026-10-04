@@ -1,35 +1,32 @@
-import { DEFAULT_BRANDING, type Branding } from '@paint/shared';
+import { DEFAULT_BRANDING, deriveTheme, type Branding } from '@paint/shared';
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { createApiClient } from '../api/client.js';
 import { fakeFetch, json } from '../test-support/fake-api.js';
-import {
-  BRANDING_KEY,
-  apiBrandingSource,
-  localBrandingSource,
-  type BrandingSource,
-} from './branding-source.js';
+import { BRANDING_KEY, apiBrandingSource, type BrandingSource } from './branding-source.js';
 import { BrandingProvider, useBranding } from './BrandingProvider.js';
 
 const GREEN: Branding = { ...DEFAULT_BRANDING, appName: 'Sri Balaji Paints', primary: '#15803d' };
 
-describe('localBrandingSource', () => {
-  it('uses the default until a business saves its own', async () => {
-    const source = localBrandingSource(localStorage);
-    expect(source.cached()).toEqual(DEFAULT_BRANDING);
-    await expect(source.save(GREEN)).resolves.toEqual(GREEN);
-    expect(source.cached()).toEqual(GREEN);
-    await expect(source.load()).resolves.toEqual(GREEN);
-    await expect(source.reset()).resolves.toEqual(DEFAULT_BRANDING);
-    expect(localStorage.getItem(BRANDING_KEY)).toBeNull();
-  });
-
+describe('the cached branding', () => {
   it('ignores damaged or invalid saved branding', () => {
+    const source = apiBrandingSource(
+      createApiClient({
+        baseUrl: '/api',
+        fetch: fakeFetch({}).fetch,
+        getToken: () => null,
+        onUnauthorized: () => undefined,
+      }),
+      localStorage,
+    );
+    expect(source.cached()).toEqual(DEFAULT_BRANDING);
     localStorage.setItem(BRANDING_KEY, '{oops');
-    expect(localBrandingSource(localStorage).cached()).toEqual(DEFAULT_BRANDING);
+    expect(source.cached()).toEqual(DEFAULT_BRANDING);
     localStorage.setItem(BRANDING_KEY, JSON.stringify({ ...GREEN, primary: 'green' }));
-    expect(localBrandingSource(localStorage).cached()).toEqual(DEFAULT_BRANDING);
+    expect(source.cached()).toEqual(DEFAULT_BRANDING);
+    localStorage.setItem(BRANDING_KEY, JSON.stringify(GREEN));
+    expect(source.cached()).toEqual(GREEN);
   });
 });
 
@@ -69,12 +66,15 @@ describe('apiBrandingSource', () => {
     await expect(failing.load()).rejects.toThrow('Database down');
   });
 
-  it('saves and resets with PUT', async () => {
+  it('saves and resets with PUT, passing on the adjustments and caching what was saved', async () => {
+    const adjustments = deriveTheme({ ...GREEN, primary: '#ffd700' }).adjustments;
     const { source: remote, requests } = source({
-      'PUT /organization/branding': (request) => json({ branding: request.body, adjustments: [] }),
+      'PUT /organization/branding': (request) => json({ branding: request.body, adjustments }),
     });
-    await expect(remote.save(GREEN)).resolves.toEqual(GREEN);
-    await expect(remote.reset()).resolves.toEqual(DEFAULT_BRANDING);
+    await expect(remote.save(GREEN)).resolves.toEqual({ branding: GREEN, adjustments });
+    expect(remote.cached()).toEqual(GREEN);
+    await expect(remote.reset()).resolves.toEqual({ branding: DEFAULT_BRANDING, adjustments });
+    expect(remote.cached()).toEqual(DEFAULT_BRANDING);
     expect(requests.map((request) => request.body)).toEqual([GREEN, DEFAULT_BRANDING]);
   });
 });
@@ -118,16 +118,19 @@ const memorySource = (initial: Branding, loaded: Promise<Branding>): BrandingSou
     load: () => loaded,
     save: (branding) => {
       current = branding;
-      return Promise.resolve(current);
+      return Promise.resolve({ branding: current, adjustments: [] });
     },
-    reset: () => Promise.resolve(DEFAULT_BRANDING),
+    reset: () => Promise.resolve({ branding: DEFAULT_BRANDING, adjustments: [] }),
   };
 };
 
 describe('BrandingProvider', () => {
   it('paints the cached branding first, then what loads', async () => {
     render(
-      <BrandingProvider source={memorySource(DEFAULT_BRANDING, Promise.resolve(GREEN))}>
+      <BrandingProvider
+        sessionKey="tok"
+        source={memorySource(DEFAULT_BRANDING, Promise.resolve(GREEN))}
+      >
         <Probe />
       </BrandingProvider>,
     );
@@ -138,7 +141,10 @@ describe('BrandingProvider', () => {
 
   it('keeps the cached branding when loading fails', async () => {
     render(
-      <BrandingProvider source={memorySource(GREEN, Promise.reject(new Error('offline')))}>
+      <BrandingProvider
+        sessionKey="tok"
+        source={memorySource(GREEN, Promise.reject(new Error('offline')))}
+      >
         <Probe />
       </BrandingProvider>,
     );
@@ -152,7 +158,7 @@ describe('BrandingProvider', () => {
       finish = resolve;
     });
     const { unmount } = render(
-      <BrandingProvider source={memorySource(DEFAULT_BRANDING, late)}>
+      <BrandingProvider sessionKey="tok" source={memorySource(DEFAULT_BRANDING, late)}>
         <Probe />
       </BrandingProvider>,
     );
@@ -165,7 +171,10 @@ describe('BrandingProvider', () => {
   it('previews without saving, then saves or resets', async () => {
     const user = userEvent.setup();
     render(
-      <BrandingProvider source={memorySource(DEFAULT_BRANDING, new Promise(() => undefined))}>
+      <BrandingProvider
+        sessionKey="tok"
+        source={memorySource(DEFAULT_BRANDING, new Promise(() => undefined))}
+      >
         <Probe />
       </BrandingProvider>,
     );
@@ -178,6 +187,39 @@ describe('BrandingProvider', () => {
     await user.click(screen.getByRole('button', { name: 'reset' }));
     await waitFor(() => {
       expect(screen.getByText('Paint Retail / Paint Retail')).toBeInTheDocument();
+    });
+  });
+
+  it('waits for a session before loading, and loads again for each new one', async () => {
+    let loads = 0;
+    const source: BrandingSource = {
+      ...memorySource(DEFAULT_BRANDING, Promise.resolve(GREEN)),
+      load: () => {
+        loads += 1;
+        return Promise.resolve(GREEN);
+      },
+    };
+    const { rerender } = render(
+      <BrandingProvider source={source} sessionKey={null}>
+        <Probe />
+      </BrandingProvider>,
+    );
+    await act(() => Promise.resolve());
+    expect(loads).toBe(0);
+    expect(screen.getByText('Paint Retail / Paint Retail')).toBeInTheDocument();
+    rerender(
+      <BrandingProvider source={source} sessionKey="first">
+        <Probe />
+      </BrandingProvider>,
+    );
+    expect(await screen.findByText('Sri Balaji Paints / Sri Balaji Paints')).toBeInTheDocument();
+    rerender(
+      <BrandingProvider source={source} sessionKey="second">
+        <Probe />
+      </BrandingProvider>,
+    );
+    await waitFor(() => {
+      expect(loads).toBe(2);
     });
   });
 

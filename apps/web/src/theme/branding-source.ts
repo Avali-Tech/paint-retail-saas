@@ -1,21 +1,24 @@
 import { DEFAULT_BRANDING, validateBranding, type Branding } from '@paint/shared';
 import type { ApiClient } from '../api/client.js';
 import { ApiError } from '../api/errors.js';
+import type { BrandingSaved, BrandingView } from '../api/types.js';
 
 /**
- * Where a business's branding comes from. The app only talks to this
- * interface, so moving from the on-device override to the server is one line
- * in services.ts (localBrandingSource -> apiBrandingSource).
+ * Where a business's branding comes from: the server, with the last answer
+ * kept on the device so the first paint (even offline) is already on brand.
  */
 export interface BrandingSource {
-  /** The last known branding, instantly and offline, so the first paint is already on brand. */
+  /** The last known branding, instantly and offline. */
   cached(): Branding;
+  /** The business's branding from the server (the default until it sets one). */
   load(): Promise<Branding>;
-  save(branding: Branding): Promise<Branding>;
-  /** Back to the product's default look. */
-  reset(): Promise<Branding>;
+  /** Saves it for everyone in the business; answers how the theme adjusted it to stay readable. */
+  save(branding: Branding): Promise<BrandingSaved>;
+  /** Back to the product's default look, for everyone. */
+  reset(): Promise<BrandingSaved>;
 }
 
+/** The device's copy of the last branding seen, read before the app starts. */
 export const BRANDING_KEY = 'paint.branding';
 
 function readCache(storage: Storage): Branding {
@@ -27,31 +30,11 @@ function readCache(storage: Storage): Branding {
   }
 }
 
-/** Branding kept on this device only (until GET/PUT /organization/branding exists). */
-export function localBrandingSource(storage: Storage): BrandingSource {
-  return {
-    cached: () => readCache(storage),
-    load: () => Promise.resolve(readCache(storage)),
-    save: (branding) => {
-      storage.setItem(BRANDING_KEY, JSON.stringify(branding));
-      return Promise.resolve(branding);
-    },
-    reset: () => {
-      storage.removeItem(BRANDING_KEY);
-      return Promise.resolve(DEFAULT_BRANDING);
-    },
-  };
-}
-
-interface BrandingResponse {
-  readonly branding: unknown;
-}
-
 /**
- * Branding stored per business on the server (proposed contract):
- *   GET /organization/branding -> { branding }   (any member; 404 = not set)
+ * Branding stored per business on the server:
+ *   GET /organization/branding -> { branding, updatedAt }   (any member; 404 = not set)
  *   PUT /organization/branding  { ...branding } -> { branding, adjustments }  (organization:manage)
- * The answer is cached on the device for the next start.
+ * Every answer is checked with validateBranding and cached on the device.
  */
 export function apiBrandingSource(api: ApiClient, storage: Storage): BrandingSource {
   const remember = (value: unknown) => {
@@ -60,21 +43,21 @@ export function apiBrandingSource(api: ApiClient, storage: Storage): BrandingSou
     storage.setItem(BRANDING_KEY, JSON.stringify(branding));
     return branding;
   };
+  const put = async (branding: Branding): Promise<BrandingSaved> => {
+    const saved = await api.put<BrandingSaved>('/organization/branding', branding);
+    return { branding: remember(saved.branding), adjustments: saved.adjustments };
+  };
   return {
     cached: () => readCache(storage),
     load: async () => {
       try {
-        return remember((await api.get<BrandingResponse>('/organization/branding')).branding);
+        return remember((await api.get<BrandingView>('/organization/branding')).branding);
       } catch (error) {
         if (error instanceof ApiError && error.status === 404) return remember(DEFAULT_BRANDING);
         throw error;
       }
     },
-    save: async (branding) =>
-      remember((await api.put<BrandingResponse>('/organization/branding', branding)).branding),
-    reset: async () =>
-      remember(
-        (await api.put<BrandingResponse>('/organization/branding', DEFAULT_BRANDING)).branding,
-      ),
+    save: put,
+    reset: () => put(DEFAULT_BRANDING),
   };
 }

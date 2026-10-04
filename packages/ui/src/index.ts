@@ -15,6 +15,12 @@ export {
 } from './components/Button.js';
 export { cx } from './components/cx.js';
 export {
+  Checkbox,
+  Pagination,
+  type CheckboxProps,
+  type PaginationProps,
+} from './components/Controls.js';
+export {
   Alert,
   Badge,
   Card,

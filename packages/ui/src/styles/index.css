@@ -286,7 +286,9 @@ a {
   font-size: var(--font-size-sm);
   font-weight: 600;
   line-height: 1.6;
-  white-space: nowrap;
+  /* Short badges stay on one line; a long one wraps instead of pushing past a narrow column. */
+  max-width: 100%;
+  overflow-wrap: anywhere;
   background: var(--color-surface-sunken);
   color: var(--color-text);
 }
@@ -569,4 +571,36 @@ a {
 .ui-tabs__trigger[data-state='active'] {
   border-bottom-color: var(--color-primary);
   color: var(--color-primary-text);
+}
+
+/* Checkboxes and pagination */
+
+.ui-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  cursor: pointer;
+}
+
+.ui-checkbox input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+.ui-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.ui-pagination__range {
+  margin-right: auto;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
 }

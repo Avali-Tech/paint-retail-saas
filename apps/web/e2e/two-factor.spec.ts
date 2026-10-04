@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import { expectUsable } from './checks.js';
 import {
   PASSWORD,
   accessibilityProblems,
@@ -226,16 +227,15 @@ test('two-factor setup fits a phone screen @phone', async ({ page }) => {
   const business = await createBusiness('Pocket Paints');
   await submitPassword(page, business.ownerPhone);
   await expect(page.getByRole('img', { name: 'QR code for your authenticator app' })).toBeVisible();
-  const overflow = () =>
-    page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(await overflow()).toBeLessThanOrEqual(0);
+  // WCAG AA and no sideways scrolling, also with wider fonts than this machine's.
+  await expectUsable(page);
 
   const secret = await shownSecret(page);
   const { code } = await nextCode(secret, null);
   await page.getByRole('textbox', { name: '6-digit code' }).fill(code);
   await page.getByRole('button', { name: 'Verify and sign in' }).click();
   await expect(page.getByRole('list', { name: 'Recovery codes' })).toBeVisible();
-  expect(await overflow()).toBeLessThanOrEqual(0);
+  await expectUsable(page);
   await keepRecoveryCodes(page);
 
   await page.locator('.shell__bottom-bar').getByRole('button', { name: 'More' }).click();
@@ -244,5 +244,5 @@ test('two-factor setup fits a phone screen @phone', async ({ page }) => {
     .getByRole('link', { name: 'Account security' })
     .click();
   await expect(page.getByRole('heading', { name: 'Account security', level: 1 })).toBeVisible();
-  expect(await overflow()).toBeLessThanOrEqual(0);
+  await expectUsable(page);
 });

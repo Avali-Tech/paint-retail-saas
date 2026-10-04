@@ -33,7 +33,7 @@ const location = () => screen.getByTestId('location').textContent;
 
 function renderShell(search: (q: string) => ReturnType<typeof json> = () => json(RESULTS)) {
   return renderApp({
-    path: '/parties',
+    path: '/projects',
     routes: {
       'GET /auth/me': () => json(OWNER),
       'GET /search/actions': () => json(ACTIONS),
@@ -147,7 +147,7 @@ describe('SearchBox', () => {
     await user.type(box, 'none');
     await screen.findByText('Nothing found for “none”');
     await user.keyboard('{ArrowDown}{Enter}');
-    expect(location()).toBe('/parties');
+    expect(location()).toBe('/projects');
   });
 });
 
@@ -189,7 +189,7 @@ describe('keyboard shortcuts', () => {
     expect(box).toHaveFocus();
     fireEvent.keyDown(box, { key: 'n' });
     fireEvent.keyDown(box, { key: 'c' });
-    expect(location()).toBe('/parties');
+    expect(location()).toBe('/projects');
     box.blur();
     fireEvent.keyDown(document.body, { key: 'n', ctrlKey: true });
     fireEvent.keyDown(document.body, { key: 'Shift' });

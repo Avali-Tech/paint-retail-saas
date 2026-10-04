@@ -1,5 +1,8 @@
 import type { QuickAction } from '@paint/shared';
 import type { ApiClient } from './client.js';
+import { creditEndpoints } from './credit.js';
+import { loyaltyEndpoints } from './loyalty.js';
+import { partyEndpoints } from './parties.js';
 import type {
   Dashboard,
   Member,
@@ -70,6 +73,9 @@ export function endpoints(api: ApiClient) {
       markRead: (id: string) => api.post<undefined>(`/notifications/${id}/read`),
       markAllRead: () => api.post<{ marked: number }>('/notifications/read-all'),
     },
+    parties: partyEndpoints(api),
+    credit: creditEndpoints(api),
+    loyalty: loyaltyEndpoints(api),
   };
 }
 
