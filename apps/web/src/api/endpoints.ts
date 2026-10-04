@@ -9,7 +9,18 @@ import { purchasingEndpoints } from './purchasing.js';
 import { stockCountEndpoints } from './stock-counts.js';
 import { stockEndpoints } from './stock.js';
 import { transferEndpoints } from './transfers.js';
-import type { Dashboard, NotificationPage, Profile, SearchResults, SessionGrant } from './types.js';
+import type {
+  Dashboard,
+  Member,
+  NotificationPage,
+  OrganizationSecurity,
+  Profile,
+  SearchResults,
+  SignInResult,
+  TwoFactorEnrolment,
+  TwoFactorSignIn,
+  TwoFactorStatus,
+} from './types.js';
 
 export interface PasswordSignIn {
   readonly identifier: string;
@@ -27,11 +38,36 @@ export interface OtpSignIn {
 export function endpoints(api: ApiClient) {
   return {
     auth: {
-      login: (input: PasswordSignIn) => api.post<SessionGrant>('/auth/login', input),
+      login: (input: PasswordSignIn) => api.post<SignInResult>('/auth/login', input),
       requestOtp: (phone: string) => api.post<{ message: string }>('/auth/otp/request', { phone }),
-      verifyOtp: (input: OtpSignIn) => api.post<SessionGrant>('/auth/otp/verify', input),
+      verifyOtp: (input: OtpSignIn) => api.post<SignInResult>('/auth/otp/verify', input),
       me: (signal?: AbortSignal) => api.get<Profile>('/auth/me', { signal }),
       logout: () => api.post<undefined>('/auth/logout'),
+    },
+    twoFactor: {
+      /** During sign-in, with the pending token: adds an authenticator app. */
+      setUp: (pendingToken: string) =>
+        api.post<TwoFactorEnrolment>('/auth/2fa/setup', { pendingToken }),
+      /** During sign-in: a code from the app, or a recovery code, turns the pending token into a session. */
+      verify: (pendingToken: string, code: string) =>
+        api.post<TwoFactorSignIn>('/auth/2fa/verify', { pendingToken, code }),
+      status: () => api.get<TwoFactorStatus>('/auth/2fa'),
+      enrol: () => api.post<TwoFactorEnrolment>('/auth/2fa/enrol'),
+      confirm: (code: string) =>
+        api.post<{ recoveryCodes: string[] }>('/auth/2fa/confirm', { code }),
+      renewRecoveryCodes: (code: string) =>
+        api.post<{ recoveryCodes: string[] }>('/auth/2fa/recovery-codes', { code }),
+      disable: (code: string) => api.post<undefined>('/auth/2fa/disable', { code }),
+    },
+    organization: {
+      security: () => api.get<OrganizationSecurity>('/organization/security'),
+      setSecurity: (input: OrganizationSecurity) =>
+        api.put<OrganizationSecurity>('/organization/security', input),
+    },
+    members: {
+      list: () => api.get<Member[]>('/members'),
+      resetTwoFactor: (memberId: string) =>
+        api.post<undefined>(`/members/${memberId}/two-factor/reset`),
     },
     dashboard: (storeId?: string, signal?: AbortSignal) =>
       api.get<Dashboard>('/dashboard', { query: { storeId }, signal }),

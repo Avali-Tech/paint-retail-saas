@@ -135,6 +135,7 @@ describe('audit log', () => {
           ['Role', null, 'Branch Manager'],
           ['All stores', null, 'No'],
           ['Active', null, 'Yes'],
+          ['Two-factor reset', null, null],
         ],
       ],
     ]);

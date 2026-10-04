@@ -1,0 +1,18 @@
+# Keep the build context small and free of secrets and local state.
+**/node_modules
+**/dist
+**/coverage
+**/.turbo
+**/playwright-report
+**/test-results
+**/*.log
+**/.env
+**/.env.*
+!**/.env.example
+.git
+.github
+.claude
+.vscode
+.DS_Store
+docs
+infra

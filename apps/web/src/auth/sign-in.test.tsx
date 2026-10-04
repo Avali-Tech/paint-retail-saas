@@ -261,7 +261,7 @@ describe('mobile code sign-in', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('asks which business, then needs a fresh code for it', async () => {
+  it('asks which business, then sends the same code again with the choice', async () => {
     const { user, requests } = renderApp({
       path: '/sign-in',
       session: null,
@@ -279,28 +279,23 @@ describe('mobile code sign-in', () => {
     await user.click(screen.getByRole('button', { name: 'Send code' }));
     await user.type(await screen.findByRole('textbox', { name: '6-digit code' }), '111111');
     await user.click(screen.getByRole('button', { name: 'Verify and sign in' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Choose a business' });
+    await screen.findByRole('dialog', { name: 'Choose a business' });
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).toBeNull();
-    await user.type(screen.getByRole('textbox', { name: '6-digit code' }), '{Backspace>6}111111');
     await user.click(screen.getByRole('button', { name: 'Verify and sign in' }));
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'ABC Paints' }),
     );
-    expect(dialog).not.toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Codes work once, so we need a new one for ABC Paints. Send a new code to continue.',
-      ),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Send a new code' }));
-    await user.type(screen.getByRole('textbox', { name: '6-digit code' }), '222222');
-    await user.click(screen.getByRole('button', { name: 'Verify and sign in' }));
     expect(await screen.findByRole('heading', { name: 'Dashboard', level: 1 })).toBeInTheDocument();
-    expect(requests.filter((request) => request.path === '/auth/otp/verify').at(-1)?.body).toEqual({
-      phone: '9876543210',
-      code: '222222',
-      organizationId: 'org-a',
-    });
+    expect(
+      requests
+        .filter((request) => request.path.startsWith('/auth/otp/'))
+        .map((request) => request.body),
+    ).toEqual([
+      { phone: '9876543210' },
+      { phone: '9876543210', code: '111111' },
+      { phone: '9876543210', code: '111111' },
+      { phone: '9876543210', code: '111111', organizationId: 'org-a' },
+    ]);
   });
 });

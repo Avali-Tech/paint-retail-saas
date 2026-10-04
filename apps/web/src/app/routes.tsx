@@ -22,6 +22,9 @@ const DashboardPage = lazy(() =>
 const AppearancePage = lazy(() =>
   import('../settings/AppearancePage.js').then((module) => ({ default: module.AppearancePage })),
 );
+const SecurityPage = lazy(() =>
+  import('../settings/SecurityPage.js').then((module) => ({ default: module.SecurityPage })),
+);
 
 /** Sections that have a place in the navigation but no screen yet. */
 export function ComingSoonPage() {
@@ -64,6 +67,8 @@ export function AppRoutes() {
           path="settings/appearance"
           element={guarded('organization:manage', AppearancePage)}
         />
+        {/* Every signed-in member manages their own two-factor sign-in. */}
+        <Route path="settings/security" element={<SecurityPage />} />
         {/* Leads, projects, contracts and the rest land here for now. */}
         <Route path="*" element={<ComingSoonPage />} />
       </Route>

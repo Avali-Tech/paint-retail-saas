@@ -1,0 +1,3 @@
+# Copy to backend.hcl. The bucket is created by infra/terraform/bootstrap.
+bucket = "paint-terraform-state-<account id>"
+key    = "prod/terraform.tfstate"

@@ -20,6 +20,7 @@ import { useI18n } from '../i18n/i18n.js';
 import { FormDialog } from '../lib/FormDialog.js';
 import { parseRupees, rupeesInput } from '../lib/inputs.js';
 import { RequestDecision, refreshCredit } from './RequestDecision.js';
+import { RequestFields } from './RequestFields.js';
 
 export const STATUS_TONE: Record<CreditSummary['status'], Tone> = {
   none: 'neutral',
@@ -248,32 +249,14 @@ export function CreditPanel({
           return undefined;
         }}
       >
-        <Field label={t('credit.limitLabel')}>
-          <Input
-            inputMode="decimal"
-            value={limit}
-            onChange={(event) => {
-              setLimit(event.target.value);
-            }}
-          />
-        </Field>
-        <Field label={t('credit.daysLabel')}>
-          <Input
-            inputMode="numeric"
-            value={days}
-            onChange={(event) => {
-              setDays(event.target.value);
-            }}
-          />
-        </Field>
-        <Field label={t('credit.note')}>
-          <Textarea
-            value={text}
-            onChange={(event) => {
-              setText(event.target.value);
-            }}
-          />
-        </Field>
+        <RequestFields
+          values={{ limit, days, note: text }}
+          onChange={(values) => {
+            setLimit(values.limit);
+            setDays(values.days);
+            setText(values.note);
+          }}
+        />
       </FormDialog>
 
       <FormDialog

@@ -22,6 +22,8 @@ export const creditEn = {
     daysLabel: 'Days to pay',
     note: 'Why this customer should get it',
     submit: 'Send for approval',
+    chooseCustomer: 'Who is it for?',
+    chooseSomeoneElse: 'Choose someone else',
     requested: 'Credit request sent for approval',
     balance: 'Update balance',
     balanceTitle: 'What the customer owes',

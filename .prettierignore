@@ -2,3 +2,8 @@ pnpm-lock.yaml
 coverage/
 dist/
 .turbo/
+# Terraform working files (providers, state) and lock files written by terraform.
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/.terraform.lock.hcl

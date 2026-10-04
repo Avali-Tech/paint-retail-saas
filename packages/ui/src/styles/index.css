@@ -288,7 +288,9 @@ a {
   font-size: var(--font-size-sm);
   font-weight: 600;
   line-height: 1.6;
-  white-space: nowrap;
+  /* Short badges stay on one line; a long one wraps instead of pushing past a narrow column. */
+  max-width: 100%;
+  overflow-wrap: anywhere;
   background: var(--color-surface-sunken);
   color: var(--color-text);
 }

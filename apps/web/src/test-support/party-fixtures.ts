@@ -26,6 +26,7 @@ export const PARTY: Party = {
   notes: 'Pays on time',
   tags: ['builder', 'vip'],
   isActive: true,
+  mergedIntoId: null,
   roles: ['customer', 'contractor'],
   customer: { customerType: 'builder', assignedMemberId: null, preferredContact: 'whatsapp' },
 };

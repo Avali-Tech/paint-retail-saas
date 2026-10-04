@@ -94,3 +94,8 @@ export const listPartiesSchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 export type ListPartiesQuery = z.output<typeof listPartiesSchema>;
+
+export const mergeSchema = z.object({
+  /** The party that remains; the one in the path is the duplicate. */
+  intoPartyId: z.uuid(),
+});

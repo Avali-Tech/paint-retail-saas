@@ -1,14 +1,14 @@
-import { Badge, Card, PageHeader, buttonStyle } from '@paint/ui';
+import { Alert, Badge, Card, PageHeader, buttonStyle } from '@paint/ui';
 import { useQuery } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
-import { Link, useParams } from 'react-router';
+import { useEffect, type ReactNode } from 'react';
+import { Link, useLocation, useParams } from 'react-router';
 import type { Party, PartyOverview } from '../api/parties.js';
 import { useApi } from '../app/services.js';
 import { usePermissions } from '../auth/session.js';
 import { stageLabel, useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
 import { CreditPanel } from '../credit/CreditPanel.js';
-import { LoyaltyPanel } from '../loyalty/LoyaltyPanel.js';
+import { LOYALTY_PANEL_ID, LoyaltyPanel } from '../loyalty/LoyaltyPanel.js';
 
 interface RecordItem {
   readonly id: string;
@@ -112,7 +112,13 @@ function Contact({ party }: { readonly party: Party }) {
   );
 }
 
-function Overview({ overview }: { readonly overview: PartyOverview }) {
+function Overview({
+  overview,
+  focusLoyalty,
+}: {
+  readonly overview: PartyOverview;
+  readonly focusLoyalty: boolean;
+}) {
   const { t, label, money, date, dateTime } = useI18n();
   const can = usePermissions();
   const {
@@ -127,6 +133,9 @@ function Overview({ overview }: { readonly overview: PartyOverview }) {
     documents,
   } = overview;
   const next = activities.nextFollowUp;
+  useEffect(() => {
+    if (focusLoyalty) document.getElementById(LOYALTY_PANEL_ID)?.scrollIntoView();
+  }, [focusLoyalty]);
   return (
     <>
       <PageHeader
@@ -149,6 +158,18 @@ function Overview({ overview }: { readonly overview: PartyOverview }) {
           ) : undefined
         }
       />
+      {party.mergedIntoId !== null && (
+        <div className="page-notice">
+          <Alert
+            tone="warning"
+            action={
+              <Link to={`/parties/${party.mergedIntoId}`}>{t('parties.detail.openMerged')}</Link>
+            }
+          >
+            {t('parties.detail.merged')}
+          </Alert>
+        </div>
+      )}
       <div className="detail-grid">
         <Contact party={party} />
         {credit !== null && <CreditPanel partyId={party.id} credit={credit} />}
@@ -272,13 +293,15 @@ function Overview({ overview }: { readonly overview: PartyOverview }) {
 export function PartyDetailPage() {
   const api = useApi();
   const id = String(useParams().id);
+  // /parties/:id/loyalty (where a loyalty search result leads) opens at the points.
+  const focusLoyalty = useLocation().pathname.endsWith('/loyalty');
   const overview = useQuery({
     queryKey: ['party', id],
     queryFn: ({ signal }) => api.parties.overview(id, signal),
   });
   return (
     <QueryState query={overview} error="parties.detail.error">
-      {(data) => <Overview overview={data} />}
+      {(data) => <Overview overview={data} focusLoyalty={focusLoyalty} />}
     </QueryState>
   );
 }

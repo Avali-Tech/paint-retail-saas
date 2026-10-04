@@ -120,6 +120,27 @@ test('the owner sets the credit rules', async ({ page }) => {
   await expect(normal).toHaveValue('120');
 });
 
+test('"+ Credit request" finds the customer and sends the request (N K)', async ({ page }) => {
+  const business = await createBusiness('Quick Credit Paints');
+  await call('POST', '/parties', {
+    token: business.token,
+    body: { displayName: 'Apex Builders', roles: ['customer'] },
+  });
+  await signInWithPassword(page, business.ownerPhone);
+  await page.getByRole('heading', { name: 'Dashboard', level: 1 }).click();
+  await page.keyboard.press('n');
+  await page.keyboard.press('k');
+  await expect(page).toHaveURL(/\/credit-requests\/new$/);
+  await page.getByRole('searchbox', { name: 'Search by name, mobile or GSTIN' }).fill('apex');
+  await page.getByRole('button', { name: 'Choose Apex Builders' }).click();
+  await page.getByRole('textbox', { name: 'Limit (₹)' }).fill('75000');
+  await page.getByRole('textbox', { name: 'Days to pay' }).fill('30');
+  await expectUsable(page);
+  await page.getByRole('button', { name: 'Send for approval' }).click();
+  await expect(page.getByRole('heading', { name: /^Credit request CR-/, level: 1 })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Details' })).toContainText('₹75,000.00 · 30 days');
+});
+
 test('credit requests and the credit panel fit a phone @phone', async ({ page }) => {
   const business = await createBusiness('Phone Credit Paints');
   const party = await call<{ id: string }>('POST', '/parties', {
@@ -148,5 +169,11 @@ test('credit requests and the credit panel fit a phone @phone', async ({ page })
   await expect(page.getByRole('textbox', { name: 'Sell normally up to (% of limit)' })).toHaveValue(
     '80',
   );
+  await expectUsable(page);
+  await page.goto('/credit-requests/new');
+  await page.getByRole('searchbox', { name: 'Search by name, mobile or GSTIN' }).fill('venkat');
+  await expect(
+    page.getByRole('button', { name: 'Choose Sri Venkateswara Builders and Developers' }),
+  ).toBeVisible();
   await expectUsable(page);
 });

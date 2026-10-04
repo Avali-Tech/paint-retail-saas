@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
+import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
 import { API_LOG, API_URL } from './env.js';
+import { nextCode } from './totp.js';
 
 // Test data goes in through the real API, the same way the app's users create it.
 // Every test makes its own business, so tests run in parallel without sharing data.
@@ -99,11 +101,93 @@ export async function lastCodeFor(phone: string): Promise<string> {
   return String(code);
 }
 
-export async function signInWithPassword(page: Page, identifier: string, password = PASSWORD) {
+/** The first step only: fills in and sends the password form. */
+export async function submitPassword(page: Page, identifier: string, password = PASSWORD) {
   await page.goto('/sign-in');
   await page.getByRole('textbox', { name: 'Mobile number or email' }).fill(identifier);
   await page.getByLabel('Password', { exact: true }).and(page.locator('input')).fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
+}
+
+/** A person's authenticator app as the tests keep it: its secret, the last step used, recovery codes. */
+export interface Authenticator {
+  readonly secret: string;
+  lastStep: number | null;
+  readonly recoveryCodes: string[];
+}
+
+/** Authenticator apps the tests added, by sign-in identifier (each test has its own people). */
+export const authenticators = new Map<string, Authenticator>();
+
+/** The setup key the sign-in screen shows, without the spaces that group it. */
+export async function shownSecret(page: Page): Promise<string> {
+  return (await page.getByRole('textbox', { name: 'Setup key' }).inputValue()).replaceAll(' ', '');
+}
+
+/** Reads the recovery codes on screen, then ticks "saved" and continues. */
+export async function keepRecoveryCodes(page: Page): Promise<string[]> {
+  const list = page.getByRole('list', { name: 'Recovery codes' });
+  await expect(list.getByRole('listitem')).toHaveCount(10);
+  const codes = await list.getByRole('listitem').allTextContents();
+  await page.getByRole('checkbox', { name: 'I have saved my recovery codes' }).check();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  return codes;
+}
+
+/** Adds an authenticator app through the API, as if done earlier on Account security. */
+export async function addAuthenticator(identifier: string, token: string): Promise<Authenticator> {
+  const { secret } = await call<{ secret: string }>('POST', '/auth/2fa/enrol', { token });
+  const { code, step } = await nextCode(secret, null);
+  const { recoveryCodes } = await call<{ recoveryCodes: string[] }>('POST', '/auth/2fa/confirm', {
+    token,
+    body: { code },
+  });
+  const app = { secret, lastStep: step, recoveryCodes };
+  authenticators.set(identifier, app);
+  return app;
+}
+
+/** Enters the app's next code (codes never repeat) on the two-factor step. */
+export async function enterAppCode(page: Page, identifier: string) {
+  const app = authenticators.get(identifier);
+  if (!app) throw new Error(`No authenticator app kept for ${identifier}`);
+  const { code, step } = await nextCode(app.secret, app.lastStep);
+  app.lastStep = step;
+  await page.getByRole('textbox', { name: '6-digit code' }).fill(code);
+  await page.getByRole('button', { name: 'Verify and sign in' }).click();
+}
+
+/**
+ * After the first step: completes two-factor sign-in the way the person would,
+ * when it is asked for. The first time, the app is added with the setup key and
+ * its recovery codes are kept; later, the app's next code is entered.
+ */
+export async function finishTwoFactor(page: Page, identifier: string) {
+  const setup = page.getByRole('heading', { name: 'Add an authenticator app' });
+  const prompt = page.getByRole('heading', { name: 'Confirm it’s you' });
+  const signedIn = page.locator('.shell__header');
+  await expect(setup.or(prompt).or(signedIn)).toBeVisible();
+  if (await signedIn.isVisible()) return;
+
+  if (await setup.isVisible()) {
+    const secret = await shownSecret(page);
+    const { code, step } = await nextCode(secret, null);
+    await page.getByRole('textbox', { name: '6-digit code' }).fill(code);
+    await page.getByRole('button', { name: 'Verify and sign in' }).click();
+    authenticators.set(identifier, {
+      secret,
+      lastStep: step,
+      recoveryCodes: await keepRecoveryCodes(page),
+    });
+    return;
+  }
+  await enterAppCode(page, identifier);
+}
+
+/** Signs in with a password, through two-factor sign-in when the person's role needs it. */
+export async function signInWithPassword(page: Page, identifier: string, password = PASSWORD) {
+  await submitPassword(page, identifier, password);
+  await finishTwoFactor(page, identifier);
 }
 
 /** The session token the app stored after signing in. */
@@ -112,4 +196,14 @@ export async function storedToken(page: Page): Promise<string> {
     const raw = localStorage.getItem('paint.session');
     return raw === null ? '' : (JSON.parse(raw) as { token: string }).token;
   });
+}
+
+/** WCAG 2 A and AA problems on the page, as "rule: target" lines. */
+export async function accessibilityProblems(page: Page): Promise<string[]> {
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze();
+  return results.violations.flatMap((violation) =>
+    violation.nodes.map((node) => `${violation.id}: ${node.target.join(' ')}`),
+  );
 }

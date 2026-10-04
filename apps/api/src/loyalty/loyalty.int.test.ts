@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import type { AuditPage } from '../audit/audit.service.js';
 import { NotificationsWorker } from '../notifications/notifications-worker.js';
 import type { PartyOverview } from '../parties/party-overview.service.js';
+import type { SearchResults } from '../search/search.service.js';
 import { istDate } from '../test-support/business.js';
 import { bearer, startTestApp, uniquePhone, type TestApp } from '../test-support/test-app.js';
 import type { LoyaltySettings } from './loyalty-lookups.js';
@@ -523,6 +524,27 @@ describe('lists and the customer 360', () => {
     expect(await names(owner, '&q=twin')).toEqual(['Twin Painter']);
     await api(owner).patch(`/parties/${id('twin')}/loyalty`, { status: 'closed' });
     expect(await names(owner, '&status=closed')).toEqual(['Twin Painter']);
+  });
+
+  it('finds accounts in global search by name or mobile number, for those who may see loyalty', async () => {
+    const search = async (token: string, q: string) =>
+      (await api(token).get(`/search?q=${encodeURIComponent(q)}`)).json<SearchResults>();
+    const painter = (await api(owner).get(`/parties/${id('painter')}`)).json<{ phone: string }>();
+
+    expect((await search(owner, 'ravi')).loyalty).toEqual([
+      {
+        id: id('painter'),
+        title: 'Ravi Painter',
+        subtitle: '860 points',
+        path: `/parties/${id('painter')}/loyalty`,
+      },
+    ]);
+    expect((await search(owner, painter.phone.slice(-6))).loyalty?.map((hit) => hit.title)).toEqual(
+      ['Ravi Painter'],
+    );
+    expect((await search(owner, 'twin')).loyalty?.[0]?.subtitle).toBe('100 points · closed');
+    expect((await search(manager, 'pune')).loyalty).toEqual([]);
+    expect((await search(stock, 'ravi')).loyalty).toBeNull();
   });
 
   it('shows points in the customer 360 to those who may see loyalty', async () => {

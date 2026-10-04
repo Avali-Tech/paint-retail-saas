@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { expectUsable } from './checks.js';
 import { call, createBusiness, signInWithPassword } from './support.js';
 
 test('search finds a customer and opens it with the keyboard', async ({ page }) => {
@@ -84,9 +85,6 @@ test('phones get a bottom bar with the rest under "More" @phone', async ({ page 
   const more = page.getByRole('dialog', { name: 'More' });
   await more.getByRole('link', { name: 'Appearance' }).click();
   await expect(page.getByRole('heading', { name: 'Appearance', level: 1 })).toBeVisible();
-  // Nothing scrolls sideways on a narrow screen.
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - window.innerWidth,
-  );
-  expect(overflow).toBeLessThanOrEqual(0);
+  // Nothing scrolls sideways on a narrow screen, also with wider fonts.
+  await expectUsable(page);
 });

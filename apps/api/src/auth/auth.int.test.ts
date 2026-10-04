@@ -11,6 +11,7 @@ import {
   uniquePhone,
   type TestApp,
 } from '../test-support/test-app.js';
+import { finishSignIn } from '../test-support/two-factor.js';
 
 let database: TestDatabase;
 let t: TestApp;
@@ -162,7 +163,8 @@ describe('POST /auth/login (password)', () => {
     const response = await login({ identifier: 'ASHA@abcpaints.in', password: 'Rangoli@2026' });
 
     expect(response.statusCode).toBe(200);
-    expect((await me(response.json<Grant>().token)).statusCode).toBe(200);
+    const grant = await finishSignIn<Grant>(t, response, 'asha@abcpaints.in');
+    expect((await me(grant.token)).statusCode).toBe(200);
   });
 
   it('signs in with a 10-digit mobile number', async () => {
@@ -283,9 +285,11 @@ describe('sessions', () => {
 
   it('signing out ends only this device’s session', async () => {
     const { grant, phone } = await signup({ password: 'Rangoli@2026' });
-    const otherDevice = (
-      await login({ identifier: phone, password: 'Rangoli@2026' })
-    ).json<Grant>();
+    const otherDevice = await finishSignIn<Grant>(
+      t,
+      await login({ identifier: phone, password: 'Rangoli@2026' }),
+      phone,
+    );
 
     const logout = await t.app.inject({
       method: 'POST',
@@ -339,10 +343,9 @@ describe('OTP sign-in', () => {
     expect(request.statusCode).toBe(202);
     const code = t.sms.lastCodeFor(phone);
 
-    const verify = await verifyOtp({ phone, code });
-    expect(verify.statusCode).toBe(200);
-    expect(verify.json<Grant>().organizationId).toBe(grant.organizationId);
-    expect((await me(verify.json<Grant>().token)).statusCode).toBe(200);
+    const verify = await finishSignIn<Grant>(t, await verifyOtp({ phone, code }), phone);
+    expect(verify.organizationId).toBe(grant.organizationId);
+    expect((await me(verify.token)).statusCode).toBe(200);
   });
 
   it('answers the same for an unregistered number, without sending or storing anything', async () => {

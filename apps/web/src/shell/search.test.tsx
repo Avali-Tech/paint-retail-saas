@@ -23,6 +23,9 @@ const RESULTS: SearchResults = {
   contracts: [
     { id: 'c1', title: 'Apex Towers rate contract', subtitle: null, path: '/contracts/c1' },
   ],
+  loyalty: [
+    { id: 'l1', title: 'Apex Painters', subtitle: '1,250 points', path: '/parties/p9/loyalty' },
+  ],
   documents: [],
 };
 
@@ -47,6 +50,7 @@ describe('resultGroups', () => {
       'parties',
       'products',
       'contracts',
+      'loyalty',
     ]);
     expect(actionHit(QUICK_ACTIONS[0] as never)).toEqual({
       id: 'new_customer',
@@ -88,6 +92,9 @@ describe('SearchBox', () => {
     expect(screen.getByRole('group', { name: 'Products' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Leads' })).toBeNull();
     expect(
+      within(screen.getByRole('group', { name: 'Loyalty' })).getByRole('option'),
+    ).toHaveTextContent('Apex Painters1,250 points');
+    expect(
       requests
         .filter((request) => request.path === '/search')
         .map((request) => request.query.get('q')),
@@ -103,7 +110,7 @@ describe('SearchBox', () => {
   it('says when nothing matches or search fails', async () => {
     const { user } = renderShell((q) =>
       q === 'zzz'
-        ? json({ ...RESULTS, parties: [], products: [], contracts: [] })
+        ? json({ ...RESULTS, parties: [], products: [], contracts: [], loyalty: null })
         : json({ statusCode: 500, message: 'Search down' }, 500),
     );
     const box = await screen.findByRole('combobox', { name: 'Search' });
@@ -137,7 +144,7 @@ describe('SearchBox', () => {
 
   it('ignores Enter while there is nothing to choose', async () => {
     const { user } = renderShell(() =>
-      json({ ...RESULTS, parties: [], products: [], contracts: [] }),
+      json({ ...RESULTS, parties: [], products: [], contracts: [], loyalty: null }),
     );
     const box = await screen.findByRole('combobox', { name: 'Search' });
     await user.type(box, 'none');
