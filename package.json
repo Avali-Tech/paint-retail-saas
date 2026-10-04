@@ -18,7 +18,11 @@
     "test:watch": "vitest",
     "test:docker": "vitest run --config vitest.docker.config.ts",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage",
-    "test:e2e": "turbo run build --filter=@paint/api --filter=@paint/web && pnpm --filter @paint/web test:e2e"
+    "test:e2e": "turbo run build --filter=@paint/api --filter=@paint/web && pnpm --filter @paint/web test:e2e",
+    "demo": "node packages/ops/src/demo/cli.ts start",
+    "demo:seed": "node packages/ops/src/demo/cli.ts seed",
+    "demo:reset": "node packages/ops/src/demo/cli.ts reset",
+    "demo:stop": "node packages/ops/src/demo/cli.ts stop"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

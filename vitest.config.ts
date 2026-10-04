@@ -63,6 +63,8 @@ export default defineConfig({
         'apps/web/src/main.tsx',
         'packages/ops/src/restore-drill-cli.ts',
         'packages/ops/src/migrate-cli.ts',
+        'packages/ops/src/demo/cli.ts',
+        'apps/api/src/demo/cli.ts',
       ],
       reporter: ['text', 'html', 'lcov'],
       thresholds: {
