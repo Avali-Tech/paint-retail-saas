@@ -39,20 +39,21 @@ pnpm verify
 
 ## Commands
 
-| Command                                        | What it does                                |
-| ---------------------------------------------- | ------------------------------------------- |
-| `pnpm test:unit`                               | Unit tests only (fast, no Docker)           |
-| `pnpm test:integration`                        | Integration tests against a real PostgreSQL |
-| `pnpm test:coverage`                           | Both suites, failing below 100% coverage    |
-| `pnpm test:watch`                              | Re-run tests on save                        |
-| `pnpm lint` / `pnpm typecheck` / `pnpm format` | Code quality                                |
-| `pnpm verify`                                  | Everything CI runs, in the same order       |
-| `pnpm test:docker`                             | Builds and runs the API and ops images      |
+| Command                                        | What it does                                 |
+| ---------------------------------------------- | -------------------------------------------- |
+| `pnpm test:unit`                               | Unit tests only (fast, no Docker)            |
+| `pnpm test:integration`                        | Integration tests against a real PostgreSQL  |
+| `pnpm test:coverage`                           | Both suites, failing below 100% coverage     |
+| `pnpm test:watch`                              | Re-run tests on save                         |
+| `pnpm lint` / `pnpm typecheck` / `pnpm format` | Code quality                                 |
+| `pnpm verify`                                  | Everything CI runs, in the same order        |
+| `pnpm test:docker`                             | Builds and runs the API and ops images       |
+| `pnpm demo`                                    | Local demo with demo data (see Run the demo) |
 
 ## Run the API locally
 
 ```sh
-docker compose up -d                        # PostgreSQL (55432), S3 (58333), ClamAV (53310), Mailpit (58025)
+docker compose up -d                        # PostgreSQL (55432), S3 (58333), ClamAV (53310), Mailpit (58025); PAINT_*_PORT moves them
 cp apps/api/.env.example apps/api/.env
 pnpm --filter @paint/api build
 pnpm --filter @paint/api start              # http://localhost:3000
@@ -77,6 +78,95 @@ pnpm --filter @paint/web build && pnpm --filter @paint/web preview   # productio
 
 With `SMS_PROVIDER=log` in `apps/api/.env`, sign-in codes for **Mobile code** sign-in appear in the
 API's console.
+
+## Run the demo
+
+One command starts everything on a Mac with a realistic demo business, **Sharma Paints &
+Hardware**: three branches in Hyderabad (Ameerpet, Kukatpally, Secunderabad), a 13-person team,
+about 300 products and pack sizes from Asian Paints, Berger, Nerolac, Dulux, Indigo and Birla Opus,
+84 customers, contractors, painters, architects, dealers and distributors, and two months of
+history ending today: opening stock, purchase orders and goods receipts (with scheme units free),
+transfers in every state, a stock count, damage and adjustments, low stock, leads, opportunities,
+projects, follow-ups due today and overdue, contracts (one renewing this month), credit (one
+account on hold, one near its limit, requests waiting), loyalty tiers and points, notifications and
+its own brand colours. Leads, opportunities, projects, contracts and follow-ups are seeded too and
+show on the dashboard; their own screens are still to come.
+
+**On a fresh Mac** (once):
+
+```sh
+# Homebrew (https://brew.sh), then the tools
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+brew install git mise colima docker docker-compose
+
+# Node 24 (with nvm instead: brew install nvm, then nvm install 24 && nvm use 24)
+echo 'eval "$(mise activate zsh)"' >> ~/.zshrc && exec zsh
+mise use -g node@24
+corepack enable                    # pnpm, at the version package.json pins (or: npm install -g pnpm)
+
+# Docker via Colima; let `docker compose` find Homebrew's compose plugin
+mkdir -p ~/.docker
+[ -f ~/.docker/config.json ] || echo '{ "cliPluginsExtraDirs": ["/opt/homebrew/lib/docker/cli-plugins"] }' > ~/.docker/config.json
+colima start --cpu 4 --memory 6    # after a restart of the Mac, run this again
+
+git clone https://github.com/Avali-Tech/paint-retail-saas.git
+cd paint-retail-saas
+pnpm install
+```
+
+Docker Desktop works instead of Colima (`brew install --cask docker`, open it once; it includes
+Compose). **Moving from Docker Desktop to Colima:** Docker Desktop leaves `"credsStore": "desktop"`
+in `~/.docker/config.json`, and every image pull then fails with `docker-credential-desktop:
+executable file not found`. Delete that line (`pnpm demo` checks for it and says so).
+
+**Every time:**
+
+```sh
+pnpm demo            # checks prerequisites, starts PostgreSQL, S3 storage and Mailpit, creates the
+                     # bucket, builds, migrates, seeds if empty, starts the API and the web app,
+                     # then prints the address and the sign-in sheet. Ctrl-C stops the app.
+pnpm demo --fresh    # the same, re-creating the demo data first (do this on the morning of a demo)
+pnpm demo:stop       # stops the Docker services; the data is kept
+pnpm demo:reset      # drops the demo database and seeds it again (stop `pnpm demo` first)
+pnpm demo:seed       # seeds only if the demo database is empty
+```
+
+Open **http://localhost:5173**. The first run downloads images and builds (a few minutes); later
+runs start in under a minute, and seeding takes about 10 seconds. Everything lives in its own
+Compose project (`paint-demo`) and database (`paint_demo`), separate from development data; logs
+and the sign-in sheet are in `.demo/`. Remove it all with `docker compose -p paint-demo down -v`.
+
+**Signing in.** Everyone signs in with their mobile number (or email) and the password
+`Demo@2026`, for example the owner **Rajesh Sharma, 9000000001**; `pnpm demo` prints the whole
+team with roles and stores. Counter staff (Ravi Teja 9000000041, Suresh Yadav 9000000042, Farhan
+Ali 9000000043) have no password: choose **Mobile code**; with the local SMS provider the code is
+printed in the `pnpm demo` terminal (a line with `[SMS]`) and in `.demo/api.log`.
+
+**Two-factor sign-in in the demo.** The business rule that owners and admins must use an
+authenticator is **switched off** for the demo business, so the owner and Priya Sharma (admin)
+sign in with just the password. **Vikram Rao (admin, 9000000003)** shows the feature: he is
+enrolled with a fixed setup key, `SHARMAPAINTSDEMOTOTPHYDERABADXYZ` (the printed sheet also has
+its `otpauth://` URI and ten recovery codes). Add the key to any authenticator app once; it keeps
+working after every reset. Turn the rule back on under **Settings → Account security** to show
+what an owner sees.
+
+**What depends on what.** The demo data only goes through the API (the seed runs the API
+in-process), so business rules, numbering, notifications, row-level security and the audit log
+all apply; the one exception is back-dating: everything the seed does on a simulated day is moved
+onto that day afterwards (`apps/api/src/demo/history-clock.ts`), and the demo admin's random
+authenticator secret is swapped for the fixed one. Document uploads are scanned by ClamAV, which
+is heavy (about 1.5 GB of memory, a few minutes to load signatures the first time) and therefore
+off by default: uploads are refused until you start with `pnpm demo --clamav`. Notification
+emails (follow-up reminders and anything you do during the demo) arrive in Mailpit at
+http://localhost:58025. Ports can be moved if something else uses them:
+`DEMO_API_PORT=3100 DEMO_WEB_PORT=5200 pnpm demo` (and `PAINT_POSTGRES_PORT`,
+`PAINT_STORAGE_PORT`, `PAINT_MAIL_PORT`, `PAINT_SMTP_PORT`, `PAINT_CLAMAV_PORT` for the services).
+
+| Where                   | What                                                                                |
+| ----------------------- | ----------------------------------------------------------------------------------- |
+| `apps/api/src/demo`     | The demo business: generators (tested for GSTIN checksums, prices, packs), the seed |
+| `packages/ops/src/demo` | `pnpm demo`: prerequisite checks, settings and process orchestration                |
+| `apps/api/dist/demo`    | The built seed (`node apps/api/dist/demo/seed.js seed\|reset\|status`)              |
 
 **Two-factor sign-in.** Owners and organization admins (when their business requires it, the
 default) add an authenticator app at their next sign-in: a QR code plus the setup key, then ten

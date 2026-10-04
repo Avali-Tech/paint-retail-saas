@@ -1,4 +1,5 @@
 # Local development services. Start with `docker compose up -d`.
+# Host ports can be moved with PAINT_*_PORT variables (`pnpm demo` uses them too).
 services:
   postgres:
     image: postgres:17-alpine
@@ -7,7 +8,7 @@ services:
       POSTGRES_PASSWORD: paint
       POSTGRES_DB: paint
     ports:
-      - '55432:5432'
+      - '${PAINT_POSTGRES_PORT:-55432}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +22,7 @@ services:
     image: chrislusf/seaweedfs:4.48
     command: ['server', '-s3', '-dir=/data', '-volume.max=100', '-master.volumeSizeLimitMB=64']
     ports:
-      - '58333:8333'
+      - '${PAINT_STORAGE_PORT:-58333}:8333'
     volumes:
       - storage-data:/data
   # Creates the documents bucket once storage is up.
@@ -34,13 +35,13 @@ services:
   clamav:
     image: clamav/clamav-debian:1.5.4
     ports:
-      - '53310:3310'
+      - '${PAINT_CLAMAV_PORT:-53310}:3310'
   # Catches notification emails; read them at http://localhost:58025.
   mail:
     image: axllent/mailpit:v1.31.3
     ports:
-      - '51025:1025'
-      - '58025:8025'
+      - '${PAINT_SMTP_PORT:-51025}:1025'
+      - '${PAINT_MAIL_PORT:-58025}:8025'
 
 volumes:
   postgres-data:
