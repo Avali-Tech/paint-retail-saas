@@ -65,7 +65,10 @@ describe('NotificationBell', () => {
     expect(await screen.findByText('9+')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Notifications, 12 unread' }));
     await user.click(await screen.findByRole('link', { name: /Transfer t2/ }));
-    expect(screen.getByTestId('location')).toHaveTextContent('/transfers/t2');
+    // The transfer screen loads on first use; the address changes once it has.
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/transfers/t2');
+    });
     await user.click(screen.getByRole('button', { name: /Notifications/ }));
     await user.click(await screen.findByRole('link', { name: /Transfer t1/ }));
     await waitFor(() => {

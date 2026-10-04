@@ -36,7 +36,7 @@ test('quick actions open from search and with their two-key shortcuts', async ({
   await page.keyboard.press('n');
   await page.keyboard.press('t');
   await expect(page).toHaveURL(/\/transfers\/new$/);
-  await expect(page.getByText('Coming soon')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Request stock', level: 1 })).toBeVisible();
 });
 
 test('the notification bell shows what is unread', async ({ page }) => {

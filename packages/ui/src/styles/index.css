@@ -238,6 +238,8 @@ a {
 }
 
 .ui-table-wrap {
+  /* Contains visually hidden header text, which would otherwise widen a phone's page. */
+  position: relative;
   overflow-x: auto;
   border-radius: var(--radius-md);
 }

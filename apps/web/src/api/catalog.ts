@@ -1,0 +1,135 @@
+import type { ApiClient } from './client.js';
+import type { Page } from './page.js';
+
+// Brands, categories, products and their variants. Shapes mirror apps/api/src/catalog.
+
+export const PRODUCT_TYPES = [
+  'interior_paint',
+  'exterior_paint',
+  'primer',
+  'putty',
+  'enamel',
+  'wood_finish',
+  'waterproofing',
+  'texture',
+  'thinner',
+  'tool',
+  'other',
+] as const;
+export type ProductType = (typeof PRODUCT_TYPES)[number];
+
+export const UNITS = ['ml', 'l', 'g', 'kg', 'piece', 'set', 'm'] as const;
+export type Unit = (typeof UNITS)[number];
+
+export interface Brand {
+  readonly id: string;
+  readonly name: string;
+  readonly isActive: boolean;
+}
+
+export interface Category {
+  readonly id: string;
+  readonly name: string;
+  readonly parentId: string | null;
+}
+
+export interface Variant {
+  readonly id: string;
+  readonly sku: string;
+  readonly packSize: number;
+  readonly unit: Unit;
+  readonly mrpPaise: number | null;
+  readonly sellingPricePaise: number | null;
+  readonly isActive: boolean;
+  readonly barcodes: string[];
+}
+
+export interface Product {
+  readonly id: string;
+  readonly name: string;
+  readonly type: ProductType;
+  readonly description: string | null;
+  readonly hsnCode: string;
+  readonly gstRatePercent: number;
+  readonly isActive: boolean;
+  readonly brand: { readonly id: string; readonly name: string };
+  readonly category: Category | null;
+  readonly variants: Variant[];
+}
+
+export interface VariantInput {
+  readonly sku: string;
+  readonly packSize: number;
+  readonly unit: Unit;
+  readonly mrpPaise?: number;
+  readonly sellingPricePaise?: number;
+  readonly barcodes: string[];
+}
+
+export interface VariantChanges {
+  readonly sku?: string;
+  readonly mrpPaise?: number | null;
+  readonly sellingPricePaise?: number | null;
+  readonly isActive?: boolean;
+  readonly barcodes?: string[];
+}
+
+/** POST /products: a new product family with its first pack sizes. */
+export interface NewProduct {
+  readonly brandId: string;
+  readonly categoryId?: string;
+  readonly name: string;
+  readonly type: ProductType;
+  readonly description?: string;
+  readonly hsnCode: string;
+  readonly gstRatePercent: number;
+  readonly variants: VariantInput[];
+}
+
+/** PATCH /products/:id: only what changes; null clears the category or description. */
+export interface ProductChanges {
+  readonly brandId?: string;
+  readonly categoryId?: string | null;
+  readonly name?: string;
+  readonly type?: ProductType;
+  readonly description?: string | null;
+  readonly hsnCode?: string;
+  readonly gstRatePercent?: number;
+  readonly isActive?: boolean;
+}
+
+export interface ProductQuery {
+  readonly q?: string;
+  readonly brandId?: string;
+  readonly categoryId?: string;
+  readonly type?: ProductType;
+  readonly includeInactive?: boolean;
+  readonly limit?: number;
+  readonly offset?: number;
+}
+
+export function catalogEndpoints(api: ApiClient) {
+  return {
+    brands: () => api.get<Brand[]>('/brands'),
+    createBrand: (name: string) => api.post<Brand>('/brands', { name }),
+    updateBrand: (id: string, changes: { name?: string; isActive?: boolean }) =>
+      api.patch<Brand>(`/brands/${id}`, changes),
+    categories: () => api.get<Category[]>('/categories'),
+    createCategory: (input: { name: string; parentId?: string }) =>
+      api.post<Category>('/categories', input),
+    renameCategory: (id: string, name: string) =>
+      api.patch<Category>(`/categories/${id}`, { name }),
+    products: (query: ProductQuery, signal?: AbortSignal) =>
+      api.get<Page<Product>>('/products', { query: { ...query }, signal }),
+    product: (id: string, signal?: AbortSignal) => api.get<Product>(`/products/${id}`, { signal }),
+    lookup: (code: string) =>
+      api.get<{ product: Product; variant: Variant }>('/products/lookup', { query: { code } }),
+    createProduct: (input: NewProduct) => api.post<Product>('/products', input),
+    updateProduct: (id: string, changes: ProductChanges) =>
+      api.patch<Product>(`/products/${id}`, changes),
+    addVariant: (productId: string, input: VariantInput) =>
+      api.post<Product>(`/products/${productId}/variants`, input),
+    updateVariant: (variantId: string, changes: VariantChanges) =>
+      api.patch<Product>(`/variants/${variantId}`, changes),
+  };
+}
