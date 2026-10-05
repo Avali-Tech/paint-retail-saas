@@ -1,8 +1,10 @@
 import { catalogEn, catalogEnumsEn } from './en-catalog.js';
 import { creditEn, creditEnumsEn } from './en-credit.js';
 import { importsEn } from './en-imports.js';
+import { leadEnumsEn, leadsEn } from './en-leads.js';
 import { loyaltyEn, loyaltyEnumsEn } from './en-loyalty.js';
 import { partiesEn, partyEnumsEn } from './en-parties.js';
+import { projectsEn } from './en-projects.js';
 import { purchasingEn, purchasingEnumsEn } from './en-purchasing.js';
 import { stockCountEnumsEn, stockCountsEn } from './en-stock-counts.js';
 import { stockEn, stockEnumsEn } from './en-stock.js';
@@ -291,6 +293,8 @@ export const en = {
   ...stockCountsEn,
   ...purchasingEn,
   ...importsEn,
+  ...leadsEn,
+  ...projectsEn,
   ...workflowEn,
   /** Names of API values, for label(group, value). */
   enums: {
@@ -302,6 +306,7 @@ export const en = {
     ...transferEnumsEn,
     ...stockCountEnumsEn,
     ...purchasingEnumsEn,
+    ...leadEnumsEn,
   },
   pages: {
     comingSoonTitle: 'Coming soon',

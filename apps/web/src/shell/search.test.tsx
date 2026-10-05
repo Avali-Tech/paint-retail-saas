@@ -33,7 +33,7 @@ const location = () => screen.getByTestId('location').textContent;
 
 function renderShell(search: (q: string) => ReturnType<typeof json> = () => json(RESULTS)) {
   return renderApp({
-    path: '/projects',
+    path: '/reports',
     routes: {
       'GET /auth/me': () => json(OWNER),
       'GET /search/actions': () => json(ACTIONS),
@@ -78,7 +78,10 @@ describe('SearchBox', () => {
     await user.keyboard('{ArrowUp}');
     expect(options[1]).toHaveAttribute('aria-selected', 'true');
     await user.keyboard('{Enter}');
-    expect(location()).toBe('/leads/new');
+    // The new lead screen loads on first use, so the address changes once it has arrived.
+    await waitFor(() => {
+      expect(location()).toBe('/leads/new');
+    });
     expect(screen.queryByRole('listbox')).toBeNull();
   });
 
@@ -150,7 +153,7 @@ describe('SearchBox', () => {
     await user.type(box, 'none');
     await screen.findByText('Nothing found for “none”');
     await user.keyboard('{ArrowDown}{Enter}');
-    expect(location()).toBe('/projects');
+    expect(location()).toBe('/reports');
   });
 });
 
@@ -192,7 +195,7 @@ describe('keyboard shortcuts', () => {
     expect(box).toHaveFocus();
     fireEvent.keyDown(box, { key: 'n' });
     fireEvent.keyDown(box, { key: 'c' });
-    expect(location()).toBe('/projects');
+    expect(location()).toBe('/reports');
     box.blur();
     fireEvent.keyDown(document.body, { key: 'n', ctrlKey: true });
     fireEvent.keyDown(document.body, { key: 'Shift' });

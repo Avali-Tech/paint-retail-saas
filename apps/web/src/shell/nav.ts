@@ -2,6 +2,7 @@ import type { Permission } from '@paint/shared';
 import type { IconName } from '@paint/ui';
 import type { MessageKey } from '../i18n/i18n.js';
 import { IMPORT_NAV_ITEMS } from '../imports/nav.js';
+import { CRM_NAV_ITEMS } from '../leads/nav.js';
 import type { AnyOf } from '../lib/guard.js';
 import { CUSTOMER_NAV_ITEMS } from '../parties/nav.js';
 
@@ -46,6 +47,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: 'purchasing:read',
   },
   { key: 'leads', label: 'nav.leads', path: '/leads', icon: 'leads', permission: 'leads:read' },
+  ...CRM_NAV_ITEMS,
   {
     key: 'projects',
     label: 'nav.projects',

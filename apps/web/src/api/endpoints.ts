@@ -3,9 +3,12 @@ import { catalogEndpoints } from './catalog.js';
 import type { ApiClient } from './client.js';
 import { creditEndpoints } from './credit.js';
 import { importEndpoints } from './imports.js';
+import { leadEndpoints, opportunityEndpoints } from './leads.js';
 import { loyaltyEndpoints } from './loyalty.js';
 import { partyEndpoints } from './parties.js';
+import { projectEndpoints } from './projects.js';
 import { purchasingEndpoints } from './purchasing.js';
+import { recordActivityEndpoints } from './record-activities.js';
 import { stockCountEndpoints } from './stock-counts.js';
 import { stockEndpoints } from './stock.js';
 import { transferEndpoints } from './transfers.js';
@@ -88,6 +91,10 @@ export function endpoints(api: ApiClient) {
     stockCounts: stockCountEndpoints(api),
     purchasing: purchasingEndpoints(api),
     imports: importEndpoints(api),
+    leads: leadEndpoints(api),
+    opportunities: opportunityEndpoints(api),
+    projects: projectEndpoints(api),
+    recordActivities: recordActivityEndpoints(api),
   };
 }
 

@@ -5,7 +5,10 @@ import { SignInPage } from '../auth/SignInPage.js';
 import { catalogRoutes } from '../catalog/routes.js';
 import { useI18n } from '../i18n/i18n.js';
 import { importRoutes } from '../imports/routes.js';
+import { leadRoutes } from '../leads/routes.js';
+import { opportunityRoutes } from '../opportunities/routes.js';
 import { partyRoutes } from '../parties/routes.js';
+import { projectRoutes } from '../projects/routes.js';
 import { purchasingRoutes } from '../purchasing/routes.js';
 import { AppShell } from '../shell/AppShell.js';
 import { HomeRedirect, RequireAuth } from '../shell/guards.js';
@@ -63,6 +66,9 @@ export function AppRoutes() {
         {stockCountRoutes()}
         {purchasingRoutes()}
         {importRoutes()}
+        {leadRoutes()}
+        {opportunityRoutes()}
+        {projectRoutes()}
         <Route
           path="settings/appearance"
           element={guarded('organization:manage', AppearancePage)}

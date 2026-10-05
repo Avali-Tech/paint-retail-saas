@@ -90,7 +90,7 @@ transfers in every state, a stock count, damage and adjustments, low stock, lead
 projects, follow-ups due today and overdue, contracts (one renewing this month), credit (one
 account on hold, one near its limit, requests waiting), loyalty tiers and points, notifications and
 its own brand colours. Leads, opportunities, projects, contracts and follow-ups are seeded too and
-show on the dashboard; their own screens are still to come.
+show on the dashboard; leads, opportunities and projects have their own screens.
 
 **On a fresh Mac** (once):
 
@@ -190,10 +190,14 @@ offline-ready first paint.
 type and the duplicate warning), the customer 360 (`/parties/:id`: contact, credit, loyalty points
 and history, activities, leads, opportunities, projects, contracts, documents), credit requests
 (`/credit-requests`), credit rules (`/settings/credit`) and the loyalty programme
-(`/settings/loyalty`). Actions show only to roles that may use them. Each screen is its own chunk
-(`React.lazy`), loaded when first opened. Features keep their routes (`src/<feature>/routes.tsx`),
-navigation entries (`src/<feature>/nav.ts`) and messages (`src/i18n/en-<feature>.ts`) in their own
-files.
+(`/settings/loyalty`), leads (`/leads`: filters, a pipeline board by stage with counts and values in
+lakh/crore, stage moves from each card's menu, convert to an opportunity), opportunities
+(`/opportunities`: weighted pipeline, won/lost with a reason, start a project) and projects
+(`/projects`: site, stage, architects/contractors/painters/dealers), each detail page with its
+activities (log a call, visit or note, schedule a follow-up). Actions show only to roles that may
+use them. Each screen is its own chunk (`React.lazy`), loaded when first opened. Features keep their
+routes (`src/<feature>/routes.tsx`), navigation entries (`src/<feature>/nav.ts`) and messages
+(`src/i18n/en-<feature>.ts`) in their own files.
 
 | Command                              | What it does                                                         |
 | ------------------------------------ | -------------------------------------------------------------------- |
