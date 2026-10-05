@@ -16,8 +16,8 @@ import {
   type DatabaseConnection,
   type Transaction,
 } from '@paint/db';
-import { isPermission, type Permission } from '@paint/shared';
-import { and, eq, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
+import { isPermission, type MemberView, type Permission } from '@paint/shared';
+import { and, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { hashPassword } from '../auth/credentials.js';
 import { DATABASE } from '../database/database.module.js';
@@ -26,32 +26,20 @@ import { SUPPORT_ROLE_KEY } from '../platform/support-role.js';
 import { canSeeMember, grantProblem, manageProblem } from './access-rules.js';
 import type { CreateMemberInput, UpdateMemberInput } from './members.schemas.js';
 
-const { memberStores, organizationMembers, rolePermissions, roles, sessions, stores, users } =
-  schema;
+const {
+  memberStores,
+  organizationMembers,
+  rolePermissions,
+  roles,
+  sessions,
+  stores,
+  userTotp,
+  users,
+} = schema;
 
-export interface RoleView {
-  readonly id: string;
-  readonly key: string;
-  readonly name: string;
-  readonly isSystem: boolean;
-  readonly permissions: Permission[];
-}
+export type { MemberView };
 
-export interface MemberView {
-  readonly id: string;
-  readonly user: {
-    readonly id: string;
-    readonly fullName: string;
-    readonly phone: string | null;
-    readonly email: string | null;
-  };
-  readonly role: { readonly id: string; readonly key: string; readonly name: string };
-  readonly allStores: boolean;
-  readonly storeIds: string[];
-  readonly isActive: boolean;
-}
-
-interface MemberRecord extends MemberView {
+interface MemberRecord extends Omit<MemberView, 'twoFactorEnabled'> {
   readonly rolePermissions: Permission[];
 }
 
@@ -61,38 +49,21 @@ interface ResolvedRole {
   readonly permissions: Permission[];
 }
 
-const toView = ({ rolePermissions, ...view }: MemberRecord): MemberView => view;
+const toView = (
+  { rolePermissions, ...member }: MemberRecord,
+  enrolled: ReadonlySet<string>,
+): MemberView => ({ ...member, twoFactorEnabled: enrolled.has(member.user.id) });
 
 @Injectable()
 export class MembersService {
   constructor(@Inject(DATABASE) private readonly connection: DatabaseConnection) {}
-
-  /** The business's roles with their permissions, for choosing when adding people. */
-  listRoles(auth: AuthContext): Promise<RoleView[]> {
-    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
-      const roleRows = await tx
-        .select({ id: roles.id, key: roles.key, name: roles.name, isSystem: roles.isSystem })
-        .from(roles)
-        .where(ne(roles.key, SUPPORT_ROLE_KEY))
-        .orderBy(roles.name);
-      const permissionRows = await tx.select().from(rolePermissions);
-      return roleRows.map((role) => ({
-        ...role,
-        permissions: permissionRows
-          .filter((row) => row.roleId === role.id)
-          .map((row) => row.permission)
-          .filter(isPermission)
-          .sort(),
-      }));
-    });
-  }
 
   /** Members the manager can see, ordered by name. */
   async list(auth: AuthContext): Promise<MemberView[]> {
     const members = await withTenant(this.connection.db, auth.organization.id, (tx) =>
       this.loadMembers(tx),
     );
-    return members.filter((member) => this.visible(auth, member)).map(toView);
+    return this.toViews(members.filter((member) => this.visible(auth, member)));
   }
 
   async get(auth: AuthContext, memberId: string): Promise<MemberView> {
@@ -100,7 +71,7 @@ export class MembersService {
       this.loadMember(tx, memberId),
     );
     if (!this.visible(auth, member)) throw new NotFoundException('Member not found');
-    return toView(member);
+    return this.toView(member);
   }
 
   /**
@@ -111,7 +82,7 @@ export class MembersService {
   async create(auth: AuthContext, input: CreateMemberInput): Promise<MemberView> {
     const organizationId = auth.organization.id;
     try {
-      return await this.connection.db.transaction(async (tx) => {
+      const record = await this.connection.db.transaction(async (tx) => {
         // Platform scope: accounts are global, so look up or create the person first.
         const existing = await this.findExistingUser(tx, input);
         if (existing && input.password) {
@@ -142,8 +113,9 @@ export class MembersService {
           allStores: input.allStores,
         });
         await this.replaceStores(tx, organizationId, memberId, input.storeIds);
-        return toView(await this.loadMember(tx, memberId));
+        return this.loadMember(tx, memberId);
       });
+      return await this.toView(record);
     } catch (error) {
       if (isUniqueViolation(error, ['organization_members_organization_user_unique'])) {
         throw new ConflictException('This person is already a member of your business');
@@ -153,9 +125,9 @@ export class MembersService {
   }
 
   /** Changes a member's role, stores or active status. Takes effect on their next request. */
-  update(auth: AuthContext, memberId: string, input: UpdateMemberInput): Promise<MemberView> {
+  async update(auth: AuthContext, memberId: string, input: UpdateMemberInput): Promise<MemberView> {
     const organizationId = auth.organization.id;
-    return withTenant(this.connection.db, organizationId, async (tx) => {
+    const record = await withTenant(this.connection.db, organizationId, async (tx) => {
       const target = await this.loadMember(tx, memberId);
       if (!this.visible(auth, target)) throw new NotFoundException('Member not found');
 
@@ -202,8 +174,31 @@ export class MembersService {
           .set({ revokedAt: sql`now()` })
           .where(and(eq(sessions.userId, target.user.id), isNull(sessions.revokedAt)));
       }
-      return toView(await this.loadMember(tx, memberId));
+      return this.loadMember(tx, memberId);
     });
+    return this.toView(record);
+  }
+
+  private async toView(member: MemberRecord): Promise<MemberView> {
+    return toView(member, await this.enrolled([member.user.id]));
+  }
+
+  private async toViews(members: MemberRecord[]): Promise<MemberView[]> {
+    const enrolled = await this.enrolled(members.map((member) => member.user.id));
+    return members.map((member) => toView(member, enrolled));
+  }
+
+  /**
+   * Which of these people have a confirmed authenticator app. Platform scope:
+   * tenants cannot read authenticator secrets, so this runs outside withTenant
+   * and reads only whether one exists, for people already known to be members.
+   */
+  private async enrolled(userIds: string[]): Promise<ReadonlySet<string>> {
+    const rows = await this.connection.db
+      .select({ userId: userTotp.userId })
+      .from(userTotp)
+      .where(and(inArray(userTotp.userId, userIds), isNotNull(userTotp.confirmedAt)));
+    return new Set(rows.map((row) => row.userId));
   }
 
   private visible(auth: AuthContext, member: MemberRecord): boolean {

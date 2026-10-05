@@ -12,10 +12,10 @@ import { purchasingEndpoints } from './purchasing.js';
 import { reportEndpoints } from './reports.js';
 import { stockCountEndpoints } from './stock-counts.js';
 import { stockEndpoints } from './stock.js';
+import { teamEndpoints } from './team.js';
 import { transferEndpoints } from './transfers.js';
 import type {
   Dashboard,
-  Member,
   NotificationPage,
   OrganizationSecurity,
   Profile,
@@ -68,11 +68,7 @@ export function endpoints(api: ApiClient) {
       setSecurity: (input: OrganizationSecurity) =>
         api.put<OrganizationSecurity>('/organization/security', input),
     },
-    members: {
-      list: () => api.get<Member[]>('/members'),
-      resetTwoFactor: (memberId: string) =>
-        api.post<undefined>(`/members/${memberId}/two-factor/reset`),
-    },
+    team: teamEndpoints(api),
     dashboard: (storeId?: string, signal?: AbortSignal) =>
       api.get<Dashboard>('/dashboard', { query: { storeId }, signal }),
     search: (q: string, signal?: AbortSignal) =>

@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { isUniqueViolation, schema, withTenant, type DatabaseConnection } from '@paint/db';
-import { canAccessStore } from '@paint/shared';
+import { canAccessStore, type StoreDirectoryEntry } from '@paint/shared';
 import { eq, inArray } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
@@ -43,6 +43,20 @@ export class StoresService {
         .select(storeFields)
         .from(stores)
         .where(auth.allStores ? undefined : inArray(stores.id, [...auth.storeIds]))
+        .orderBy(stores.code),
+    );
+  }
+
+  /**
+   * Every open store of the business with just its code and name, whatever
+   * the member's own access: for pickers such as which store to ask for stock.
+   */
+  directory(auth: AuthContext): Promise<StoreDirectoryEntry[]> {
+    return withTenant(this.connection.db, auth.organization.id, (tx) =>
+      tx
+        .select({ id: stores.id, code: stores.code, name: stores.name })
+        .from(stores)
+        .where(eq(stores.isActive, true))
         .orderBy(stores.code),
     );
   }

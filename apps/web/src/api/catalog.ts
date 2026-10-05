@@ -31,6 +31,8 @@ export interface Category {
   readonly id: string;
   readonly name: string;
   readonly parentId: string | null;
+  /** Inactive categories keep their products but take no new ones. */
+  readonly isActive: boolean;
 }
 
 export interface Variant {
@@ -122,8 +124,11 @@ export function catalogEndpoints(api: ApiClient) {
     products: (query: ProductQuery, signal?: AbortSignal) =>
       api.get<Page<Product>>('/products', { query: { ...query }, signal }),
     product: (id: string, signal?: AbortSignal) => api.get<Product>(`/products/${id}`, { signal }),
-    lookup: (code: string) =>
-      api.get<{ product: Product; variant: Variant }>('/products/lookup', { query: { code } }),
+    /** Discontinued packs answer 404 unless `includeInactive`. */
+    lookup: (code: string, includeInactive: boolean) =>
+      api.get<{ product: Product; variant: Variant }>('/products/lookup', {
+        query: { code, includeInactive },
+      }),
     createProduct: (input: NewProduct) => api.post<Product>('/products', input),
     updateProduct: (id: string, changes: ProductChanges) =>
       api.patch<Product>(`/products/${id}`, changes),

@@ -194,6 +194,7 @@ describe('Branch Manager of Hyderabad', () => {
     const profile = await t.app.inject({ method: 'GET', url: '/auth/me', headers: bearer(token) });
 
     expect(profile.json()).toMatchObject({
+      memberId: expect.any(String),
       role: { key: 'branch_manager' },
       allStores: false,
       storeIds: [hyderabad.id],
@@ -201,6 +202,54 @@ describe('Branch Manager of Hyderabad', () => {
         ...(SYSTEM_ROLES.find((role) => role.key === 'branch_manager')?.permissions ?? []),
       ].sort(),
     });
+  });
+});
+
+describe('store directory', () => {
+  const directory = (token: string) =>
+    t.app.inject({ method: 'GET', url: '/stores/directory', headers: bearer(token) });
+
+  it('lists every open store with only id, code and name, even to single-store staff', async () => {
+    const token = await staff('store_employee', { storeIds: [hyderabad.id] });
+    const [closed] = await t.connection.db
+      .insert(schema.stores)
+      .values({
+        organizationId: owner.organizationId,
+        name: 'Closed',
+        code: 'AAA-CLOSED',
+        isActive: false,
+      })
+      .returning({ id: schema.stores.id });
+
+    const response = await directory(token);
+
+    expect(response.statusCode).toBe(200);
+    const entries = response.json<Store[]>();
+    expect(entries[0]).toEqual({ id: hyderabad.id, code: 'HYD', name: 'Hyderabad' });
+    expect(entries.map((s) => s.code)).toEqual(expect.arrayContaining(['HYD', 'PUN']));
+    expect(entries.map((s) => s.id)).not.toContain(closed?.id);
+    expect(entries.map((s) => s.code)).toEqual([...entries.map((s) => s.code)].sort());
+  });
+
+  it("never shows another business's stores", async () => {
+    const rival = await signup('Directory Rival');
+
+    expect((await directory(rival.token)).json()).toEqual([]);
+  });
+
+  it('needs stores:read', async () => {
+    const [role] = await t.connection.db
+      .insert(schema.roles)
+      .values({ organizationId: owner.organizationId, key: 'no_stores', name: 'No stores' })
+      .returning({ id: schema.roles.id });
+    await t.connection.db.insert(schema.rolePermissions).values({
+      organizationId: owner.organizationId,
+      roleId: role?.id ?? '',
+      permission: 'parties:read',
+    });
+    const token = await staff('no_stores');
+
+    expect((await directory(token)).statusCode).toBe(403);
   });
 });
 

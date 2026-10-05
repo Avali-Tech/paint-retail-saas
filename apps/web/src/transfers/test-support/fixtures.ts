@@ -108,6 +108,8 @@ export const stockCount = (overrides: Partial<StockCount> = {}): StockCount => (
   scopeId: null,
   note: null,
   closingReason: null,
+  startedBy: { memberId: 'member-2', name: 'Ravi Teja' },
+  submittedBy: null,
   startedAt: '2026-10-01T05:00:00.000Z',
   submittedAt: null,
   approvedAt: null,

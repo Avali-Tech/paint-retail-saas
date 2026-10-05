@@ -27,8 +27,8 @@ export const BRANDS: Brand[] = [
 ];
 
 export const CATEGORIES: Category[] = [
-  { id: 'cat-emulsion', name: 'Emulsions', parentId: null },
-  { id: 'cat-interior', name: 'Interior emulsions', parentId: 'cat-emulsion' },
+  { id: 'cat-emulsion', name: 'Emulsions', parentId: null, isActive: true },
+  { id: 'cat-interior', name: 'Interior emulsions', parentId: 'cat-emulsion', isActive: true },
 ];
 
 export const variant = (overrides: Partial<Variant> = {}): Variant => ({

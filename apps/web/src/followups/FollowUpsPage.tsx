@@ -20,6 +20,7 @@ import { useI18n } from '../i18n/i18n.js';
 import { useUrlFilters } from '../lib/hooks.js';
 import { QueryState } from '../lib/QueryState.js';
 import { StoreSelect } from '../stock/StoreSelect.js';
+import { useMembers } from '../team/team-data.js';
 import { recordPath, timelinePath } from './activity-helpers.js';
 import { DoneDialog, RescheduleDialog, type FollowUp } from './FollowUpDialogs.js';
 import { TIMELINE_PERMISSIONS } from './nav.js';
@@ -189,13 +190,9 @@ function TeamFilters({
   readonly storeId: string;
   readonly onChange: (key: (typeof FILTERS)[number], value: string) => void;
 }) {
-  const api = useApi();
   const { t } = useI18n();
   const profile = useCurrentProfile();
-  const members = useQuery({
-    queryKey: ['members'],
-    queryFn: () => api.members.list(),
-  });
+  const members = useMembers();
   return (
     <Card>
       <div className="filters">
@@ -208,7 +205,7 @@ function TeamFilters({
           >
             <option value="">{t('followUps.me')}</option>
             {(members.data ?? [])
-              .filter((member) => member.isActive && member.user.id !== profile.user.id)
+              .filter((member) => member.isActive && member.id !== profile.memberId)
               .map((member) => (
                 <option key={member.id} value={member.id}>
                   {member.user.fullName}

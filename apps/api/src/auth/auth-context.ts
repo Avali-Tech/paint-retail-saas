@@ -21,6 +21,7 @@ export interface AuthContext extends MemberAccess {
 
 export function toProfile(auth: AuthContext): AuthProfile {
   return {
+    memberId: auth.memberId,
     user: auth.user,
     organization: auth.organization,
     role: auth.role,

@@ -6,7 +6,7 @@ import { renderApp } from '../test-support/render-app.js';
 import { groupKey } from './AuthenticatorSetup.js';
 import { qrPath } from './QrCode.js';
 import { SESSION_KEY } from './session-store.js';
-import { isWrongCode } from './TwoFactorStep.js';
+import { refusalOf } from './TwoFactorStep.js';
 import { ApiError } from '../api/errors.js';
 
 const SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
@@ -20,8 +20,20 @@ const pending = (overrides: Partial<PendingSignIn> = {}): PendingSignIn => ({
   ...overrides,
 });
 
-const WRONG = () => json({ statusCode: 401, message: 'Wrong code' }, 401);
-const EXPIRED = () => json({ statusCode: 401, message: 'Invalid or expired sign-in' }, 401);
+const wrong = (attemptsRemaining: number) =>
+  json({ statusCode: 401, message: 'Wrong code', code: 'wrong_code', attemptsRemaining }, 401);
+const TOO_MANY = () =>
+  json(
+    {
+      statusCode: 401,
+      message: 'Too many wrong codes',
+      code: 'too_many_attempts',
+      attemptsRemaining: 0,
+    },
+    401,
+  );
+const EXPIRED = () =>
+  json({ statusCode: 401, message: 'Invalid or expired sign-in', code: 'expired' }, 401);
 
 const location = () => screen.getByTestId('location').textContent;
 
@@ -64,11 +76,24 @@ describe('helpers', () => {
     expect(groupKey('ABCDEFGH')).toBe('ABCD EFGH');
   });
 
-  it('tells a wrong code from an expired sign-in', () => {
-    expect(isWrongCode(new ApiError(401, 'Wrong code'))).toBe(true);
-    expect(isWrongCode(new ApiError(401, 'Invalid or expired sign-in'))).toBe(false);
-    expect(isWrongCode(new ApiError(400, 'Wrong code'))).toBe(false);
-    expect(isWrongCode(new Error('Wrong code'))).toBe(false);
+  it('reads why a code was refused from the error code, not the message', () => {
+    const refused = (body: Record<string, unknown>, status = 401) =>
+      refusalOf(new ApiError(status, 'Anything', [], [], body));
+
+    expect(refused({ code: 'wrong_code', attemptsRemaining: 3 })).toEqual({
+      code: 'wrong_code',
+      attemptsRemaining: 3,
+    });
+    expect(refused({ code: 'too_many_attempts', attemptsRemaining: 0 })).toEqual({
+      code: 'too_many_attempts',
+      attemptsRemaining: 0,
+    });
+    expect(refused({ code: 'expired' })?.code).toBe('expired');
+    // A wrong code without a count, or no code at all, cannot be retried safely.
+    expect(refused({ code: 'wrong_code' })?.code).toBe('expired');
+    expect(refused({})?.code).toBe('expired');
+    expect(refused({ code: 'wrong_code', attemptsRemaining: 3 }, 400)).toBeNull();
+    expect(refusalOf(new Error('Wrong code'))).toBeNull();
   });
 });
 
@@ -183,7 +208,13 @@ describe('first-time setup during sign-in', () => {
 
 describe('the code step', () => {
   it('counts down the tries for wrong codes, then sends the person back to sign in', async () => {
-    const { user, requests } = await reachSecondStep({ 'POST /auth/2fa/verify': WRONG });
+    let left = 5;
+    const { user, requests } = await reachSecondStep({
+      'POST /auth/2fa/verify': () => {
+        left -= 1;
+        return left > 0 ? wrong(left) : TOO_MANY();
+      },
+    });
     expect(await screen.findByRole('heading', { name: 'Confirm it’s you' })).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -205,7 +236,7 @@ describe('the code step', () => {
     await user.type(box, '000000');
     await user.click(screen.getByRole('button', { name: 'Verify and sign in' }));
     expect(
-      await screen.findByText('This sign-in has expired. Please sign in again.'),
+      await screen.findByText('Too many wrong codes. Please sign in again.'),
     ).toBeInTheDocument();
     expect(requests.filter((request) => request.path === '/auth/2fa/verify')).toHaveLength(5);
     await user.click(screen.getByRole('button', { name: 'Sign in again' }));

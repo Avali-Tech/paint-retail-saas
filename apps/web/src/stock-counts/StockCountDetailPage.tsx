@@ -5,7 +5,7 @@ import { useParams } from 'react-router';
 import { errorMessage } from '../api/errors.js';
 import type { StockCount } from '../api/stock-counts.js';
 import { useApi } from '../app/services.js';
-import { usePermissions } from '../auth/session.js';
+import { useCurrentProfile, usePermissions } from '../auth/session.js';
 import { useI18n, type MessageKey } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
 import { ReasonDialog } from '../lib/ReasonDialog.js';
@@ -236,6 +236,7 @@ function CountView({ count }: { readonly count: StockCount }) {
   const { t, label, number, money, dateTime } = useI18n();
   const toast = useToast();
   const can = usePermissions();
+  const profile = useCurrentProfile();
   const access = useStoreAccess();
   const save = useSaveCount();
   const queryClient = useQueryClient();
@@ -244,6 +245,8 @@ function CountView({ count }: { readonly count: StockCount }) {
   const manage = can('inventory:manage') && access(count.store.id);
   const counting = manage && count.status === 'counting';
   const submitted = manage && count.status === 'submitted';
+  // Someone else approves a count you submitted, unless you work at every store (as the API rules).
+  const ownSubmission = count.submittedBy?.memberId === profile.memberId && !profile.allStores;
   const { summary } = count;
   const close = () => {
     setAction(null);
@@ -255,9 +258,9 @@ function CountView({ count }: { readonly count: StockCount }) {
     await refreshInventory(queryClient, ['stock-count', saved.id]);
     toast({ title: t(done), tone: 'success' });
   };
-  const steps: [MessageKey, string | null][] = [
-    ['stockCounts.detail.startedAt', count.startedAt],
-    ['stockCounts.detail.submittedAt', count.submittedAt],
+  const steps: [MessageKey, string | null, string?][] = [
+    ['stockCounts.detail.startedAt', count.startedAt, count.startedBy.name],
+    ['stockCounts.detail.submittedAt', count.submittedAt, count.submittedBy?.name],
     ['stockCounts.detail.approvedAt', count.approvedAt],
     ['stockCounts.detail.closedAt', count.closedAt],
   ];
@@ -293,7 +296,7 @@ function CountView({ count }: { readonly count: StockCount }) {
             {counting && actionButton('submit', 'stockCounts.detail.submit', 'primary')}
             {submitted && (
               <>
-                {actionButton('approve', 'stockCounts.detail.approve', 'primary')}
+                {!ownSubmission && actionButton('approve', 'stockCounts.detail.approve', 'primary')}
                 <Button
                   variant="secondary"
                   loading={reopening}
@@ -320,6 +323,9 @@ function CountView({ count }: { readonly count: StockCount }) {
       <div className="stack">
         <Card title={t('stockCounts.detail.summary')}>
           <div className="stack">
+            {submitted && ownSubmission && (
+              <Alert tone="info">{t('stockCounts.detail.ownSubmission')}</Alert>
+            )}
             <dl className="facts">
               <div>
                 <dt>{t('stockCounts.detail.counted')}</dt>
@@ -351,10 +357,11 @@ function CountView({ count }: { readonly count: StockCount }) {
             </dl>
             <ol className="timeline">
               {steps
-                .filter((step): step is [MessageKey, string] => step[1] !== null)
-                .map(([key, time]) => (
+                .filter((step): step is [MessageKey, string, string?] => step[1] !== null)
+                .map(([key, time, name]) => (
                   <li key={key} data-done="">
                     {t(key, { time: dateTime(time) })}
+                    {name !== undefined && ` · ${name}`}
                   </li>
                 ))}
             </ol>

@@ -77,6 +77,7 @@ export function profile(
   overrides: Partial<Profile> = {},
 ): Profile {
   return {
+    memberId: 'member-1',
     user: { id: 'user-1', fullName: 'Anil Kumar', phone: '+919876543210', email: null },
     organization: { id: GRANT.organizationId, name: 'ABC Paints' },
     role: { key: 'owner', name: 'Owner' },

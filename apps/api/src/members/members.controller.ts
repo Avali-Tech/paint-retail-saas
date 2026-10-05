@@ -9,17 +9,12 @@ import {
   type CreateMemberInput,
   type UpdateMemberInput,
 } from './members.schemas.js';
-import { MembersService, type MemberView, type RoleView } from './members.service.js';
+import type { MemberView } from '@paint/shared';
+import { MembersService } from './members.service.js';
 
 @Controller()
 export class MembersController {
   constructor(@Inject(MembersService) private readonly members: MembersService) {}
-
-  @Get('roles')
-  @RequirePermissions('members:read')
-  listRoles(@CurrentAuth() auth: AuthContext): Promise<RoleView[]> {
-    return this.members.listRoles(auth);
-  }
 
   @Get('members')
   @RequirePermissions('members:read')

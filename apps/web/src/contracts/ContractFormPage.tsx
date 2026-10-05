@@ -23,6 +23,7 @@ import { QueryState } from '../lib/QueryState.js';
 import { PartyPicker } from '../parties/PartyPicker.js';
 import { storeLabel } from '../stock/StoreSelect.js';
 import { useStores } from '../stock/stores.js';
+import { useMembers } from '../team/team-data.js';
 import {
   contractSchema,
   contractValues,
@@ -58,16 +59,15 @@ function AssigneeField({
   readonly value: string;
   readonly creating: boolean;
 }) {
-  const api = useApi();
   const { t } = useI18n();
   const profile = useCurrentProfile();
-  const members = useQuery({ queryKey: ['members'], queryFn: () => api.members.list() });
+  const members = useMembers();
   return (
     <Field label={t('contracts.form.assignee')}>
       <Select {...register('assignedMemberId')} value={value}>
         {creating && <option value="">{t('contracts.form.assigneeDefault')}</option>}
         {(members.data ?? [])
-          .filter((member) => member.isActive && !(creating && member.user.id === profile.user.id))
+          .filter((member) => member.isActive && !(creating && member.id === profile.memberId))
           .map((member) => (
             <option key={member.id} value={member.id}>
               {member.user.fullName}

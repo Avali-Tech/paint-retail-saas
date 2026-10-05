@@ -1,7 +1,7 @@
 import { PERMISSIONS } from '@paint/shared';
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { Member, TwoFactorStatus } from '../api/types.js';
+import type { TwoFactorStatus } from '../api/types.js';
 import { CASHIER, OWNER, json, profile, type FakeHandler } from '../test-support/fake-api.js';
 import { renderApp } from '../test-support/render-app.js';
 
@@ -18,13 +18,6 @@ const status = (overrides: Partial<TwoFactorStatus> = {}): TwoFactorStatus => ({
   recoveryCodesLeft: 0,
   required: false,
   ...overrides,
-});
-
-const member = (id: string, userId: string, fullName: string, isActive = true): Member => ({
-  id,
-  user: { id: userId, fullName, phone: null, email: null },
-  role: { id: `role-${id}`, key: 'store_employee', name: 'Store Employee' },
-  isActive,
 });
 
 function renderSecurity(me: unknown, routes: Record<string, FakeHandler>) {
@@ -233,71 +226,20 @@ describe('business sign-in rules', () => {
 });
 
 describe('team two-factor resets', () => {
-  it('lets an owner reset a member after confirming', async () => {
-    let attempts = 0;
-    let answer: ReturnType<FakeHandler> = { status: 204 };
-    const { user, requests } = renderSecurity(OWNER, {
+  it('points owners to the team, where each member can be reset', async () => {
+    const { user } = renderSecurity(OWNER, {
       'GET /auth/2fa': () => json(status({ enabled: true, required: true })),
       'GET /organization/security': () => json({ twoFactorRequired: true }),
-      'GET /members': () => {
-        attempts += 1;
-        return attempts === 1
-          ? json({ message: 'Database down' }, 503)
-          : json([
-              member('m1', OWNER.user.id, 'Anil Kumar'),
-              member('m2', 'user-2', 'Suresh Counter'),
-              member('m3', 'user-3', 'Old Staff', false),
-            ]);
-      },
-      'POST /members/:id/two-factor/reset': () => answer,
+      'GET /members': () => json([]),
+      'GET /stores': () => json([]),
     });
     const team = await screen.findByRole('region', { name: 'Team two-factor sign-in' });
-    expect(await within(team).findByRole('alert')).toHaveTextContent('Database down');
-    await user.click(within(team).getByRole('button', { name: 'Try again' }));
-    const rows = await within(team).findAllByRole('listitem');
-    expect(rows.map((row) => row.textContent)).toEqual([
-      'Anil KumarStore EmployeeYou',
-      'Suresh CounterStore EmployeeReset two-factor',
-      'Old StaffStore EmployeeInactiveReset two-factor',
-    ]);
-
-    await user.click(
-      within(team).getByRole('button', { name: 'Reset two-factor for Suresh Counter' }),
-    );
-    let dialog = screen.getByRole('dialog', {
-      name: 'Reset two-factor sign-in for Suresh Counter?',
-    });
-    expect(dialog).toHaveAccessibleDescription(
-      'Their authenticator app and recovery codes are removed and they are signed out. This is recorded in the audit log.',
-    );
-    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
-    expect(screen.queryByRole('dialog')).toBeNull();
-
-    await user.click(within(team).getByRole('button', { name: 'Reset two-factor for Old Staff' }));
-    await user.keyboard('{Escape}');
-    expect(screen.queryByRole('dialog')).toBeNull();
-
-    answer = json({ statusCode: 403, message: 'Only an owner can reset two-factor sign-in' }, 403);
-    await user.click(
-      within(team).getByRole('button', { name: 'Reset two-factor for Suresh Counter' }),
-    );
-    dialog = screen.getByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Reset' }));
     expect(
-      await screen.findByText('Only an owner can reset two-factor sign-in'),
+      within(team).getByText(
+        'Owners reset a team member’s two-factor sign-in from their page under Team.',
+      ),
     ).toBeInTheDocument();
-    expect(dialog).toBeInTheDocument();
-
-    answer = { status: 204 };
-    await user.click(within(dialog).getByRole('button', { name: 'Reset' }));
-    expect(
-      await screen.findByText('Two-factor sign-in reset for Suresh Counter'),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).toBeNull();
-    expect(
-      requests
-        .filter((request) => request.path.endsWith('/two-factor/reset'))
-        .map((request) => request.path),
-    ).toEqual(['/members/m2/two-factor/reset', '/members/m2/two-factor/reset']);
+    await user.click(within(team).getByRole('link', { name: 'Open the team' }));
+    expect(await screen.findByRole('heading', { name: 'Team', level: 1 })).toBeVisible();
   });
 });

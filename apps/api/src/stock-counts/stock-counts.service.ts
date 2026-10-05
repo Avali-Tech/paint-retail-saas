@@ -36,6 +36,7 @@ import type {
 const {
   brands,
   categories,
+  organizationMembers,
   productBarcodes,
   productVariants,
   products,
@@ -43,6 +44,7 @@ const {
   stockCountLines,
   stockCounts,
   stores,
+  users,
 } = schema;
 
 type CountStatus = (typeof COUNT_STATUSES)[number];
@@ -84,12 +86,22 @@ export interface CountView {
   readonly scopeId: string | null;
   readonly note: string | null;
   readonly closingReason: string | null;
+  /** Who started the count. */
+  readonly startedBy: CountPerson;
+  /** Who submitted it for approval; null while counting (or after a reopen). */
+  readonly submittedBy: CountPerson | null;
   readonly startedAt: string;
   readonly submittedAt: string | null;
   readonly approvedAt: string | null;
   readonly closedAt: string | null;
   readonly summary: CountSummary;
   readonly lines: CountLineView[];
+}
+
+/** A team member named on a count. */
+export interface CountPerson {
+  readonly memberId: string;
+  readonly name: string;
 }
 
 export interface CountListItem {
@@ -570,6 +582,20 @@ export class StockCountsService {
         };
       },
     );
+    const people = await tx
+      .select({ memberId: organizationMembers.id, name: users.fullName })
+      .from(organizationMembers)
+      .innerJoin(users, eq(users.id, organizationMembers.userId))
+      .where(
+        inArray(
+          organizationMembers.id,
+          [stockCount.startedByMemberId, stockCount.submittedByMemberId].filter(
+            (id): id is string => id !== null,
+          ),
+        ),
+      );
+    const person = (memberId: string | null) =>
+      people.find((row) => row.memberId === memberId) ?? null;
     const counted = lines.filter((line) => line.variance !== null);
     const matching = counted.filter((line) => line.variance === 0).length;
     const values = lines.map((line) => line.varianceValuePaise ?? 0);
@@ -582,6 +608,11 @@ export class StockCountsService {
       scopeId: stockCount.scopeId,
       note: stockCount.note,
       closingReason: stockCount.closingReason,
+      startedBy: {
+        memberId: stockCount.startedByMemberId,
+        name: String(person(stockCount.startedByMemberId)?.name),
+      },
+      submittedBy: person(stockCount.submittedByMemberId),
       startedAt: stockCount.startedAt.toISOString(),
       submittedAt: iso(stockCount.submittedAt),
       approvedAt: iso(stockCount.approvedAt),

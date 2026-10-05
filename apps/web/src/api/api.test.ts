@@ -185,7 +185,13 @@ describe('endpoints', () => {
       'GET /organization/security': ok,
       'PUT /organization/security': ok,
       'GET /members': ok,
+      'GET /members/m1': ok,
+      'POST /members': ok,
+      'PATCH /members/m1': ok,
       'POST /members/m1/two-factor/reset': ok,
+      'GET /roles': ok,
+      'POST /roles': ok,
+      'PATCH /roles/r1': ok,
     });
     const calls = endpoints(api);
     await calls.auth.login({ identifier: 'a@b.in', password: 'pw' });
@@ -211,8 +217,20 @@ describe('endpoints', () => {
     await calls.twoFactor.disable('654321');
     await calls.organization.security();
     await calls.organization.setSecurity({ twoFactorRequired: false });
-    await calls.members.list();
-    await calls.members.resetTwoFactor('m1');
+    await calls.team.members();
+    await calls.team.member('m1');
+    await calls.team.addMember({
+      fullName: 'Ravi',
+      phone: '9876543210',
+      roleId: 'r1',
+      allStores: false,
+      storeIds: ['s1'],
+    });
+    await calls.team.updateMember('m1', { isActive: false });
+    await calls.team.resetTwoFactor('m1');
+    await calls.team.roles();
+    await calls.team.createRole({ name: 'Cashier', permissions: ['stores:read'] });
+    await calls.team.updateRole('r1', { name: 'Senior cashier' });
     expect(
       requests.map((request) => `${request.method} ${request.path}?${request.query.toString()}`),
     ).toEqual([
@@ -240,7 +258,13 @@ describe('endpoints', () => {
       'GET /organization/security?',
       'PUT /organization/security?',
       'GET /members?',
+      'GET /members/m1?',
+      'POST /members?',
+      'PATCH /members/m1?',
       'POST /members/m1/two-factor/reset?',
+      'GET /roles?',
+      'POST /roles?',
+      'PATCH /roles/r1?',
     ]);
     expect(requests.slice(14).map((request) => request.body)).toEqual([
       { pendingToken: 'pending' },
@@ -253,7 +277,13 @@ describe('endpoints', () => {
       undefined,
       { twoFactorRequired: false },
       undefined,
+      undefined,
+      { fullName: 'Ravi', phone: '9876543210', roleId: 'r1', allStores: false, storeIds: ['s1'] },
+      { isActive: false },
       {},
+      undefined,
+      { name: 'Cashier', permissions: ['stores:read'] },
+      { name: 'Senior cashier' },
     ]);
     expect(requests[1]?.body).toEqual({ phone: '9876543210' });
     expect(requests[2]?.body).toEqual({

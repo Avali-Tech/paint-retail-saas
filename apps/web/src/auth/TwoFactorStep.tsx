@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Alert, Button, Field, Input, Spinner } from '@paint/ui';
+import type { TwoFactorErrorCode } from '@paint/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -12,17 +13,26 @@ import { useBranding } from '../theme/BrandingProvider.js';
 import { AuthenticatorSetup } from './AuthenticatorSetup.js';
 import { RecoveryCodes } from './RecoveryCodes.js';
 
-/** How many codes a pending sign-in accepts (CHALLENGE_MAX_ATTEMPTS in the API). */
-export const TWO_FACTOR_TRIES = 5;
+/** Why the API refused a code (its TwoFactorError body), or null for any other failure. */
+export interface Refusal {
+  readonly code: TwoFactorErrorCode;
+  /** Tries left after a wrong code. */
+  readonly attemptsRemaining: number;
+}
 
 /**
- * The API's answer to a wrong code while the pending sign-in can still be used;
- * any other 401 means it has expired, been used up or was never valid.
+ * Reads a refused two-factor code: a wrong code while tries remain, or a
+ * pending sign-in that can no longer be used (expired, used, or out of tries).
+ * A 401 without a known code counts as expired.
  */
-const WRONG_CODE = 'Wrong code';
-
-export const isWrongCode = (error: unknown): boolean =>
-  error instanceof ApiError && error.status === 401 && error.message === WRONG_CODE;
+export function refusalOf(error: unknown): Refusal | null {
+  if (!(error instanceof ApiError) || error.status !== 401) return null;
+  const { code, attemptsRemaining } = error.body;
+  if (code === 'wrong_code' && typeof attemptsRemaining === 'number') {
+    return { code, attemptsRemaining };
+  }
+  return { code: code === 'too_many_attempts' ? code : 'expired', attemptsRemaining: 0 };
+}
 
 type CodeKind = 'app' | 'recovery';
 
@@ -114,8 +124,9 @@ export function TwoFactorStep({ pending, onSignedIn, onRestart }: TwoFactorStepP
   const { branding } = useBranding();
   const titleId = useId();
   const [kind, setKind] = useState<CodeKind>('app');
-  const [triesLeft, setTriesLeft] = useState(TWO_FACTOR_TRIES);
   const [timedOut, setTimedOut] = useState(false);
+  /** Why the server ended the pending sign-in early (out of tries), in its words. */
+  const [endedWith, setEndedWith] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState<{ grant: SessionGrant; codes: string[] } | null>(null);
 
@@ -141,7 +152,7 @@ export function TwoFactorStep({ pending, onSignedIn, onRestart }: TwoFactorStepP
     retry: false,
   });
   const setupRefused = setup.error instanceof ApiError && setup.error.status === 401;
-  const expired = timedOut || setupRefused;
+  const expired = timedOut || setupRefused || endedWith !== null;
 
   const verify = async (code: string) => {
     setMessage(null);
@@ -150,16 +161,18 @@ export function TwoFactorStep({ pending, onSignedIn, onRestart }: TwoFactorStepP
       if (recoveryCodes) setSaving({ grant, codes: recoveryCodes });
       else onSignedIn(grant);
     } catch (error) {
-      if (isWrongCode(error) && triesLeft > 1) {
-        const left = triesLeft - 1;
-        setTriesLeft(left);
+      const refusal = refusalOf(error);
+      if (refusal === null) {
+        setMessage(errorMessage(error));
+      } else if (refusal.code === 'wrong_code') {
+        const left = refusal.attemptsRemaining;
         setMessage(
           left === 1 ? t('twoFactor.wrongCodeLast') : t('twoFactor.wrongCode', { count: left }),
         );
-      } else if (error instanceof ApiError && error.status === 401) {
-        setTimedOut(true);
+      } else if (refusal.code === 'too_many_attempts') {
+        setEndedWith(t('twoFactor.tooMany'));
       } else {
-        setMessage(errorMessage(error));
+        setTimedOut(true);
       }
     }
   };
@@ -186,7 +199,7 @@ export function TwoFactorStep({ pending, onSignedIn, onRestart }: TwoFactorStepP
           </Button>
         }
       >
-        {t('twoFactor.expired')}
+        {endedWith ?? t('twoFactor.expired')}
       </Alert>
     );
   }

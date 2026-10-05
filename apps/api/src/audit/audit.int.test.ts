@@ -94,7 +94,7 @@ describe('audit log', () => {
 
     expect(entry).toMatchObject({
       actor: { name: 'Anil Owner' },
-      area: 'Product prices',
+      area: 'Product prices and pack sizes',
       recordId: variantId,
       recordLabel: 'APX-1L',
       action: 'update',
@@ -105,6 +105,61 @@ describe('audit log', () => {
       old: 60_000,
       new: 62_500,
     });
+  });
+
+  it('shows brands, categories, products and pack sizes being deactivated, renamed and moved', async () => {
+    const brand = (await api(owner).post('/brands', { name: 'Old Brand' })).json<{ id: string }>();
+    const other = (await api(owner).post('/brands', { name: 'New Brand' })).json<{ id: string }>();
+    const category = (await api(owner).post('/categories', { name: 'Primers' })).json<{
+      id: string;
+    }>();
+    const product = (
+      await api(owner).post('/products', {
+        brandId: brand.id,
+        categoryId: category.id,
+        name: 'Lifecycle Primer',
+        type: 'primer',
+        hsnCode: '3209',
+        gstRatePercent: 18,
+        variants: [{ sku: 'LCP-1L', packSize: 1, unit: 'l' }],
+      })
+    ).json<{ id: string; variants: { id: string }[] }>();
+    await api(owner).patch(`/products/${product.id}`, { brandId: other.id, isActive: false });
+    await api(owner).patch(`/variants/${String(product.variants[0]?.id)}`, { isActive: false });
+    await api(owner).patch(`/brands/${brand.id}`, { name: 'Retired Brand', isActive: false });
+    await api(owner).patch(`/categories/${category.id}`, { isActive: false });
+
+    const entry = async (table: string) => (await log(`table=${table}&limit=1`)).items[0];
+
+    expect(await entry('brands')).toMatchObject({ area: 'Brands', recordLabel: 'Retired Brand' });
+    expect(changes(await entry('brands'))).toEqual([
+      ['Name', 'Old Brand', 'Retired Brand'],
+      ['Active', 'Yes', 'No'],
+    ]);
+    expect(changes(await entry('categories'))).toEqual([['Active', 'Yes', 'No']]);
+    expect(await entry('categories')).toMatchObject({ area: 'Categories', recordLabel: 'Primers' });
+    expect(await entry('products')).toMatchObject({
+      area: 'Products',
+      recordLabel: 'Lifecycle Primer',
+      actor: { name: 'Anil Owner' },
+    });
+    expect(changes(await entry('products'))).toEqual([
+      ['Active', 'Yes', 'No'],
+      ['Brand', 'Retired Brand', 'New Brand'],
+    ]);
+    expect(changes(await entry('product_variants'))).toEqual([['Active', 'Yes', 'No']]);
+  });
+
+  it('shows a subcategory being renamed', async () => {
+    const walls = (await api(owner).post('/categories', { name: 'Walls' })).json<{ id: string }>();
+    const sub = (await api(owner).post('/categories', { name: 'Putty', parentId: walls.id })).json<{
+      id: string;
+    }>();
+    await api(owner).patch(`/categories/${sub.id}`, { name: 'Wall Putty' });
+
+    const [entry] = (await log(`recordId=${sub.id}`)).items;
+
+    expect(changes(entry)).toEqual([['Name', 'Putty', 'Wall Putty']]);
   });
 
   it('shows changes to a member’s role, stores and access', async () => {

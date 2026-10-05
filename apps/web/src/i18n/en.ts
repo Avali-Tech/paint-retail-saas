@@ -10,6 +10,7 @@ import { purchasingEn, purchasingEnumsEn } from './en-purchasing.js';
 import { reportEnumsEn, reportsEn } from './en-reports.js';
 import { stockCountEnumsEn, stockCountsEn } from './en-stock-counts.js';
 import { stockEn, stockEnumsEn } from './en-stock.js';
+import { teamEn } from './en-team.js';
 import { transferEnumsEn, transfersEn } from './en-transfers.js';
 import { workflowEn } from './en-workflow.js';
 
@@ -81,6 +82,7 @@ export const en = {
     useApp: 'Use a code from the app',
     wrongCode: 'Wrong code. {count} tries left.',
     wrongCodeLast: 'Wrong code. 1 try left.',
+    tooMany: 'Too many wrong codes. Please sign in again.',
     expired: 'This sign-in has expired. Please sign in again.',
     signInAgain: 'Sign in again',
     back: 'Back to sign-in',
@@ -127,18 +129,8 @@ export const en = {
       'Recommended. Owners and organisation admins add an authenticator app at their next sign-in.',
     requireSaved: 'Sign-in rules saved',
     team: 'Team two-factor sign-in',
-    teamHint:
-      'If someone loses their phone and their recovery codes, reset their two-factor sign-in. They are signed out and add the app again when they next sign in.',
-    teamError: 'Could not load the team',
-    reset: 'Reset two-factor',
-    resetFor: 'Reset two-factor for {name}',
-    resetTitle: 'Reset two-factor sign-in for {name}?',
-    resetDescription:
-      'Their authenticator app and recovery codes are removed and they are signed out. This is recorded in the audit log.',
-    resetConfirm: 'Reset',
-    resetDone: 'Two-factor sign-in reset for {name}',
-    you: 'You',
-    inactive: 'Inactive',
+    teamHint: 'Owners reset a team member’s two-factor sign-in from their page under Team.',
+    teamLink: 'Open the team',
   },
   shell: {
     skipToContent: 'Skip to content',
@@ -301,6 +293,7 @@ export const en = {
   ...contractsEn,
   ...documentsEn,
   ...reportsEn,
+  ...teamEn,
   /** Names of API values, for label(group, value). */
   enums: {
     ...partyEnumsEn,

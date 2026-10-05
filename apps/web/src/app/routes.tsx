@@ -14,6 +14,7 @@ import { AppShell } from '../shell/AppShell.js';
 import { HomeRedirect, RequireAuth } from '../shell/guards.js';
 import { stockCountRoutes } from '../stock-counts/routes.js';
 import { stockRoutes } from '../stock/routes.js';
+import { teamRoutes } from '../team/routes.js';
 import { transferRoutes } from '../transfers/routes.js';
 import { guarded } from './guarded.js';
 
@@ -69,6 +70,7 @@ export function AppRoutes() {
         {followUpRoutes()}
         {contractRoutes()}
         {reportRoutes()}
+        {teamRoutes()}
         <Route
           path="settings/appearance"
           element={guarded('organization:manage', AppearancePage)}

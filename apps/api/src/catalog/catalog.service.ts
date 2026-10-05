@@ -17,6 +17,7 @@ import {
 } from '@paint/db';
 import { basisPointsToPercent, percentToBasisPoints } from '@paint/shared';
 import { and, count, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { containsPattern } from '../parties/party-access.js';
@@ -53,6 +54,7 @@ export interface CategoryView {
   readonly id: string;
   readonly name: string;
   readonly parentId: string | null;
+  readonly isActive: boolean;
 }
 export interface VariantView {
   readonly id: string;
@@ -86,7 +88,15 @@ export interface LookupResult {
 }
 
 const toBrand = ({ id, name, isActive }: BrandRow): BrandView => ({ id, name, isActive });
-const toCategory = ({ id, name, parentId }: CategoryRow): CategoryView => ({ id, name, parentId });
+const toCategory = ({ id, name, parentId, isActive }: CategoryRow): CategoryView => ({
+  id,
+  name,
+  parentId,
+  isActive,
+});
+
+const INACTIVE_BRAND = 'This brand is inactive. Reactivate it first.';
+const INACTIVE_CATEGORY = 'This category is inactive. Reactivate it first.';
 
 const toVariant = (
   variant: VariantRow,
@@ -172,6 +182,7 @@ export class CatalogService {
           .from(categories)
           .where(eq(categories.id, input.parentId));
         if (!parent) throw new BadRequestException('Unknown parent category');
+        if (!parent.isActive) throw new BadRequestException(INACTIVE_CATEGORY);
         if (parent.parentId) {
           throw new BadRequestException('Subcategories cannot have their own subcategories');
         }
@@ -184,11 +195,19 @@ export class CatalogService {
     });
   }
 
-  renameCategory(auth: AuthContext, categoryId: string, name: string): Promise<CategoryView> {
+  /**
+   * Renames, deactivates or reactivates a category. An inactive category (or
+   * one under an inactive parent) keeps its products but takes no new ones.
+   */
+  updateCategory(
+    auth: AuthContext,
+    categoryId: string,
+    input: { name?: string; isActive?: boolean },
+  ): Promise<CategoryView> {
     return this.tenant(auth, async (tx) => {
       const [category] = await tx
         .update(categories)
-        .set({ name, updatedAt: sql`now()` })
+        .set({ ...input, updatedAt: sql`now()` })
         .where(eq(categories.id, categoryId))
         .returning();
       if (!category) throw new NotFoundException('Category not found');
@@ -269,9 +288,23 @@ export class CatalogService {
   ): Promise<ProductView> {
     const { gstRatePercent, ...fields } = input;
     return this.tenant(auth, async (tx) => {
-      if (fields.brandId) await this.assertBrand(tx, fields.brandId);
-      if (fields.categoryId) await this.assertCategory(tx, fields.categoryId);
-      const updated = await tx
+      const [current] = await tx
+        .select({ brandId: products.brandId, categoryId: products.categoryId })
+        .from(products)
+        .where(eq(products.id, productId));
+      if (!current) throw new NotFoundException('Product not found');
+      // A product may not move to, or come back to life under, an inactive brand or category.
+      const reactivating = fields.isActive === true;
+      if (fields.brandId || reactivating) {
+        await this.assertBrand(tx, fields.brandId ?? current.brandId);
+      }
+      if (fields.categoryId || reactivating) {
+        await this.assertCategory(
+          tx,
+          fields.categoryId === undefined ? current.categoryId : fields.categoryId,
+        );
+      }
+      await tx
         .update(products)
         .set({
           ...fields,
@@ -280,9 +313,7 @@ export class CatalogService {
             : { gstRateBps: percentToBasisPoints(gstRatePercent) }),
           updatedAt: sql`now()`,
         })
-        .where(eq(products.id, productId))
-        .returning({ id: products.id });
-      if (updated.length === 0) throw new NotFoundException('Product not found');
+        .where(eq(products.id, productId));
       return this.productView(tx, productId);
     });
   }
@@ -316,8 +347,11 @@ export class CatalogService {
     });
   }
 
-  /** Finds the variant for a scanned barcode or a typed SKU (for the counter). */
-  lookup(auth: AuthContext, code: string): Promise<LookupResult> {
+  /**
+   * Finds the variant for a scanned barcode or a typed SKU (for the counter).
+   * Discontinued packs and products are left out unless `includeInactive`.
+   */
+  lookup(auth: AuthContext, code: string, includeInactive: boolean): Promise<LookupResult> {
     return this.tenant(auth, async (tx) => {
       const [byBarcode] = await tx
         .select({ variantId: productBarcodes.variantId })
@@ -336,10 +370,11 @@ export class CatalogService {
         .select()
         .from(productBarcodes)
         .where(eq(productBarcodes.variantId, variant.id));
-      return {
-        product: await this.productView(tx, variant.productId),
-        variant: toVariant(variant, barcodeRows),
-      };
+      const product = await this.productView(tx, variant.productId);
+      if (!includeInactive && !(variant.isActive && product.isActive)) {
+        throw new NotFoundException('This product is discontinued');
+      }
+      return { product, variant: toVariant(variant, barcodeRows) };
     });
   }
 
@@ -376,18 +411,29 @@ export class CatalogService {
     );
   }
 
+  /** The brand exists and is active (products cannot be added to an inactive one). */
   private async assertBrand(tx: Transaction, brandId: string): Promise<void> {
-    const [brand] = await tx.select({ id: brands.id }).from(brands).where(eq(brands.id, brandId));
+    const [brand] = await tx
+      .select({ isActive: brands.isActive })
+      .from(brands)
+      .where(eq(brands.id, brandId));
     if (!brand) throw new BadRequestException('Unknown brand');
+    if (!brand.isActive) throw new BadRequestException(INACTIVE_BRAND);
   }
 
+  /** The category, and its parent if it has one, exist and are active. */
   private async assertCategory(tx: Transaction, categoryId: string | null): Promise<void> {
     if (categoryId === null) return;
+    const parent = alias(categories, 'parent');
     const [category] = await tx
-      .select({ id: categories.id })
+      .select({ isActive: categories.isActive, parentActive: parent.isActive })
       .from(categories)
+      .leftJoin(parent, eq(parent.id, categories.parentId))
       .where(eq(categories.id, categoryId));
     if (!category) throw new BadRequestException('Unknown category');
+    if (!category.isActive || category.parentActive === false) {
+      throw new BadRequestException(INACTIVE_CATEGORY);
+    }
   }
 
   private async insertVariant(

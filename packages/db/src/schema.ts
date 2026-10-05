@@ -577,6 +577,8 @@ export const categories = pgTable(
       .references(() => organizations.id, { onDelete: 'restrict' }),
     parentId: uuid('parent_id'),
     name: text('name').notNull(),
+    /** Inactive categories keep their products but take no new ones. */
+    isActive: boolean('is_active').notNull().default(true),
     ...timestamps,
   },
   (table) => [

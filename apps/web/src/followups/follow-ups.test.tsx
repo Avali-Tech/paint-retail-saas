@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { Member } from '../api/types.js';
+import type { Member } from '../api/team.js';
 import { CASHIER, OWNER, json, profile, type FakeRequest } from '../test-support/fake-api.js';
 import {
   FOLLOW_UP,
@@ -16,7 +16,10 @@ const member = (id: string, userId: string, fullName: string, isActive = true): 
   id,
   user: { id: userId, fullName, phone: null, email: null },
   role: { id: 'r1', key: 'sales_executive', name: 'Sales Executive' },
+  allStores: true,
+  storeIds: [],
   isActive,
+  twoFactorEnabled: false,
 });
 const MEMBERS: Member[] = [
   member('member-1', 'user-1', 'Anil Kumar'),

@@ -1,7 +1,7 @@
 import { SYSTEM_ROLES } from '@paint/shared';
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { Member } from '../api/types.js';
+import type { Member } from '../api/team.js';
 import { OWNER, json, profile } from '../test-support/fake-api.js';
 import { CONTRACT, DRAFT, ENDED } from '../test-support/contract-fixtures.js';
 import { PARTY } from '../test-support/party-fixtures.js';
@@ -39,7 +39,10 @@ const member = (id: string, userId: string, fullName: string, isActive = true): 
   id,
   user: { id: userId, fullName, phone: null, email: null },
   role: { id: 'r1', key: 'crm_executive', name: 'CRM Executive' },
+  allStores: true,
+  storeIds: [],
   isActive,
+  twoFactorEnabled: false,
 });
 const MEMBERS = [
   member('member-1', 'user-1', 'Anil Kumar'),
