@@ -16,7 +16,7 @@ describe('visibleNav', () => {
   it('shows each section only with its permission', () => {
     expect(visibleNav(() => true)).toEqual(NAV_ITEMS);
     expect(visibleNav((permission) => permission === 'leads:read').map((item) => item.key)).toEqual(
-      ['leads'],
+      ['leads', 'followUps', 'reports'],
     );
     // Imports need any one of the permissions to change what they import.
     expect(
@@ -98,10 +98,12 @@ describe('navigation by role', () => {
       'Leads',
       'Projects',
       'Contracts',
+      'Follow-ups',
       'Credit requests',
       'Credit rules',
       'Loyalty programme',
       'Import data',
+      'Reports',
       'Appearance',
       // Everyone's own sign-in settings, next to signing out.
       'Account security',
@@ -121,7 +123,15 @@ describe('navigation by role', () => {
       within(found(sidebar))
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['Dashboard', 'Customers', 'Products', 'Stock', 'Account security']);
+    ).toEqual([
+      'Dashboard',
+      'Customers',
+      'Products',
+      'Stock',
+      'Follow-ups',
+      'Reports',
+      'Account security',
+    ]);
   });
 
   it('opens the first allowed section, or follow-ups when there is none', async () => {
@@ -132,7 +142,7 @@ describe('navigation by role', () => {
 
   it('opens follow-ups for a member with no sections', async () => {
     renderApp({ routes: { 'GET /auth/me': () => json(profile([])) } });
-    await screen.findByText('Coming soon');
+    await screen.findByRole('heading', { name: 'My follow-ups', level: 1 });
     expect(location()).toBe('/follow-ups');
   });
 
@@ -155,10 +165,12 @@ describe('navigation by role', () => {
       'Leads',
       'Projects',
       'Contracts',
+      'Follow-ups',
       'Credit requests',
       'Credit rules',
       'Loyalty programme',
       'Import data',
+      'Reports',
       'Appearance',
       'Account security',
     ]);

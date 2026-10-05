@@ -89,8 +89,8 @@ history ending today: opening stock, purchase orders and goods receipts (with sc
 transfers in every state, a stock count, damage and adjustments, low stock, leads, opportunities,
 projects, follow-ups due today and overdue, contracts (one renewing this month), credit (one
 account on hold, one near its limit, requests waiting), loyalty tiers and points, notifications and
-its own brand colours. Leads, opportunities, projects, contracts and follow-ups are seeded too and
-show on the dashboard; their own screens are still to come.
+its own brand colours. Leads, opportunities and projects are seeded too and show on the dashboard;
+their own screens are still to come. Follow-ups, contracts, documents and reports have their screens.
 
 **On a fresh Mac** (once):
 
@@ -190,7 +190,14 @@ offline-ready first paint.
 type and the duplicate warning), the customer 360 (`/parties/:id`: contact, credit, loyalty points
 and history, activities, leads, opportunities, projects, contracts, documents), credit requests
 (`/credit-requests`), credit rules (`/settings/credit`) and the loyalty programme
-(`/settings/loyalty`). Actions show only to roles that may use them. Each screen is its own chunk
+(`/settings/loyalty`), my follow-ups (`/follow-ups`: overdue, today and upcoming in India time; mark
+done with the outcome and the next step, reschedule; managers pick a colleague and a store), a
+record's activity timeline (`/activities`: type, person and date filters), contracts (`/contracts`:
+type, status, party and "renewal due in N days" filters; create, edit, activate, terminate with a
+reason, renew; their documents), reports (`/reports`: each report's filters, a paged table and CSV)
+and documents on the customer 360 and contracts (`src/documents/DocumentsPanel.tsx`, for any record
+type: upload checked before sending, download under the server's file name, delete). Actions show
+only to roles that may use them. Each screen is its own chunk
 (`React.lazy`), loaded when first opened. Features keep their routes (`src/<feature>/routes.tsx`),
 navigation entries (`src/<feature>/nav.ts`) and messages (`src/i18n/en-<feature>.ts`) in their own
 files.
@@ -205,7 +212,10 @@ End-to-end tests (`apps/web/e2e`) start a throwaway PostgreSQL with Testcontaine
 (migrating on start, `SMS_PROVIDER=log` so the OTP test reads codes from its log) and `vite preview`,
 then drive Chromium on desktop and phone (Pixel 5) viewports, including axe WCAG AA checks. First run:
 `pnpm --filter @paint/web exec playwright install chromium`. They run in CI as their own job, not in
-`pnpm verify`.
+`pnpm verify`. Document uploads need a virus scanner: by default the e2e stack has none, like
+`pnpm demo` without `--clamav`, and the tests check that uploads are refused with a clear message;
+`E2E_CLAMAV=1 pnpm test:e2e` also starts S3-compatible storage and ClamAV and runs the full upload,
+download and delete flow (about 1.5 GB of memory and a minute or two more).
 
 ## API
 

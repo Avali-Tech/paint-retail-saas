@@ -179,6 +179,6 @@ test('the customer 360 gathers leads, projects, contracts and activities', async
   const activities = page.getByRole('region', { name: 'Activities' });
   await expect(activities).toContainText('Next follow-up: Call about the quote · 15 Jan 2027');
   await expect(activities).toContainText('Site visit');
-  await expect(page.getByRole('region', { name: 'Documents' })).toContainText('Nothing yet');
+  await expect(page.getByRole('region', { name: 'Documents' })).toContainText('No documents yet');
   await expectUsable(page);
 });

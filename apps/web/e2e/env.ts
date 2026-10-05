@@ -9,5 +9,8 @@ export const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 4999);
 export const API_URL = `http://127.0.0.1:${String(API_PORT)}`;
 export const WEB_URL = `http://localhost:${String(WEB_PORT)}`;
 
+/** E2E_CLAMAV=1 runs real storage and ClamAV, so documents can be uploaded (see global-setup.ts). */
+export const SCANNER_ON = process.env.E2E_CLAMAV === '1';
+
 /** The API's console output; one-time sign-in codes are read from it (SMS_PROVIDER=log). */
 export const API_LOG = join(import.meta.dirname, '..', 'test-results', 'api.log');

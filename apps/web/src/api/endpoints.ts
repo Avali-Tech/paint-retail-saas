@@ -1,11 +1,15 @@
 import type { QuickAction } from '@paint/shared';
 import { catalogEndpoints } from './catalog.js';
 import type { ApiClient } from './client.js';
+import { contractEndpoints } from './contracts.js';
 import { creditEndpoints } from './credit.js';
+import { documentEndpoints } from './documents.js';
+import { followUpEndpoints } from './follow-ups.js';
 import { importEndpoints } from './imports.js';
 import { loyaltyEndpoints } from './loyalty.js';
 import { partyEndpoints } from './parties.js';
 import { purchasingEndpoints } from './purchasing.js';
+import { reportEndpoints } from './reports.js';
 import { stockCountEndpoints } from './stock-counts.js';
 import { stockEndpoints } from './stock.js';
 import { transferEndpoints } from './transfers.js';
@@ -88,6 +92,10 @@ export function endpoints(api: ApiClient) {
     stockCounts: stockCountEndpoints(api),
     purchasing: purchasingEndpoints(api),
     imports: importEndpoints(api),
+    followUps: followUpEndpoints(api),
+    contracts: contractEndpoints(api),
+    documents: documentEndpoints(api),
+    reports: reportEndpoints(api),
   };
 }
 
