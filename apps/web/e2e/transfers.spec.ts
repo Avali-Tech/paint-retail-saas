@@ -1,7 +1,15 @@
 import { expect, test } from '@playwright/test';
 import { expectUsable } from './checks.js';
 import { createProduct, openingStock } from './inventory-support.js';
-import { call, createBusiness, signInWithPassword, type Business } from './support.js';
+import {
+  PASSWORD,
+  addMember,
+  call,
+  createBusiness,
+  signInWithPassword,
+  uniquePhone,
+  type Business,
+} from './support.js';
 
 /** A business with Apex Ultima 1 l: 20 in Hyderabad at ₹400 each, none in Pune. */
 async function stocked(name: string) {
@@ -84,6 +92,35 @@ test('a store requests stock, the other approves and dispatches, and it arrives'
 
   await page.goto('/transfers');
   await expect(page.getByRole('table', { name: 'Transfers' })).toContainText('Received');
+});
+
+test('staff at one store ask another store of the business for stock', async ({ page }) => {
+  const { business } = await stocked('One Store Transfer Paints');
+  const phone = uniquePhone();
+  // Works at Hyderabad only.
+  await addMember(business, 'inventory_manager', {
+    fullName: 'Hyd Stock Keeper',
+    phone,
+    password: PASSWORD,
+  });
+  await signInWithPassword(page, phone);
+  await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+
+  await page.goto('/transfers/new');
+  const from = page.getByRole('combobox', { name: 'From store' });
+  const to = page.getByRole('combobox', { name: 'To store' });
+  await expect(from.getByRole('option', { name: 'PUN · Pune' })).toBeAttached();
+  await expect(to.getByRole('option', { name: 'PUN · Pune' })).toHaveCount(0);
+  await to.selectOption({ label: 'HYD · Hyderabad' });
+  await from.selectOption({ label: 'PUN · Pune' });
+  await page.getByRole('searchbox', { name: 'Add a product' }).fill('Apex');
+  await page.getByRole('button', { name: 'Add APX-1L' }).click();
+  await page.getByRole('textbox', { name: 'Quantity of APX-1L' }).fill('2');
+  await expectUsable(page);
+  await page.getByRole('button', { name: 'Send request' }).click();
+
+  await expect(page.getByRole('heading', { name: 'TR-000001', level: 1 })).toBeVisible();
+  await expect(page.getByText('From PUN · Pune to HYD · Hyderabad')).toBeVisible();
 });
 
 test('a transfer reads well on a phone @phone', async ({ page }) => {

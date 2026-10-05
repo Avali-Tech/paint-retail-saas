@@ -207,8 +207,16 @@ test('an owner relaxes the business rule, turns their app off and resets a membe
   const account = page.getByRole('region', { name: 'Two-factor sign-in' });
   await expect(account.getByRole('button', { name: 'Add an authenticator app' })).toBeVisible();
 
-  const team = page.getByRole('region', { name: 'Team two-factor sign-in' });
-  await team.getByRole('button', { name: 'Reset two-factor for Suresh Counter' }).click();
+  // Resets live on each member's page under Team.
+  await page
+    .getByRole('region', { name: 'Team two-factor sign-in' })
+    .getByRole('link', { name: 'Open the team' })
+    .click();
+  await page.getByRole('link', { name: 'Suresh Counter' }).click();
+  await page
+    .getByRole('region', { name: 'Two-factor sign-in' })
+    .getByRole('button', { name: 'Reset two-factor' })
+    .click();
   const dialog = page.getByRole('dialog', {
     name: 'Reset two-factor sign-in for Suresh Counter?',
   });

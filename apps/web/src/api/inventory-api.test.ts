@@ -62,7 +62,7 @@ describe('catalogue, stock and purchasing endpoints', () => {
       catalog.renameCategory('c1', 'Enamels'),
       catalog.products({ q: 'apex' }),
       catalog.product('p1'),
-      catalog.lookup('8901234567890'),
+      catalog.lookup('8901234567890', true),
       catalog.createProduct({
         brandId: 'b1',
         name: 'Apex',
@@ -76,6 +76,7 @@ describe('catalogue, stock and purchasing endpoints', () => {
       catalog.updateVariant('v1', { mrpPaise: 100 }),
 
       stock.stores(),
+      stock.storeDirectory(),
       stock.balances({ storeId: 's1' }),
       stock.record({ storeId: 's1', type: 'opening', lines: [line] }),
       stock.low({ storeId: 's1', limit: 100, offset: 0 }),
@@ -146,6 +147,7 @@ describe('catalogue, stock and purchasing endpoints', () => {
       'POST /products/p1/variants',
       'PATCH /variants/v1',
       'GET /stores',
+      'GET /stores/directory',
       'GET /stock',
       'POST /stock/movements',
       'GET /stock/low',

@@ -37,6 +37,12 @@ export interface CountSummary {
   readonly absoluteVarianceValuePaise: number;
 }
 
+/** A team member named on a count. */
+export interface CountPerson {
+  readonly memberId: string;
+  readonly name: string;
+}
+
 export interface StockCount {
   readonly id: string;
   readonly number: string;
@@ -46,6 +52,9 @@ export interface StockCount {
   readonly scopeId: string | null;
   readonly note: string | null;
   readonly closingReason: string | null;
+  readonly startedBy: CountPerson;
+  /** Who submitted it for approval; null while counting. */
+  readonly submittedBy: CountPerson | null;
   readonly startedAt: string;
   readonly submittedAt: string | null;
   readonly approvedAt: string | null;

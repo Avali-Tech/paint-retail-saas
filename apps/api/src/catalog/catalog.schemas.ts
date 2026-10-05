@@ -50,7 +50,9 @@ export const updateBrandSchema = z
   .refine((body) => Object.keys(body).length > 0, { message: 'Nothing to change' });
 
 export const categorySchema = z.object({ name, parentId: z.uuid().optional() });
-export const updateCategorySchema = z.object({ name });
+export const updateCategorySchema = z
+  .object({ name: name.optional(), isActive: z.boolean().optional() })
+  .refine((body) => Object.keys(body).length > 0, { message: 'Nothing to change' });
 
 export const variantSchema = z
   .object({
@@ -103,18 +105,24 @@ export const updateProductSchema = z
   .refine((body) => Object.keys(body).length > 0, { message: 'Nothing to change' });
 export type UpdateProductInput = z.output<typeof updateProductSchema>;
 
+const includeInactive = z
+  .enum(['true', 'false'])
+  .default('false')
+  .transform((v) => v === 'true');
+
 export const listProductsSchema = z.object({
   q: z.string().trim().min(1).max(100).optional(),
   brandId: z.uuid().optional(),
   categoryId: z.uuid().optional(),
   type: z.enum(PRODUCT_TYPES).optional(),
-  includeInactive: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((v) => v === 'true'),
+  includeInactive,
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
 export type ListProductsQuery = z.output<typeof listProductsSchema>;
 
-export const lookupSchema = z.object({ code: z.string().trim().min(1).max(64) });
+export const lookupSchema = z.object({
+  code: z.string().trim().min(1).max(64),
+  /** Also find discontinued packs and products (e.g. when counting stock still on the shelf). */
+  includeInactive,
+});

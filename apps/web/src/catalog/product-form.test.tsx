@@ -33,7 +33,7 @@ describe('initialValues', () => {
       initialValues(
         product({
           description: 'Tough',
-          category: { id: 'cat-emulsion', name: 'Emulsions', parentId: null },
+          category: { id: 'cat-emulsion', name: 'Emulsions', parentId: null, isActive: true },
         }),
       ),
     ).toEqual({

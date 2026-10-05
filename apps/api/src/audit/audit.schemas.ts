@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 /** The audited tables, by the area of the product they belong to. */
 export const AUDIT_AREAS = {
-  product_variants: 'Product prices',
+  product_variants: 'Product prices and pack sizes',
+  products: 'Products',
+  brands: 'Brands',
+  categories: 'Categories',
   roles: 'Roles',
   role_permissions: 'Role permissions',
   organization_members: 'Member access',

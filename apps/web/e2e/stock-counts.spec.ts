@@ -1,7 +1,15 @@
 import { expect, test } from '@playwright/test';
 import { expectUsable } from './checks.js';
 import { createProduct, openingStock } from './inventory-support.js';
-import { call, createBusiness, signInWithPassword, type Business } from './support.js';
+import {
+  PASSWORD,
+  addMember,
+  call,
+  createBusiness,
+  signInWithPassword,
+  uniquePhone,
+  type Business,
+} from './support.js';
 
 /** Hyderabad holds 10 of Apex 1 l and 3 of Apex 4 l. */
 async function stocked(name: string) {
@@ -87,6 +95,36 @@ test('a store is counted by scanning, submitted and approved with reasons', asyn
   expect(await onHand(business, 'APX-4L')).toBe(0);
   await page.goto('/stock-counts');
   await expect(page.getByRole('table', { name: 'Accuracy by store' })).toContainText('SC-000001');
+});
+
+test('whoever submits a count leaves the approval to someone else', async ({ page }) => {
+  const business = await stocked('Own Count Paints');
+  const phone = uniquePhone();
+  await addMember(business, 'inventory_manager', {
+    fullName: 'Hyd Counter',
+    phone,
+    password: PASSWORD,
+  });
+  await signInWithPassword(page, phone);
+  await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+
+  await page.goto('/stock-counts/new');
+  await page.getByRole('combobox', { name: 'Store' }).selectOption({ label: 'HYD · Hyderabad' });
+  await page.getByRole('button', { name: 'Start count' }).click();
+  await expect(page.getByRole('heading', { name: 'SC-000001', level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: 'Submit for approval SC-000001' }).click();
+  const submit = page.getByRole('dialog', { name: 'Submit SC-000001' });
+  await submit.getByRole('checkbox', { name: /Count what is left as zero/ }).check();
+  await submit.getByRole('button', { name: 'Submit for approval' }).click();
+  await expect(page.getByText('Count submitted')).toBeVisible();
+
+  await expect(
+    page.getByText('You submitted this count, so someone else at the store approves it.'),
+  ).toBeVisible();
+  await expect(page.getByText(/Submitted .* · Hyd Counter/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Approve SC-000001' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Recount' })).toBeVisible();
+  await expectUsable(page);
 });
 
 test('counting on a phone @phone', async ({ page }) => {

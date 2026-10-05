@@ -339,6 +339,8 @@ export class PartiesService {
         message: byPhone
           ? 'A party with this mobile number already exists'
           : 'A party with this GSTIN already exists',
+        /** Which field matched, for the duplicate warning. */
+        field: byPhone ? 'phone' : 'gstin',
         existingPartyId: existing?.id,
       });
     }

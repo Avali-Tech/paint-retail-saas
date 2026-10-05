@@ -211,6 +211,110 @@ describe('categories', () => {
   });
 });
 
+describe('catalogue lifecycle', () => {
+  const create = (overrides: object) =>
+    api(owner).post('/products', {
+      name: `Life ${String(next())}`,
+      type: 'interior_paint',
+      hsnCode: '3209',
+      gstRatePercent: 18,
+      variants: [{ sku: `LIFE-${String(next())}`, packSize: 1, unit: 'l' }],
+      ...overrides,
+    });
+  const message = (response: { json: () => unknown }) =>
+    (response.json() as { message: string }).message;
+
+  it('deactivates and reactivates a category, which lists with its status', async () => {
+    const id = await category(`Seasonal ${String(next())}`);
+
+    const off = await api(owner).patch(`/categories/${id}`, { isActive: false });
+    const list = (await api(owner).get('/categories')).json<{ id: string; isActive: boolean }[]>();
+    const on = await api(owner).patch(`/categories/${id}`, { isActive: true });
+
+    expect(off.json()).toMatchObject({ id, isActive: false });
+    expect(list.find((c) => c.id === id)?.isActive).toBe(false);
+    expect(on.json()).toMatchObject({ id, isActive: true });
+    expect((await api(owner).patch(`/categories/${id}`, {})).statusCode).toBe(400);
+    expect(
+      (await api(storeEmployee).patch(`/categories/${id}`, { isActive: false })).statusCode,
+    ).toBe(403);
+  });
+
+  it('refuses new products under an inactive brand, category or parent category', async () => {
+    const brandId = await brand();
+    const retiredBrand = await brand();
+    await api(owner).patch(`/brands/${retiredBrand}`, { isActive: false });
+    const retired = await category(`Retired ${String(next())}`);
+    await api(owner).patch(`/categories/${retired}`, { isActive: false });
+    const parent = await category(`Parent ${String(next())}`);
+    const child = await category(`Child ${String(next())}`, parent);
+    await api(owner).patch(`/categories/${parent}`, { isActive: false });
+
+    const underBrand = await create({ brandId: retiredBrand });
+    const underCategory = await create({ brandId, categoryId: retired });
+    const underParent = await create({ brandId, categoryId: child });
+    const subcategory = await api(owner).post('/categories', { name: 'New', parentId: parent });
+
+    expect(underBrand.statusCode).toBe(400);
+    expect(message(underBrand)).toBe('This brand is inactive. Reactivate it first.');
+    expect(underCategory.statusCode).toBe(400);
+    expect(message(underCategory)).toBe('This category is inactive. Reactivate it first.');
+    expect(underParent.statusCode).toBe(400);
+    expect(subcategory.statusCode).toBe(400);
+    expect(message(subcategory)).toBe('This category is inactive. Reactivate it first.');
+  });
+
+  it('refuses moving a product to an inactive brand or category, or reactivating it under one', async () => {
+    const brandId = await brand();
+    const categoryId = await category(`Moving ${String(next())}`);
+    const created = (await create({ brandId, categoryId })).json<Product>();
+    const retiredBrand = await brand();
+    await api(owner).patch(`/brands/${retiredBrand}`, { isActive: false });
+    const retired = await category(`Gone ${String(next())}`);
+    await api(owner).patch(`/categories/${retired}`, { isActive: false });
+
+    expect(
+      (await api(owner).patch(`/products/${created.id}`, { brandId: retiredBrand })).statusCode,
+    ).toBe(400);
+    expect(
+      (await api(owner).patch(`/products/${created.id}`, { categoryId: retired })).statusCode,
+    ).toBe(400);
+
+    // Discontinue it, then retire its brand: it cannot come back until the brand does.
+    await api(owner).patch(`/products/${created.id}`, { isActive: false });
+    await api(owner).patch(`/brands/${brandId}`, { isActive: false });
+    const blocked = await api(owner).patch(`/products/${created.id}`, { isActive: true });
+    await api(owner).patch(`/brands/${brandId}`, { isActive: true });
+    await api(owner).patch(`/categories/${categoryId}`, { isActive: false });
+    const blockedByCategory = await api(owner).patch(`/products/${created.id}`, {
+      isActive: true,
+    });
+    // Reactivating while clearing the category is fine.
+    const back = await api(owner).patch(`/products/${created.id}`, {
+      isActive: true,
+      categoryId: null,
+    });
+
+    expect(message(blocked)).toBe('This brand is inactive. Reactivate it first.');
+    expect(message(blockedByCategory)).toBe('This category is inactive. Reactivate it first.');
+    expect(back.json()).toMatchObject({ isActive: true, category: null });
+  });
+
+  it('still edits a product whose brand was retired, and deactivates pack sizes', async () => {
+    const brandId = await brand();
+    const created = (await create({ brandId })).json<Product>();
+    await api(owner).patch(`/brands/${brandId}`, { isActive: false });
+
+    const renamed = await api(owner).patch(`/products/${created.id}`, { name: 'Still Sold' });
+    const pack = await api(owner).patch(`/variants/${String(created.variants[0]?.id)}`, {
+      isActive: false,
+    });
+
+    expect(renamed.statusCode).toBe(200);
+    expect(pack.json<Product>().variants[0]?.isActive).toBe(false);
+  });
+});
+
 describe('POST /products', () => {
   it('creates a product family with its pack sizes, prices and barcodes', async () => {
     const asian = await brand('Asian Paints Pro');
@@ -650,6 +754,30 @@ describe('GET /products/lookup', () => {
     expect(byBarcode.product.id).toBe(created.id);
     expect(byBarcode.variant.id).toBe(variant?.id);
     expect(bySku.json<{ variant: Variant }>().variant.id).toBe(variant?.id);
+  });
+
+  it('leaves out discontinued packs and products unless asked to include them', async () => {
+    const packGone = await product();
+    const productGone = await product();
+    const packSku = String(packGone.variants[0]?.sku);
+    const productSku = String(productGone.variants[0]?.sku);
+    await api(owner).patch(`/variants/${String(packGone.variants[0]?.id)}`, { isActive: false });
+    await api(owner).patch(`/products/${productGone.id}`, { isActive: false });
+
+    const lookup = (code: string, query = '') =>
+      api(storeEmployee).get(`/products/lookup?code=${code}${query}`);
+
+    expect((await lookup(packSku)).statusCode).toBe(404);
+    expect((await lookup(packSku)).json<{ message: string }>().message).toBe(
+      'This product is discontinued',
+    );
+    expect((await lookup(productSku)).statusCode).toBe(404);
+    expect((await lookup(productSku, '&includeInactive=true')).statusCode).toBe(200);
+    expect(
+      (await lookup(packSku, '&includeInactive=true')).json<{ variant: Variant }>().variant
+        .isActive,
+    ).toBe(false);
+    expect((await lookup(packSku, '&includeInactive=maybe')).statusCode).toBe(400);
   });
 
   it('answers 404 for an unknown code and 400 without one', async () => {

@@ -204,12 +204,12 @@ export const productsImporter: Importer<ProductRow> = {
     // What already exists.
     const values = checked.map((parsed) => parsed.value);
     const brandRows = await tx
-      .select({ id: brands.id, name: brands.name })
+      .select({ id: brands.id, name: brands.name, isActive: brands.isActive })
       .from(brands)
       .where(inArray(sql`lower(${brands.name})`, unique(values.map((v) => lower(v.brand)))));
     const brandIds = new Map(brandRows.map((brand) => [lower(brand.name), brand.id]));
     const categoryRows = await tx
-      .select({ id: categories.id, name: categories.name })
+      .select({ id: categories.id, name: categories.name, isActive: categories.isActive })
       .from(categories)
       .where(
         and(
@@ -222,6 +222,10 @@ export const productsImporter: Importer<ProductRow> = {
       );
     const categoryIds = new Map(
       categoryRows.map((category) => [lower(category.name), category.id]),
+    );
+    // Inactive brands and categories take no new products (existing ones can still be updated).
+    const inactive = new Set(
+      [...brandRows, ...categoryRows].filter((row) => !row.isActive).map((row) => row.id),
     );
     const productRows = await tx
       .select()
@@ -293,6 +297,13 @@ export const productsImporter: Importer<ProductRow> = {
       const product = existingProduct(value);
       const match = variantsBySku.get(value.sku);
       const problems: [string, string][] = [];
+      if (!product && inactive.has(String(brandIds.get(lower(value.brand))))) {
+        problems.push(['brand', `${value.brand} is inactive. Reactivate it first.`]);
+      }
+      const categoryId = family.category && categoryIds.get(lower(family.category));
+      if (categoryId && inactive.has(categoryId) && categoryId !== product?.categoryId) {
+        problems.push(['category', `${String(family.category)} is inactive. Reactivate it first.`]);
+      }
       if (match && match.variant.productId !== product?.id) {
         problems.push([
           'sku',

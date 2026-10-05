@@ -65,6 +65,8 @@ const api = (token: string) => ({
   get: (url: string) => t.app.inject({ method: 'GET', url, headers: bearer(token) }),
   post: (url: string, payload: object = {}) =>
     t.app.inject({ method: 'POST', url, headers: bearer(token), payload }),
+  patch: (url: string, payload: object) =>
+    t.app.inject({ method: 'PATCH', url, headers: bearer(token), payload }),
 });
 
 const preview = (kind: string, csv: string, token = owner) =>
@@ -634,6 +636,49 @@ describe('products', () => {
     expect(report(response).rows).toEqual([expect.objectContaining({ row: 6, action: 'create' })]);
     // The existing MRP (₹650) still applies when only the price is given.
     expect(errorsOf(priced)).toEqual([[2, 'selling_price', 'Selling price cannot exceed the MRP']]);
+  });
+
+  it('adds no products to an inactive brand or category, but still updates existing ones', async () => {
+    const { brand, sku } = names();
+    const kept = `Imp Kept ${sku}`;
+    const retired = `Imp Retired ${sku}`;
+    const row = (product: string, code: string, category: string, price = '') => [
+      brand,
+      product,
+      'exterior_paint',
+      '3209',
+      '18',
+      code,
+      '1',
+      'l',
+      category,
+      '',
+      '',
+      price,
+      '',
+    ];
+    await commit('products', productsCsv(row('Apex', `${sku}-1L`, kept)));
+    await api(owner).post('/categories', { name: retired });
+    const brands = (await api(owner).get('/brands')).json<{ id: string; name: string }[]>();
+    const categories = (await api(owner).get('/categories')).json<{ id: string; name: string }[]>();
+    const idOf = (list: { id: string; name: string }[], name: string) =>
+      String(list.find((item) => item.name === name)?.id);
+    await api(owner).patch(`/brands/${idOf(brands, brand)}`, { isActive: false });
+    await api(owner).patch(`/categories/${idOf(categories, kept)}`, { isActive: false });
+    await api(owner).patch(`/categories/${idOf(categories, retired)}`, { isActive: false });
+
+    const newProduct = await preview('products', productsCsv(row('Ace', `${sku}-ACE`, '')));
+    const moved = await preview('products', productsCsv(row('Apex', `${sku}-1L`, retired)));
+    const repriced = await preview('products', productsCsv(row('Apex', `${sku}-1L`, kept, '500')));
+
+    expect(errorsOf(newProduct)).toEqual([
+      [2, 'brand', `${brand} is inactive. Reactivate it first.`],
+    ]);
+    expect(errorsOf(moved)).toEqual([
+      [2, 'category', `${retired} is inactive. Reactivate it first.`],
+    ]);
+    expect(errorsOf(repriced)).toEqual([]);
+    expect(report(repriced).rows).toEqual([expect.objectContaining({ row: 2, action: 'update' })]);
   });
 });
 

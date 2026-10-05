@@ -87,12 +87,12 @@ export class CatalogController {
 
   @Patch('categories/:id')
   @RequirePermissions('catalog:manage')
-  renameCategory(
+  updateCategory(
     @CurrentAuth() auth: AuthContext,
     @Param('id', id()) categoryId: string,
-    @Body(new ZodValidationPipe(updateCategorySchema)) body: { name: string },
+    @Body(new ZodValidationPipe(updateCategorySchema)) body: { name?: string; isActive?: boolean },
   ): Promise<CategoryView> {
-    return this.catalog.renameCategory(auth, categoryId, body.name);
+    return this.catalog.updateCategory(auth, categoryId, body);
   }
 
   @Get('products')
@@ -108,9 +108,9 @@ export class CatalogController {
   @RequirePermissions('catalog:read')
   lookup(
     @CurrentAuth() auth: AuthContext,
-    @Query(new ZodValidationPipe(lookupSchema)) query: { code: string },
+    @Query(new ZodValidationPipe(lookupSchema)) query: { code: string; includeInactive: boolean },
   ): Promise<LookupResult> {
-    return this.catalog.lookup(auth, query.code);
+    return this.catalog.lookup(auth, query.code, query.includeInactive);
   }
 
   @Get('products/:id')
