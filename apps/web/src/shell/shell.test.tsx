@@ -102,6 +102,7 @@ describe('navigation by role', () => {
       'Credit rules',
       'Loyalty programme',
       'Import data',
+      'Team',
       'Appearance',
       // Everyone's own sign-in settings, next to signing out.
       'Account security',
@@ -159,6 +160,7 @@ describe('navigation by role', () => {
       'Credit rules',
       'Loyalty programme',
       'Import data',
+      'Team',
       'Appearance',
       'Account security',
     ]);

@@ -7,7 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { schema, type DatabaseConnection, type Transaction } from '@paint/db';
-import type { PendingSignIn } from '@paint/shared';
+import type { PendingSignIn, TwoFactorError, TwoFactorErrorCode } from '@paint/shared';
 import { and, eq, gt, isNotNull, isNull, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.module.js';
 import { AUTH_SETTINGS, type AuthSettings } from './auth.tokens.js';
@@ -34,8 +34,29 @@ export interface Enrolment {
 
 const INVALID = 'Invalid or expired sign-in';
 const WRONG_CODE = 'Wrong code';
+const TOO_MANY = 'Too many wrong codes. Sign in again.';
 export const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 export const CHALLENGE_MAX_ATTEMPTS = 5;
+
+const MESSAGES: Record<TwoFactorErrorCode, string> = {
+  wrong_code: WRONG_CODE,
+  expired: INVALID,
+  too_many_attempts: TOO_MANY,
+};
+
+/** A refused two-factor step: 401 with a machine-readable `code` beside the message. */
+export function twoFactorRefusal(
+  code: TwoFactorErrorCode,
+  attemptsRemaining?: number,
+): UnauthorizedException {
+  const body: TwoFactorError = {
+    statusCode: 401,
+    message: MESSAGES[code],
+    code,
+    ...(attemptsRemaining === undefined ? {} : { attemptsRemaining }),
+  };
+  return new UnauthorizedException(body);
+}
 
 /**
  * Two-factor sign-in with an authenticator app (TOTP): enrolment, recovery
@@ -155,7 +176,7 @@ export class TwoFactorService {
   /** The person a pending sign-in belongs to, while it is still usable. */
   async pending(pendingToken: string): Promise<{ userId: string; organizationId: string | null }> {
     const [challenge] = await this.openChallenges(this.connection.db, pendingToken);
-    if (!challenge) throw new UnauthorizedException(INVALID);
+    if (!challenge) throw await this.whyClosed(this.connection.db, pendingToken);
     return { userId: challenge.userId, organizationId: challenge.organizationId };
   }
 
@@ -172,9 +193,8 @@ export class TwoFactorService {
     return this.connection.db
       .transaction(async (tx) => {
         const [challenge] = await this.openChallenges(tx, pendingToken).for('update');
-        if (!challenge || (challenge.organizationId === null) !== isPlatform) {
-          throw new UnauthorizedException(INVALID);
-        }
+        if (!challenge) throw await this.whyClosed(tx, pendingToken);
+        if ((challenge.organizationId === null) !== isPlatform) throw twoFactorRefusal('expired');
         const [totp] = await tx
           .select({ confirmedAt: userTotp.confirmedAt })
           .from(userTotp)
@@ -193,26 +213,48 @@ export class TwoFactorService {
             .update(twoFactorChallenges)
             .set({ attempts: sql`${twoFactorChallenges.attempts} + 1` })
             .where(eq(twoFactorChallenges.id, challenge.id));
-          return null;
+          return { wrong: true as const, left: CHALLENGE_MAX_ATTEMPTS - challenge.attempts - 1 };
         }
         await tx
           .update(twoFactorChallenges)
           .set({ consumedAt: sql`now()` })
           .where(eq(twoFactorChallenges.id, challenge.id));
         return {
-          userId: challenge.userId,
-          organizationId: challenge.organizationId,
-          ...(recoveryCodes ? { recoveryCodes } : {}),
+          wrong: false as const,
+          signedIn: {
+            userId: challenge.userId,
+            organizationId: challenge.organizationId,
+            ...(recoveryCodes ? { recoveryCodes } : {}),
+          },
         };
       })
       .then((result) => {
         // Thrown after the transaction commits, so the wasted try is kept.
-        if (result === null) throw new UnauthorizedException(WRONG_CODE);
-        return result;
+        if (!result.wrong) return result.signedIn;
+        throw result.left > 0
+          ? twoFactorRefusal('wrong_code', result.left)
+          : twoFactorRefusal('too_many_attempts', 0);
       });
   }
 
   // Helpers -----------------------------------------------------------------
+
+  /** Why a pending sign-in can no longer be used: its tries are used up, or it expired / was used / never existed. */
+  private async whyClosed(
+    db: Transaction | DatabaseConnection['db'],
+    pendingToken: string,
+  ): Promise<UnauthorizedException> {
+    const [challenge] = await db
+      .select({
+        attempts: twoFactorChallenges.attempts,
+        consumedAt: twoFactorChallenges.consumedAt,
+      })
+      .from(twoFactorChallenges)
+      .where(eq(twoFactorChallenges.tokenHash, hashSessionToken(pendingToken)));
+    return challenge?.consumedAt === null && challenge.attempts >= CHALLENGE_MAX_ATTEMPTS
+      ? twoFactorRefusal('too_many_attempts', 0)
+      : twoFactorRefusal('expired');
+  }
 
   private openChallenges(db: Transaction | DatabaseConnection['db'], pendingToken: string) {
     return db

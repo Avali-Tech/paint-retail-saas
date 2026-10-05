@@ -174,6 +174,7 @@ describe('POST /parties', () => {
     expect(response.statusCode).toBe(409);
     expect(response.json()).toMatchObject({
       message: 'A party with this mobile number already exists',
+      field: 'phone',
       existingPartyId: first.id,
     });
   });
@@ -188,7 +189,7 @@ describe('POST /parties', () => {
     });
 
     expect(response.statusCode).toBe(409);
-    expect(response.json()).toMatchObject({ existingPartyId: first.id });
+    expect(response.json()).toMatchObject({ field: 'gstin', existingPartyId: first.id });
   });
 
   it.each([
@@ -474,7 +475,7 @@ describe('PATCH /parties/:id', () => {
     const response = await api(owner).patch(`/parties/${second.id}`, { phone });
 
     expect(response.statusCode).toBe(409);
-    expect(response.json()).toMatchObject({ existingPartyId: first.id });
+    expect(response.json()).toMatchObject({ field: 'phone', existingPartyId: first.id });
   });
 
   it('moves a party between stores, within what the member can access', async () => {

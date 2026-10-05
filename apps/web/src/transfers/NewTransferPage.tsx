@@ -1,4 +1,14 @@
-import { Alert, Button, Card, Field, Input, PageHeader, Textarea, useToast } from '@paint/ui';
+import {
+  Alert,
+  Button,
+  Card,
+  Field,
+  Input,
+  PageHeader,
+  Select,
+  Textarea,
+  useToast,
+} from '@paint/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type SyntheticEvent } from 'react';
 import { useNavigate } from 'react-router';
@@ -6,8 +16,8 @@ import { errorMessage } from '../api/errors.js';
 import { useApi } from '../app/services.js';
 import { useI18n, type MessageKey } from '../i18n/i18n.js';
 import { ProductPicker, type PickedVariant } from '../lib/ProductPicker.js';
-import { StoreSelect, useStoreAccess } from '../stock/StoreSelect.js';
-import { useStores } from '../stock/stores.js';
+import { StoreSelect, storeLabel, useStoreAccess } from '../stock/StoreSelect.js';
+import { useStoreDirectory } from '../stock/stores.js';
 import { parsePositiveQuantity } from '../lib/quantity.js';
 import { refreshInventory } from '../lib/refresh.js';
 
@@ -43,9 +53,8 @@ export function NewTransferPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const access = useStoreAccess();
-  const stores = useStores();
-  // GET /stores lists only the member's own stores, so someone at one store has no other to ask.
-  const oneStore = stores.isSuccess && stores.data.filter((store) => store.isActive).length < 2;
+  // Stock can come from any open store of the business, not only the member's own.
+  const directory = useStoreDirectory();
   const [fromStoreId, setFrom] = useState('');
   const [toStoreId, setTo] = useState('');
   const [note, setNote] = useState('');
@@ -98,17 +107,30 @@ export function NewTransferPage() {
         }}
       >
         {message !== null && <Alert tone="danger">{message}</Alert>}
-        {oneStore && <Alert tone="info">{t('transfers.form.oneStore')}</Alert>}
         <Card>
           <div className="form-grid">
-            <StoreSelect
+            <Field
               label={t('transfers.form.from')}
-              value={fromStoreId}
-              onChange={setFrom}
-              emptyLabel={t('transfers.form.chooseStore')}
+              hint={t('transfers.form.fromHint')}
               error={problem('from')}
               required
-            />
+            >
+              <Select
+                value={fromStoreId}
+                onChange={(event) => {
+                  setFrom(event.target.value);
+                }}
+              >
+                <option value="">{t('transfers.form.chooseStore')}</option>
+                {(directory.data ?? [])
+                  .filter((store) => store.id !== toStoreId)
+                  .map((store) => (
+                    <option key={store.id} value={store.id}>
+                      {storeLabel(store)}
+                    </option>
+                  ))}
+              </Select>
+            </Field>
             <StoreSelect
               label={t('transfers.form.to')}
               value={toStoreId}

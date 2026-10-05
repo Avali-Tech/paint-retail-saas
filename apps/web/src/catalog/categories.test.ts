@@ -5,9 +5,9 @@ describe('categoryOptions', () => {
   it('lists each top-level category followed by its subcategories', () => {
     expect(
       categoryOptions([
-        { id: 'sub', name: 'Interior', parentId: 'emulsions' },
-        { id: 'emulsions', name: 'Emulsions', parentId: null },
-        { id: 'primers', name: 'Primers', parentId: null },
+        { id: 'sub', name: 'Interior', parentId: 'emulsions', isActive: true },
+        { id: 'emulsions', name: 'Emulsions', parentId: null, isActive: true },
+        { id: 'primers', name: 'Primers', parentId: null, isActive: true },
       ]),
     ).toEqual([
       { id: 'emulsions', label: 'Emulsions' },

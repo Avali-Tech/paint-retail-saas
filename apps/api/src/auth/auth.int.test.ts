@@ -82,7 +82,12 @@ describe('POST /auth/signup', () => {
 
     const profile = await me(grant.token);
     expect(profile.statusCode).toBe(200);
+    const [membership] = await t.connection.db
+      .select({ id: schema.organizationMembers.id })
+      .from(schema.organizationMembers)
+      .where(eq(schema.organizationMembers.organizationId, grant.organizationId));
     expect(profile.json()).toEqual({
+      memberId: membership?.id,
       user: { id: expect.any(String), fullName: 'Kamal Singh', phone, email: null },
       organization: { id: grant.organizationId, name: 'Rainbow Paints' },
       role: { key: 'owner', name: 'Owner' },

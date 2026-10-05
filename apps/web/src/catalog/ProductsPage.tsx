@@ -63,7 +63,8 @@ function Lookup() {
         setPending(true);
         setMessage(null);
         api.catalog
-          .lookup(value)
+          // Managing the catalogue includes finding discontinued products.
+          .lookup(value, true)
           .then((found) => {
             void navigate(`/products/${found.product.id}`);
           })

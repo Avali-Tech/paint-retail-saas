@@ -69,7 +69,8 @@ export function ProductPicker({ chosen, onChoose, includeInactive = false }: Pro
     setLooking(true);
     setMessage(null);
     try {
-      const found = await api.catalog.lookup(code);
+      // Discontinued packs too, so the member is told why one cannot be chosen.
+      const found = await api.catalog.lookup(code, true);
       if (chosen.has(found.variant.id)) {
         setMessage(t('picker.alreadyAdded', { sku: found.variant.sku }));
       } else if (!includeInactive && !(found.product.isActive && found.variant.isActive)) {

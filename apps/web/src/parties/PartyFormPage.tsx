@@ -230,8 +230,8 @@ function PartyForm({ party }: { readonly party: Party | null }) {
       const conflict = conflictOf(error);
       if (conflict !== null) {
         setDuplicate({
-          // The API names the field in its message ("…with this GSTIN…" or "…mobile number…").
-          field: /gstin/i.test(conflict.message) ? 'gstin' : 'phone',
+          // The API says which field matched; anything else is the mobile number.
+          field: errorDetail(conflict, 'field') === 'gstin' ? 'gstin' : 'phone',
           existingId: errorDetail(conflict, 'existingPartyId'),
         });
         return;

@@ -316,6 +316,20 @@
       "when": 1790881698344,
       "tag": "0044_audit_party_merges",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1791230998898,
+      "tag": "0045_category_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1791231005705,
+      "tag": "0046_audit_catalog_lifecycle",
+      "breakpoints": true
     }
   ]
 }

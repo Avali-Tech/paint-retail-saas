@@ -1,3 +1,4 @@
+import type { StoreDirectoryEntry } from '@paint/shared';
 import type { ApiClient } from './client.js';
 import type { Page } from './page.js';
 
@@ -105,6 +106,8 @@ export interface LowStockItem extends ReorderRule {
 export function stockEndpoints(api: ApiClient) {
   return {
     stores: () => api.get<Store[]>('/stores'),
+    /** Every open store of the business, also those the member does not work at. */
+    storeDirectory: () => api.get<StoreDirectoryEntry[]>('/stores/directory'),
     balances: (query: StockQuery, signal?: AbortSignal) =>
       api.get<Page<StockRow>>('/stock', { query: { ...query }, signal }),
     record: (input: MovementInput) => api.post<Page<LedgerEntry>>('/stock/movements', input),

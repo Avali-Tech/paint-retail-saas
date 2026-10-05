@@ -29,8 +29,26 @@ export type SignInResult = SessionGrant | { readonly twoFactor: PendingSignIn };
 /** POST /auth/2fa/verify: the session, plus recovery codes when an app was just added. */
 export type TwoFactorSignIn = SessionGrant & { readonly recoveryCodes?: string[] };
 
+/**
+ * Why POST /auth/2fa/verify (or /platform/login/2fa) refused a code, sent as
+ * `code` beside the message: a wrong code while tries remain, a sign-in that
+ * has expired or was already used, or one whose tries are used up.
+ */
+export type TwoFactorErrorCode = 'wrong_code' | 'expired' | 'too_many_attempts';
+
+/** The 401 body of a refused two-factor code. */
+export interface TwoFactorError {
+  readonly statusCode: 401;
+  readonly message: string;
+  readonly code: TwoFactorErrorCode;
+  /** Tries left on this pending sign-in (0 once they are used up); absent when it has expired. */
+  readonly attemptsRemaining?: number;
+}
+
 /** GET /auth/me. */
 export interface AuthProfile {
+  /** The signed-in person's membership in this business (organization_members.id). */
+  readonly memberId: string;
   readonly user: {
     readonly id: string;
     readonly fullName: string;
@@ -148,4 +166,39 @@ export interface BrandingView {
 export interface BrandingSaved {
   readonly branding: Branding;
   readonly adjustments: ThemeAdjustment[];
+}
+
+/** GET /stores/directory: every open store of the business, for pickers (e.g. where to ask for stock). */
+export interface StoreDirectoryEntry {
+  readonly id: string;
+  readonly code: string;
+  readonly name: string;
+}
+
+/** GET /roles: a role with its permissions. System roles cannot be changed. */
+export interface RoleView {
+  readonly id: string;
+  readonly key: string;
+  readonly name: string;
+  readonly isSystem: boolean;
+  readonly permissions: Permission[];
+  /** Active members holding the role. */
+  readonly memberCount: number;
+}
+
+/** GET /members: one person on the team. */
+export interface MemberView {
+  readonly id: string;
+  readonly user: {
+    readonly id: string;
+    readonly fullName: string;
+    readonly phone: string | null;
+    readonly email: string | null;
+  };
+  readonly role: { readonly id: string; readonly key: string; readonly name: string };
+  readonly allStores: boolean;
+  readonly storeIds: string[];
+  readonly isActive: boolean;
+  /** Whether the person has a confirmed authenticator app. */
+  readonly twoFactorEnabled: boolean;
 }

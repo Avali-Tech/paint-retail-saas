@@ -17,6 +17,7 @@ interface Member {
   allStores: boolean;
   storeIds: string[];
   isActive: boolean;
+  twoFactorEnabled: boolean;
 }
 interface Role {
   id: string;
@@ -583,6 +584,33 @@ describe('PATCH /members/:id', () => {
       ).statusCode,
     ).toBe(404);
     expect((await api(owner.token).get('/members/nope')).statusCode).toBe(400);
+  });
+});
+
+describe('two-factor status', () => {
+  it('shows who has a confirmed authenticator app, in the list and for one member', async () => {
+    const enrolled = await hire('store_employee', [hyd]);
+    const halfway = await hire('store_employee', [hyd]);
+    const none = await hire('store_employee', [hyd]);
+    await t.connection.db.insert(schema.userTotp).values([
+      { userId: enrolled.member.user.id, secretCiphertext: 'sealed', confirmedAt: new Date() },
+      // Started adding an app but never confirmed it.
+      { userId: halfway.member.user.id, secretCiphertext: 'sealed' },
+    ]);
+
+    const list = (await api(owner.token).get('/members')).json<Member[]>();
+    const status = (id: string) => list.find((member) => member.id === id)?.twoFactorEnabled;
+    const one = (await api(owner.token).get(`/members/${enrolled.member.id}`)).json<Member>();
+    const changed = (
+      await api(owner.token).patch(`/members/${enrolled.member.id}`, { storeIds: [hyd, pune] })
+    ).json<Member>();
+
+    expect(enrolled.member.twoFactorEnabled).toBe(false);
+    expect(status(enrolled.member.id)).toBe(true);
+    expect(status(halfway.member.id)).toBe(false);
+    expect(status(none.member.id)).toBe(false);
+    expect(one.twoFactorEnabled).toBe(true);
+    expect(changed.twoFactorEnabled).toBe(true);
   });
 });
 

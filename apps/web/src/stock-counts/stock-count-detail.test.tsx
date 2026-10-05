@@ -156,6 +156,7 @@ describe('StockCountDetailPage', () => {
 
   const review = stockCount({
     status: 'submitted',
+    submittedBy: { memberId: 'member-3', name: 'Suresh Yadav' },
     submittedAt: '2026-10-01T08:00:00.000Z',
     summary: {
       totalLines: 3,
@@ -306,6 +307,29 @@ describe('StockCountDetailPage', () => {
     renderCount(stockCount(), {}, elsewhere);
     await screen.findAllByRole('table', { name: 'Products' });
     expect(screen.queryByRole('textbox', { name: /Scan/ })).toBeNull();
+  });
+
+  it('names who started and submitted, and hides Approve from the one who submitted', async () => {
+    const submitter = profile(undefined, {
+      memberId: 'member-3',
+      allStores: false,
+      storeIds: ['store-hyd'],
+    });
+    renderCount(review, {}, submitter);
+    expect(await screen.findByText(/Started .* · Ravi Teja/)).toBeInTheDocument();
+    expect(screen.getByText(/Submitted .* · Suresh Yadav/)).toBeInTheDocument();
+    expect(
+      screen.getByText('You submitted this count, so someone else at the store approves it.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Approve SC-000001' })).toBeNull();
+    // They can still send it back or cancel it.
+    expect(screen.getByRole('button', { name: 'Recount' })).toBeInTheDocument();
+  });
+
+  it('lets a submitter with every store approve their own count', async () => {
+    renderCount(review, {}, profile(undefined, { memberId: 'member-3' }));
+    expect(await screen.findByRole('button', { name: 'Approve SC-000001' })).toBeInTheDocument();
+    expect(screen.queryByText(/You submitted this count/)).toBeNull();
   });
 
   it('says when the count cannot be seen', async () => {

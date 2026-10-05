@@ -4,6 +4,7 @@ import type { MessageKey } from '../i18n/i18n.js';
 import { IMPORT_NAV_ITEMS } from '../imports/nav.js';
 import type { AnyOf } from '../lib/guard.js';
 import { CUSTOMER_NAV_ITEMS } from '../parties/nav.js';
+import { TEAM_NAV_ITEMS } from '../team/nav.js';
 
 export interface NavItem {
   readonly key: string;
@@ -63,6 +64,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   // Each feature keeps its own entries in its own file.
   ...CUSTOMER_NAV_ITEMS,
   ...IMPORT_NAV_ITEMS,
+  ...TEAM_NAV_ITEMS,
   {
     key: 'appearance',
     label: 'nav.appearance',

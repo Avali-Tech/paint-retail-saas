@@ -21,6 +21,7 @@ function renderList(routes: Record<string, FakeHandler> = {}, member = OWNER, pa
     routes: {
       'GET /auth/me': () => json(member),
       'GET /stores': () => json(STORES),
+      'GET /stores/directory': () => json(STORES.map(({ id, code, name }) => ({ id, code, name }))),
       'GET /transfers': () => json(page([summary()])),
       ...routes,
     },
@@ -171,16 +172,24 @@ describe('NewTransferPage', () => {
     });
   });
 
-  it('explains that someone at one store has no other store to ask', async () => {
+  it('lets someone at one store ask any other store of the business', async () => {
     const member = profile(undefined, { allStores: false, storeIds: ['store-pun'] });
-    renderList(
+    const { user } = renderList(
       routes({ 'GET /stores': () => json(STORES.filter((store) => store.id === 'store-pun')) }),
       member,
       '/transfers/new',
     );
-    expect(
-      await screen.findByText(/You work at one store, so there is no other store to choose here/),
-    ).toBeInTheDocument();
+    const from = await screen.findByRole('combobox', { name: /From store/ });
+    await within(from).findByRole('option', { name: 'HYD · Hyderabad' });
+    const to = screen.getByRole('combobox', { name: /To store/ });
+    expect(within(to).queryByRole('option', { name: 'HYD · Hyderabad' })).toBeNull();
+    expect(screen.getByText('Any store of the business')).toBeInTheDocument();
+
+    await user.selectOptions(to, 'PUN · Pune');
+    // The store asking is not offered as the one to ask.
+    expect(within(from).queryByRole('option', { name: 'PUN · Pune' })).toBeNull();
+    await user.selectOptions(from, 'HYD · Hyderabad');
+    expect(from).toHaveValue('store-hyd');
   });
 
   it('only requests for a store the member works at, and shows the API’s refusal', async () => {
@@ -192,26 +201,22 @@ describe('NewTransferPage', () => {
       member,
       '/transfers/new',
     );
-    await screen.findAllByRole('option', { name: 'PUN · Pune' });
-    await user.selectOptions(screen.getByRole('combobox', { name: /To store/ }), 'PUN · Pune');
-    await user.selectOptions(screen.getByRole('combobox', { name: /From store/ }), 'PUN · Pune');
+    const from = await screen.findByRole('combobox', { name: /From store/ });
+    await within(from).findByRole('option', { name: 'PUN · Pune' });
+    const to = screen.getByRole('combobox', { name: /To store/ });
+    await user.selectOptions(to, 'HYD · Hyderabad');
+    await user.selectOptions(from, 'PUN · Pune');
     await user.type(screen.getByRole('searchbox', { name: 'Add a product' }), 'apex');
     await user.click(await screen.findByRole('button', { name: 'Add APX-1L' }));
     await user.type(screen.getByRole('textbox', { name: 'Quantity of APX-1L' }), '1');
     const submit = screen.getByRole('button', { name: 'Send request' });
     await user.click(submit);
-    expect(screen.getByText('Choose two different stores')).toBeInTheDocument();
-
-    await user.selectOptions(screen.getByRole('combobox', { name: /To store/ }), 'HYD · Hyderabad');
-    await user.click(submit);
     expect(screen.getByText('One of the stores you work at')).toBeInTheDocument();
     expect(requests.some((request) => request.method === 'POST')).toBe(false);
 
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: /From store/ }),
-      'HYD · Hyderabad',
-    );
-    await user.selectOptions(screen.getByRole('combobox', { name: /To store/ }), 'PUN · Pune');
+    await user.selectOptions(from, 'Choose a store');
+    await user.selectOptions(to, 'PUN · Pune');
+    await user.selectOptions(from, 'HYD · Hyderabad');
     await user.click(submit);
     expect(await screen.findByRole('alert')).toHaveTextContent('Unknown product variant');
     expect(location()).toBe('/transfers/new');
