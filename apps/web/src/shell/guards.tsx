@@ -10,12 +10,15 @@ import { visibleNav } from './nav.js';
 /** Signed-in pages: sends visitors to sign in, waits for the profile, then shows the page. */
 export function RequireAuth({ children }: { readonly children: ReactNode }) {
   const { t } = useI18n();
-  const { session } = useSession();
+  const { session, ended } = useSession();
   const location = useLocation();
   const profile = useProfile();
 
   if (session === null) {
-    return <Navigate to="/sign-in" replace state={{ from: location.pathname + location.search }} />;
+    // Come back here after signing in again, unless the person chose to sign out: the next
+    // person on a shared counter device should start at the dashboard, not on their page.
+    const state = ended === 'signed-out' ? null : { from: location.pathname + location.search };
+    return <Navigate to="/sign-in" replace state={state} />;
   }
   if (profile.isPending) {
     return (
