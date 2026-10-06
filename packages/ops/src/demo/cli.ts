@@ -231,6 +231,7 @@ async function start(settings: DemoSettings) {
           'Everyone signs in with their mobile number and the password Demo@2026.',
   );
   say(`Ready: ${webUrl(settings)}  (emails: ${mailUrl(settings)}; logs: .demo/)`);
+  say(`Platform console: ${webUrl(settings)}/platform (operator sign-in on the sheet above)`);
   if (!settings.clamav) {
     say('Document uploads need ClamAV: restart with `pnpm demo --clamav` to try them.');
   }

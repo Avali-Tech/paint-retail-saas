@@ -3,6 +3,7 @@ import { Suspense, useRef, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import { useCurrentProfile, usePermissions, useSignOut } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
+import { SupportBanner } from '../support-access/SupportBanner.js';
 import { useBranding } from '../theme/BrandingProvider.js';
 import { BOTTOM_BAR_SIZE, visibleNav, type NavItem } from './nav.js';
 import { NotificationBell } from './NotificationBell.js';
@@ -117,6 +118,7 @@ export function AppShell() {
       </nav>
 
       <main className="shell__main" id="main" tabIndex={-1}>
+        <SupportBanner />
         <Suspense
           fallback={
             <div className="query-state">

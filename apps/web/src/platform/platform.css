@@ -1,0 +1,76 @@
+/* The platform console: a plain frame, clearly apart from a business's app. Tokens only. */
+
+.platform {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.platform__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface);
+  border-bottom: 3px solid var(--color-primary);
+}
+
+.platform__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.platform__names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.platform__title {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 700;
+}
+
+.platform__hint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.platform__nav {
+  margin: 0;
+  padding: 0 var(--space-4);
+  background: var(--color-surface);
+}
+
+.platform__main {
+  width: 100%;
+  min-width: 0;
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: var(--space-4);
+  outline: none;
+}
+
+.platform-tag {
+  margin: 0;
+  color: var(--color-primary-text);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

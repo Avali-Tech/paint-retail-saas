@@ -10,7 +10,12 @@ import { appCode } from '../test-support/two-factor.js';
 import { bearer, startTestApp, TEST_AUTH_SECRET, type TestApp } from '../test-support/test-app.js';
 import { DemoApi, DemoApiError } from './api-client.js';
 import { HistoryClock, indiaDate } from './history-clock.js';
-import { DEMO_PASSWORD, DEMO_TOTP_SECRET } from './plan.js';
+import {
+  DEMO_OPERATOR,
+  DEMO_OPERATOR_TOTP_SECRET,
+  DEMO_PASSWORD,
+  DEMO_TOTP_SECRET,
+} from './plan.js';
 import { runSeedCommand } from './seed-command.js';
 
 const serverUrl = inject('databaseUrl');
@@ -113,6 +118,41 @@ describe('the demo business', () => {
       },
     });
     expect(verified.statusCode, verified.body).toBe(200);
+  });
+
+  it('has a platform operator whose authenticator uses the fixed secret', async () => {
+    expect(readFileSync(credentialsFile, 'utf8')).toContain(`http://localhost:4981/platform`);
+    const first = await t.app.inject({
+      method: 'POST',
+      url: '/platform/login',
+      payload: { identifier: DEMO_OPERATOR.email, password: DEMO_PASSWORD },
+    });
+    expect(first.statusCode, first.body).toBe(200);
+    const { twoFactor } = first.json<{
+      twoFactor: { pendingToken: string; setupRequired: boolean };
+    }>();
+    expect(twoFactor.setupRequired).toBe(false);
+    const verified = await t.app.inject({
+      method: 'POST',
+      url: '/platform/login/2fa',
+      payload: {
+        pendingToken: twoFactor.pendingToken,
+        code: appCode(DEMO_OPERATOR_TOTP_SECRET, Date.now() + 30_000),
+      },
+    });
+    expect(verified.statusCode, verified.body).toBe(200);
+    // The running demo API has no bootstrap token: no second operator can be made.
+    const again = await t.app.inject({
+      method: 'POST',
+      url: '/platform/bootstrap',
+      payload: {
+        token: 'x'.repeat(40),
+        fullName: 'Someone Else',
+        email: 'x@y.in',
+        password: 'Pass@2026word',
+      },
+    });
+    expect(again.statusCode).toBe(404);
   });
 
   it('signs counter staff in with a mobile code', async () => {

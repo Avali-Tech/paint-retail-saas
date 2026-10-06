@@ -14,3 +14,21 @@ export const SCANNER_ON = process.env.E2E_CLAMAV === '1';
 
 /** The API's console output; one-time sign-in codes are read from it (SMS_PROVIDER=log). */
 export const API_LOG = join(import.meta.dirname, '..', 'test-results', 'api.log');
+
+/** The API's one-time secret for creating the first platform operator (tests only). */
+export const PLATFORM_BOOTSTRAP_TOKEN = 'end-to-end-platform-bootstrap-token-0000';
+
+/** The platform operator the console tests use; created once by the global setup. */
+export const PLATFORM_OPERATOR = {
+  fullName: 'Asha Operator',
+  email: 'operator@e2e.paint.test',
+  password: 'Operator@2026',
+} as const;
+
+/** The authenticator app the console sign-in test adds, kept across retries. */
+export const PLATFORM_AUTHENTICATOR_FILE = join(
+  import.meta.dirname,
+  '..',
+  'test-results',
+  'platform-authenticator.json',
+);

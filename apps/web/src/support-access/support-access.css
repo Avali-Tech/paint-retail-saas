@@ -1,0 +1,5 @@
+/* Platform support banners: above every page while support can look in. Tokens only. */
+
+.support-banner {
+  margin-bottom: var(--space-4);
+}

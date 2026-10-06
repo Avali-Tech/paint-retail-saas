@@ -2,6 +2,7 @@ import { deriveTheme } from '@paint/shared';
 import { applyTheme, resolveScheme } from '@paint/ui';
 import { createRoot, type Root } from 'react-dom/client';
 import { registerServiceWorker } from '../pwa/register-sw.js';
+import { sessionStorageFor } from '../support-access/support-tab.js';
 import { App } from './App.js';
 import { createServices } from './services.js';
 
@@ -20,7 +21,8 @@ export function apiBaseUrl(env: StartOptions['env']): string {
 export function start({ container, env, win = window }: StartOptions): Root {
   const services = createServices({
     fetch: win.fetch.bind(win),
-    storage: win.localStorage,
+    // A support view (opened from the platform console) keeps its session to its own tab.
+    storage: sessionStorageFor(win),
     apiBaseUrl: apiBaseUrl(env),
   });
   const branding = services.branding.cached();

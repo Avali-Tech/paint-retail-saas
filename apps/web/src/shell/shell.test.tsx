@@ -115,6 +115,7 @@ describe('navigation by role', () => {
       'Reports',
       'Team',
       'Appearance',
+      'Support access',
       // Everyone's own sign-in settings, next to signing out.
       'Account security',
     ]);
@@ -184,6 +185,7 @@ describe('navigation by role', () => {
       'Reports',
       'Team',
       'Appearance',
+      'Support access',
       'Account security',
     ]);
     await user.click(within(more).getByRole('link', { name: 'Leads' }));

@@ -3,7 +3,16 @@ import { createWriteStream, existsSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { dirname, join } from 'node:path';
 import { startTestDatabase, startTestObjectStorage, startTestVirusScanner } from '@paint/testing';
-import { API_LOG, API_PORT, API_URL, SCANNER_ON, WEB_PORT, WEB_URL } from './env.js';
+import {
+  API_LOG,
+  API_PORT,
+  API_URL,
+  PLATFORM_BOOTSTRAP_TOKEN,
+  PLATFORM_OPERATOR,
+  SCANNER_ON,
+  WEB_PORT,
+  WEB_URL,
+} from './env.js';
 
 const webDir = join(import.meta.dirname, '..');
 const apiServer = join(webDir, '..', 'api', 'dist', 'server', 'main.js');
@@ -95,6 +104,26 @@ async function documentServices(): Promise<{
 }
 
 /**
+ * Creates the platform's only operator (bootstrap works once), without an
+ * authenticator app yet: the sign-in test adds one through the console. Its
+ * session reaches the tests through the environment, so the other console tests
+ * start signed in instead of each needing a fresh authenticator code.
+ */
+async function bootstrapOperator(): Promise<void> {
+  const response = await fetch(`${API_URL}/platform/bootstrap`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ token: PLATFORM_BOOTSTRAP_TOKEN, ...PLATFORM_OPERATOR }),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Platform bootstrap failed: ${String(response.status)} ${await response.text()}`,
+    );
+  }
+  process.env.E2E_PLATFORM_SESSION = await response.text();
+}
+
+/**
  * Starts the real stack once for the whole run: a throwaway PostgreSQL in
  * Docker, the built API (migrating that database on start) and the built web
  * app served by `vite preview`, which proxies /api to the API like production.
@@ -129,6 +158,8 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       WORKER_INTERVAL_SECONDS: '0',
       SIGNUP_PLAN: 'enterprise',
       APP_URL: WEB_URL,
+      // Lets the setup below create the platform operator the console tests sign in as.
+      PLATFORM_BOOTSTRAP_TOKEN,
       ...documents.env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -156,6 +187,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   try {
     await waitFor(`${API_URL}/health/ready`, 'API', api);
     await waitFor(`${WEB_URL}/api/health`, 'web app', web);
+    await bootstrapOperator();
   } catch (error) {
     await teardown();
     throw error;

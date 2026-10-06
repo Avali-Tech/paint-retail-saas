@@ -25,6 +25,18 @@ export const DEMO_PASSWORD = 'Demo@2026';
  */
 export const DEMO_TOTP_SECRET = 'SHARMAPAINTSDEMOTOTPHYDERABADXYZ';
 
+/**
+ * The demo's platform operator, who signs in to the console at /platform. Like
+ * the demo admin, their authenticator uses a fixed secret (base32), so a phone
+ * set up once keeps working after a reset. Real operators are created with the
+ * API's one-time bootstrap token and add their own app at first sign-in.
+ */
+export const DEMO_OPERATOR = {
+  fullName: 'Meera Iyer',
+  email: 'operator@paintretail.demo',
+} as const;
+export const DEMO_OPERATOR_TOTP_SECRET = 'PAINTRETAILDEMOPLATFORMOPERATOR2';
+
 export type DemoSize = 'full' | 'small';
 export const DEMO_SIZES: readonly DemoSize[] = ['full', 'small'];
 

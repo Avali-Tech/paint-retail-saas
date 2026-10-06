@@ -7,6 +7,7 @@ import { CRM_NAV_ITEMS } from '../leads/nav.js';
 import type { AnyOf } from '../lib/guard.js';
 import { CUSTOMER_NAV_ITEMS } from '../parties/nav.js';
 import { REPORT_NAV_ITEMS } from '../reports/nav.js';
+import { SUPPORT_ACCESS_NAV_ITEMS } from '../support-access/nav.js';
 import { TEAM_NAV_ITEMS } from '../team/nav.js';
 
 export interface NavItem {
@@ -78,6 +79,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: 'settings',
     permission: 'organization:manage',
   },
+  ...SUPPORT_ACCESS_NAV_ITEMS,
 ];
 
 export const BOTTOM_BAR_SIZE = 4;

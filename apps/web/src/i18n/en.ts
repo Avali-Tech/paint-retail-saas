@@ -7,11 +7,13 @@ import { importsEn } from './en-imports.js';
 import { leadEnumsEn, leadsEn } from './en-leads.js';
 import { loyaltyEn, loyaltyEnumsEn } from './en-loyalty.js';
 import { partiesEn, partyEnumsEn } from './en-parties.js';
+import { platformEn } from './en-platform.js';
 import { projectsEn } from './en-projects.js';
 import { purchasingEn, purchasingEnumsEn } from './en-purchasing.js';
 import { reportEnumsEn, reportsEn } from './en-reports.js';
 import { stockCountEnumsEn, stockCountsEn } from './en-stock-counts.js';
 import { stockEn, stockEnumsEn } from './en-stock.js';
+import { supportAccessEn } from './en-support-access.js';
 import { teamEn } from './en-team.js';
 import { transferEnumsEn, transfersEn } from './en-transfers.js';
 import { workflowEn } from './en-workflow.js';
@@ -298,6 +300,8 @@ export const en = {
   ...documentsEn,
   ...reportsEn,
   ...teamEn,
+  ...platformEn,
+  ...supportAccessEn,
   /** Names of API values, for label(group, value). */
   enums: {
     ...partyEnumsEn,

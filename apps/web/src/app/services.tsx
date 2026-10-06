@@ -4,6 +4,11 @@ import { createApiClient } from '../api/client.js';
 import { endpoints, type Endpoints } from '../api/endpoints.js';
 import { ApiError } from '../api/errors.js';
 import { createSessionStore, type SessionStore } from '../auth/session-store.js';
+import { platformEndpoints, type PlatformEndpoints } from '../platform/platform-api.js';
+import {
+  createPlatformSessionStore,
+  type PlatformSessionStore,
+} from '../platform/platform-session-store.js';
 import { apiBrandingSource, type BrandingSource } from '../theme/branding-source.js';
 
 /** Everything the app talks to, created once at start-up (tests pass fakes). */
@@ -12,6 +17,8 @@ export interface Services {
   readonly api: Endpoints;
   readonly branding: BrandingSource;
   readonly queryClient: QueryClient;
+  /** The platform console's own session and API client, apart from the business's. */
+  readonly platform: { readonly sessions: PlatformSessionStore; readonly api: PlatformEndpoints };
 }
 
 export interface ServiceOptions {
@@ -46,9 +53,19 @@ export function createServices(options: ServiceOptions): Services {
       sessions.end('expired');
     },
   });
+  const platformSessions = createPlatformSessionStore(options.storage);
+  const platformClient = createApiClient({
+    baseUrl: options.apiBaseUrl,
+    fetch: options.fetch,
+    getToken: () => platformSessions.getToken(),
+    onUnauthorized: () => {
+      platformSessions.end('expired');
+    },
+  });
   return {
     sessions,
     api: endpoints(client),
+    platform: { sessions: platformSessions, api: platformEndpoints(platformClient) },
     branding: apiBrandingSource(client, options.storage),
     queryClient: createQueryClient(),
   };
