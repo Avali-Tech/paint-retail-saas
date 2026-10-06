@@ -89,8 +89,8 @@ history ending today: opening stock, purchase orders and goods receipts (with sc
 transfers in every state, a stock count, damage and adjustments, low stock, leads, opportunities,
 projects, follow-ups due today and overdue, contracts (one renewing this month), credit (one
 account on hold, one near its limit, requests waiting), loyalty tiers and points, notifications and
-its own brand colours. Leads, opportunities and projects are seeded too and show on the dashboard;
-their own screens are still to come. Follow-ups, contracts, documents and reports have their screens.
+its own brand colours. Leads, opportunities, projects, contracts and follow-ups are seeded too and
+show on the dashboard, and each has its own screens, as do documents and reports.
 
 **On a fresh Mac** (once):
 
@@ -190,21 +190,27 @@ offline-ready first paint.
 type and the duplicate warning), the customer 360 (`/parties/:id`: contact, credit, loyalty points
 and history, activities, leads, opportunities, projects, contracts, documents), credit requests
 (`/credit-requests`), credit rules (`/settings/credit`) and the loyalty programme
-(`/settings/loyalty`), my follow-ups (`/follow-ups`: overdue, today and upcoming in India time; mark
-done with the outcome and the next step, reschedule; managers pick a colleague and a store), a
-record's activity timeline (`/activities`: type, person and date filters), contracts (`/contracts`:
-type, status, party and "renewal due in N days" filters; create, edit, activate, terminate with a
-reason, renew; their documents), reports (`/reports`: each report's filters, a paged table and CSV)
-and documents on the customer 360 and contracts (`src/documents/DocumentsPanel.tsx`, for any record
-type: upload checked before sending, download under the server's file name, delete). **Team** (`/team`, `members:read`): everyone with role, stores, status and
-two-factor sign-in; add a person (`/team/new`), and on each member's page (`/team/:id`) change role
-and stores, deactivate or reactivate, and (owners) reset two-factor sign-in, with the API's
-anti-escalation refusals shown as they come. **Roles** (`/team/roles`): system and custom roles;
-custom roles are created and edited with a permission checklist grouped by area (`roles:manage`),
-system roles are read-only, and permissions the editor lacks are greyed out. Actions show only to roles that may use them. Each screen is its own chunk
-(`React.lazy`), loaded when first opened. Features keep their routes (`src/<feature>/routes.tsx`),
-navigation entries (`src/<feature>/nav.ts`) and messages (`src/i18n/en-<feature>.ts`) in their own
-files.
+(`/settings/loyalty`), leads (`/leads`: filters, a pipeline board by stage with counts and values in
+lakh/crore, stage moves from each card's menu, convert to an opportunity), opportunities
+(`/opportunities`: weighted pipeline, won/lost with a reason, start a project), projects
+(`/projects`: site, stage, architects/contractors/painters/dealers), each of these detail pages with
+its activities (log a call, visit or note, schedule a follow-up), my follow-ups (`/follow-ups`:
+overdue, today and upcoming in India time; mark done with the outcome and the next step,
+reschedule; managers pick a colleague and a store), a record's activity timeline (`/activities`:
+type, person and date filters), contracts (`/contracts`: type, status, party and "renewal due in N
+days" filters; create, edit, activate, terminate with a reason, renew; their documents), reports
+(`/reports`: each report's filters, a paged table and CSV) and documents on the customer 360,
+contracts and projects (`src/documents/DocumentsPanel.tsx`, for any record type: upload checked
+before sending, download under the server's file name, delete). **Team** (`/team`,
+`members:read`): everyone with role, stores, status and two-factor sign-in; add a person
+(`/team/new`), and on each member's page (`/team/:id`) change role and stores, deactivate or
+reactivate, and (owners) reset two-factor sign-in, with the API's anti-escalation refusals shown as
+they come. **Roles** (`/team/roles`): system and custom roles; custom roles are created and edited
+with a permission checklist grouped by area (`roles:manage`), system roles are read-only, and
+permissions the editor lacks are greyed out. Actions show only to roles that may use them. Each
+screen is its own chunk (`React.lazy`), loaded when first opened. Features keep their routes
+(`src/<feature>/routes.tsx`), navigation entries (`src/<feature>/nav.ts`) and messages
+(`src/i18n/en-<feature>.ts`) in their own files.
 
 | Command                              | What it does                                                         |
 | ------------------------------------ | -------------------------------------------------------------------- |

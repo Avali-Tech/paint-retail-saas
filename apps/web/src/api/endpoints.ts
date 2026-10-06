@@ -6,9 +6,12 @@ import { creditEndpoints } from './credit.js';
 import { documentEndpoints } from './documents.js';
 import { followUpEndpoints } from './follow-ups.js';
 import { importEndpoints } from './imports.js';
+import { leadEndpoints, opportunityEndpoints } from './leads.js';
 import { loyaltyEndpoints } from './loyalty.js';
 import { partyEndpoints } from './parties.js';
+import { projectEndpoints } from './projects.js';
 import { purchasingEndpoints } from './purchasing.js';
+import { recordActivityEndpoints } from './record-activities.js';
 import { reportEndpoints } from './reports.js';
 import { stockCountEndpoints } from './stock-counts.js';
 import { stockEndpoints } from './stock.js';
@@ -88,6 +91,10 @@ export function endpoints(api: ApiClient) {
     stockCounts: stockCountEndpoints(api),
     purchasing: purchasingEndpoints(api),
     imports: importEndpoints(api),
+    leads: leadEndpoints(api),
+    opportunities: opportunityEndpoints(api),
+    projects: projectEndpoints(api),
+    recordActivities: recordActivityEndpoints(api),
     followUps: followUpEndpoints(api),
     contracts: contractEndpoints(api),
     documents: documentEndpoints(api),

@@ -24,7 +24,7 @@ describe('visibleNav', () => {
   it('shows each section only with its permission', () => {
     expect(visibleNav(() => true)).toEqual(NAV_ITEMS);
     expect(visibleNav((permission) => permission === 'leads:read').map((item) => item.key)).toEqual(
-      ['leads', 'followUps', 'reports'],
+      ['leads', 'opportunities', 'followUps', 'reports'],
     );
     // Imports need any one of the permissions to change what they import.
     expect(
@@ -104,6 +104,7 @@ describe('navigation by role', () => {
       'Stock',
       'Purchasing',
       'Leads',
+      'Opportunities',
       'Projects',
       'Contracts',
       'Follow-ups',
@@ -145,7 +146,7 @@ describe('navigation by role', () => {
 
   it('opens the first allowed section, or follow-ups when there is none', async () => {
     renderApp({ routes: { 'GET /auth/me': () => json(profile(['leads:read'])) } });
-    expect(await screen.findByText('Coming soon')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Leads', level: 1 })).toBeInTheDocument();
     expect(location()).toBe('/leads');
   });
 
@@ -157,7 +158,7 @@ describe('navigation by role', () => {
 
   it('puts the remaining sections and sign-out under "More" on phones', async () => {
     const { user } = renderApp({
-      path: '/projects',
+      path: '/billing',
       routes: { 'GET /auth/me': () => json(OWNER) },
     });
     await screen.findByText('Coming soon');
@@ -172,6 +173,7 @@ describe('navigation by role', () => {
     ).toEqual([
       'Purchasing',
       'Leads',
+      'Opportunities',
       'Projects',
       'Contracts',
       'Follow-ups',
@@ -202,7 +204,7 @@ describe('navigation by role', () => {
 
   it('links back to the dashboard from screens still to come', async () => {
     const { user } = renderApp({
-      path: '/leads',
+      path: '/billing',
       routes: { 'GET /auth/me': () => json(OWNER), 'GET /dashboard': () => json(DASHBOARD) },
     });
     await user.click(await screen.findByRole('link', { name: 'Back to the dashboard' }));
@@ -213,7 +215,7 @@ describe('navigation by role', () => {
 describe('sign-out', () => {
   it('ends the session on the server and returns to sign-in', async () => {
     const { user, requests } = renderApp({
-      path: '/projects',
+      path: '/billing',
       routes: { 'GET /auth/me': () => json(OWNER), 'POST /auth/logout': () => ({ status: 204 }) },
     });
     await screen.findByText('Coming soon');
@@ -226,7 +228,7 @@ describe('sign-out', () => {
 
   it('starts the next sign-in at the dashboard, not on the page signed out from', async () => {
     const { user } = renderApp({
-      path: '/projects',
+      path: '/billing',
       routes: {
         'GET /auth/me': () => json(OWNER),
         'GET /dashboard': () => json(DASHBOARD),
@@ -248,7 +250,7 @@ describe('sign-out', () => {
 
   it('signs out on this device even when the server cannot be reached', async () => {
     const { user } = renderApp({
-      path: '/projects',
+      path: '/billing',
       routes: {
         'GET /auth/me': () => json(OWNER),
         'POST /auth/logout': () => json({ message: 'Bad gateway' }, 502),

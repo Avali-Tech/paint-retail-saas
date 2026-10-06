@@ -7,7 +7,10 @@ import { contractRoutes } from '../contracts/routes.js';
 import { followUpRoutes } from '../followups/routes.js';
 import { useI18n } from '../i18n/i18n.js';
 import { importRoutes } from '../imports/routes.js';
+import { leadRoutes } from '../leads/routes.js';
+import { opportunityRoutes } from '../opportunities/routes.js';
 import { partyRoutes } from '../parties/routes.js';
+import { projectRoutes } from '../projects/routes.js';
 import { purchasingRoutes } from '../purchasing/routes.js';
 import { reportRoutes } from '../reports/routes.js';
 import { AppShell } from '../shell/AppShell.js';
@@ -67,6 +70,9 @@ export function AppRoutes() {
         {stockCountRoutes()}
         {purchasingRoutes()}
         {importRoutes()}
+        {leadRoutes()}
+        {opportunityRoutes()}
+        {projectRoutes()}
         {followUpRoutes()}
         {contractRoutes()}
         {reportRoutes()}

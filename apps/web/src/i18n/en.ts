@@ -4,8 +4,10 @@ import { creditEn, creditEnumsEn } from './en-credit.js';
 import { documentsEn } from './en-documents.js';
 import { followUpEnumsEn, followUpsEn } from './en-followups.js';
 import { importsEn } from './en-imports.js';
+import { leadEnumsEn, leadsEn } from './en-leads.js';
 import { loyaltyEn, loyaltyEnumsEn } from './en-loyalty.js';
 import { partiesEn, partyEnumsEn } from './en-parties.js';
+import { projectsEn } from './en-projects.js';
 import { purchasingEn, purchasingEnumsEn } from './en-purchasing.js';
 import { reportEnumsEn, reportsEn } from './en-reports.js';
 import { stockCountEnumsEn, stockCountsEn } from './en-stock-counts.js';
@@ -288,6 +290,8 @@ export const en = {
   ...stockCountsEn,
   ...purchasingEn,
   ...importsEn,
+  ...leadsEn,
+  ...projectsEn,
   ...workflowEn,
   ...followUpsEn,
   ...contractsEn,
@@ -304,6 +308,7 @@ export const en = {
     ...transferEnumsEn,
     ...stockCountEnumsEn,
     ...purchasingEnumsEn,
+    ...leadEnumsEn,
     ...followUpEnumsEn,
     ...reportEnumsEn,
   },
