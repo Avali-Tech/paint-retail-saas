@@ -104,37 +104,54 @@ for (const language of LANGUAGES) {
     ).toBeVisible();
   });
 
-  test(`phone screens fit in ${language.code} @phone`, async ({ page }) => {
-    await signedInBusiness(page, `Phone Bhasha ${language.code} Paints`);
-    await chooseLanguage(page, language);
-    await expectUsable(page);
-    const { messages } = language;
-
-    const screens: [path: string, heading: string][] = [
+  // One test per group of screens: each screen runs axe twice (plain and wider text),
+  // which on a 2-core CI runner doesn't fit in one test's time for every screen.
+  const phoneScreens = (messages: typeof hi): [path: string, heading: string][][] => [
+    [
       ['/', messages.dashboard.title],
       ['/parties', messages.parties.title],
       ['/parties/new', messages.parties.form.newTitle],
       ['/products', messages.products.title],
+    ],
+    [
       ['/stock', messages.stock.title],
       ['/transfers/new', messages.transfers.form.title],
       ['/purchase-orders', messages.purchasing.orderList.title],
       ['/leads', messages.leads.title],
+    ],
+    [
       ['/follow-ups', messages.followUps.title],
       ['/contracts', messages.contracts.title],
       ['/reports', messages.reports.title],
       ['/team', messages.team.title],
+    ],
+    [
       ['/settings/appearance', messages.appearance.title],
       ['/documents', messages.documents.page.title],
       ['/activities', messages.activities.title],
       ['/products/setup', messages.catalogSetup.title],
       ['/settings/support', messages.supportAccess.title],
-    ];
-    for (const [path, heading] of screens) {
-      await page.goto(path);
-      await expect(page.getByRole('heading', { name: heading, level: 1 })).toBeVisible();
-      await expectUsable(page);
-    }
+    ],
+  ];
 
+  for (const [group, screens] of phoneScreens(language.messages).entries()) {
+    test(`phone screens fit in ${language.code}, part ${String(group + 1)} @phone`, async ({
+      page,
+    }) => {
+      await signedInBusiness(page, `Phone Bhasha ${language.code} ${String(group + 1)} Paints`);
+      await chooseLanguage(page, language);
+      for (const [path, heading] of screens) {
+        await page.goto(path);
+        await expect(page.getByRole('heading', { name: heading, level: 1 })).toBeVisible();
+        await expectUsable(page);
+      }
+    });
+  }
+
+  test(`the phone menu fits in ${language.code} @phone`, async ({ page }) => {
+    await signedInBusiness(page, `Phone Menu ${language.code} Paints`);
+    await chooseLanguage(page, language);
+    const { messages } = language;
     await page.getByRole('button', { name: messages.shell.more }).click();
     const more = page.getByRole('dialog', { name: messages.shell.more });
     await expect(more.getByRole('button', { name: messages.shell.signOut })).toBeVisible();
