@@ -21,6 +21,8 @@ interface Count {
   store: { code: string };
   scope: string;
   closingReason: string | null;
+  startedBy: { memberId: string; name: string };
+  submittedBy: { memberId: string; name: string } | null;
   submittedAt: string | null;
   approvedAt: string | null;
   summary: {
@@ -197,6 +199,9 @@ describe('a full count', () => {
     expect(started.statusCode).toBe(201);
     const stockCount = started.json<Count>();
     expect(stockCount.number).toMatch(/^SC-\d{6}$/);
+    const managerId = (await api(manager).get('/auth/me')).json<{ memberId: string }>().memberId;
+    expect(stockCount.startedBy).toEqual({ memberId: managerId, name: 'Staff branch_manager' });
+    expect(stockCount.submittedBy).toBeNull();
     expect(stockCount.lines.map((l) => [l.sku, l.expectedQuantity, l.countedQuantity])).toEqual([
       [s.apex.sku, 10, null],
       [s.royale.sku, 4, null],
@@ -240,6 +245,7 @@ describe('a full count', () => {
     ).json<Count>();
     expect(submitted.status).toBe('submitted');
     expect(submitted.submittedAt).not.toBeNull();
+    expect(submitted.submittedBy).toEqual({ memberId: managerId, name: 'Staff branch_manager' });
 
     const approved = (
       await api(other).post(`/stock-counts/${stockCount.id}/approve`, {
@@ -426,7 +432,7 @@ describe('rules', () => {
     await counts(owner, id, [{ variantId: s.apex.id, quantity: 10, mode: 'set' }]);
     const resubmitted = (await api(owner).post(`/stock-counts/${id}/submit`)).json<Count>();
 
-    expect(reopened).toMatchObject({ status: 'counting', submittedAt: null });
+    expect(reopened).toMatchObject({ status: 'counting', submittedAt: null, submittedBy: null });
     expect(resubmitted.summary.accuracyPercent).toBe(100);
   });
 

@@ -4,19 +4,20 @@ import {
   Badge,
   Button,
   Card,
-  Dialog,
   Field,
   Input,
   PageHeader,
   Spinner,
+  buttonStyle,
   useToast,
 } from '@paint/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useMemo, useState, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
+import { Link } from 'react-router';
 import { z } from 'zod';
 import { errorMessage } from '../api/errors.js';
-import type { Member, TwoFactorEnrolment } from '../api/types.js';
+import type { TwoFactorEnrolment } from '../api/types.js';
 import { useApi } from '../app/services.js';
 import { AuthenticatorSetup } from '../auth/AuthenticatorSetup.js';
 import { showApiError } from '../auth/forms.js';
@@ -26,7 +27,6 @@ import { useI18n } from '../i18n/i18n.js';
 
 export const twoFactorStatusKey = ['two-factor-status'] as const;
 export const organizationSecurityKey = ['organization-security'] as const;
-export const membersKey = ['members'] as const;
 
 /** A failed load, with a way to try again. */
 function LoadError({ error, onRetry }: { readonly error: unknown; readonly onRetry: () => void }) {
@@ -292,97 +292,19 @@ function BusinessSecurity() {
   );
 }
 
-/** Owners: reset a member's two-factor sign-in when they have lost their phone. */
-function TeamTwoFactor({ selfUserId }: { readonly selfUserId: string }) {
-  const api = useApi();
+/** Owners: where to reset a member's two-factor sign-in (each member's page under Team). */
+function TeamTwoFactor() {
   const { t } = useI18n();
-  const toast = useToast();
-  const members = useQuery({ queryKey: membersKey, queryFn: () => api.members.list() });
-  const [chosen, setChosen] = useState<Member | null>(null);
-  const reset = useMutation({
-    mutationFn: (member: Member) => api.members.resetTwoFactor(member.id),
-    onSuccess: (_, member) => {
-      setChosen(null);
-      toast({ title: t('security.resetDone', { name: member.user.fullName }), tone: 'success' });
-    },
-    onError: (error) => {
-      toast({ title: errorMessage(error), tone: 'danger' });
-    },
-  });
-
   return (
     <Card title={t('security.team')}>
       <div className="stack">
         <p className="muted">{t('security.teamHint')}</p>
-        {members.isPending && <Spinner label={t('common.loading')} />}
-        {members.isError && (
-          <LoadError
-            error={members.error}
-            onRetry={() => {
-              void members.refetch();
-            }}
-          />
-        )}
-        {members.data && (
-          <ul className="member-list">
-            {members.data.map((member) => (
-              <li key={member.id} className="member-list__item">
-                <div className="member-list__who">
-                  <span className="member-list__name">{member.user.fullName}</span>
-                  <span className="muted">{member.role.name}</span>
-                </div>
-                {!member.isActive && <Badge>{t('security.inactive')}</Badge>}
-                {member.user.id === selfUserId ? (
-                  <Badge tone="primary">{t('security.you')}</Badge>
-                ) : (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    aria-label={t('security.resetFor', { name: member.user.fullName })}
-                    onClick={() => {
-                      setChosen(member);
-                    }}
-                  >
-                    {t('security.reset')}
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        <div className="row">
+          <Link to="/team" {...buttonStyle('secondary')}>
+            {t('security.teamLink')}
+          </Link>
+        </div>
       </div>
-      {chosen !== null && (
-        <Dialog
-          open
-          onOpenChange={() => {
-            setChosen(null);
-          }}
-          title={t('security.resetTitle', { name: chosen.user.fullName })}
-          description={t('security.resetDescription')}
-          closeLabel={t('common.close')}
-          footer={
-            <>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setChosen(null);
-                }}
-              >
-                {t('common.cancel')}
-              </Button>
-              <Button
-                variant="danger"
-                loading={reset.isPending}
-                onClick={() => {
-                  reset.mutate(chosen);
-                }}
-              >
-                {t('security.resetConfirm')}
-              </Button>
-            </>
-          }
-        />
-      )}
     </Card>
   );
 }
@@ -398,7 +320,7 @@ export function SecurityPage() {
       <div className="settings-grid">
         <AccountTwoFactor />
         {can('organization:manage') && <BusinessSecurity />}
-        {profile.role.key === 'owner' && <TeamTwoFactor selfUserId={profile.user.id} />}
+        {profile.role.key === 'owner' && <TeamTwoFactor />}
       </div>
     </>
   );

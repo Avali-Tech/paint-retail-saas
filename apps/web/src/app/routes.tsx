@@ -3,6 +3,8 @@ import { lazy } from 'react';
 import { Link, Route, Routes } from 'react-router';
 import { SignInPage } from '../auth/SignInPage.js';
 import { catalogRoutes } from '../catalog/routes.js';
+import { contractRoutes } from '../contracts/routes.js';
+import { followUpRoutes } from '../followups/routes.js';
 import { useI18n } from '../i18n/i18n.js';
 import { importRoutes } from '../imports/routes.js';
 import { leadRoutes } from '../leads/routes.js';
@@ -10,10 +12,12 @@ import { opportunityRoutes } from '../opportunities/routes.js';
 import { partyRoutes } from '../parties/routes.js';
 import { projectRoutes } from '../projects/routes.js';
 import { purchasingRoutes } from '../purchasing/routes.js';
+import { reportRoutes } from '../reports/routes.js';
 import { AppShell } from '../shell/AppShell.js';
 import { HomeRedirect, RequireAuth } from '../shell/guards.js';
 import { stockCountRoutes } from '../stock-counts/routes.js';
 import { stockRoutes } from '../stock/routes.js';
+import { teamRoutes } from '../team/routes.js';
 import { transferRoutes } from '../transfers/routes.js';
 import { guarded } from './guarded.js';
 
@@ -69,13 +73,17 @@ export function AppRoutes() {
         {leadRoutes()}
         {opportunityRoutes()}
         {projectRoutes()}
+        {followUpRoutes()}
+        {contractRoutes()}
+        {reportRoutes()}
+        {teamRoutes()}
         <Route
           path="settings/appearance"
           element={guarded('organization:manage', AppearancePage)}
         />
         {/* Every signed-in member manages their own two-factor sign-in. */}
         <Route path="settings/security" element={<SecurityPage />} />
-        {/* Leads, projects, contracts and the rest land here for now. */}
+        {/* Leads, projects and the rest land here for now. */}
         <Route path="*" element={<ComingSoonPage />} />
       </Route>
     </Routes>

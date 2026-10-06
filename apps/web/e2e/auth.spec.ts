@@ -82,6 +82,8 @@ test('counter staff sign in with a code texted to their mobile', async ({ page }
     'Customers',
     'Products',
     'Stock',
+    'Follow-ups',
+    'Reports',
     'Account security',
   ]);
 });

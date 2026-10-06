@@ -83,14 +83,14 @@ describe('ProjectsPage', () => {
     await user.type(screen.getByRole('searchbox', { name: /Search/ }), 'villa');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Stage' }), 'survey');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Store' }), 'store-hyd');
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Assigned to' }), 'member-1');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Assigned to' }), 'member-2');
     await waitFor(() => {
       expect(
         requests
           .filter((request) => request.path === '/projects')
           .at(-1)
           ?.query.toString(),
-      ).toBe('q=villa&stage=survey&storeId=store-hyd&assignedTo=member-1&limit=50&offset=0');
+      ).toBe('q=villa&stage=survey&storeId=store-hyd&assignedTo=member-2&limit=50&offset=0');
     });
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await waitFor(() => {
@@ -344,6 +344,7 @@ describe('ProjectDetailPage', () => {
       'href',
       '/projects/project-1/edit',
     );
+    expect(await screen.findByRole('region', { name: 'Documents' })).toBeInTheDocument();
   });
 
   it('adds and removes people with their roles', async () => {

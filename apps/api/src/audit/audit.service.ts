@@ -9,9 +9,12 @@ import { AUDIT_AREAS, type AuditTable, type ListAuditQuery } from './audit.schem
 
 const {
   auditLog,
+  brands,
+  categories,
   organizationMembers,
   parties,
   productVariants,
+  products,
   roles,
   stockLedger,
   stores,
@@ -93,10 +96,16 @@ const FIELD_LABELS: Record<string, string> = {
   points: 'Points',
   branding: 'Branding',
   merged_into_id: 'Merged into',
+  parent_id: 'Parent category',
+  brand_id: 'Brand',
+  category_id: 'Category',
 };
 
 const recordLabel = sql<string | null>`case ${auditLog.tableName}
   when 'product_variants' then (select ${productVariants.sku} from ${productVariants} where ${productVariants.id}::text = ${auditLog.recordId})
+  when 'products' then (select ${products.name} from ${products} where ${products.id}::text = ${auditLog.recordId})
+  when 'brands' then (select ${brands.name} from ${brands} where ${brands.id}::text = ${auditLog.recordId})
+  when 'categories' then (select ${categories.name} from ${categories} where ${categories.id}::text = ${auditLog.recordId})
   when 'stock_ledger' then (select ${productVariants.sku} from ${stockLedger} join ${productVariants} on ${productVariants.id} = ${stockLedger.variantId} where ${stockLedger.id}::text = ${auditLog.recordId})
   when 'roles' then (select ${roles.name} from ${roles} where ${roles.id}::text = ${auditLog.recordId})
   when 'role_permissions' then (select ${roles.name} from ${roles} where ${roles.id}::text = ${auditLog.recordId})
@@ -211,6 +220,14 @@ export class AuditService {
         .select({ id: parties.id, name: parties.displayName })
         .from(parties)
         .where(inArray(parties.id, ids('merged_into_id')))),
+      ...(await tx
+        .select({ id: brands.id, name: brands.name })
+        .from(brands)
+        .where(inArray(brands.id, ids('brand_id')))),
+      ...(await tx
+        .select({ id: categories.id, name: categories.name })
+        .from(categories)
+        .where(inArray(categories.id, [...ids('category_id'), ...ids('parent_id')]))),
     ];
     return new Map(found.map(({ id, name }) => [id, name]));
   }

@@ -29,7 +29,7 @@ describe('ProductDetailPage', () => {
         json(
           product({
             description: 'Weatherproof exterior emulsion',
-            category: { id: 'cat-emulsion', name: 'Emulsions', parentId: null },
+            category: { id: 'cat-emulsion', name: 'Emulsions', parentId: null, isActive: true },
             isActive: false,
             variants: [
               variant(),

@@ -1,0 +1,60 @@
+import type { Contract } from '../api/contracts.js';
+import { PARTY } from './party-fixtures.js';
+
+export const CONTRACT: Contract = {
+  id: 'c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0',
+  number: 'CT-000001',
+  type: 'contractor_agreement',
+  title: 'Annual painting contract',
+  party: { id: PARTY.id, name: 'Apex Builders', phone: '+919876543210' },
+  store: { id: 'store-hyd', code: 'HYD', name: 'Hyderabad' },
+  project: null,
+  startDate: '2025-11-01',
+  endDate: '2026-10-31',
+  renewalDate: '2026-10-01',
+  valuePaise: 10_00_000_00,
+  terms: 'Paint supplied at 12% below MRP.\nDelivery within 3 days.',
+  creditTerms: null,
+  discountTerms: null,
+  notes: null,
+  status: 'active',
+  renewalDue: true,
+  daysToEnd: 25,
+  terminationReason: null,
+  renewalOf: null,
+  renewedBy: null,
+  assignedTo: { memberId: 'member-1', name: 'Anil Kumar' },
+  createdAt: '2025-10-20T06:00:00.000Z',
+  updatedAt: '2026-10-01T06:00:00.000Z',
+  endedAt: null,
+};
+
+export const DRAFT: Contract = {
+  ...CONTRACT,
+  id: 'd1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1',
+  number: 'CT-000002',
+  type: 'supplier_agreement',
+  title: 'Berger supply terms',
+  store: null,
+  project: { id: 'project-1', number: 'PJ-000003', name: 'Kondapur tower' },
+  valuePaise: null,
+  terms: null,
+  status: 'draft',
+  renewalDue: false,
+  daysToEnd: 0,
+};
+
+export const ENDED: Contract = {
+  ...CONTRACT,
+  id: 'e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2',
+  number: 'CT-000003',
+  status: 'terminated',
+  renewalDue: false,
+  daysToEnd: -40,
+  terminationReason: 'Contractor stopped work',
+  creditTerms: '30 days',
+  discountTerms: '5% on orders above ₹1,00,000',
+  notes: 'Call before visiting',
+  renewalOf: { id: CONTRACT.id, number: 'CT-000001' },
+  renewedBy: { id: DRAFT.id, number: 'CT-000002' },
+};

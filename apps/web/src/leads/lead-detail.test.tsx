@@ -83,6 +83,9 @@ describe('LeadDetailPage', () => {
       'Site visit VisitScheduledDue 20 Oct 2026, 11:00 am · Anil Kumar',
       'Dropped NoteCancelled2 Oct 2026, 11:30 am · Anil Kumar',
     ]);
+    expect(
+      within(activitiesCard()).getByRole('link', { name: 'See all activity' }),
+    ).toHaveAttribute('href', '/activities?recordType=lead&recordId=lead-1');
   });
 
   it('shows a closed lead without the details it lacks, and nothing to change for readers', async () => {

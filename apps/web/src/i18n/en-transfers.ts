@@ -29,12 +29,11 @@ export const transfersEn = {
       title: 'Request stock',
       description: 'Ask another store for stock; it is sent once they approve and dispatch it.',
       from: 'From store',
+      fromHint: 'Any store of the business',
       to: 'To store',
       toHint: 'One of the stores you work at',
       chooseStore: 'Choose a store',
       sameStore: 'Choose two different stores',
-      oneStore:
-        'You work at one store, so there is no other store to choose here. Ask a manager who works at both stores, or your owner, to request the stock.',
       note: 'Note',
       lines: 'Products',
       quantity: 'Quantity of {sku}',

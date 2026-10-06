@@ -157,10 +157,9 @@ describe('NewPartyPage', { timeout: 30_000 }, () => {
         return json(
           {
             statusCode: 409,
-            message:
-              calls === 1
-                ? 'A party with this mobile number already exists'
-                : 'A party with this GSTIN already exists',
+            // The message is not read: the field comes from `field`.
+            message: 'Duplicate',
+            field: calls === 1 ? 'phone' : 'gstin',
             ...(calls === 1 ? { existingPartyId: PARTY.id } : {}),
           },
           409,

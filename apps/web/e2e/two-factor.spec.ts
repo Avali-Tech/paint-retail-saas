@@ -24,8 +24,15 @@ import { nextCode } from './totp.js';
 
 const dashboard = (page: Page) => page.getByRole('heading', { name: 'Dashboard', level: 1 });
 
-const signOut = (page: Page) =>
-  page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Sign out' }).click();
+// Signing out ends the session on the server first; wait for the sign-in screen so the
+// next navigation can't cut that request short and leave the old session in place.
+async function signOut(page: Page) {
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('button', { name: 'Sign out' })
+    .click();
+  await expect(page.getByRole('heading', { name: 'Sign in to Paint Retail' })).toBeVisible();
+}
 
 test('an owner adds an authenticator app from a QR code at first sign-in', async ({ page }) => {
   const business = await createBusiness('Setup Paints');
@@ -207,8 +214,16 @@ test('an owner relaxes the business rule, turns their app off and resets a membe
   const account = page.getByRole('region', { name: 'Two-factor sign-in' });
   await expect(account.getByRole('button', { name: 'Add an authenticator app' })).toBeVisible();
 
-  const team = page.getByRole('region', { name: 'Team two-factor sign-in' });
-  await team.getByRole('button', { name: 'Reset two-factor for Suresh Counter' }).click();
+  // Resets live on each member's page under Team.
+  await page
+    .getByRole('region', { name: 'Team two-factor sign-in' })
+    .getByRole('link', { name: 'Open the team' })
+    .click();
+  await page.getByRole('link', { name: 'Suresh Counter' }).click();
+  await page
+    .getByRole('region', { name: 'Two-factor sign-in' })
+    .getByRole('button', { name: 'Reset two-factor' })
+    .click();
   const dialog = page.getByRole('dialog', {
     name: 'Reset two-factor sign-in for Suresh Counter?',
   });

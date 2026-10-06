@@ -11,7 +11,7 @@ import { ActionMenu } from './ActionMenu.js';
 import { LEAD_TONE, refreshCrm } from './crm.js';
 import { Facts } from './Facts.js';
 import { useLeadActions } from './lead-actions.js';
-import { AssignDialog, useMembers } from './members.js';
+import { AssignDialog, useAssignableMembers } from './members.js';
 import { RecordActivities } from './RecordActivities.js';
 
 function LeadView({ lead }: { readonly lead: Lead }) {
@@ -20,7 +20,7 @@ function LeadView({ lead }: { readonly lead: Lead }) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const can = usePermissions();
-  const { canChoose } = useMembers();
+  const { canChoose } = useAssignableMembers();
   const { actions, dialogs } = useLeadActions(lead);
   const [assigning, setAssigning] = useState(false);
   const manage = can('leads:manage');

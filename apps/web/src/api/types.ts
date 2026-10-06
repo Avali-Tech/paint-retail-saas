@@ -18,8 +18,7 @@ export type {
   TwoFactorSignIn,
 } from '@paint/shared';
 
-// The routes below have no shared type yet; these mirror apps/api/src/auth/two-factor.*
-// and MemberView in apps/api/src/members/members.service.ts.
+// The routes below have no shared type yet; these mirror apps/api/src/auth/two-factor.*.
 
 /** POST /auth/2fa/setup and /auth/2fa/enrol: an authenticator app to add. */
 export interface TwoFactorEnrolment {
@@ -40,17 +39,4 @@ export interface TwoFactorStatus {
 /** GET and PUT /organization/security. */
 export interface OrganizationSecurity {
   readonly twoFactorRequired: boolean;
-}
-
-/** GET /members: one person on the team. */
-export interface Member {
-  readonly id: string;
-  readonly user: {
-    readonly id: string;
-    readonly fullName: string;
-    readonly phone: string | null;
-    readonly email: string | null;
-  };
-  readonly role: { readonly id: string; readonly key: string; readonly name: string };
-  readonly isActive: boolean;
 }

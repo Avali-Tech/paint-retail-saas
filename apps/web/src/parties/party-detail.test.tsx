@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { CASHIER, OWNER, json } from '../test-support/fake-api.js';
+import { DOCUMENT } from '../test-support/document-fixtures.js';
 import {
   BARE_OVERVIEW,
   BARE_PARTY,
@@ -20,6 +21,7 @@ describe('PartyDetailPage (customer 360)', { timeout: 30_000 }, () => {
       routes: {
         'GET /auth/me': () => json(OWNER),
         'GET /parties/:id/overview': () => json(OVERVIEW),
+        'GET /documents': () => json([DOCUMENT]),
         'GET /parties/:id/loyalty': () => json(loyaltyView()),
         'GET /stores': () => json(STORES),
       },
@@ -80,7 +82,14 @@ describe('PartyDetailPage (customer 360)', { timeout: 30_000 }, () => {
       within(contracts).getByText('Other agreement · Expired · 1 Jan 2024 – 31 Dec 2024'),
     ).toBeVisible();
 
-    expect(within(region('Documents')).getByText('GST certificate · 2 Sept 2026')).toBeVisible();
+    expect(
+      await within(region('Documents')).findByText(
+        'GST certificate · 120 KB · Anil Kumar · 2 Sept 2026',
+      ),
+    ).toBeVisible();
+    expect(
+      within(region('Documents')).getByRole('button', { name: 'Delete gst.pdf' }),
+    ).toBeVisible();
     expect(within(region('Credit')).getByText('₹50,000.00')).toBeVisible();
     expect(within(region('Loyalty points')).getByText('1,200 points')).toBeVisible();
   });
@@ -91,6 +100,7 @@ describe('PartyDetailPage (customer 360)', { timeout: 30_000 }, () => {
       routes: {
         'GET /auth/me': () => json(CASHIER),
         'GET /parties/:id/overview': () => json(BARE_OVERVIEW),
+        'GET /documents': () => json([]),
       },
     });
     const heading = await screen.findByRole('heading', { name: 'Walk-in Ramesh', level: 1 });
@@ -99,7 +109,8 @@ describe('PartyDetailPage (customer 360)', { timeout: 30_000 }, () => {
     expect(screen.queryByRole('link', { name: 'Edit' })).toBeNull();
     expect(within(region('Contact')).getByText('No contact details yet')).toBeVisible();
     expect(within(region('Activities')).getByText('Nothing yet')).toBeVisible();
-    expect(within(region('Documents')).getByText('Nothing yet')).toBeVisible();
+    expect(await within(region('Documents')).findByText('No documents yet')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Upload' })).toBeNull();
     for (const hidden of ['Leads', 'Opportunities', 'Projects', 'Contracts', 'Credit']) {
       expect(screen.queryByRole('region', { name: hidden })).toBeNull();
     }

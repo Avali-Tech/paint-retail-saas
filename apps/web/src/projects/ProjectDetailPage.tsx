@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { errorMessage } from '../api/errors.js';
+import { DocumentsPanel } from '../documents/DocumentsPanel.js';
 import { WORK_STAGES, type Project } from '../api/projects.js';
 import { useApi } from '../app/services.js';
 import { usePermissions } from '../auth/session.js';
@@ -10,7 +11,7 @@ import { stageLabel, useI18n } from '../i18n/i18n.js';
 import { ActionMenu, type MenuAction } from '../leads/ActionMenu.js';
 import { PROJECT_TONE, refreshCrm } from '../leads/crm.js';
 import { Facts } from '../leads/Facts.js';
-import { AssignDialog, useMembers } from '../leads/members.js';
+import { AssignDialog, useAssignableMembers } from '../leads/members.js';
 import { RecordActivities } from '../leads/RecordActivities.js';
 import { QueryState } from '../lib/QueryState.js';
 import { ReasonDialog } from '../lib/ReasonDialog.js';
@@ -31,7 +32,7 @@ function ProjectView({ project }: { readonly project: Project }) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const can = usePermissions();
-  const { canChoose } = useMembers();
+  const { canChoose } = useAssignableMembers();
   const [dialog, setDialog] = useState<'cancel' | 'assign' | null>(null);
   const manage = can('projects:manage');
   const open = project.stage !== 'completed' && project.stage !== 'cancelled';
@@ -193,6 +194,8 @@ function ProjectView({ project }: { readonly project: Project }) {
         </Card>
         <ProjectPeople project={project} canChange={changeable} />
         <RecordActivities recordType="project" recordId={project.id} canAdd={manage} />
+        {/* Site photos before and after the job, quotations and the like. */}
+        <DocumentsPanel recordType="project" recordId={project.id} defaultCategory="before_photo" />
       </div>
       {dialog === 'cancel' && (
         <ReasonDialog

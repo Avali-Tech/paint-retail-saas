@@ -13,7 +13,7 @@ import {
 } from '@paint/ui';
 import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { errorMessage } from '../api/errors.js';
 import type { Dashboard, StageCount } from '../api/types.js';
 import { useApi } from '../app/services.js';
@@ -119,6 +119,7 @@ function Tiles({ dashboard }: { readonly dashboard: Dashboard }) {
           {...(followUps.overdue > 0 ? { tone: 'danger' as const } : {})}
         />
         <Figure label={t('dashboard.today')} value={number(followUps.today)} />
+        <Link to="/follow-ups">{t('dashboard.openFollowUps')}</Link>
       </Tile>
     </section>
   );

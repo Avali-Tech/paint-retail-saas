@@ -38,6 +38,7 @@ export const leadsEn = {
       dueInvalid: 'Choose the date and time of the follow-up',
       due: 'Due {time}',
       overdue: 'Overdue',
+      seeAll: 'See all activity',
     },
   },
   leads: {

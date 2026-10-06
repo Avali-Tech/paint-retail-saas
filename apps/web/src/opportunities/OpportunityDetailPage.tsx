@@ -10,7 +10,7 @@ import { stageLabel, useI18n, type MessageKey } from '../i18n/i18n.js';
 import { ActionMenu, type MenuAction } from '../leads/ActionMenu.js';
 import { OPPORTUNITY_TONE, refreshCrm } from '../leads/crm.js';
 import { Facts } from '../leads/Facts.js';
-import { AssignDialog, useMembers } from '../leads/members.js';
+import { AssignDialog, useAssignableMembers } from '../leads/members.js';
 import { RecordActivities } from '../leads/RecordActivities.js';
 import { FormDialog } from '../lib/FormDialog.js';
 import { optional, parseRupees, rupeesInput } from '../lib/inputs.js';
@@ -107,7 +107,7 @@ function OpportunityView({ opportunity }: { readonly opportunity: Opportunity })
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const can = usePermissions();
-  const { canChoose } = useMembers();
+  const { canChoose } = useAssignableMembers();
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [starting, setStarting] = useState(false);
   const { stage, number } = opportunity;

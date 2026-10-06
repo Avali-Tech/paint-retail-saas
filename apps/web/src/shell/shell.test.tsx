@@ -5,7 +5,15 @@ import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { ServicesProvider, createServices } from '../app/services.js';
 import { useCurrentProfile, usePermissions } from '../auth/session.js';
-import { CASHIER, DASHBOARD, OWNER, fakeFetch, json, profile } from '../test-support/fake-api.js';
+import {
+  CASHIER,
+  DASHBOARD,
+  GRANT,
+  OWNER,
+  fakeFetch,
+  json,
+  profile,
+} from '../test-support/fake-api.js';
 import { renderApp } from '../test-support/render-app.js';
 import { NAV_ITEMS, visibleNav } from './nav.js';
 import { found } from '../test-support/found.js';
@@ -16,7 +24,7 @@ describe('visibleNav', () => {
   it('shows each section only with its permission', () => {
     expect(visibleNav(() => true)).toEqual(NAV_ITEMS);
     expect(visibleNav((permission) => permission === 'leads:read').map((item) => item.key)).toEqual(
-      ['leads', 'opportunities'],
+      ['leads', 'opportunities', 'followUps', 'reports'],
     );
     // Imports need any one of the permissions to change what they import.
     expect(
@@ -99,10 +107,13 @@ describe('navigation by role', () => {
       'Opportunities',
       'Projects',
       'Contracts',
+      'Follow-ups',
       'Credit requests',
       'Credit rules',
       'Loyalty programme',
       'Import data',
+      'Reports',
+      'Team',
       'Appearance',
       // Everyone's own sign-in settings, next to signing out.
       'Account security',
@@ -122,7 +133,15 @@ describe('navigation by role', () => {
       within(found(sidebar))
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['Dashboard', 'Customers', 'Products', 'Stock', 'Account security']);
+    ).toEqual([
+      'Dashboard',
+      'Customers',
+      'Products',
+      'Stock',
+      'Follow-ups',
+      'Reports',
+      'Account security',
+    ]);
   });
 
   it('opens the first allowed section, or follow-ups when there is none', async () => {
@@ -133,13 +152,13 @@ describe('navigation by role', () => {
 
   it('opens follow-ups for a member with no sections', async () => {
     renderApp({ routes: { 'GET /auth/me': () => json(profile([])) } });
-    await screen.findByText('Coming soon');
+    await screen.findByRole('heading', { name: 'My follow-ups', level: 1 });
     expect(location()).toBe('/follow-ups');
   });
 
   it('puts the remaining sections and sign-out under "More" on phones', async () => {
     const { user } = renderApp({
-      path: '/reports',
+      path: '/billing',
       routes: { 'GET /auth/me': () => json(OWNER) },
     });
     await screen.findByText('Coming soon');
@@ -157,10 +176,13 @@ describe('navigation by role', () => {
       'Opportunities',
       'Projects',
       'Contracts',
+      'Follow-ups',
       'Credit requests',
       'Credit rules',
       'Loyalty programme',
       'Import data',
+      'Reports',
+      'Team',
       'Appearance',
       'Account security',
     ]);
@@ -182,7 +204,7 @@ describe('navigation by role', () => {
 
   it('links back to the dashboard from screens still to come', async () => {
     const { user } = renderApp({
-      path: '/reports',
+      path: '/billing',
       routes: { 'GET /auth/me': () => json(OWNER), 'GET /dashboard': () => json(DASHBOARD) },
     });
     await user.click(await screen.findByRole('link', { name: 'Back to the dashboard' }));
@@ -193,7 +215,7 @@ describe('navigation by role', () => {
 describe('sign-out', () => {
   it('ends the session on the server and returns to sign-in', async () => {
     const { user, requests } = renderApp({
-      path: '/reports',
+      path: '/billing',
       routes: { 'GET /auth/me': () => json(OWNER), 'POST /auth/logout': () => ({ status: 204 }) },
     });
     await screen.findByText('Coming soon');
@@ -204,9 +226,31 @@ describe('sign-out', () => {
     expect(localStorage.getItem('paint.session')).toBeNull();
   });
 
+  it('starts the next sign-in at the dashboard, not on the page signed out from', async () => {
+    const { user } = renderApp({
+      path: '/billing',
+      routes: {
+        'GET /auth/me': () => json(OWNER),
+        'GET /dashboard': () => json(DASHBOARD),
+        'POST /auth/logout': () => ({ status: 204 }),
+        'POST /auth/login': () => json(GRANT),
+      },
+    });
+    await screen.findByText('Coming soon');
+    const [sidebar] = screen.getAllByRole('navigation', { name: 'Main' });
+    await user.click(within(found(sidebar)).getByRole('button', { name: 'Sign out' }));
+    await user.type(
+      await screen.findByRole('textbox', { name: 'Mobile number or email' }),
+      '9876543210',
+    );
+    await user.type(screen.getByLabelText('Password', { selector: 'input' }), 'Staff@2026');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByRole('heading', { name: 'Dashboard', level: 1 })).toBeInTheDocument();
+  });
+
   it('signs out on this device even when the server cannot be reached', async () => {
     const { user } = renderApp({
-      path: '/reports',
+      path: '/billing',
       routes: {
         'GET /auth/me': () => json(OWNER),
         'POST /auth/logout': () => json({ message: 'Bad gateway' }, 502),

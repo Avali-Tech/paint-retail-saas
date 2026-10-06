@@ -1,26 +1,38 @@
 import { Field, Select } from '@paint/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import type { Member } from '../api/types.js';
+import type { Member } from '../api/team.js';
 import { useApi } from '../app/services.js';
-import { usePermissions } from '../auth/session.js';
+import { useCurrentProfile, usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { FormDialog } from '../lib/FormDialog.js';
+import { membersKey } from '../team/team-data.js';
 
 /**
- * Active team members (GET /members) for choosing who looks after a record.
- * Only members who can see the team get a list; for the rest it stays empty
- * and records go to whoever creates them.
+ * Active team members (GET /members, shared with the team screens) for choosing
+ * who looks after a record. Only members who can see the team get a list (the
+ * request would be refused otherwise); for the rest it stays empty and records
+ * go to whoever creates them.
  */
-export function useMembers(): { readonly canChoose: boolean; readonly members: Member[] } {
+export function useAssignableMembers(): {
+  readonly canChoose: boolean;
+  readonly members: Member[];
+} {
   const api = useApi();
   const canChoose = usePermissions()('members:read');
   const members = useQuery({
-    queryKey: ['members'],
-    queryFn: () => api.members.list(),
+    queryKey: membersKey,
+    queryFn: ({ signal }) => api.team.members(signal),
     enabled: canChoose,
   });
   return { canChoose, members: (members.data ?? []).filter((member) => member.isActive) };
+}
+
+/** Colleagues: the active members other than the signed-in one, who is offered as "Me". */
+function useColleagues(): { readonly canChoose: boolean; readonly members: Member[] } {
+  const { memberId } = useCurrentProfile();
+  const { canChoose, members } = useAssignableMembers();
+  return { canChoose, members: members.filter((member) => member.id !== memberId) };
 }
 
 /** The "Assigned to" filter: anyone, me, or (for those who can see the team) one person. */
@@ -32,7 +44,7 @@ export function AssigneeFilter({
   readonly onChange: (value: string) => void;
 }) {
   const { t } = useI18n();
-  const { members } = useMembers();
+  const { members } = useColleagues();
   return (
     <Field label={t('crm.assignedTo')}>
       <Select
@@ -62,7 +74,7 @@ export function MemberField({
   readonly onChange: (memberId: string) => void;
 }) {
   const { t } = useI18n();
-  const { canChoose, members } = useMembers();
+  const { canChoose, members } = useColleagues();
   if (!canChoose) return null;
   return (
     <Field label={t('crm.assignedTo')} hint={t('crm.assignHint')}>
@@ -96,7 +108,7 @@ export function AssignDialog({
   readonly onClose: () => void;
 }) {
   const { t } = useI18n();
-  const { members } = useMembers();
+  const { members } = useAssignableMembers();
   const [memberId, setMemberId] = useState(current);
   return (
     <FormDialog

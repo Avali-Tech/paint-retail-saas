@@ -8,6 +8,7 @@ import { usePermissions } from '../auth/session.js';
 import { stageLabel, useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
 import { CreditPanel } from '../credit/CreditPanel.js';
+import { DocumentsPanel } from '../documents/DocumentsPanel.js';
 import { LOYALTY_PANEL_ID, LoyaltyPanel } from '../loyalty/LoyaltyPanel.js';
 
 interface RecordItem {
@@ -121,17 +122,8 @@ function Overview({
 }) {
   const { t, label, money, date, dateTime } = useI18n();
   const can = usePermissions();
-  const {
-    party,
-    leads,
-    opportunities,
-    projects,
-    contracts,
-    credit,
-    loyalty,
-    activities,
-    documents,
-  } = overview;
+  const { party, leads, opportunities, projects, contracts, credit, loyalty, activities } =
+    overview;
   const next = activities.nextFollowUp;
   useEffect(() => {
     if (focusLoyalty) document.getElementById(LOYALTY_PANEL_ID)?.scrollIntoView();
@@ -275,15 +267,8 @@ function Overview({
             }))}
           />
         )}
-        <Section
-          title={t('parties.detail.documents')}
-          total={documents.total}
-          items={documents.items.map((document) => ({
-            id: document.id,
-            title: document.fileName,
-            meta: `${label('documentCategories', document.category)} · ${date(document.createdAt)}`,
-          }))}
-        />
+        {/* Downloads, uploads and deletes, by the role's rights on customers. */}
+        <DocumentsPanel recordType="party" recordId={party.id} />
       </div>
     </>
   );

@@ -112,14 +112,25 @@ describe('owners, who must use two factors', () => {
     expect(enrolment.otpauthUri).toBe(
       `otpauth://totp/Paint%20Retail%3A${encodeURIComponent(ownerPhone)}?secret=${secret}&issuer=Paint+Retail&algorithm=SHA1&digits=6&period=30`,
     );
-    expect([wrong.statusCode, message(wrong)]).toEqual([401, 'Wrong code']);
+    expect(wrong.statusCode).toBe(401);
+    expect(wrong.json()).toEqual({
+      statusCode: 401,
+      message: 'Wrong code',
+      code: 'wrong_code',
+      attemptsRemaining: 4,
+    });
     expect(right.statusCode).toBe(200);
     const signedIn = right.json<TwoFactorSignIn>();
     recoveryCodes = signedIn.recoveryCodes ?? [];
     expect(recoveryCodes).toHaveLength(10);
     expect(signedIn.organizationId).toBe(organizationId);
     expect((await get('/auth/me', signedIn.token)).statusCode).toBe(200);
-    expect([again.statusCode, message(again)]).toEqual([401, 'Invalid or expired sign-in']);
+    // Used once: it is gone, like an expired one.
+    expect(again.json()).toEqual({
+      statusCode: 401,
+      message: 'Invalid or expired sign-in',
+      code: 'expired',
+    });
     const stored = await t.connection.db.select().from(schema.userRecoveryCodes);
     expect(stored.map((row) => row.codeHash)).not.toContain(recoveryCodes[0]);
   });
@@ -169,32 +180,54 @@ describe('owners, who must use two factors', () => {
 
   it('get five tries and five minutes per sign-in', async () => {
     const tries = pendingOf(await login(ownerPhone)).pendingToken;
+    const answers: unknown[] = [];
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      expect(
-        (await post('/auth/2fa/verify', { pendingToken: tries, code: '123456' })).statusCode,
-      ).toBe(401);
+      const response = await post('/auth/2fa/verify', { pendingToken: tries, code: '123456' });
+      expect(response.statusCode).toBe(401);
+      const body = response.json<{ code: string; attemptsRemaining?: number }>();
+      answers.push([body.code, body.attemptsRemaining]);
     }
+    expect(answers).toEqual([
+      ['wrong_code', 4],
+      ['wrong_code', 3],
+      ['wrong_code', 2],
+      ['wrong_code', 1],
+      ['too_many_attempts', 0],
+    ]);
     const late = pendingOf(await login(ownerPhone)).pendingToken;
     await t.connection.db
       .update(schema.twoFactorChallenges)
       .set({ expiresAt: sql`now() - interval '1 second'` })
       .where(sql`${schema.twoFactorChallenges.createdAt} > now() - interval '1 second'`);
 
+    // Even the right code is refused once the tries are used up.
     expect(
-      message(await post('/auth/2fa/verify', { pendingToken: tries, code: nextCode(secret) })),
-    ).toBe('Invalid or expired sign-in');
+      (await post('/auth/2fa/verify', { pendingToken: tries, code: nextCode(secret) })).json(),
+    ).toEqual({
+      statusCode: 401,
+      message: 'Too many wrong codes. Sign in again.',
+      code: 'too_many_attempts',
+      attemptsRemaining: 0,
+    });
+    expect((await post('/auth/2fa/setup', { pendingToken: tries })).json()).toMatchObject({
+      code: 'too_many_attempts',
+    });
+    const expired = await post('/auth/2fa/verify', { pendingToken: late, code: nextCode(secret) });
+    expect([expired.statusCode, expired.json<{ code: string }>().code]).toEqual([401, 'expired']);
+    expect((await post('/auth/2fa/setup', { pendingToken: late })).json()).toMatchObject({
+      statusCode: 401,
+      code: 'expired',
+    });
     expect(
-      (await post('/auth/2fa/verify', { pendingToken: late, code: nextCode(secret) })).statusCode,
-    ).toBe(401);
-    expect((await post('/auth/2fa/setup', { pendingToken: late })).statusCode).toBe(401);
+      (await post('/auth/2fa/verify', { pendingToken: 'n'.repeat(43), code: '123456' })).json(),
+    ).toMatchObject({ code: 'expired' });
   });
 
   it('cannot use a business sign-in token for the platform console', async () => {
     const { pendingToken } = pendingOf(await login(ownerPhone));
 
-    expect(
-      (await post('/platform/login/2fa', { pendingToken, code: nextCode(secret) })).statusCode,
-    ).toBe(401);
+    const crossed = await post('/platform/login/2fa', { pendingToken, code: nextCode(secret) });
+    expect([crossed.statusCode, crossed.json<{ code: string }>().code]).toEqual([401, 'expired']);
   });
 });
 

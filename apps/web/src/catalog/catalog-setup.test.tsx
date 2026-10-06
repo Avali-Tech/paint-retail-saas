@@ -110,7 +110,12 @@ describe('CatalogSetupPage', () => {
       'GET /categories': () => json(categories),
       'POST /categories': (request) => {
         bodies.push(request.body);
-        categories.push({ id: 'cat-new', name: 'Exterior emulsions', parentId: 'cat-emulsion' });
+        categories.push({
+          id: 'cat-new',
+          name: 'Exterior emulsions',
+          parentId: 'cat-emulsion',
+          isActive: true,
+        });
         return json(categories.at(-1), 201);
       },
       'PATCH /categories/:id': (request) => {

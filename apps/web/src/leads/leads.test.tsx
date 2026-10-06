@@ -92,8 +92,9 @@ describe('LeadsPage', () => {
         'q=apex&stage=qualified&source=referral&storeId=store-hyd&assignedTo=member-2&limit=50&offset=0',
       );
     });
-    // Inactive members are not offered.
+    // Inactive members are not offered, nor the signed-in member (who is "Me").
     expect(screen.queryByRole('option', { name: 'Old Hand' })).toBeNull();
+    expect(screen.queryByRole('option', { name: 'Anil Kumar' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await waitFor(() => {
       expect(location()).toContain('offset=50');

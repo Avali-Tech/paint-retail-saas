@@ -2,7 +2,8 @@ import type { Lead, Opportunity } from '../../api/leads.js';
 import type { Party } from '../../api/parties.js';
 import type { Project } from '../../api/projects.js';
 import type { Activity } from '../../api/record-activities.js';
-import type { Member, Profile } from '../../api/types.js';
+import type { Member } from '../../api/team.js';
+import type { Profile } from '../../api/types.js';
 import { OWNER, json, type FakeHandler } from '../../test-support/fake-api.js';
 import { STORES, page } from '../../test-support/inventory-fixtures.js';
 
@@ -111,7 +112,10 @@ const member = (id: string, fullName: string, role: string, isActive = true): Me
   id,
   user: { id: `user-${id}`, fullName, phone: null, email: null },
   role: { id: `role-${role}`, key: role, name: role === 'owner' ? 'Owner' : 'Sales Executive' },
+  allStores: role === 'owner',
+  storeIds: role === 'owner' ? [] : ['store-hyd'],
   isActive,
+  twoFactorEnabled: false,
 });
 
 export const MEMBERS: Member[] = [
@@ -162,6 +166,7 @@ export function crmRoutes(
     'GET /stores': () => json(STORES),
     'GET /members': () => json(MEMBERS),
     'GET /activities': () => json(page(activities)),
+    'GET /documents': () => json([]),
   };
 }
 

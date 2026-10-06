@@ -57,6 +57,7 @@ export const stockCountsEn = {
       submittedAt: 'Submitted {time}',
       approvedAt: 'Approved {time}',
       closedAt: 'Closed {time}',
+      ownSubmission: 'You submitted this count, so someone else at the store approves it.',
       note: 'Note: {note}',
       closingReason: 'Reason: {reason}',
       lines: 'Products',

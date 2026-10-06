@@ -9,8 +9,14 @@ export interface FakeRequest {
   readonly headers: Record<string, string>;
 }
 
-export type FakeAnswer =
-  { status: number; body?: unknown } | Promise<{ status: number; body?: unknown }>;
+export interface FakeResponse {
+  status: number;
+  body?: unknown;
+  /** Sent as is instead of JSON, e.g. a file's bytes for a download. */
+  raw?: string;
+  headers?: Record<string, string>;
+}
+export type FakeAnswer = FakeResponse | Promise<FakeResponse>;
 export type FakeHandler = (request: FakeRequest) => FakeAnswer;
 
 /** Answers with JSON and a status (200 by default). */
@@ -30,7 +36,13 @@ export function fakeFetch(routes: Record<string, FakeHandler>) {
       method,
       path,
       query: url.searchParams,
-      body: typeof init.body === 'string' ? JSON.parse(init.body) : undefined,
+      // JSON is parsed; form data (an upload) is kept as sent.
+      body:
+        typeof init.body === 'string'
+          ? JSON.parse(init.body)
+          : init.body instanceof FormData
+            ? init.body
+            : undefined,
       headers: init.headers as Record<string, string>,
     };
     requests.push(request);
@@ -42,13 +54,13 @@ export function fakeFetch(routes: Record<string, FakeHandler>) {
         if (routeMethod !== method || !pattern?.includes(':')) return false;
         return new RegExp(`^${pattern.replace(/:[^/]+/g, '[^/]+')}$`).test(path);
       })?.[1];
-    const answer = handler
+    const answer: FakeResponse = handler
       ? await handler(request)
       : json({ statusCode: 404, message: 'Not Found' }, 404);
-    const text = answer.body === undefined ? '' : JSON.stringify(answer.body);
+    const text = answer.raw ?? (answer.body === undefined ? '' : JSON.stringify(answer.body));
     return new Response(answer.status === 204 ? null : text, {
       status: answer.status,
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...answer.headers },
     });
   };
   return { fetch, requests };
@@ -65,6 +77,7 @@ export function profile(
   overrides: Partial<Profile> = {},
 ): Profile {
   return {
+    memberId: 'member-1',
     user: { id: 'user-1', fullName: 'Anil Kumar', phone: '+919876543210', email: null },
     organization: { id: GRANT.organizationId, name: 'ABC Paints' },
     role: { key: 'owner', name: 'Owner' },

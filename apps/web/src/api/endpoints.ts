@@ -1,7 +1,10 @@
 import type { QuickAction } from '@paint/shared';
 import { catalogEndpoints } from './catalog.js';
 import type { ApiClient } from './client.js';
+import { contractEndpoints } from './contracts.js';
 import { creditEndpoints } from './credit.js';
+import { documentEndpoints } from './documents.js';
+import { followUpEndpoints } from './follow-ups.js';
 import { importEndpoints } from './imports.js';
 import { leadEndpoints, opportunityEndpoints } from './leads.js';
 import { loyaltyEndpoints } from './loyalty.js';
@@ -9,12 +12,13 @@ import { partyEndpoints } from './parties.js';
 import { projectEndpoints } from './projects.js';
 import { purchasingEndpoints } from './purchasing.js';
 import { recordActivityEndpoints } from './record-activities.js';
+import { reportEndpoints } from './reports.js';
 import { stockCountEndpoints } from './stock-counts.js';
 import { stockEndpoints } from './stock.js';
+import { teamEndpoints } from './team.js';
 import { transferEndpoints } from './transfers.js';
 import type {
   Dashboard,
-  Member,
   NotificationPage,
   OrganizationSecurity,
   Profile,
@@ -67,11 +71,7 @@ export function endpoints(api: ApiClient) {
       setSecurity: (input: OrganizationSecurity) =>
         api.put<OrganizationSecurity>('/organization/security', input),
     },
-    members: {
-      list: () => api.get<Member[]>('/members'),
-      resetTwoFactor: (memberId: string) =>
-        api.post<undefined>(`/members/${memberId}/two-factor/reset`),
-    },
+    team: teamEndpoints(api),
     dashboard: (storeId?: string, signal?: AbortSignal) =>
       api.get<Dashboard>('/dashboard', { query: { storeId }, signal }),
     search: (q: string, signal?: AbortSignal) =>
@@ -95,6 +95,10 @@ export function endpoints(api: ApiClient) {
     opportunities: opportunityEndpoints(api),
     projects: projectEndpoints(api),
     recordActivities: recordActivityEndpoints(api),
+    followUps: followUpEndpoints(api),
+    contracts: contractEndpoints(api),
+    documents: documentEndpoints(api),
+    reports: reportEndpoints(api),
   };
 }
 

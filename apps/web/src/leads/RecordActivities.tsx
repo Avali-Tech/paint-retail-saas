@@ -1,6 +1,7 @@
 import { Badge, Button, Card, Field, Input, Select, Textarea, useToast } from '@paint/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router';
 import {
   ACTIVITY_TYPES,
   type Activity,
@@ -9,6 +10,7 @@ import {
 } from '../api/record-activities.js';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
+import { timelinePath } from '../followups/activity-helpers.js';
 import { FormDialog } from '../lib/FormDialog.js';
 import { QueryState } from '../lib/QueryState.js';
 import { given, indiaMoment, refreshCrm } from './crm.js';
@@ -225,11 +227,16 @@ export function RecordActivities({
           page.items.length === 0 ? (
             <p className="muted">{t('crm.activities.none')}</p>
           ) : (
-            <ul className="record-list" aria-label={t('crm.activities.title')}>
-              {page.items.map((activity) => (
-                <ActivityItem key={activity.id} activity={activity} />
-              ))}
-            </ul>
+            <div className="stack">
+              <ul className="record-list" aria-label={t('crm.activities.title')}>
+                {page.items.map((activity) => (
+                  <ActivityItem key={activity.id} activity={activity} />
+                ))}
+              </ul>
+              <Link to={timelinePath({ type: recordType, id: recordId })}>
+                {t('crm.activities.seeAll')}
+              </Link>
+            </div>
           )
         }
       </QueryState>

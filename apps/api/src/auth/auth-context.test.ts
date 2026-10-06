@@ -5,6 +5,7 @@ import { authFromRequest, toProfile } from './auth-context.js';
 describe('toProfile', () => {
   it('turns the auth context into a JSON-friendly profile with sorted lists', () => {
     expect(toProfile(sampleAuth)).toEqual({
+      memberId: 'member-1',
       user: sampleAuth.user,
       organization: sampleAuth.organization,
       role: sampleAuth.role,
@@ -14,8 +15,8 @@ describe('toProfile', () => {
     });
   });
 
-  it('does not expose the session or member ids', () => {
-    expect(JSON.stringify(toProfile(sampleAuth))).not.toMatch(/session-1|member-1/);
+  it('does not expose the session id', () => {
+    expect(JSON.stringify(toProfile(sampleAuth))).not.toMatch(/session-1/);
   });
 });
 

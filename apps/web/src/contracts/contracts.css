@@ -1,0 +1,7 @@
+/* Contract screens (loaded with their routes). Only design tokens. */
+
+/* Terms keep the line breaks they were typed with. */
+.prewrap {
+  font-weight: 400;
+  white-space: pre-wrap;
+}

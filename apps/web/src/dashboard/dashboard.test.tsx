@@ -40,6 +40,10 @@ describe('DashboardPage', () => {
     expect(within(totals).getByText('₹18.94 L')).toHaveAttribute('title', '₹18,94,000.00');
     expect(totals).toHaveTextContent('Low stock6');
     expect(totals).toHaveTextContent('Follow-ups3');
+    expect(within(totals).getByRole('link', { name: 'Open my follow-ups' })).toHaveAttribute(
+      'href',
+      '/follow-ups',
+    );
 
     const stores = screen.getByRole('table', { name: 'Stores' });
     const rows = within(stores).getAllByRole('row');

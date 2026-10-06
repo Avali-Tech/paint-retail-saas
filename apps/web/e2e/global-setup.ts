@@ -1,8 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createWriteStream, existsSync, mkdirSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { dirname, join } from 'node:path';
-import { startTestDatabase } from '@paint/testing';
-import { API_LOG, API_PORT, API_URL, WEB_PORT, WEB_URL } from './env.js';
+import { startTestDatabase, startTestObjectStorage, startTestVirusScanner } from '@paint/testing';
+import { API_LOG, API_PORT, API_URL, SCANNER_ON, WEB_PORT, WEB_URL } from './env.js';
 
 const webDir = join(import.meta.dirname, '..');
 const apiServer = join(webDir, '..', 'api', 'dist', 'server', 'main.js');
@@ -33,6 +34,66 @@ function stop(child: ChildProcess): Promise<void> {
   });
 }
 
+/** A local port nothing listens on. */
+function closedPort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      const port = typeof address === 'object' && address !== null ? address.port : 0;
+      server.close(() => {
+        resolve(port);
+      });
+    });
+  });
+}
+
+/**
+ * Document uploads. By default the virus scanner is "off" (nothing listens on its
+ * port), as in `pnpm demo` without --clamav, so every upload is refused with 503
+ * and the tests check the message people see. E2E_CLAMAV=1 starts real S3-compatible
+ * storage and ClamAV (heavy: about 1.5 GB and a minute or two) for the full flow.
+ */
+async function documentServices(): Promise<{
+  env: Record<string, string>;
+  stop: () => Promise<void>;
+}> {
+  const bucket = 'paint-e2e-documents';
+  if (!SCANNER_ON) {
+    return {
+      env: {
+        STORAGE_BUCKET: bucket,
+        // Never reached: the scan fails first.
+        STORAGE_ENDPOINT: 'http://127.0.0.1:9',
+        STORAGE_ACCESS_KEY_ID: 'e2e',
+        STORAGE_SECRET_ACCESS_KEY: 'e2e',
+        CLAMAV_HOST: '127.0.0.1',
+        CLAMAV_PORT: String(await closedPort()),
+      },
+      stop: () => Promise.resolve(),
+    };
+  }
+  const [storage, scanner] = await Promise.all([startTestObjectStorage(), startTestVirusScanner()]);
+  // SeaweedFS accepts unsigned requests, like `pnpm demo` creates its bucket.
+  const created = await fetch(`${storage.endpoint}/${bucket}`, { method: 'PUT' });
+  if (!created.ok)
+    throw new Error(`Could not create the ${bucket} bucket: ${String(created.status)}`);
+  return {
+    env: {
+      STORAGE_BUCKET: bucket,
+      STORAGE_ENDPOINT: storage.endpoint,
+      STORAGE_ACCESS_KEY_ID: 'e2e',
+      STORAGE_SECRET_ACCESS_KEY: 'e2e',
+      CLAMAV_HOST: scanner.host,
+      CLAMAV_PORT: String(scanner.port),
+    },
+    stop: async () => {
+      await Promise.all([storage.stop(), scanner.stop()]);
+    },
+  };
+}
+
 /**
  * Starts the real stack once for the whole run: a throwaway PostgreSQL in
  * Docker, the built API (migrating that database on start) and the built web
@@ -49,7 +110,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     throw new Error('Build the web app first: pnpm --filter @paint/web build');
   }
 
-  const database = await startTestDatabase();
+  const [database, documents] = await Promise.all([startTestDatabase(), documentServices()]);
   mkdirSync(dirname(API_LOG), { recursive: true });
   const log = createWriteStream(API_LOG);
 
@@ -68,6 +129,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       WORKER_INTERVAL_SECONDS: '0',
       SIGNUP_PLAN: 'enterprise',
       APP_URL: WEB_URL,
+      ...documents.env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -89,7 +151,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   const teardown = async () => {
     await Promise.all([stop(web), stop(api)]);
     log.end();
-    await database.stop();
+    await Promise.all([database.stop(), documents.stop()]);
   };
   try {
     await waitFor(`${API_URL}/health/ready`, 'API', api);
