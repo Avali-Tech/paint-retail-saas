@@ -1,5 +1,11 @@
 import 'reflect-metadata';
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { schema, withTenant, type DatabaseConnection, type Transaction } from '@paint/db';
 import { canAccessStore } from '@paint/shared';
 import {
@@ -9,26 +15,31 @@ import {
   desc,
   eq,
   gte,
-  inArray,
   isNotNull,
   isNull,
   lt,
   or,
   sql,
+  type SQL,
 } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
+import { withinIndiaDays } from '../common/india-days.js';
 import { DATABASE } from '../database/database.module.js';
-import { recordPermissions, requireRecordAccess } from '../documents/record-access.js';
+import {
+  recordPermissions,
+  requireRecordAccess,
+  visibleRecords,
+} from '../documents/record-access.js';
 import { requireSalesperson } from '../leads/crm-lookups.js';
 import { recordLabel, startOfTodayIst } from './activity-records.js';
-import type {
+import {
   ACTIVITY_RECORD_TYPES,
-  CompleteActivityInput,
-  CreateActivityInput,
-  FollowUpsQuery,
-  TimelineQuery,
-  UpdateActivityInput,
+  type CompleteActivityInput,
+  type CreateActivityInput,
+  type FollowUpsQuery,
+  type TimelineQuery,
+  type UpdateActivityInput,
 } from './activities.schemas.js';
 
 const { activities, organizationMembers, users } = schema;
@@ -42,6 +53,51 @@ const creators = alias(organizationMembers, 'creator');
 const creatorUsers = alias(users, 'creator_user');
 const endOfTodayIst = sql`(${startOfTodayIst} + interval '1 day')`;
 const open = and(isNull(activities.completedAt), isNull(activities.cancelledAt));
+/** When it happened or is due: done, cancelled, else its due time, else when it was logged. */
+const moment = sql`coalesce(${activities.completedAt}, ${activities.cancelledAt}, ${activities.dueAt}, ${activities.createdAt})`;
+
+/**
+ * Open follow-ups on records the member can see: one member's, or (null)
+ * everyone's; at one store, or wherever the member works.
+ */
+export function followUpScope(
+  auth: AuthContext,
+  assignee: string | null,
+  storeId: string | undefined,
+): SQL | undefined {
+  return and(
+    open,
+    isNotNull(activities.dueAt),
+    assignee === null ? undefined : eq(activities.assignedMemberId, assignee),
+    storeId ? eq(activities.storeId, storeId) : undefined,
+    visibleRecords(auth, activities.recordType, activities.recordId, ACTIVITY_RECORD_TYPES),
+  );
+}
+
+/**
+ * How many follow-ups in the scope there are (within the window, if given),
+ * and how many are due before today and today (India time).
+ */
+export async function countFollowUps(
+  tx: Transaction,
+  scope: SQL | undefined,
+  window?: SQL,
+): Promise<{ total: number; overdue: number; today: number }> {
+  const [totals] = await tx
+    .select({
+      // The outer where is the scope; the window narrows the total only.
+      total: sql<number>`count(*) filter (where ${window ?? sql`true`})::int`,
+      overdue: sql<number>`count(*) filter (where ${activities.dueAt} < ${startOfTodayIst})::int`,
+      today: sql<number>`count(*) filter (where ${activities.dueAt} >= ${startOfTodayIst} and ${activities.dueAt} < ${endOfTodayIst})::int`,
+    })
+    .from(activities)
+    .where(scope);
+  return {
+    total: Number(totals?.total),
+    overdue: Number(totals?.overdue),
+    today: Number(totals?.today),
+  };
+}
 
 export interface ActivityView {
   readonly id: string;
@@ -101,22 +157,37 @@ export class ActivitiesService {
     });
   }
 
-  /** A record's activities, latest first: its timeline. */
+  /**
+   * A record's activities, latest first: its timeline. Without a record, the
+   * activities on every record the member can see (of one record type, if given).
+   */
   timeline(auth: AuthContext, query: TimelineQuery): Promise<ActivityPage> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
-      await requireRecordAccess(tx, auth, query.recordType, query.recordId, 'read', 'activities');
+      const { recordType, recordId } = query;
+      let records: SQL | undefined;
+      if (recordType && recordId) {
+        await requireRecordAccess(tx, auth, recordType, recordId, 'read', 'activities');
+        records = and(eq(activities.recordType, recordType), eq(activities.recordId, recordId));
+      } else {
+        records = visibleRecords(
+          auth,
+          activities.recordType,
+          activities.recordId,
+          recordType ? [recordType] : ACTIVITY_RECORD_TYPES,
+        );
+      }
+      const person = query.person === 'me' ? auth.memberId : query.person;
       const where = and(
-        eq(activities.recordType, query.recordType),
-        eq(activities.recordId, query.recordId),
+        records,
+        query.type ? eq(activities.type, query.type) : undefined,
+        person
+          ? or(eq(activities.assignedMemberId, person), eq(activities.createdByMemberId, person))
+          : undefined,
+        withinIndiaDays(moment, query.from, query.to),
       );
       const rows = await this.rows(tx)
         .where(where)
-        .orderBy(
-          desc(
-            sql`coalesce(${activities.completedAt}, ${activities.cancelledAt}, ${activities.dueAt})`,
-          ),
-          desc(activities.createdAt),
-        )
+        .orderBy(desc(moment), desc(activities.createdAt), desc(activities.id))
         .limit(query.limit)
         .offset(query.offset);
       const [totals] = await tx.select({ total: count() }).from(activities).where(where);
@@ -124,51 +195,38 @@ export class ActivitiesService {
     });
   }
 
-  /** Open follow-ups for a member (default: me), soonest first, with overdue/today counts. */
+  /**
+   * Open follow-ups, soonest first, with overdue/today counts: mine (the
+   * default), another member's, or everyone's (for members who see the team).
+   */
   followUps(auth: AuthContext, query: FollowUpsQuery): Promise<FollowUpPage> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
       if (query.storeId && !canAccessStore(auth, query.storeId)) {
         throw new NotFoundException('Store not found');
       }
-      const scope = and(
-        open,
-        isNotNull(activities.dueAt),
-        eq(
-          activities.assignedMemberId,
-          query.assignedTo === 'me' ? auth.memberId : query.assignedTo,
-        ),
-        query.storeId
-          ? eq(activities.storeId, query.storeId)
-          : auth.allStores
-            ? undefined
-            : or(isNull(activities.storeId), inArray(activities.storeId, [...auth.storeIds])),
-      );
+      if (query.assignedTo === 'everyone' && !auth.permissions.has('members:read')) {
+        throw new ForbiddenException('Only members who can see the team see everyone’s follow-ups');
+      }
+      const assignee =
+        query.assignedTo === 'everyone'
+          ? null
+          : query.assignedTo === 'me'
+            ? auth.memberId
+            : query.assignedTo;
+      const scope = followUpScope(auth, assignee, query.storeId);
       const window = {
         overdue: lt(activities.dueAt, startOfTodayIst),
         today: and(gte(activities.dueAt, startOfTodayIst), lt(activities.dueAt, endOfTodayIst)),
         upcoming: gte(activities.dueAt, endOfTodayIst),
         open: undefined,
       }[query.when];
-      const where = and(scope, window);
       const rows = await this.rows(tx)
-        .where(where)
-        .orderBy(asc(activities.dueAt), asc(activities.createdAt))
+        .where(and(scope, window))
+        .orderBy(asc(activities.dueAt), asc(activities.createdAt), asc(activities.id))
         .limit(query.limit)
         .offset(query.offset);
-      const [totals] = await tx
-        .select({
-          // The outer where is the scope; the window narrows the total only.
-          total: sql<number>`count(*) filter (where ${window ?? sql`true`})::int`,
-          overdue: sql<number>`count(*) filter (where ${activities.dueAt} < ${startOfTodayIst})::int`,
-          today: sql<number>`count(*) filter (where ${activities.dueAt} >= ${startOfTodayIst} and ${activities.dueAt} < ${endOfTodayIst})::int`,
-        })
-        .from(activities)
-        .where(scope);
-      return {
-        items: rows.map((row) => this.toView(row)),
-        total: Number(totals?.total),
-        counts: { overdue: Number(totals?.overdue), today: Number(totals?.today) },
-      };
+      const { total, overdue, today } = await countFollowUps(tx, scope, window);
+      return { items: rows.map((row) => this.toView(row)), total, counts: { overdue, today } };
     });
   }
 

@@ -1,7 +1,8 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { schema, type Transaction } from '@paint/db';
 import { canAccessStore, type Permission } from '@paint/shared';
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
 
 const {
@@ -24,136 +25,134 @@ export type RecordType = (typeof RECORD_TYPES)[number];
 interface RecordRule {
   readonly read: Permission;
   readonly manage: Permission;
+  readonly table: PgTable;
+  readonly id: PgColumn;
   /**
-   * The stores the record belongs to (empty = the whole business), or null if
-   * there is no such record. Members see it if they work at any of them.
+   * The columns naming the stores the record belongs to; members see it if
+   * they work at any of them. None: the record is business-wide.
    */
-  stores(tx: Transaction, id: string): Promise<string[] | null>;
+  readonly stores: readonly PgColumn[];
+  /** The store column whose null means business-wide, e.g. a party without a home store. */
+  readonly businessWideIfNull?: PgColumn;
+  /** How people name the record, e.g. "LD-000004 · Kondapur tower". */
+  readonly label: SQL;
 }
-
-const first = async <T>(rows: Promise<T[]>) => (await rows)[0];
 
 /** Who may see and change each kind of record — and so what is attached to it. */
 const RULES: Record<RecordType, RecordRule> = {
   party: {
     read: 'parties:read',
     manage: 'parties:manage',
-    stores: async (tx, id) => {
-      const party = await first(
-        tx.select({ homeStoreId: parties.homeStoreId }).from(parties).where(eq(parties.id, id)),
-      );
-      return party ? (party.homeStoreId ? [party.homeStoreId] : []) : null;
-    },
+    table: parties,
+    id: parties.id,
+    stores: [parties.homeStoreId],
+    businessWideIfNull: parties.homeStoreId,
+    label: sql`${parties.displayName}`,
   },
   product: {
     read: 'catalog:read',
     manage: 'catalog:manage',
-    stores: async (tx, id) =>
-      (await first(tx.select({ id: products.id }).from(products).where(eq(products.id, id))))
-        ? []
-        : null,
+    table: products,
+    id: products.id,
+    stores: [],
+    label: sql`${products.name}`,
   },
   store: {
     read: 'stores:read',
     manage: 'stores:manage',
-    stores: async (tx, id) =>
-      (await first(tx.select({ id: stores.id }).from(stores).where(eq(stores.id, id))))
-        ? [id]
-        : null,
+    table: stores,
+    id: stores.id,
+    stores: [stores.id],
+    label: sql`${stores.code} || ' · ' || ${stores.name}`,
   },
   purchase_order: {
     read: 'purchasing:read',
     manage: 'purchasing:manage',
-    stores: async (tx, id) => {
-      const order = await first(
-        tx
-          .select({ storeId: purchaseOrders.storeId })
-          .from(purchaseOrders)
-          .where(eq(purchaseOrders.id, id)),
-      );
-      return order ? [order.storeId] : null;
-    },
+    table: purchaseOrders,
+    id: purchaseOrders.id,
+    stores: [purchaseOrders.storeId],
+    label: sql`${purchaseOrders.number}`,
   },
   goods_receipt: {
     read: 'purchasing:read',
     manage: 'purchasing:manage',
-    stores: async (tx, id) => {
-      const receipt = await first(
-        tx
-          .select({ storeId: goodsReceipts.storeId })
-          .from(goodsReceipts)
-          .where(eq(goodsReceipts.id, id)),
-      );
-      return receipt ? [receipt.storeId] : null;
-    },
+    table: goodsReceipts,
+    id: goodsReceipts.id,
+    stores: [goodsReceipts.storeId],
+    label: sql`${goodsReceipts.number}`,
   },
   transfer: {
     read: 'inventory:read',
     manage: 'inventory:manage',
-    stores: async (tx, id) => {
-      const transfer = await first(
-        tx
-          .select({ from: transfers.fromStoreId, to: transfers.toStoreId })
-          .from(transfers)
-          .where(eq(transfers.id, id)),
-      );
-      return transfer ? [transfer.from, transfer.to] : null;
-    },
+    table: transfers,
+    id: transfers.id,
+    stores: [transfers.fromStoreId, transfers.toStoreId],
+    label: sql`${transfers.number}`,
   },
   lead: {
     read: 'leads:read',
     manage: 'leads:manage',
-    stores: async (tx, id) => {
-      const lead = await first(
-        tx.select({ storeId: leads.storeId }).from(leads).where(eq(leads.id, id)),
-      );
-      return lead ? [lead.storeId] : null;
-    },
+    table: leads,
+    id: leads.id,
+    stores: [leads.storeId],
+    label: sql`${leads.number} || ' · ' || ${leads.title}`,
   },
   opportunity: {
     read: 'leads:read',
     manage: 'leads:manage',
-    stores: async (tx, id) => {
-      const opportunity = await first(
-        tx
-          .select({ storeId: opportunities.storeId })
-          .from(opportunities)
-          .where(eq(opportunities.id, id)),
-      );
-      return opportunity ? [opportunity.storeId] : null;
-    },
+    table: opportunities,
+    id: opportunities.id,
+    stores: [opportunities.storeId],
+    label: sql`${opportunities.number} || ' · ' || ${opportunities.title}`,
   },
   project: {
     read: 'projects:read',
     manage: 'projects:manage',
-    stores: async (tx, id) => {
-      const project = await first(
-        tx.select({ storeId: projects.storeId }).from(projects).where(eq(projects.id, id)),
-      );
-      return project ? [project.storeId] : null;
-    },
+    table: projects,
+    id: projects.id,
+    stores: [projects.storeId],
+    label: sql`${projects.number} || ' · ' || ${projects.name}`,
   },
   contract: {
     read: 'contracts:read',
     manage: 'contracts:manage',
-    stores: async (tx, id) => {
-      const contract = await first(
-        tx.select({ storeId: contracts.storeId }).from(contracts).where(eq(contracts.id, id)),
-      );
-      return contract ? (contract.storeId ? [contract.storeId] : []) : null;
-    },
+    table: contracts,
+    id: contracts.id,
+    stores: [contracts.storeId],
+    businessWideIfNull: contracts.storeId,
+    label: sql`${contracts.number} || ' · ' || ${contracts.title}`,
   },
   stock_count: {
     read: 'inventory:read',
     manage: 'inventory:manage',
-    stores: async (tx, id) => {
-      const count = await first(
-        tx.select({ storeId: stockCounts.storeId }).from(stockCounts).where(eq(stockCounts.id, id)),
-      );
-      return count ? [count.storeId] : null;
-    },
+    table: stockCounts,
+    id: stockCounts.id,
+    stores: [stockCounts.storeId],
+    label: sql`${stockCounts.number}`,
   },
 };
+
+/**
+ * The stores the record belongs to (empty = the whole business), or null if
+ * there is no such record.
+ */
+async function recordStores(
+  tx: Transaction,
+  rule: RecordRule,
+  recordId: string,
+): Promise<string[] | null> {
+  const columns = Object.fromEntries(
+    rule.stores.map((column, index) => [`s${String(index)}`, column]),
+  );
+  const [row] = await tx
+    .select({ found: sql<number>`1`, ...columns })
+    .from(rule.table)
+    .where(eq(rule.id, recordId));
+  if (!row) return null;
+  return (Object.values(row) as unknown[]).filter(
+    (value): value is string => typeof value === 'string',
+  );
+}
 
 /**
  * Checks the member may see (`read`) or change (`manage`) the record and what is
@@ -178,11 +177,53 @@ export async function requireRecordAccess(
         : `You cannot change ${what} on this record`,
     );
   }
-  const storeIds = await rule.stores(tx, recordId);
+  const storeIds = await recordStores(tx, rule, recordId);
   if (!storeIds || (storeIds.length > 0 && !storeIds.some((id) => canAccessStore(auth, id)))) {
     throw new NotFoundException('Record not found');
   }
   return storeIds;
+}
+
+/**
+ * For lists across records (every document or activity the member may see): a
+ * condition on a row's record type and id that holds exactly when
+ * requireRecordAccess(…, 'read') would let the member see that record.
+ */
+export function visibleRecords(
+  auth: AuthContext,
+  recordTypeColumn: AnyColumn,
+  recordIdColumn: AnyColumn,
+  /** The kinds of record the rows can be about. */
+  types: readonly RecordType[],
+): SQL {
+  const ids = [...auth.storeIds];
+  const branches = types
+    .filter((type) => auth.permissions.has(RULES[type].read))
+    .map((type) => {
+      const rule = RULES[type];
+      const atMyStores =
+        auth.allStores || rule.stores.length === 0
+          ? undefined
+          : or(
+              ...rule.stores.map((column) => inArray(column, ids)),
+              rule.businessWideIfNull && isNull(rule.businessWideIfNull),
+            );
+      return sql`(${recordTypeColumn} = ${type} and exists (select 1 from ${rule.table} where ${and(eq(rule.id, recordIdColumn), atMyStores)}))`;
+    });
+  return branches.length === 0 ? sql`false` : sql`(${sql.join(branches, sql` or `)})`;
+}
+
+/** The name of the record a row is about, e.g. "PO-000012" or "LD-000004 · Kondapur tower". */
+export function recordLabel(
+  recordTypeColumn: AnyColumn,
+  recordIdColumn: AnyColumn,
+  types: readonly RecordType[],
+): SQL<string> {
+  const cases = types.map((type) => {
+    const rule = RULES[type];
+    return sql`when ${type} then (select ${rule.label} from ${rule.table} where ${eq(rule.id, recordIdColumn)})`;
+  });
+  return sql<string>`(case ${recordTypeColumn}::text ${sql.join(cases, sql` `)} end)`;
 }
 
 /** The permissions that let someone see and change a kind of record. */

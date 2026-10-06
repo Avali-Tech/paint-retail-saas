@@ -9,6 +9,16 @@ let database: TestDatabase;
 let t: TestApp;
 let business: Business;
 
+/** The badge counts /follow-ups shows for the same member and choice. */
+const followUpCounts = async (token: string, query: string) =>
+  (
+    await t.app.inject({
+      method: 'GET',
+      url: `/activities/follow-ups?${query}`,
+      headers: bearer(token),
+    })
+  ).json<{ counts: { overdue: number; today: number } }>().counts;
+
 const dashboard = async (token: string, query = '') => {
   const response = await t.app.inject({
     method: 'GET',
@@ -85,7 +95,12 @@ describe('owner dashboard', () => {
       { stage: 'identified', count: 1, valuePaise: 900_000 },
       { stage: 'survey', count: 1, valuePaise: 0 },
     ]);
-    expect(view.followUps).toEqual({ overdue: 1, today: 1 });
+    // Managers see the team's follow-ups, exactly as /follow-ups counts "everyone".
+    expect(view.followUps).toEqual({ scope: 'team', overdue: 1, today: 1 });
+    expect(await followUpCounts(business.owner, 'assignedTo=everyone')).toEqual({
+      overdue: 1,
+      today: 1,
+    });
     expect(Date.now() - Date.parse(view.generatedAt)).toBeLessThan(60_000);
   });
 
@@ -97,8 +112,20 @@ describe('owner dashboard', () => {
 
     expect(own.stores.map((s) => s.store.code)).toEqual(['HYD']);
     expect(own.leads?.find((s) => s.stage === 'qualified')?.count).toBe(0);
-    expect(own.followUps).toEqual({ overdue: 1, today: 1 });
+    expect(own.followUps).toEqual({ scope: 'team', overdue: 1, today: 1 });
+    expect(await followUpCounts(business.manager, 'assignedTo=everyone')).toEqual({
+      overdue: 1,
+      today: 1,
+    });
     expect(one.stores.map((s) => s.store.code)).toEqual(['PUN']);
+    // One store: its follow-ups only, as /follow-ups with that store.
+    expect(one.followUps).toEqual({
+      scope: 'team',
+      ...(await followUpCounts(
+        business.owner,
+        `assignedTo=everyone&storeId=${business.stores.pune}`,
+      )),
+    });
     expect(one.totals.purchaseOrders).toEqual({ open: 0, dueValuePaise: 0 });
     expect((await dashboard(business.manager, `?storeId=${business.stores.pune}`)).statusCode).toBe(
       404,
@@ -111,6 +138,11 @@ describe('owner dashboard', () => {
     expect(view.stores[0]).toMatchObject({ purchaseOrders: null, stock: { skus: 2 } });
     expect(view.totals.purchaseOrders).toBeNull();
     expect(view).toMatchObject({ leads: null, opportunities: null, projects: null });
+    // Without the team list, the member's own follow-ups, as their /follow-ups shows them.
+    expect(view.followUps).toEqual({
+      scope: 'mine',
+      ...(await followUpCounts(business.cashier, '')),
+    });
   });
 
   it('shows just the stores to someone who may see nothing else', async () => {
@@ -162,5 +194,7 @@ describe('owner dashboard', () => {
       transfers: null,
       purchaseOrders: null,
     });
+    // Follow-ups are on records this role cannot see at all.
+    expect(view.followUps).toEqual({ scope: 'mine', overdue: 0, today: 0 });
   });
 });

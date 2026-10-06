@@ -11,7 +11,7 @@ import { ActionMenu } from './ActionMenu.js';
 import { LEAD_TONE, refreshCrm } from './crm.js';
 import { Facts } from './Facts.js';
 import { useLeadActions } from './lead-actions.js';
-import { AssignDialog, useAssignableMembers } from './members.js';
+import { AssignDialog } from './members.js';
 import { RecordActivities } from './RecordActivities.js';
 
 function LeadView({ lead }: { readonly lead: Lead }) {
@@ -20,7 +20,6 @@ function LeadView({ lead }: { readonly lead: Lead }) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const can = usePermissions();
-  const { canChoose } = useAssignableMembers();
   const { actions, dialogs } = useLeadActions(lead);
   const [assigning, setAssigning] = useState(false);
   const manage = can('leads:manage');
@@ -44,7 +43,7 @@ function LeadView({ lead }: { readonly lead: Lead }) {
                 {t('common.edit')}
               </Link>
             )}
-            {manage && canChoose && (open || lead.stage === 'opportunity') && (
+            {manage && (open || lead.stage === 'opportunity') && (
               <Button
                 variant="secondary"
                 onClick={() => {
@@ -113,13 +112,19 @@ function LeadView({ lead }: { readonly lead: Lead }) {
             )}
           </div>
         </Card>
-        <RecordActivities recordType="lead" recordId={lead.id} canAdd={manage} />
+        <RecordActivities
+          recordType="lead"
+          recordId={lead.id}
+          storeId={lead.store.id}
+          canAdd={manage}
+        />
       </div>
       {dialogs}
       {assigning && (
         <AssignDialog
           title={t('crm.reassignTitle', { number: lead.number })}
           current={lead.assignedTo.memberId}
+          assignment={{ for: 'lead', storeId: lead.store.id }}
           onClose={() => {
             setAssigning(false);
           }}

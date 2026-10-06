@@ -78,6 +78,8 @@ export const listLeadsSchema = z.object({
   stage: z.enum(LEAD_STAGES).optional(),
   source: z.enum(LEAD_SOURCES).optional(),
   assignedTo: assignee,
+  /** Leads for this party (customer, contractor…). */
+  partyId: z.uuid().optional(),
 });
 export type ListLeadsQuery = z.output<typeof listLeadsSchema>;
 
@@ -132,5 +134,7 @@ export const listOpportunitiesSchema = z.object({
   ...page,
   stage: z.enum(OPPORTUNITY_STAGES).optional(),
   assignedTo: assignee,
+  /** Opportunities for this party. */
+  partyId: z.uuid().optional(),
 });
 export type ListOpportunitiesQuery = z.output<typeof listOpportunitiesSchema>;

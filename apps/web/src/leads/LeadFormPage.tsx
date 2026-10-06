@@ -247,6 +247,7 @@ function LeadForm({ lead }: { readonly lead: Lead | null }) {
               onChange={(value) => {
                 form.setValue('assignee', value);
               }}
+              assignment={{ for: 'lead', ...(storeId === '' ? {} : { storeId }) }}
             />
           )}
           <Field label={t('leads.form.value')} error={errors.value?.message}>

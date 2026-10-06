@@ -95,20 +95,21 @@ describe('DocumentsPanel', { timeout: 30_000 }, () => {
       'GET /documents': () => json(listed),
       'POST /documents': () => {
         switch (answer) {
+          // The panel goes by each refusal's code, not its wording.
           case 'scanner':
-            return json(
-              { message: 'Virus scanning is unavailable, so the file was not saved' },
-              503,
-            );
+            return json({ message: 'Scanner offline', code: 'scanner_unavailable' }, 503);
           case 'storage':
-            return json({ message: 'Document storage is not set up on this server' }, 503);
+            return json({ message: 'No bucket (virus?)', code: 'storage_unavailable' }, 503);
           case 'type':
-            return json({ message: 'Upload a PDF, a photo or a Word or Excel file' }, 415);
+            return json({ message: 'Upload a PDF', code: 'file_type' }, 415);
           case 'big':
-            return json({ message: 'Files can be at most 10 MB' }, 413);
+            return json({ message: 'Files can be at most 10 MB', code: 'too_large' }, 413);
           case 'virus':
             return json(
-              { message: 'This file contains a virus (Eicar-Signature) and was not saved' },
+              {
+                message: 'This file contains a virus (Eicar-Signature) and was not saved',
+                code: 'virus_found',
+              },
               422,
             );
           case 'down':

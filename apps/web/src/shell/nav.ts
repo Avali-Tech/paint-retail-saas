@@ -1,6 +1,7 @@
 import type { Permission } from '@paint/shared';
 import type { IconName } from '@paint/ui';
 import type { MessageKey } from '../i18n/i18n.js';
+import { DOCUMENT_NAV_ITEMS } from '../documents/nav.js';
 import { FOLLOW_UP_NAV_ITEMS } from '../followups/nav.js';
 import { IMPORT_NAV_ITEMS } from '../imports/nav.js';
 import { CRM_NAV_ITEMS } from '../leads/nav.js';
@@ -68,6 +69,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   // Each feature keeps its own entries in its own file.
   ...FOLLOW_UP_NAV_ITEMS,
+  ...DOCUMENT_NAV_ITEMS,
   ...CUSTOMER_NAV_ITEMS,
   ...IMPORT_NAV_ITEMS,
   ...REPORT_NAV_ITEMS,

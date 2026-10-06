@@ -100,7 +100,7 @@ describe('FollowUpsPage', { timeout: 30_000 }, () => {
       within(assignee)
         .getAllByRole('option')
         .map((option) => option.textContent),
-    ).toEqual(['Me', 'Ravi Teja']);
+    ).toEqual(['Me', 'Everyone', 'Ravi Teja']);
     await user.selectOptions(assignee, 'Ravi Teja');
     await user.selectOptions(
       await screen.findByRole('combobox', { name: 'Store' }),
@@ -109,11 +109,18 @@ describe('FollowUpsPage', { timeout: 30_000 }, () => {
     await waitFor(() => {
       expect(location()).toBe(`/follow-ups?assignedTo=${RAVI.memberId}&storeId=store-hyd`);
     });
-    expect(
-      await within(section('Upcoming')).findByText('Visit · Due 8 Oct 2026, 2:30 pm · Ravi Teja'),
-    ).toBeVisible();
+    expect(await within(section('Upcoming')).findByText('Assigned to Ravi Teja')).toBeVisible();
     expect(requests.at(-1)?.query.get('assignedTo')).toBe(RAVI.memberId);
     expect(requests.at(-1)?.query.get('storeId')).toBe('store-hyd');
+
+    // Everyone's: the team's list, each with who it is assigned to.
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Assigned to' }), 'Everyone');
+    expect(await screen.findByRole('heading', { name: 'Team follow-ups', level: 1 })).toBeVisible();
+    expect(location()).toBe('/follow-ups?assignedTo=everyone&storeId=store-hyd');
+    await waitFor(() => {
+      expect(requests.at(-1)?.query.get('assignedTo')).toBe('everyone');
+    });
+    expect(await within(section('Overdue')).findByText('Assigned to Anil Kumar')).toBeVisible();
   });
 
   it('marks a follow-up done with its outcome and the next step', async () => {

@@ -12,12 +12,14 @@ import {
   type Tone,
 } from '@paint/ui';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
+import { DOCUMENT_PERMISSIONS } from '../api/documents.js';
 import {
   ACTIVITY_RECORD_TYPES,
   ACTIVITY_TYPES,
   type Activity,
   type ActivityRecordType,
+  type TimelineQuery,
 } from '../api/follow-ups.js';
 import { useApi } from '../app/services.js';
 import { usePermissions } from '../auth/session.js';
@@ -25,17 +27,11 @@ import { useI18n } from '../i18n/i18n.js';
 import { useUrlFilters } from '../lib/hooks.js';
 import { dateRangeProblems } from '../lib/india-time.js';
 import { QueryState } from '../lib/QueryState.js';
-import { PartyPicker } from '../parties/PartyPicker.js';
-import {
-  activityMoment,
-  filterActivities,
-  peopleIn,
-  recordPath,
-  timelinePath,
-} from './activity-helpers.js';
+import { useMembers } from '../team/team-data.js';
+import { activityMoment, recordPath, timelinePath } from './activity-helpers.js';
 
-/** The most the API gives in one page; filters apply within it. */
-export const TIMELINE_PAGE_SIZE = 200;
+/** Activities per page; the API filters and pages. */
+export const TIMELINE_PAGE_SIZE = 50;
 const FILTERS = ['recordType', 'recordId', 'type', 'person', 'from', 'to'] as const;
 
 const STATUS_TONE: Record<Activity['status'], Tone> = {
@@ -44,8 +40,20 @@ const STATUS_TONE: Record<Activity['status'], Tone> = {
   cancelled: 'neutral',
 };
 
-function ActivityItem({ activity }: { readonly activity: Activity }) {
+interface RecordRef {
+  readonly type: ActivityRecordType;
+  readonly id: string;
+}
+
+function ActivityItem({
+  activity,
+  showRecord,
+}: {
+  readonly activity: Activity;
+  readonly showRecord: boolean;
+}) {
   const { t, label, dateTime } = useI18n();
+  const { record } = activity;
   return (
     <li>
       <span className="record-list__title">
@@ -54,6 +62,18 @@ function ActivityItem({ activity }: { readonly activity: Activity }) {
           {label('activityStatus', activity.status)}
         </Badge>
       </span>
+      {showRecord && (
+        <span className="record-list__meta">
+          {label('followUpRecordTypes', record.type)} ·{' '}
+          <Link to={recordPath(record)}>{record.label}</Link> ·{' '}
+          <Link
+            to={timelinePath(record)}
+            aria-label={t('followUps.recordTimelineName', { label: record.label })}
+          >
+            {t('followUps.recordTimeline')}
+          </Link>
+        </span>
+      )}
       <span className="record-list__meta">
         {t('activities.meta', {
           type: label('activityTypes', activity.type),
@@ -74,35 +94,74 @@ function ActivityItem({ activity }: { readonly activity: Activity }) {
   );
 }
 
-function Timeline({
-  record,
+/** Everyone, me, or (for those who can see the team) one colleague. */
+function PersonFilter({
+  value,
+  onChange,
 }: {
-  readonly record: { readonly type: ActivityRecordType; readonly id: string };
+  readonly value: string;
+  readonly onChange: (value: string) => void;
 }) {
+  const { t } = useI18n();
+  const canSeeTeam = usePermissions()('members:read');
+  const members = useMembers({ enabled: canSeeTeam });
+  return (
+    <Field label={t('activities.person')}>
+      <Select
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value);
+        }}
+      >
+        <option value="">{t('activities.everyone')}</option>
+        <option value="me">{t('activities.me')}</option>
+        {(members.data ?? [])
+          .filter((member) => member.isActive)
+          .map((member) => (
+            <option key={member.id} value={member.id}>
+              {member.user.fullName}
+            </option>
+          ))}
+      </Select>
+    </Field>
+  );
+}
+
+/**
+ * Activities with filters the API applies: one record's timeline, or every
+ * record the member can see (optionally of one kind).
+ */
+function ActivityList({ record }: { readonly record: RecordRef | null }) {
   const api = useApi();
   const { t, label } = useI18n();
+  const can = usePermissions();
   const filters = useUrlFilters(FILTERS);
   const { type, person, from, to } = filters.values;
   const problems = dateRangeProblems(from, to);
   const fromError = problems.from === undefined ? undefined : t(`activities.${problems.from}`);
   const toError = problems.to === undefined ? undefined : t(`activities.${problems.to}`);
-  const timeline = useQuery({
-    queryKey: ['activities', record.type, record.id, filters.offset],
-    queryFn: ({ signal }) =>
-      api.followUps.timeline(
-        {
-          recordType: record.type,
-          recordId: record.id,
-          limit: TIMELINE_PAGE_SIZE,
-          offset: filters.offset,
-        },
-        signal,
-      ),
+  const recordType = ACTIVITY_RECORD_TYPES.find((value) => value === filters.values.recordType);
+  const activityType = ACTIVITY_TYPES.find((value) => value === type);
+  // Only filters with a value, and dates only once they are valid.
+  const query: TimelineQuery = {
+    ...(record === null ? { recordType } : { recordType: record.type, recordId: record.id }),
+    type: activityType,
+    person: person === '' ? undefined : person,
+    from: from === '' || fromError !== undefined ? undefined : from,
+    to: to === '' || toError !== undefined ? undefined : to,
+    limit: TIMELINE_PAGE_SIZE,
+    offset: filters.offset,
+  };
+  const activities = useQuery({
+    queryKey: ['activities', query],
+    queryFn: ({ signal }) => api.followUps.timeline(query, signal),
     placeholderData: keepPreviousData,
   });
-  const people = peopleIn(timeline.data?.items ?? []);
+  const filtered = [type, person, from, to, record === null ? (recordType ?? '') : ''].some(
+    (value) => value !== '',
+  );
   // The record's name, e.g. "LD-000004 · Kondapur tower", once anything is logged on it.
-  const recordLabel = timeline.data?.items[0]?.record.label;
+  const recordLabel = record === null ? undefined : activities.data?.items[0]?.record.label;
   const date = (key: 'from' | 'to', value: string, error: string | undefined) => (
     <Field label={t(`activities.${key}`)} hint={t('activities.dateHint')} error={error}>
       <Input
@@ -117,9 +176,28 @@ function Timeline({
   return (
     <Card {...(recordLabel === undefined ? {} : { title: recordLabel })}>
       <div className="filters">
+        {record === null && (
+          <Field label={t('activities.recordType')}>
+            <Select
+              value={recordType ?? ''}
+              onChange={(event) => {
+                filters.set('recordType', event.target.value);
+              }}
+            >
+              <option value="">{t('activities.allRecords')}</option>
+              {ACTIVITY_RECORD_TYPES.filter((value) => can(DOCUMENT_PERMISSIONS[value].read)).map(
+                (value) => (
+                  <option key={value} value={value}>
+                    {label('followUpRecordTypes', value)}
+                  </option>
+                ),
+              )}
+            </Select>
+          </Field>
+        )}
         <Field label={t('activities.type')}>
           <Select
-            value={type}
+            value={activityType ?? ''}
             onChange={(event) => {
               filters.set('type', event.target.value);
             }}
@@ -132,52 +210,37 @@ function Timeline({
             ))}
           </Select>
         </Field>
-        <Field label={t('activities.person')}>
-          <Select
-            value={person}
-            onChange={(event) => {
-              filters.set('person', event.target.value);
-            }}
-          >
-            <option value="">{t('activities.everyone')}</option>
-            {people.map((someone) => (
-              <option key={someone.id} value={someone.id}>
-                {someone.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        <PersonFilter
+          value={person}
+          onChange={(value) => {
+            filters.set('person', value);
+          }}
+        />
         {date('from', from, fromError)}
         {date('to', to, toError)}
       </div>
-      <QueryState query={timeline} error="activities.error">
-        {(page) => {
-          // Dates that are not valid yet (half typed) do not filter.
-          const shown = filterActivities(page.items, {
-            type,
-            person,
-            from: fromError === undefined ? from : '',
-            to: toError === undefined ? to : '',
-          });
-          if (page.total === 0) {
-            return (
-              <EmptyState icon={<Icon name="calendar" size={32} />} title={t('activities.empty')} />
-            );
-          }
-          return (
+      <QueryState query={activities} error="activities.error">
+        {(page) =>
+          page.total === 0 ? (
+            filtered ? (
+              <p className="muted">{t('activities.noMatches')}</p>
+            ) : (
+              <EmptyState
+                icon={<Icon name="calendar" size={32} />}
+                title={t(record === null ? 'activities.emptyAll' : 'activities.empty')}
+              />
+            )
+          ) : (
             <div className="stack">
-              {shown.length === 0 ? (
-                <p className="muted">{t('activities.noMatches')}</p>
-              ) : (
-                <ul className="record-list">
-                  {shown.map((activity) => (
-                    <ActivityItem key={activity.id} activity={activity} />
-                  ))}
-                </ul>
-              )}
-              <p className="muted">
-                {t('activities.shown', { shown: shown.length, total: page.total })}
-              </p>
+              <ul className="record-list">
+                {page.items.map((activity) => (
+                  <ActivityItem
+                    key={activity.id}
+                    activity={activity}
+                    showRecord={record === null}
+                  />
+                ))}
+              </ul>
               <Pagination
                 offset={filters.offset}
                 limit={TIMELINE_PAGE_SIZE}
@@ -189,22 +252,20 @@ function Timeline({
                 nextLabel={t('common.next')}
               />
             </div>
-          );
-        }}
+          )
+        }
       </QueryState>
     </Card>
   );
 }
 
 /**
- * /activities?recordType=…&recordId=… — a record's timeline, filtered by type,
- * person and India-time dates. Without a record, choose a customer or party
- * (leads, opportunities and projects link here from their pages).
+ * /activities — every call, visit, message and note on the records the member
+ * can see, filtered by record type, type, person and India-time dates; with
+ * ?recordType=…&recordId=…, one record's timeline with the same filters.
  */
 export function ActivitiesPage() {
   const { t, label } = useI18n();
-  const can = usePermissions();
-  const navigate = useNavigate();
   const filters = useUrlFilters(FILTERS);
   const recordType = ACTIVITY_RECORD_TYPES.find((value) => value === filters.values.recordType);
   const recordId = filters.values.recordId;
@@ -224,29 +285,13 @@ export function ActivitiesPage() {
                 {t('activities.openRecord')}
               </Link>
               <Link to="/activities" {...buttonStyle('ghost')}>
-                {t('activities.chooseAnother')}
+                {t('activities.allActivities')}
               </Link>
             </span>
           )
         }
       />
-      {record !== null ? (
-        <Timeline key={`${record.type}-${record.id}`} record={record} />
-      ) : can('parties:read') ? (
-        <div className="stack">
-          <PartyPicker
-            title={t('activities.chooseRecord')}
-            onPick={(party) => {
-              void navigate(timelinePath({ type: 'party', id: party.id }));
-            }}
-          />
-          <p className="muted">{t('activities.otherRecords')}</p>
-        </div>
-      ) : (
-        <Card>
-          <p className="muted">{t('activities.noRecord')}</p>
-        </Card>
-      )}
+      <ActivityList key={record === null ? 'all' : `${record.type}-${record.id}`} record={record} />
     </>
   );
 }

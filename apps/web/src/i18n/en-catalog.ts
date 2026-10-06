@@ -92,6 +92,7 @@ export const catalogEn = {
     deactivate: 'Deactivate {name}',
     activate: 'Activate {name}',
     inactive: 'Inactive',
+    parentInactive: 'No new products: its category is inactive',
     added: 'Added',
     nameInvalid: 'Use 2 to 120 characters',
     noBrands: 'No brands yet',

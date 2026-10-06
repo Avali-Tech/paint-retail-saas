@@ -4,6 +4,7 @@ import { Link, Route, Routes } from 'react-router';
 import { SignInPage } from '../auth/SignInPage.js';
 import { catalogRoutes } from '../catalog/routes.js';
 import { contractRoutes } from '../contracts/routes.js';
+import { documentRoutes } from '../documents/routes.js';
 import { followUpRoutes } from '../followups/routes.js';
 import { useI18n } from '../i18n/i18n.js';
 import { importRoutes } from '../imports/routes.js';
@@ -78,6 +79,7 @@ export function AppRoutes() {
         {projectRoutes()}
         {followUpRoutes()}
         {contractRoutes()}
+        {documentRoutes()}
         {reportRoutes()}
         {teamRoutes()}
         {supportAccessRoutes()}

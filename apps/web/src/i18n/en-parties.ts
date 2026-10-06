@@ -88,6 +88,34 @@ export const partiesEn = {
       documents: 'Documents',
       nothing: 'Nothing yet',
       latest: 'Latest {shown} of {total}',
+      seeAll: 'See all {title}',
+    },
+    /** Merging a duplicate into the record that stays (POST /parties/:id/merge). */
+    merge: {
+      button: 'Merge into…',
+      title: 'Merge {name} into another record',
+      description:
+        'For a customer, contractor or supplier added twice. {name} stays as an inactive record that points to the one you keep.',
+      pick: 'Choose the record to keep',
+      keep: 'Keep {name}; merge {duplicate} into it',
+      chooseOther: 'Choose another',
+      rulesTitle: 'What happens',
+      rules: {
+        moves:
+          'Leads, opportunities, projects, contracts, purchase orders, goods receipts, supplier prices, activities and documents move to the record you keep.',
+        roles:
+          'Roles are combined. Customer and supplier details stay as the kept record has them.',
+        credit:
+          'Credit: refused when both have a credit request waiting, or both have credit and this one gives credit. Otherwise this one’s credit moves if the kept record has none.',
+        loyalty:
+          'Loyalty points: this account moves if the kept record has none; otherwise its unused points move over, keeping their expiry dates.',
+        final: 'This cannot be undone.',
+      },
+      submit: 'Merge',
+      chooseFirst: 'First choose the record to keep',
+      same: 'Choose a different record to keep',
+      merged: 'Merged into {name}',
+      moved: '{count} records moved',
     },
   },
 };

@@ -349,6 +349,16 @@ describe('quick actions', () => {
     expect(all[0]).toMatchObject({ key: 'new_customer', shortcut: 'N C' });
     expect(grnForOwner.map((action) => action.key)).toEqual(['receive_goods']);
     expect(grnForSales).toEqual([]);
+    // + Contract for those who may create contracts, opening the contract form.
+    expect((await api(crm).get('/search/actions?q=agreement')).json()).toEqual([
+      expect.objectContaining({
+        key: 'new_contract',
+        label: '+ Contract',
+        path: '/contracts/new',
+        shortcut: 'N A',
+      }),
+    ]);
+    expect((await api(sales).get('/search/actions?q=agreement')).json()).toEqual([]);
   });
 });
 

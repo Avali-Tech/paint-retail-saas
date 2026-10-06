@@ -1,4 +1,5 @@
-import { ApiError } from '../api/errors.js';
+import type { DocumentUploadErrorCode } from '@paint/shared';
+import { errorDetail } from '../api/errors.js';
 
 // The API's upload rules (apps/api/src/documents/file-checks.ts), checked before
 // sending so people hear at once what is wrong; the API checks again.
@@ -62,24 +63,24 @@ export async function checkFile(file: File): Promise<FileProblem | null> {
   return isAcceptedFile(head, file.name) ? null : 'type';
 }
 
-export type UploadRefusal = 'scannerOff' | 'storageOff' | 'type' | 'tooBig' | 'infected';
+export type UploadRefusal = 'empty' | 'scannerOff' | 'storageOff' | 'type' | 'tooBig' | 'infected';
 
-/** Why the API refused an upload, when it is one of the refusals people can act on. */
+/** The API's refusal codes (POST /documents answers one with every refusal) and what to say. */
+const REFUSALS: Readonly<Record<DocumentUploadErrorCode, UploadRefusal>> = {
+  empty_file: 'empty',
+  file_type: 'type',
+  too_large: 'tooBig',
+  scanner_unavailable: 'scannerOff',
+  storage_unavailable: 'storageOff',
+  virus_found: 'infected',
+};
+
+/** Why the API refused an upload, from its machine-readable `code`; null for anything else. */
 export function uploadRefusal(error: unknown): UploadRefusal | null {
-  if (!(error instanceof ApiError)) return null;
-  switch (error.status) {
-    case 503:
-      // Both "virus scanning is unavailable" and "storage is not set up" answer 503.
-      return /virus/i.test(error.message) ? 'scannerOff' : 'storageOff';
-    case 415:
-      return 'type';
-    case 413:
-      return 'tooBig';
-    case 422:
-      return 'infected';
-    default:
-      return null;
-  }
+  const code = errorDetail(error, 'code');
+  return code !== null && Object.hasOwn(REFUSALS, code)
+    ? REFUSALS[code as DocumentUploadErrorCode]
+    : null;
 }
 
 /** A file size in whole bytes, kilobytes or megabytes (one decimal). */

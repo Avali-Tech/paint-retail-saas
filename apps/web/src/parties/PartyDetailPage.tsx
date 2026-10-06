@@ -1,15 +1,17 @@
-import { Alert, Badge, Card, PageHeader, buttonStyle } from '@paint/ui';
+import { Alert, Badge, Button, Card, PageHeader, buttonStyle } from '@paint/ui';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 import type { Party, PartyOverview } from '../api/parties.js';
 import { useApi } from '../app/services.js';
-import { usePermissions } from '../auth/session.js';
+import { useCurrentProfile, usePermissions } from '../auth/session.js';
 import { stageLabel, useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
 import { CreditPanel } from '../credit/CreditPanel.js';
 import { DocumentsPanel } from '../documents/DocumentsPanel.js';
+import { timelinePath } from '../followups/activity-helpers.js';
 import { LOYALTY_PANEL_ID, LoyaltyPanel } from '../loyalty/LoyaltyPanel.js';
+import { MergeDialog } from './MergeDialog.js';
 
 interface RecordItem {
   readonly id: string;
@@ -24,11 +26,14 @@ function Section({
   summary,
   total,
   items,
+  all,
 }: {
   readonly title: string;
   readonly summary?: string;
   readonly total: number;
   readonly items: readonly RecordItem[];
+  /** Where all of them are listed, for when the 360 shows only the latest. */
+  readonly all: string;
 }) {
   const { t } = useI18n();
   return (
@@ -54,7 +59,11 @@ function Section({
           </ul>
         )}
         {total > items.length && (
-          <p className="muted">{t('parties.detail.latest', { shown: items.length, total })}</p>
+          <p className="muted">
+            <span>{t('parties.detail.latest', { shown: items.length, total })}</span>
+            {' · '}
+            <Link to={all}>{t('parties.detail.seeAll', { title })}</Link>
+          </p>
         )}
       </div>
     </Card>
@@ -122,6 +131,8 @@ function Overview({
 }) {
   const { t, label, money, date, dateTime } = useI18n();
   const can = usePermissions();
+  const { allStores } = useCurrentProfile();
+  const [merging, setMerging] = useState(false);
   const { party, leads, opportunities, projects, contracts, credit, loyalty, activities } =
     overview;
   const next = activities.nextFollowUp;
@@ -144,12 +155,33 @@ function Overview({
         }
         actions={
           can('parties:manage') ? (
-            <Link to={`/parties/${party.id}/edit`} {...buttonStyle('secondary')}>
-              {t('common.edit')}
-            </Link>
+            <span className="row">
+              <Link to={`/parties/${party.id}/edit`} {...buttonStyle('secondary')}>
+                {t('common.edit')}
+              </Link>
+              {/* Records can be at any store, so only members who see every store merge. */}
+              {allStores && party.mergedIntoId === null && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setMerging(true);
+                  }}
+                >
+                  {t('parties.merge.button')}
+                </Button>
+              )}
+            </span>
           ) : undefined
         }
       />
+      {merging && (
+        <MergeDialog
+          party={party}
+          onClose={() => {
+            setMerging(false);
+          }}
+        />
+      )}
       {party.mergedIntoId !== null && (
         <div className="page-notice">
           <Alert
@@ -177,6 +209,7 @@ function Overview({
                 }),
               })}
           total={activities.total}
+          all={timelinePath({ type: 'party', id: party.id })}
           items={activities.items.map((activity) => ({
             id: activity.id,
             title: activity.subject,
@@ -188,6 +221,7 @@ function Overview({
             title={t('parties.detail.leads')}
             summary={t('parties.detail.openLeads', { count: leads.open })}
             total={leads.total}
+            all={`/leads?party=${party.id}`}
             items={leads.items.map((lead) => ({
               id: lead.id,
               to: `/leads/${lead.id}`,
@@ -206,6 +240,7 @@ function Overview({
               won: money(opportunities.wonValuePaise),
             })}
             total={opportunities.total}
+            all={`/opportunities?party=${party.id}`}
             items={opportunities.items.map((opportunity) => ({
               id: opportunity.id,
               to: `/opportunities/${opportunity.id}`,
@@ -218,6 +253,7 @@ function Overview({
           <Section
             title={t('parties.detail.projects')}
             total={projects.total}
+            all={`/projects?party=${party.id}`}
             items={projects.items.map((project) => ({
               id: project.id,
               to: `/projects/${project.id}`,
@@ -242,6 +278,7 @@ function Overview({
               renewal: contracts.renewalDue,
             })}
             total={contracts.total}
+            all={`/contracts?partyId=${party.id}`}
             items={contracts.items.map((contract) => ({
               id: contract.id,
               to: `/contracts/${contract.id}`,

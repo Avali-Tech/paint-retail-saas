@@ -632,6 +632,44 @@ describe('lists and boards', () => {
       }>().total,
     ).toBe(2);
   });
+
+  it('lists one party’s leads and opportunities, for the customer 360', async () => {
+    const owners = await signup('Party Paints');
+    const store = await idOf(api(owners).post('/stores', { name: 'Party', code: 'PTY' }));
+    const party = (name: string) =>
+      idOf(api(owners).post('/parties', { displayName: name, roles: ['customer'] }));
+    const mine = await party('Mine');
+    const theirs = await party('Theirs');
+    const lead = (partyId: string, title: string) =>
+      idOf(api(owners).post('/leads', { storeId: store, partyId, title, source: 'website' }));
+    const opportunity = (partyId: string, title: string) =>
+      idOf(
+        api(owners).post('/opportunities', {
+          storeId: store,
+          partyId,
+          title,
+          expectedValuePaise: 1,
+        }),
+      );
+    const myLead = await lead(mine, 'My lead');
+    await lead(theirs, 'Their lead');
+    const myOpportunity = await opportunity(mine, 'My order');
+    await opportunity(theirs, 'Their order');
+    const list = async (url: string) =>
+      (await api(owners).get(url)).json<{ items: { id: string }[]; total: number }>();
+
+    expect(await list(`/leads?partyId=${mine}`)).toMatchObject({
+      total: 1,
+      items: [{ id: myLead }],
+    });
+    expect(await list(`/opportunities?partyId=${mine}`)).toMatchObject({
+      total: 1,
+      items: [{ id: myOpportunity }],
+    });
+    // Another business's party matches nothing here.
+    expect((await list(`/leads?partyId=${puneCustomer}`)).total).toBe(0);
+    expect((await api(owners).get('/leads?partyId=nobody')).statusCode).toBe(400);
+  });
 });
 
 describe('races', () => {

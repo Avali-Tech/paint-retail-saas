@@ -18,24 +18,25 @@ import { usePermissions } from '../auth/session.js';
 import { stageLabel, useI18n } from '../i18n/i18n.js';
 import { PROJECT_TONE } from '../leads/crm.js';
 import { AssigneeFilter } from '../leads/members.js';
+import { PartyFilterNote } from '../leads/PartyFilterNote.js';
 import { PAGE_SIZE, SEARCH_DELAY_MS, SearchFilter } from '../leads/SearchFilter.js';
 import { useDebouncedValue, useUrlFilters } from '../lib/hooks.js';
 import { QueryState } from '../lib/QueryState.js';
 import { StoreSelect } from '../stock/StoreSelect.js';
 
-const FILTERS = ['q', 'stage', 'store', 'assignee'] as const;
+const FILTERS = ['q', 'stage', 'store', 'assignee', 'party'] as const;
 
-/** /projects — painting jobs at sites, by stage, store, assignee or a search. */
+/** /projects — painting jobs at sites, by stage, store, assignee, party or a search. */
 export function ProjectsPage() {
   const api = useApi();
   const { t, money, date } = useI18n();
   const can = usePermissions();
   const filters = useUrlFilters(FILTERS);
-  const { stage, store, assignee } = filters.values;
+  const { stage, store, assignee, party } = filters.values;
   const q = useDebouncedValue(filters.values.q.trim(), SEARCH_DELAY_MS);
-  const filtered = q !== '' || stage !== '' || store !== '' || assignee !== '';
+  const filtered = [q, stage, store, assignee, party].some((value) => value !== '');
   const projects = useQuery({
-    queryKey: ['projects', { q, stage, store, assignee, offset: filters.offset }],
+    queryKey: ['projects', { q, stage, store, assignee, party, offset: filters.offset }],
     queryFn: ({ signal }) =>
       api.projects.list(
         {
@@ -43,6 +44,7 @@ export function ProjectsPage() {
           stage: (stage || undefined) as ProjectStage | undefined,
           storeId: store || undefined,
           assignedTo: assignee || undefined,
+          partyId: party || undefined,
           limit: PAGE_SIZE,
           offset: filters.offset,
         },
@@ -64,6 +66,14 @@ export function ProjectsPage() {
           ) : undefined
         }
       />
+      {party !== '' && (
+        <PartyFilterNote
+          partyId={party}
+          onClear={() => {
+            filters.set('party', '');
+          }}
+        />
+      )}
       <Card>
         <div className="filters">
           <SearchFilter

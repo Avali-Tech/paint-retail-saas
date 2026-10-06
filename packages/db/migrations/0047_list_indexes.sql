@@ -1,0 +1,3 @@
+CREATE INDEX "activities_open_due_idx" ON "activities" USING btree ("organization_id","due_at") WHERE "activities"."completed_at" is null and "activities"."cancelled_at" is null;--> statement-breakpoint
+CREATE INDEX "activities_moment_idx" ON "activities" USING btree ("organization_id",(coalesce("completed_at", "cancelled_at", "due_at", "created_at")) desc);--> statement-breakpoint
+CREATE INDEX "documents_recent_idx" ON "documents" USING btree ("organization_id","created_at" DESC NULLS LAST) WHERE "documents"."deleted_at" is null;

@@ -17,13 +17,13 @@ import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { CONTRACT_TYPES, type Contract } from '../api/contracts.js';
 import { useApi } from '../app/services.js';
 import { showApiError } from '../auth/forms.js';
-import { useCurrentProfile, usePermissions } from '../auth/session.js';
+import { useCurrentProfile } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
+import { useAssignees } from '../leads/members.js';
 import { QueryState } from '../lib/QueryState.js';
 import { PartyPicker } from '../parties/PartyPicker.js';
 import { storeLabel } from '../stock/StoreSelect.js';
 import { useStores } from '../stock/stores.js';
-import { useMembers } from '../team/team-data.js';
 import {
   contractSchema,
   contractValues,
@@ -47,32 +47,40 @@ const FIELDS = [
 ] as const satisfies readonly Path<ContractValues>[];
 
 /**
- * Who looks after the contract: active team members, for those who can see the
- * team. A new contract defaults to whoever creates it ("Me").
+ * Who looks after the contract: people who handle contracts at its store (GET
+ * /members/assignable, no team access needed). A new contract defaults to
+ * whoever creates it ("Me"); an existing one keeps its assignee on the list.
  */
 function AssigneeField({
   register,
   value,
-  creating,
+  storeId,
+  current,
 }: {
   readonly register: UseFormRegister<ContractValues>;
   readonly value: string;
-  readonly creating: boolean;
+  readonly storeId: string;
+  /** The saved assignee when editing; null for a new contract. */
+  readonly current: Contract['assignedTo'] | null;
 }) {
   const { t } = useI18n();
   const profile = useCurrentProfile();
-  const members = useMembers();
+  const assignees = useAssignees({ for: 'contract', ...(storeId === '' ? {} : { storeId }) });
+  const options = [
+    ...(current !== null && !assignees.some((member) => member.id === current.memberId)
+      ? [{ id: current.memberId, name: current.name }]
+      : []),
+    ...assignees.filter((member) => current !== null || member.id !== profile.memberId),
+  ];
   return (
     <Field label={t('contracts.form.assignee')}>
       <Select {...register('assignedMemberId')} value={value}>
-        {creating && <option value="">{t('contracts.form.assigneeDefault')}</option>}
-        {(members.data ?? [])
-          .filter((member) => member.isActive && !(creating && member.id === profile.memberId))
-          .map((member) => (
-            <option key={member.id} value={member.id}>
-              {member.user.fullName}
-            </option>
-          ))}
+        {current === null && <option value="">{t('contracts.form.assigneeDefault')}</option>}
+        {options.map((member) => (
+          <option key={member.id} value={member.id}>
+            {member.name}
+          </option>
+        ))}
       </Select>
     </Field>
   );
@@ -90,7 +98,6 @@ function ContractForm({
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const can = usePermissions();
   const stores = useStores();
   const schema = useMemo(() => contractSchema(t), [t]);
   const form = useForm<ContractValues>({
@@ -182,9 +189,12 @@ function ContractForm({
           <Field label={t('contracts.form.value')} error={errors.value?.message}>
             <Input inputMode="decimal" autoComplete="off" {...form.register('value')} />
           </Field>
-          {can('members:read') && (
-            <AssigneeField register={form.register} value={assignee} creating={contract === null} />
-          )}
+          <AssigneeField
+            register={form.register}
+            value={assignee}
+            storeId={storeId}
+            current={contract?.assignedTo ?? null}
+          />
         </div>
       </Card>
       <Card title={t('contracts.detail.terms')}>

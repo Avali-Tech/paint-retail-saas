@@ -16,15 +16,22 @@ import {
   type DatabaseConnection,
   type Transaction,
 } from '@paint/db';
-import { isPermission, type MemberView, type Permission } from '@paint/shared';
+import {
+  canAccessStore,
+  isPermission,
+  type AssignableMember,
+  type MemberView,
+  type Permission,
+} from '@paint/shared';
 import { and, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { hashPassword } from '../auth/credentials.js';
 import { DATABASE } from '../database/database.module.js';
+import { recordPermissions } from '../documents/record-access.js';
 import { requireRoomFor } from '../platform/plan-limits.js';
 import { SUPPORT_ROLE_KEY } from '../platform/support-role.js';
 import { canSeeMember, grantProblem, manageProblem } from './access-rules.js';
-import type { CreateMemberInput, UpdateMemberInput } from './members.schemas.js';
+import type { AssignableQuery, CreateMemberInput, UpdateMemberInput } from './members.schemas.js';
 
 const {
   memberStores,
@@ -54,6 +61,20 @@ const toView = (
   enrolled: ReadonlySet<string>,
 ): MemberView => ({ ...member, twoFactorEnabled: enrolled.has(member.user.id) });
 
+/**
+ * What the asker needs to hand over each kind of record, and what the person
+ * it goes to needs (the same checks the leads, projects and contracts services make).
+ */
+const ASSIGNMENT_PERMISSIONS: Record<
+  'lead' | 'opportunity' | 'project' | 'contract',
+  { readonly caller: Permission; readonly assignee: Permission }
+> = {
+  lead: { caller: 'leads:manage', assignee: 'leads:manage' },
+  opportunity: { caller: 'leads:manage', assignee: 'leads:manage' },
+  project: { caller: 'projects:manage', assignee: 'projects:manage' },
+  contract: { caller: 'contracts:manage', assignee: 'contracts:manage' },
+};
+
 @Injectable()
 export class MembersService {
   constructor(@Inject(DATABASE) private readonly connection: DatabaseConnection) {}
@@ -64,6 +85,47 @@ export class MembersService {
       this.loadMembers(tx),
     );
     return this.toViews(members.filter((member) => this.visible(auth, member)));
+  }
+
+  /**
+   * Who the member may hand a record to (GET /members/assignable), without
+   * members:read: anyone who may create such records can ask. Lists active
+   * members whose role handles it and who work at the store (or, without one,
+   * at any of the asker's stores), as the services' assignee checks require.
+   */
+  async assignable(auth: AuthContext, query: AssignableQuery): Promise<AssignableMember[]> {
+    const { caller, assignee } =
+      query.for === 'activity'
+        ? {
+            caller: recordPermissions(query.recordType).manage,
+            assignee: recordPermissions(query.recordType).read,
+          }
+        : ASSIGNMENT_PERMISSIONS[query.for];
+    if (!auth.permissions.has(caller)) {
+      throw new ForbiddenException('You cannot hand these records to anyone');
+    }
+    const { storeId } = query;
+    if (storeId && !canAccessStore(auth, storeId)) throw new NotFoundException('Store not found');
+    const members = await withTenant(this.connection.db, auth.organization.id, (tx) =>
+      this.loadMembers(tx),
+    );
+    const worksWhere = (member: MemberRecord) =>
+      member.allStores ||
+      (storeId
+        ? member.storeIds.includes(storeId)
+        : member.storeIds.some((id) => canAccessStore(auth, id)));
+    return members
+      .filter(
+        (member) =>
+          member.isActive && member.rolePermissions.includes(assignee) && worksWhere(member),
+      )
+      .map((member) => ({
+        id: member.id,
+        name: member.user.fullName,
+        role: member.role.name,
+        allStores: member.allStores,
+        storeIds: member.storeIds.filter((id) => canAccessStore(auth, id)),
+      }));
   }
 
   async get(auth: AuthContext, memberId: string): Promise<MemberView> {

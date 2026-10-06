@@ -628,3 +628,88 @@ describe('another business', () => {
     ).toBe(404);
   });
 });
+
+describe('GET /members/assignable', () => {
+  interface Assignable {
+    id: string;
+    name: string;
+    role: string;
+    allStores: boolean;
+    storeIds: string[];
+  }
+  const ids = (list: Assignable[]) => list.map((m) => m.id).sort();
+  const sorted = (...list: string[]) => [...list].sort();
+
+  it('lists who a record can go to, without members:read, at the store', async () => {
+    const me = await hire('sales_executive', [hyd]);
+    const crm = await hire('crm_executive', [hyd]);
+    const cashier = await hire('store_employee', [hyd]);
+    const punSales = await hire('sales_executive', [pune]);
+    const both = await hire('sales_executive', [hyd, pune]);
+    const gone = await hire('sales_executive', [hyd]);
+    await api(owner.token).patch(`/members/${gone.member.id}`, { isActive: false });
+    const rival = await signup('XYZ Paints');
+    const ownerId = (await api(owner.token).get('/auth/me')).json<{ memberId: string }>().memberId;
+    const assignable = async (token: string, query: string) =>
+      (await api(token).get(`/members/assignable?${query}`)).json<Assignable[]>();
+
+    const forLead = await assignable(me.token, `for=lead&storeId=${hyd}`);
+    const anyStore = await assignable(me.token, 'for=opportunity');
+    const asOwner = await assignable(owner.token, 'for=lead');
+
+    expect((await api(me.token).get('/members')).statusCode).toBe(403);
+    expect(ids(forLead)).toEqual(sorted(ownerId, me.member.id, crm.member.id, both.member.id));
+    expect(forLead.find((m) => m.id === me.member.id)).toEqual({
+      id: me.member.id,
+      name: me.member.user.fullName,
+      role: 'Sales Executive',
+      allStores: false,
+      storeIds: [hyd],
+    });
+    expect(forLead.find((m) => m.id === ownerId)).toMatchObject({
+      name: 'ABC Paints Owner',
+      allStores: true,
+    });
+    // Only the stores the asker works at are named.
+    expect(forLead.find((m) => m.id === both.member.id)?.storeIds).toEqual([hyd]);
+    // Without a store: anyone at one of the asker's stores.
+    expect(ids(anyStore)).toEqual(ids(forLead));
+    expect(ids(asOwner)).toEqual(
+      sorted(ownerId, me.member.id, crm.member.id, both.member.id, punSales.member.id),
+    );
+    expect(asOwner.find((m) => m.id === both.member.id)?.storeIds).toEqual([hyd, pune].sort());
+    expect(ids(await assignable(owner.token, `for=lead&storeId=${pune}`))).toEqual(
+      sorted(ownerId, punSales.member.id, both.member.id),
+    );
+    expect(ids(await assignable(rival.token, 'for=lead'))).not.toContain(me.member.id);
+    // Each kind of record goes to people whose role handles it.
+    expect(ids(await assignable(crm.token, `for=contract&storeId=${hyd}`))).toEqual(
+      sorted(ownerId, crm.member.id),
+    );
+    expect(ids(await assignable(me.token, `for=project&storeId=${hyd}`))).toEqual(ids(forLead));
+    // A follow-up goes to anyone who can see the record.
+    expect(ids(await assignable(me.token, `for=activity&recordType=party&storeId=${hyd}`))).toEqual(
+      sorted(ownerId, me.member.id, crm.member.id, cashier.member.id, both.member.id),
+    );
+  });
+
+  it('is only for those who may hand such records over, at their stores', async () => {
+    const me = await hire('sales_executive', [hyd]);
+    const cashier = await hire('store_employee', [hyd]);
+    const ask = (token: string, query: string) => api(token).get(`/members/assignable?${query}`);
+
+    const refusals = await Promise.all([
+      ask(me.token, `for=contract&storeId=${hyd}`),
+      ask(cashier.token, 'for=activity&recordType=party'),
+      ask(me.token, `for=lead&storeId=${pune}`),
+      ask(me.token, 'for=activity'),
+      ask(me.token, 'for=invoice'),
+      ask(me.token, 'for=lead&storeId=nowhere'),
+    ]);
+
+    expect(refusals.map((r) => r.statusCode)).toEqual([403, 403, 404, 400, 400, 400]);
+    expect(refusals[0].json<{ message: string }>().message).toBe(
+      'You cannot hand these records to anyone',
+    );
+  });
+});

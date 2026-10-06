@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { Brand, Category } from '../api/catalog.js';
 import { CASHIER, OWNER, json, type FakeHandler } from '../test-support/fake-api.js';
+import { found } from '../test-support/found.js';
 import { BRANDS, CATEGORIES } from '../test-support/inventory-fixtures.js';
 import { renderApp } from '../test-support/render-app.js';
 
@@ -146,6 +147,50 @@ describe('CatalogSetupPage', () => {
       { name: 'Primers' },
       { name: 'Emulsions (water based)' },
     ]);
+  });
+
+  it('deactivates and reactivates categories, and says which take no new products', async () => {
+    let categories: Category[] = [
+      ...CATEGORIES,
+      { id: 'cat-primer', name: 'Primers', parentId: null, isActive: false },
+      { id: 'cat-wall', name: 'Wall primers', parentId: 'cat-primer', isActive: true },
+    ];
+    const bodies: unknown[] = [];
+    let fail = false;
+    const { user } = renderSetup({
+      'GET /categories': () => json(categories),
+      'PATCH /categories/:id': (request) => {
+        if (fail) return json({ message: 'Server error' }, 500);
+        bodies.push({ id: request.path.split('/').at(-1), ...(request.body as object) });
+        const { isActive } = request.body as { isActive: boolean };
+        categories = categories.map((category) =>
+          request.path.endsWith(category.id) ? { ...category, isActive } : category,
+        );
+        return json(categories[0]);
+      },
+    });
+    const panel = await screen.findByRole('region', { name: 'Categories' });
+    const row = (name: string) =>
+      found(within(panel).getByText(name, { selector: '.record-list__title' }).closest('li'));
+    expect(within(row('Primers')).getByText('Inactive')).toBeVisible();
+    expect(
+      within(row('Primers › Wall primers')).getByText('No new products: its category is inactive'),
+    ).toBeVisible();
+
+    await user.click(within(panel).getByRole('button', { name: 'Deactivate Emulsions' }));
+    expect(await within(row('Emulsions')).findByText('Inactive')).toBeVisible();
+    await user.click(within(panel).getByRole('button', { name: 'Activate Primers' }));
+    await waitFor(() => {
+      expect(within(row('Primers')).queryByText('Inactive')).toBeNull();
+    });
+    expect(bodies).toEqual([
+      { id: 'cat-emulsion', isActive: false },
+      { id: 'cat-primer', isActive: true },
+    ]);
+
+    fail = true;
+    await user.click(within(panel).getByRole('button', { name: 'Deactivate Primers' }));
+    expect(await screen.findByText('Server error')).toBeInTheDocument();
   });
 
   it('says when there are none yet, and is read-only without catalogue rights', async () => {

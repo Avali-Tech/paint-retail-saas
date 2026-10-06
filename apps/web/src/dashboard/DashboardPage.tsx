@@ -56,10 +56,49 @@ function Figure({
   );
 }
 
-function Tiles({ dashboard }: { readonly dashboard: Dashboard }) {
+/**
+ * Follow-ups counted as /follow-ups counts them: the team's for managers (and
+ * the link opens "everyone", at the store chosen here), else the member's own.
+ */
+function FollowUpTile({
+  followUps,
+  storeId,
+}: {
+  readonly followUps: Dashboard['followUps'];
+  readonly storeId: string | null;
+}) {
+  const { t, number } = useI18n();
+  const team = followUps.scope === 'team';
+  const query = new URLSearchParams(team ? { assignedTo: 'everyone' } : {});
+  if (team && storeId !== null) query.set('storeId', storeId);
+  const search = query.toString();
+  return (
+    <Tile
+      title={t(team ? 'followUps.tile.team' : 'followUps.tile.mine')}
+      value={number(followUps.overdue + followUps.today)}
+    >
+      <Figure
+        label={t('dashboard.overdue')}
+        value={number(followUps.overdue)}
+        {...(followUps.overdue > 0 ? { tone: 'danger' as const } : {})}
+      />
+      <Figure label={t('dashboard.today')} value={number(followUps.today)} />
+      <Link to={search === '' ? '/follow-ups' : `/follow-ups?${search}`}>
+        {t(team ? 'followUps.tile.openTeam' : 'dashboard.openFollowUps')}
+      </Link>
+    </Tile>
+  );
+}
+
+function Tiles({
+  dashboard,
+  storeId,
+}: {
+  readonly dashboard: Dashboard;
+  readonly storeId: string | null;
+}) {
   const { t, number, compactMoney, money } = useI18n();
   const { stock, lowStock, transfers, purchaseOrders } = dashboard.totals;
-  const { followUps } = dashboard;
   return (
     <section className="tiles" aria-label={t('dashboard.total')}>
       {stock && (
@@ -112,15 +151,7 @@ function Tiles({ dashboard }: { readonly dashboard: Dashboard }) {
           <Figure label={t('dashboard.dueValue')} value={money(purchaseOrders.dueValuePaise)} />
         </Tile>
       )}
-      <Tile title={t('dashboard.followUps')} value={number(followUps.overdue + followUps.today)}>
-        <Figure
-          label={t('dashboard.overdue')}
-          value={number(followUps.overdue)}
-          {...(followUps.overdue > 0 ? { tone: 'danger' as const } : {})}
-        />
-        <Figure label={t('dashboard.today')} value={number(followUps.today)} />
-        <Link to="/follow-ups">{t('dashboard.openFollowUps')}</Link>
-      </Tile>
+      <FollowUpTile followUps={dashboard.followUps} storeId={storeId} />
     </section>
   );
 }
@@ -385,7 +416,7 @@ export function DashboardPage() {
       )}
       {data !== undefined && storeCount > 0 && (
         <div className="dashboard">
-          <Tiles dashboard={data} />
+          <Tiles dashboard={data} storeId={storeId} />
           <StoresTable dashboard={data} />
           <div className="pipelines">
             {data.leads && <Pipeline title={t('dashboard.leads')} stages={data.leads} />}

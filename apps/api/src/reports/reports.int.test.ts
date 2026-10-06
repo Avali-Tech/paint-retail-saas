@@ -41,7 +41,49 @@ describe('report list', () => {
       'leads',
       'projects',
     ]);
-    expect(owner[1]?.filters).toEqual(['storeId', 'from', 'to', 'movementType']);
+    // Each filter says what input it takes, so the app builds them without copying enums.
+    expect(owner[0]?.filters).toEqual([
+      { name: 'storeId', type: 'store' },
+      { name: 'inStockOnly', type: 'boolean', default: 'true' },
+    ]);
+    expect(owner[1]?.filters).toEqual([
+      { name: 'storeId', type: 'store' },
+      { name: 'from', type: 'date' },
+      { name: 'to', type: 'date' },
+      {
+        name: 'movementType',
+        type: 'enum',
+        values: [
+          'opening',
+          'purchase_receipt',
+          'purchase_return',
+          'transfer_in',
+          'transfer_out',
+          'sale',
+          'sale_return',
+          'adjustment',
+          'damage',
+          'count_correction',
+        ],
+      },
+    ]);
+    expect(owner[3]?.filters.at(-1)).toEqual({ name: 'supplierId', type: 'supplier' });
+    expect(owner[4]?.filters.map((f) => [f.name, f.type, f.values?.length])).toEqual([
+      ['storeId', 'store', undefined],
+      ['from', 'date', undefined],
+      ['to', 'date', undefined],
+      ['stage', 'enum', 6],
+      ['source', 'enum', 10],
+    ]);
+    // Columns carry an id that stays the same, for translating headers.
+    expect(owner[2]?.columns.at(-1)).toEqual({
+      id: 'transfers.value',
+      key: 'value',
+      header: 'Dispatched value (₹)',
+    });
+    for (const summary of owner) {
+      expect(summary.columns.every((c) => c.id === `${summary.kind}.${c.key}`)).toBe(true);
+    }
     expect(cashier.map((r) => r.kind)).toEqual(['stock-by-location', 'stock-ledger', 'transfers']);
     expect((await get(business.cashier, '/reports/goods-receipts')).statusCode).toBe(403);
     expect((await get(business.owner, '/reports/sales')).statusCode).toBe(404);
@@ -71,7 +113,11 @@ describe('stock reports', () => {
       value: '1200.03',
     });
     expect(page.rows[2]).toMatchObject({ onHand: 5, averageCost: null, value: null });
-    expect(page.columns[7]).toEqual({ key: 'averageCost', header: 'Average cost (₹)' });
+    expect(page.columns[7]).toEqual({
+      id: 'stock-by-location.averageCost',
+      key: 'averageCost',
+      header: 'Average cost (₹)',
+    });
     expect(everything.total).toBeGreaterThanOrEqual(page.total);
   });
 

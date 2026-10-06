@@ -22,22 +22,23 @@ import { SectionNav } from '../lib/SectionNav.js';
 import { StoreSelect } from '../stock/StoreSelect.js';
 import { LEAD_TONE } from './crm.js';
 import { AssigneeFilter } from './members.js';
+import { PartyFilterNote } from './PartyFilterNote.js';
 import { LEAD_SECTIONS } from './nav.js';
 import { PAGE_SIZE, SEARCH_DELAY_MS, SearchFilter } from './SearchFilter.js';
 
-const FILTERS = ['q', 'stage', 'source', 'store', 'assignee'] as const;
+const FILTERS = ['q', 'stage', 'source', 'store', 'assignee', 'party'] as const;
 
-/** /leads — enquiries, filtered by stage, source, store, assignee or a search. */
+/** /leads — enquiries, filtered by stage, source, store, assignee, party or a search. */
 export function LeadsPage() {
   const api = useApi();
   const { t, label, money, date } = useI18n();
   const can = usePermissions();
   const filters = useUrlFilters(FILTERS);
-  const { stage, source, store, assignee } = filters.values;
+  const { stage, source, store, assignee, party } = filters.values;
   const q = useDebouncedValue(filters.values.q.trim(), SEARCH_DELAY_MS);
-  const filtered = q !== '' || stage !== '' || source !== '' || store !== '' || assignee !== '';
+  const filtered = [q, stage, source, store, assignee, party].some((value) => value !== '');
   const leads = useQuery({
-    queryKey: ['leads', { q, stage, source, store, assignee, offset: filters.offset }],
+    queryKey: ['leads', { q, stage, source, store, assignee, party, offset: filters.offset }],
     queryFn: ({ signal }) =>
       api.leads.list(
         {
@@ -46,6 +47,7 @@ export function LeadsPage() {
           source: (source || undefined) as LeadSource | undefined,
           storeId: store || undefined,
           assignedTo: assignee || undefined,
+          partyId: party || undefined,
           limit: PAGE_SIZE,
           offset: filters.offset,
         },
@@ -68,6 +70,14 @@ export function LeadsPage() {
           ) : undefined
         }
       />
+      {party !== '' && (
+        <PartyFilterNote
+          partyId={party}
+          onClear={() => {
+            filters.set('party', '');
+          }}
+        />
+      )}
       <Card>
         <div className="filters">
           <SearchFilter

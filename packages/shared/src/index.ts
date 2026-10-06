@@ -1,8 +1,11 @@
 export type {
+  AssignableMember,
   AuthProfile,
   BrandingSaved,
   BrandingView,
   Dashboard,
+  DocumentUploadError,
+  DocumentUploadErrorCode,
   MemberView,
   NotificationPage,
   NotificationView,

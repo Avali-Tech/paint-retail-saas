@@ -39,11 +39,11 @@ describe('DashboardPage', () => {
     expect(stockTile).toHaveTextContent('1 without a cost');
     expect(within(totals).getByText('₹18.94 L')).toHaveAttribute('title', '₹18,94,000.00');
     expect(totals).toHaveTextContent('Low stock6');
-    expect(totals).toHaveTextContent('Follow-ups3');
-    expect(within(totals).getByRole('link', { name: 'Open my follow-ups' })).toHaveAttribute(
-      'href',
-      '/follow-ups',
-    );
+    // A manager's tile counts the team's follow-ups and opens them.
+    expect(totals).toHaveTextContent('Team follow-ups3');
+    expect(
+      within(totals).getByRole('link', { name: 'Open the team’s follow-ups' }),
+    ).toHaveAttribute('href', '/follow-ups?assignedTo=everyone');
 
     const stores = screen.getByRole('table', { name: 'Stores' });
     const rows = within(stores).getAllByRole('row');
@@ -77,6 +77,11 @@ describe('DashboardPage', () => {
       ).toHaveLength(2);
     });
     expect(screen.getByTestId('location')).toHaveTextContent('/dashboard?store=store-pun');
+    // The team's follow-ups at the same store.
+    expect(screen.getByRole('link', { name: 'Open the team’s follow-ups' })).toHaveAttribute(
+      'href',
+      '/follow-ups?assignedTo=everyone&storeId=store-pun',
+    );
     expect(requests.some((request) => request.query.get('storeId') === 'store-pun')).toBe(true);
     await user.selectOptions(screen.getByRole('combobox', { name: 'Store' }), 'All stores');
     expect(screen.getByTestId('location')).toHaveTextContent(/^\/dashboard$/);
@@ -134,7 +139,7 @@ describe('DashboardPage', () => {
       leads: null,
       opportunities: null,
       projects: null,
-      followUps: { overdue: 0, today: 0 },
+      followUps: { scope: 'mine', overdue: 0, today: 0 },
     };
     renderDashboard(() => json(limited), CASHIER);
     const table = await screen.findByRole('table', { name: 'Stores' });
@@ -148,7 +153,11 @@ describe('DashboardPage', () => {
       within(totals)
         .getAllByRole('heading')
         .map((heading) => heading.textContent),
-    ).toEqual(['Follow-ups']);
+    ).toEqual(['My follow-ups']);
+    expect(within(totals).getByRole('link', { name: 'Open my follow-ups' })).toHaveAttribute(
+      'href',
+      '/follow-ups',
+    );
     expect(screen.queryByRole('table', { name: 'Leads' })).toBeNull();
   });
 });

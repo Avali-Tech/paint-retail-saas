@@ -1500,6 +1500,10 @@ export const documents = pgTable(
     index('documents_record_idx')
       .on(table.organizationId, table.recordType, table.recordId)
       .where(sql`${table.deletedAt} is null`),
+    // Documents across records, newest first.
+    index('documents_recent_idx')
+      .on(table.organizationId, table.createdAt.desc())
+      .where(sql`${table.deletedAt} is null`),
     foreignKey({
       name: 'documents_uploaded_by_fk',
       columns: [table.organizationId, table.uploadedByMemberId],
@@ -2071,6 +2075,15 @@ export const activities = pgTable(
     index('activities_assignee_open_idx')
       .on(table.assignedMemberId, table.dueAt)
       .where(sql`${table.completedAt} is null and ${table.cancelledAt} is null`),
+    // A team's open follow-ups, soonest first.
+    index('activities_open_due_idx')
+      .on(table.organizationId, table.dueAt)
+      .where(sql`${table.completedAt} is null and ${table.cancelledAt} is null`),
+    // Activities across records, latest first (when it happened or is due).
+    index('activities_moment_idx').on(
+      table.organizationId,
+      sql`(coalesce(${table.completedAt}, ${table.cancelledAt}, ${table.dueAt}, ${table.createdAt})) desc`,
+    ),
     index('activities_reminder_idx')
       .on(table.dueAt)
       .where(

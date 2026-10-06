@@ -2,8 +2,8 @@ import 'reflect-metadata';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema, withTenant, type DatabaseConnection, type Transaction } from '@paint/db';
 import { canAccessStore } from '@paint/shared';
-import { and, asc, count, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
-import { startOfTodayIst } from '../activities/activity-records.js';
+import { and, asc, count, eq, inArray, or, sql } from 'drizzle-orm';
+import { countFollowUps, followUpScope } from '../activities/activities.service.js';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
 import type { Dashboard, StorePosition } from '@paint/shared';
@@ -11,7 +11,6 @@ import type { Dashboard, StorePosition } from '@paint/shared';
 export type { Dashboard, StorePosition };
 
 const {
-  activities,
   leads,
   opportunities,
   productVariants,
@@ -83,7 +82,7 @@ export class DashboardService {
         leads: can('leads:read') ? await this.leadStages(tx, ids) : null,
         opportunities: can('leads:read') ? await this.opportunityStages(tx, ids) : null,
         projects: can('projects:read') ? await this.projectStages(tx, ids) : null,
-        followUps: await this.followUps(tx, ids),
+        followUps: await this.followUps(tx, auth, storeId),
       };
     });
   }
@@ -267,22 +266,14 @@ export class DashboardService {
     );
   }
 
-  private async followUps(tx: Transaction, ids: string[]) {
-    const [row] = await tx
-      .select({
-        overdue: sql<number>`count(*) filter (where ${activities.dueAt} < ${startOfTodayIst})::int`,
-        today: sql<number>`count(*) filter (where ${activities.dueAt} >= ${startOfTodayIst} and ${activities.dueAt} < ${startOfTodayIst} + interval '1 day')::int`,
-      })
-      .from(activities)
-      .where(
-        and(
-          isNull(activities.completedAt),
-          isNull(activities.cancelledAt),
-          isNotNull(activities.dueAt),
-          or(isNull(activities.storeId), inArray(activities.storeId, ids)),
-        ),
-      );
-    return { overdue: Number(row?.overdue), today: Number(row?.today) };
+  /** Counted exactly as /follow-ups lists them: the team's for managers, else the member's own. */
+  private async followUps(tx: Transaction, auth: AuthContext, storeId: string | undefined) {
+    const team = auth.permissions.has('members:read');
+    const { overdue, today } = await countFollowUps(
+      tx,
+      followUpScope(auth, team ? null : auth.memberId, storeId),
+    );
+    return { scope: team ? ('team' as const) : ('mine' as const), overdue, today };
   }
 }
 

@@ -12,12 +12,21 @@ import { count } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
+import type { ReportFilter } from './report-filters.js';
 import {
   REPORT_KINDS,
   type ReportColumn,
   type ReportKind,
   type ReportRow,
 } from './report-kinds.js';
+
+export type { ReportFilter };
+
+/** A column as the API answers it, with an id that stays the same across releases. */
+export interface ReportColumnView extends ReportColumn {
+  /** "<kind>.<key>", e.g. "transfers.value": the web app translates headers by it. */
+  readonly id: string;
+}
 
 /** Lets Excel read ₹ and Hindi text in the CSV. */
 const BOM = String.fromCharCode(0xfeff);
@@ -30,7 +39,7 @@ const paging = z.object({
 export interface ReportPage {
   readonly kind: string;
   readonly title: string;
-  readonly columns: readonly ReportColumn[];
+  readonly columns: readonly ReportColumnView[];
   readonly rows: ReportRow[];
   readonly total: number;
 }
@@ -38,10 +47,13 @@ export interface ReportPage {
 export interface ReportSummary {
   readonly kind: string;
   readonly title: string;
-  readonly columns: readonly ReportColumn[];
-  /** Filters it accepts. */
-  readonly filters: string[];
+  readonly columns: readonly ReportColumnView[];
+  /** Filters it accepts, with their type and allowed values. */
+  readonly filters: readonly ReportFilter[];
 }
+
+const columnsOf = (report: ReportKind<unknown>): ReportColumnView[] =>
+  report.columns.map((column) => ({ id: `${report.kind}.${column.key}`, ...column }));
 
 /** Basic reports with CSV export (roadmap P1-M22). */
 @Injectable()
@@ -54,8 +66,8 @@ export class ReportsService {
       (report) => ({
         kind: report.kind,
         title: report.title,
-        columns: report.columns,
-        filters: Object.keys((report.filters as unknown as z.ZodObject).shape),
+        columns: columnsOf(report),
+        filters: report.filterInfo,
       }),
     );
   }
@@ -74,7 +86,7 @@ export class ReportsService {
       return {
         kind: report.kind,
         title: report.title,
-        columns: report.columns,
+        columns: columnsOf(report),
         rows: records.map((record) => report.toRow(record)),
         total: Number(totals?.total),
       };

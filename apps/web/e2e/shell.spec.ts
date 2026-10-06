@@ -37,6 +37,18 @@ test('quick actions open from search and with their two-key shortcuts', async ({
   await page.keyboard.press('t');
   await expect(page).toHaveURL(/\/transfers\/new$/);
   await expect(page.getByRole('heading', { name: 'Request stock', level: 1 })).toBeVisible();
+
+  // "+ Contract" (N A) opens the contract form.
+  await page.getByRole('heading', { name: 'Request stock', level: 1 }).click();
+  await page.keyboard.press('n');
+  await page.keyboard.press('a');
+  await expect(page).toHaveURL(/\/contracts\/new$/);
+  await page.getByRole('combobox', { name: 'Search' }).fill('contract');
+  await expect(
+    page
+      .getByRole('group', { name: 'Quick actions' })
+      .getByRole('option', { name: /\+ Contract\s*N A/ }),
+  ).toBeVisible();
 });
 
 test('the notification bell shows what is unread', async ({ page }) => {

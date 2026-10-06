@@ -1,6 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
 import { expectUsable } from './checks.js';
-import { call, createBusiness, signInWithPassword, type Business } from './support.js';
+import {
+  PASSWORD,
+  addMember,
+  call,
+  createBusiness,
+  signInWithPassword,
+  uniquePhone,
+  type Business,
+} from './support.js';
 
 /** A calendar day in India, `days` from today (YYYY-MM-DD). */
 function indiaDay(days: number): string {
@@ -40,7 +48,12 @@ test('the owner works through follow-ups from the dashboard and reads a timeline
   const partyId = await customerWithFollowUps(business);
   await signInWithPassword(page, business.ownerPhone);
   await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
-  await page.getByRole('link', { name: 'Open my follow-ups' }).click();
+  // An owner's tile counts the team's follow-ups, and opens them.
+  await expect(page.getByRole('heading', { name: 'Team follow-ups' })).toBeVisible();
+  await page.getByRole('link', { name: 'Open the team’s follow-ups' }).click();
+  await expect(page.getByRole('heading', { name: 'Team follow-ups', level: 1 })).toBeVisible();
+  await expect(region(page, 'Overdue')).toContainText('Assigned to Anil Owner');
+  await page.getByRole('combobox', { name: 'Assigned to' }).selectOption({ label: 'Me' });
   await expect(page.getByRole('heading', { name: 'My follow-ups', level: 1 })).toBeVisible();
 
   await expect(region(page, 'Overdue')).toContainText('Call about the quote');
@@ -82,6 +95,55 @@ test('the owner works through follow-ups from the dashboard and reads a timeline
   await page.getByLabel(/^From/).fill(indiaDay(1));
   await expect(timeline.getByRole('listitem')).toHaveCount(1);
   await expect(timeline).toContainText('Site visit');
+  await expectUsable(page);
+
+  // Every record's activities, filtered by the API.
+  await page.getByRole('link', { name: 'All activities' }).click();
+  await expect(page).toHaveURL(/\/activities$/);
+  await expect(page.getByRole('link', { name: 'Apex Builders' }).first()).toBeVisible();
+  await page.getByRole('combobox', { name: 'Record' }).selectOption({ label: 'Customer or party' });
+  await page.getByRole('combobox', { name: 'Type' }).selectOption('whatsapp');
+  await expect(page.getByRole('listitem').filter({ hasText: 'Send the shade card' })).toBeVisible();
+  await expect(page.getByText('Met at the counter')).toBeHidden();
+  await expectUsable(page);
+});
+
+test('a manager sees the team’s follow-ups; staff see their own, on the dashboard too', async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const business = await createBusiness('Team Follow-up Paints');
+  const partyId = await customerWithFollowUps(business);
+  const staffPhone = uniquePhone();
+  await addMember(business, 'sales_executive', {
+    fullName: 'Sunita Sales',
+    phone: staffPhone,
+    password: PASSWORD,
+  });
+  const members = await call<{ id: string; user: { fullName: string } }[]>('GET', '/members', {
+    token: business.token,
+  });
+  const sunita = members.find((member) => member.user.fullName === 'Sunita Sales');
+  await call('POST', '/activities', {
+    token: business.token,
+    body: {
+      recordType: 'party',
+      recordId: partyId,
+      type: 'call',
+      subject: 'Call for Sunita',
+      dueAt: at(0, '23:45'),
+      assignedMemberId: sunita?.id,
+    },
+  });
+
+  await signInWithPassword(page, staffPhone);
+  await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+  // Without the team list the tile is the member's own, and so is the page it opens.
+  await expect(page.getByRole('heading', { name: 'My follow-ups' })).toBeVisible();
+  await page.getByRole('link', { name: 'Open my follow-ups' }).click();
+  await expect(region(page, 'Due today')).toContainText('Call for Sunita');
+  await expect(region(page, 'Due today')).not.toContainText('Send the shade card');
+  await expect(page.getByRole('combobox', { name: 'Assigned to' })).toBeHidden();
   await expectUsable(page);
 });
 

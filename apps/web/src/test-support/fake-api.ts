@@ -130,5 +130,5 @@ export const DASHBOARD: Dashboard = {
     { stage: 'identified', count: 0, valuePaise: 0 },
     { stage: 'survey', count: 0, valuePaise: 0 },
   ],
-  followUps: { overdue: 1, today: 2 },
+  followUps: { scope: 'team', overdue: 1, today: 2 },
 };
