@@ -182,3 +182,95 @@ test('the customer 360 gathers leads, projects, contracts and activities', async
   await expect(page.getByRole('region', { name: 'Documents' })).toContainText('No documents yet');
   await expectUsable(page);
 });
+
+test('a duplicate customer is merged into the one that stays', async ({ page }) => {
+  test.setTimeout(90_000);
+  const business = await createBusiness('Merge Paints');
+  const [store] = business.stores;
+  const token = business.token;
+  const party = (displayName: string) =>
+    call<{ id: string }>('POST', '/parties', {
+      token,
+      body: { displayName, phone: uniquePhone(), roles: ['customer'], homeStoreId: store?.id },
+    });
+  const keep = await party('Sri Sai Constructions');
+  const duplicate = await party('Sri Sai Constructions (old)');
+  for (const title of ['Tower A', 'Tower B']) {
+    await call('POST', '/leads', {
+      token,
+      body: { storeId: store?.id, partyId: duplicate.id, title, source: 'walk_in' },
+    });
+  }
+
+  await signInWithPassword(page, business.ownerPhone);
+  await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+  await page.goto(`/parties/${duplicate.id}`);
+  await page.getByRole('button', { name: 'Merge into…' }).click();
+  const dialog = page.getByRole('dialog', { name: /^Merge Sri Sai Constructions \(old\)/ });
+  await expect(dialog.getByRole('region', { name: 'What happens' })).toContainText(
+    'This cannot be undone.',
+  );
+  await dialog.getByRole('searchbox').fill('sri sai');
+  await dialog.getByRole('button', { name: 'Choose Sri Sai Constructions', exact: true }).click();
+  await expect(dialog).toContainText(
+    'Keep Sri Sai Constructions; merge Sri Sai Constructions (old) into it',
+  );
+  await expectUsable(page);
+  await dialog.getByRole('button', { name: 'Merge' }).click();
+
+  await expect(page.getByText('Merged into Sri Sai Constructions')).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/parties/${keep.id}$`));
+  const leads = page.getByRole('region', { name: 'Leads' });
+  await expect(leads).toContainText('Tower A');
+  await expect(leads).toContainText('Tower B');
+
+  // The old record points to the one that stays.
+  await page.goto(`/parties/${duplicate.id}`);
+  await expect(page.getByText('This record was merged into another one.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Merge into…' })).toBeHidden();
+});
+
+test('the customer 360 opens all of a customer’s leads', async ({ page }) => {
+  test.setTimeout(90_000);
+  const business = await createBusiness('Many Leads Paints');
+  const [store] = business.stores;
+  const token = business.token;
+  const party = await call<{ id: string }>('POST', '/parties', {
+    token,
+    body: { displayName: 'Busy Builders', phone: uniquePhone(), roles: ['customer'] },
+  });
+  const other = await call<{ id: string }>('POST', '/parties', {
+    token,
+    body: { displayName: 'Someone Else', phone: uniquePhone(), roles: ['customer'] },
+  });
+  await call('POST', '/leads', {
+    token,
+    body: { storeId: store?.id, partyId: other.id, title: 'Not theirs', source: 'walk_in' },
+  });
+  for (let index = 1; index <= 11; index += 1) {
+    await call('POST', '/leads', {
+      token,
+      body: {
+        storeId: store?.id,
+        partyId: party.id,
+        title: `Job ${String(index)}`,
+        source: 'walk_in',
+      },
+    });
+  }
+
+  await signInWithPassword(page, business.ownerPhone);
+  await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+  await page.goto(`/parties/${party.id}`);
+  const leads = page.getByRole('region', { name: 'Leads' });
+  await expect(leads).toContainText('Latest 10 of 11');
+  await leads.getByRole('link', { name: 'See all Leads' }).click();
+  await expect(page).toHaveURL(new RegExp(`/leads\\?party=${party.id}$`));
+  await expect(page.getByText('For Busy Builders only')).toBeVisible();
+  const table = page.getByRole('table', { name: 'Leads' });
+  await expect(table.getByRole('row')).toHaveCount(12);
+  await expect(table).not.toContainText('Not theirs');
+  await expectUsable(page);
+  await page.getByRole('button', { name: 'Show everyone’s' }).click();
+  await expect(table).toContainText('Not theirs');
+});

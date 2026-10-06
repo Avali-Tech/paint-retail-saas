@@ -16,7 +16,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { errorMessage } from '../api/errors.js';
-import type { ReportFilters, ReportSummary, ReportValue } from '../api/reports.js';
+import type { ReportFilter, ReportFilters, ReportSummary, ReportValue } from '../api/reports.js';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { saveFile } from '../lib/download.js';
@@ -24,12 +24,20 @@ import { useUrlFilters, type UrlFilters } from '../lib/hooks.js';
 import { dateRangeProblems } from '../lib/india-time.js';
 import { QueryState } from '../lib/QueryState.js';
 import { StoreSelect } from '../stock/StoreSelect.js';
-import { filterChoices, filterLabel, reportText } from './report-filters.js';
+import { columnHeader, filterChoices, filterLabel, reportText } from './report-filters.js';
 import { useReports } from './ReportsPage.js';
 
 export const REPORT_PAGE_SIZE = 50;
 
-function SupplierFilter({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+function SupplierFilter({
+  label,
+  value,
+  onChange,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly onChange: (id: string) => void;
+}) {
   const api = useApi();
   const { t } = useI18n();
   const suppliers = useQuery({
@@ -37,7 +45,7 @@ function SupplierFilter({ value, onChange }: { value: string; onChange: (id: str
     queryFn: ({ signal }) => api.purchasing.suppliers({ limit: 200 }, signal),
   });
   return (
-    <Field label={filterLabel(t, 'supplierId')}>
+    <Field label={label}>
       <Select
         value={value}
         onChange={(event) => {
@@ -55,87 +63,99 @@ function SupplierFilter({ value, onChange }: { value: string; onChange: (id: str
   );
 }
 
-/** One filter's control: a store, a tick box, a date, a choice or plain text. */
+/** One filter's control, by the type the API gives: a store, a tick box, a date, a choice or plain text. */
 function FilterControl({
-  kind,
   filter,
   filters,
   error,
 }: {
-  readonly kind: string;
-  readonly filter: string;
+  readonly filter: ReportFilter;
   readonly filters: UrlFilters<string>;
   readonly error: string | undefined;
 }) {
   const i18n = useI18n();
   const { t } = i18n;
+  const label = filterLabel(t, filter.name);
   // Every filter of the report is in the address's filters, "" when not set.
-  const value = String(filters.values[filter]);
+  const value = String(filters.values[filter.name]);
   const set = (next: string) => {
-    filters.set(filter, next);
+    filters.set(filter.name, next);
   };
-  if (filter === 'storeId') {
-    return (
-      <StoreSelect
-        label={filterLabel(t, filter)}
-        value={value}
-        onChange={set}
-        emptyLabel={t('reports.filters.allStores')}
-      />
-    );
-  }
-  if (filter === 'inStockOnly') {
-    // On unless turned off, as the API defaults it.
-    return (
-      <Checkbox
-        label={filterLabel(t, filter)}
-        checked={value !== 'false'}
-        onChange={(event) => {
-          set(event.target.checked ? '' : 'false');
-        }}
-      />
-    );
-  }
-  if (filter === 'supplierId') return <SupplierFilter value={value} onChange={set} />;
-  const choices = filterChoices(i18n, kind, filter);
-  return (
-    <Field
-      label={filterLabel(t, filter)}
-      error={error}
-      {...(filter === 'from' || filter === 'to' ? { hint: t('reports.dateHint') } : {})}
-    >
-      {choices === null ? (
-        <Input
-          type={filter === 'from' || filter === 'to' ? 'date' : 'text'}
+  switch (filter.type) {
+    case 'store':
+      return (
+        <StoreSelect
+          label={label}
           value={value}
+          onChange={set}
+          emptyLabel={t('reports.filters.allStores')}
+        />
+      );
+    case 'boolean': {
+      // Left out, the API's default applies; only a change from it goes in the address.
+      const fallback = filter.default === 'true';
+      return (
+        <Checkbox
+          label={label}
+          checked={value === '' ? fallback : value === 'true'}
           onChange={(event) => {
-            set(event.target.value);
+            set(event.target.checked === fallback ? '' : String(event.target.checked));
           }}
         />
-      ) : (
-        <Select
-          value={value}
-          onChange={(event) => {
-            set(event.target.value);
-          }}
-        >
-          <option value="">{t('reports.any')}</option>
-          {choices.map((choice) => (
-            <option key={choice.value} value={choice.value}>
-              {choice.label}
-            </option>
-          ))}
-        </Select>
-      )}
-    </Field>
-  );
+      );
+    }
+    case 'supplier':
+      return <SupplierFilter label={label} value={value} onChange={set} />;
+    case 'enum':
+      return (
+        <Field label={label}>
+          <Select
+            value={value}
+            onChange={(event) => {
+              set(event.target.value);
+            }}
+          >
+            <option value="">{t('reports.any')}</option>
+            {filterChoices(i18n, filter).map((choice) => (
+              <option key={choice.value} value={choice.value}>
+                {choice.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      );
+    case 'date':
+      return (
+        <Field label={label} error={error} hint={t('reports.dateHint')}>
+          <Input
+            type="date"
+            value={value}
+            onChange={(event) => {
+              set(event.target.value);
+            }}
+          />
+        </Field>
+      );
+    default:
+      // Any kind of filter this version of the app does not know yet, as text.
+      return (
+        <Field label={label}>
+          <Input
+            value={value}
+            onChange={(event) => {
+              set(event.target.value);
+            }}
+          />
+        </Field>
+      );
+  }
 }
 
 function Report({ report }: { readonly report: ReportSummary }) {
   const api = useApi();
   const { t, number } = useI18n();
   const toast = useToast();
-  const filters = useUrlFilters(report.filters);
+  const filters = useUrlFilters(report.filters.map((filter) => filter.name));
   const [downloading, setDownloading] = useState(false);
   const { title, description } = reportText(t, report);
   const problems = dateRangeProblems(filters.values.from ?? '', filters.values.to ?? '');
@@ -206,11 +226,10 @@ function Report({ report }: { readonly report: ReportSummary }) {
           <div className="filters">
             {report.filters.map((filter) => (
               <FilterControl
-                key={filter}
-                kind={report.kind}
+                key={filter.name}
                 filter={filter}
                 filters={filters}
-                error={errors[filter]}
+                error={errors[filter.name]}
               />
             ))}
           </div>
@@ -226,7 +245,7 @@ function Report({ report }: { readonly report: ReportSummary }) {
                     <tr>
                       {data.columns.map((column) => (
                         <th key={column.key} scope="col">
-                          {column.header}
+                          {columnHeader(t, column)}
                         </th>
                       ))}
                     </tr>

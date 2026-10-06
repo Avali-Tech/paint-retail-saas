@@ -57,6 +57,23 @@ test('the owner filters a report and downloads it for Excel', async ({ page }) =
   expect(csv).not.toContain('Villa repaint');
 });
 
+test('report filters come from the API, with their choices', async ({ page }) => {
+  await businessWithLeads(page, 'Filter Report Paints');
+  await page.goto('/reports/stock-ledger');
+  const movement = page.getByRole('combobox', { name: 'Movement' });
+  await expect(movement.getByRole('option', { name: 'Stock count correction' })).toBeAttached();
+  await expect(page.getByLabel(/^From/)).toHaveAttribute('type', 'date');
+  await page.goto('/reports/stock-by-location');
+  // A yes/no filter, on by the API's default.
+  await expect(page.getByRole('checkbox', { name: 'Only products in stock' })).toBeChecked();
+  await page.goto('/reports/leads');
+  const table = page.getByRole('table', { name: 'Leads' });
+  await expect(table.getByRole('columnheader', { name: 'Estimated value (₹)' })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Stage' }).selectOption({ label: 'Won' });
+  await expect(page.getByText('Nothing matches these filters')).toBeVisible();
+  await expectUsable(page);
+});
+
 test('reports fit a phone @phone', async ({ page }) => {
   await businessWithLeads(page, 'Phone Report Paints');
   await page.goto('/reports');

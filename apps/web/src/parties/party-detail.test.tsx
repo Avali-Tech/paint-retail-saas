@@ -61,6 +61,11 @@ describe('PartyDetailPage (customer 360)', { timeout: 30_000 }, () => {
     expect(within(leads).getByText('Qualified · HYD · ₹2,00,000.00')).toBeVisible();
     expect(within(leads).getByText('New · HYD')).toBeVisible();
     expect(within(leads).getByText('Latest 2 of 12')).toBeVisible();
+    // The rest of them, in the leads list kept to this customer.
+    expect(within(leads).getByRole('link', { name: 'See all Leads' })).toHaveAttribute(
+      'href',
+      `/leads?party=${PARTY.id}`,
+    );
 
     const opportunities = region('Opportunities');
     expect(within(opportunities).getByText('Open ₹5,00,000.00 · Won ₹1,00,000.00')).toBeVisible();

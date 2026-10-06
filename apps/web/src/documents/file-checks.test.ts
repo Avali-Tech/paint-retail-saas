@@ -53,15 +53,16 @@ describe('checkFile', () => {
 
 describe('uploadRefusal', () => {
   it('names the refusals people can act on', () => {
-    expect(
-      uploadRefusal(new ApiError(503, 'Virus scanning is unavailable, so the file was not saved')),
-    ).toBe('scannerOff');
-    expect(uploadRefusal(new ApiError(503, 'Document storage is not set up on this server'))).toBe(
-      'storageOff',
-    );
-    expect(uploadRefusal(new ApiError(415, 'Upload a PDF…'))).toBe('type');
-    expect(uploadRefusal(new ApiError(413, 'Files can be at most 10 MB'))).toBe('tooBig');
-    expect(uploadRefusal(new ApiError(422, 'This file contains a virus (Eicar)'))).toBe('infected');
+    const refused = (status: number, code: string, message = 'Refused') =>
+      uploadRefusal(new ApiError(status, message, [], [], { code }));
+    // By the code, whatever the message says.
+    expect(refused(503, 'scanner_unavailable', 'Storage trouble')).toBe('scannerOff');
+    expect(refused(503, 'storage_unavailable', 'Virus scanner fine')).toBe('storageOff');
+    expect(refused(415, 'file_type')).toBe('type');
+    expect(refused(413, 'too_large')).toBe('tooBig');
+    expect(refused(422, 'virus_found')).toBe('infected');
+    expect(refused(400, 'empty_file')).toBe('empty');
+    expect(refused(400, 'toString')).toBeNull();
     expect(uploadRefusal(new ApiError(403, 'You cannot change documents'))).toBeNull();
     expect(uploadRefusal(new Error('boom'))).toBeNull();
   });

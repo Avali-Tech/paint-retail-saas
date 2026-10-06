@@ -177,6 +177,12 @@ export interface StoreOption {
   readonly name: string;
 }
 
+/** POST /parties/:id/merge: the surviving party and how many records moved, by table and column. */
+export interface MergeResult {
+  readonly party: Party;
+  readonly moved: Readonly<Record<string, number>>;
+}
+
 export function partyEndpoints(api: ApiClient) {
   return {
     list: (query: PartyQuery, signal?: AbortSignal) =>
@@ -187,6 +193,9 @@ export function partyEndpoints(api: ApiClient) {
     create: (input: PartyInput) => api.post<Party>('/parties', input),
     update: (id: string, input: Partial<PartyInput> & { isActive?: boolean }) =>
       api.patch<Party>(`/parties/${id}`, input),
+    /** Merges this duplicate into another party (all-store access and parties:manage). */
+    merge: (id: string, intoPartyId: string) =>
+      api.post<MergeResult>(`/parties/${id}/merge`, { intoPartyId }),
     /** Stores to choose a home store from. */
     stores: (signal?: AbortSignal) => api.get<StoreOption[]>('/stores', { signal }),
   };

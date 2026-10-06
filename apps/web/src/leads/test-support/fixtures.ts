@@ -2,7 +2,7 @@ import type { Lead, Opportunity } from '../../api/leads.js';
 import type { Party } from '../../api/parties.js';
 import type { Project } from '../../api/projects.js';
 import type { Activity } from '../../api/record-activities.js';
-import type { Member } from '../../api/team.js';
+import type { AssignableMember, Member } from '../../api/team.js';
 import type { Profile } from '../../api/types.js';
 import { OWNER, json, type FakeHandler } from '../../test-support/fake-api.js';
 import { STORES, page } from '../../test-support/inventory-fixtures.js';
@@ -124,6 +124,18 @@ export const MEMBERS: Member[] = [
   member('member-3', 'Old Hand', 'sales_executive', false),
 ];
 
+/** GET /members/assignable: who a record can go to (no team access needed). */
+export const ASSIGNEES: AssignableMember[] = [
+  { id: 'member-1', name: 'Anil Kumar', role: 'Owner', allStores: true, storeIds: [] },
+  {
+    id: 'member-2',
+    name: 'Sita Sales',
+    role: 'Sales Executive',
+    allStores: false,
+    storeIds: ['store-hyd'],
+  },
+];
+
 export const party = (overrides: Partial<Party> = {}): Party => ({
   id: 'party-9',
   kind: 'person',
@@ -165,6 +177,7 @@ export function crmRoutes(
     'GET /auth/me': () => json(member),
     'GET /stores': () => json(STORES),
     'GET /members': () => json(MEMBERS),
+    'GET /members/assignable': () => json(ASSIGNEES),
     'GET /activities': () => json(page(activities)),
     'GET /documents': () => json([]),
   };

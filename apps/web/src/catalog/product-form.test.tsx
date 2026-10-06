@@ -183,6 +183,36 @@ describe('EditProductPage', () => {
     expect(await screen.findByText('Saved')).toBeInTheDocument();
   });
 
+  it('offers only categories that take new products, keeping the product’s own', async () => {
+    const categories = [
+      ...CATEGORIES,
+      { id: 'cat-primer', name: 'Primers', parentId: null, isActive: false },
+      { id: 'cat-wall', name: 'Wall primers', parentId: 'cat-primer', isActive: true },
+    ];
+    const options = async () =>
+      within(await screen.findByRole('combobox', { name: 'Category' }))
+        .getAllByRole('option')
+        .map((option) => option.textContent);
+    const view = renderForm('/products/new', { 'GET /categories': () => json(categories) });
+    expect(await options()).toEqual(['No category', 'Emulsions', 'Emulsions › Interior emulsions']);
+    view.unmount();
+
+    renderForm('/products/product-apex/edit', {
+      'GET /categories': () => json(categories),
+      'GET /products/:id': () => json(product({ category: categories[3] ?? null })),
+    });
+    await screen.findByRole('heading', { name: 'Edit Apex Ultima', level: 1 });
+    expect(await options()).toEqual([
+      'No category',
+      'Emulsions',
+      'Emulsions › Interior emulsions',
+      'Primers › Wall primers',
+    ]);
+    expect(screen.getByRole('combobox', { name: 'Category' })).toHaveDisplayValue(
+      'Primers › Wall primers',
+    );
+  });
+
   it('checks the HSN code', async () => {
     const { user } = renderForm('/products/product-apex/edit');
     const hsn = await screen.findByRole('textbox', { name: 'HSN code' });

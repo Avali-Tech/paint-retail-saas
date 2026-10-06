@@ -62,16 +62,26 @@ export interface FollowUpPage extends ActivityPage {
 
 export interface FollowUpQuery {
   readonly when: FollowUpWindow;
-  /** A member id; leave out for "me". */
+  /** A member id, or "everyone" (members who can see the team); leave out for "me". */
   readonly assignedTo?: string;
   readonly storeId?: string;
   readonly limit?: number;
   readonly offset?: number;
 }
 
+/**
+ * GET /activities: one record's timeline (recordType and recordId), or without
+ * a record, activities on every record the member can see. Filters apply to both.
+ */
 export interface TimelineQuery {
-  readonly recordType: ActivityRecordType;
-  readonly recordId: string;
+  readonly recordType?: ActivityRecordType | undefined;
+  readonly recordId?: string | undefined;
+  readonly type?: ActivityType | undefined;
+  /** Assigned to or logged by: a member id or "me". */
+  readonly person?: string | undefined;
+  /** India-time days, inclusive (YYYY-MM-DD). */
+  readonly from?: string | undefined;
+  readonly to?: string | undefined;
   readonly limit?: number;
   readonly offset?: number;
 }

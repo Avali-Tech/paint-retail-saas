@@ -1,7 +1,7 @@
 import '../styles/customers.css';
 import { Badge, Button, Card, Field, Input, Select, useToast } from '@paint/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   DOCUMENT_CATEGORIES,
   DOCUMENT_PERMISSIONS,
@@ -28,6 +28,10 @@ export interface DocumentsPanelProps {
 
 export const documentsKey = (recordType: DocumentRecordType, recordId: string) =>
   ['documents', recordType, recordId] as const;
+
+/** Reloads every list of documents: record panels and the documents page. */
+const refreshDocuments = (queryClient: ReturnType<typeof useQueryClient>) =>
+  queryClient.invalidateQueries({ queryKey: ['documents'] });
 
 function UploadDialog({
   recordType,
@@ -59,7 +63,7 @@ function UploadDialog({
       if (refusal === null) throw error;
       return t(`documents.problems.${refusal}`, { detail: errorMessage(error) });
     }
-    await queryClient.invalidateQueries({ queryKey: documentsKey(recordType, recordId) });
+    await refreshDocuments(queryClient);
     toast({ title: t('documents.uploaded'), tone: 'success' });
     return undefined;
   };
@@ -109,14 +113,21 @@ function UploadDialog({
   );
 }
 
-function DocumentRow({
+/**
+ * One document: its name, what it is, size, who uploaded it and when, with
+ * Download (under the server's file name) and, for those who may, Delete.
+ * `record` adds the record it is on, for lists across records.
+ */
+export function DocumentRow<D extends DocumentFile>({
   document,
   canManage,
   onRemove,
+  record,
 }: {
-  readonly document: DocumentFile;
+  readonly document: D;
   readonly canManage: boolean;
-  readonly onRemove: (document: DocumentFile) => void;
+  readonly onRemove: (document: D) => void;
+  readonly record?: ReactNode;
 }) {
   const api = useApi();
   const { t, label, date } = useI18n();
@@ -154,6 +165,7 @@ function DocumentRow({
             date: date(document.createdAt),
           })}
         </span>
+        {record !== undefined && <span className="record-list__meta">{record}</span>}
         {document.note !== null && <span className="record-list__meta">{document.note}</span>}
       </span>
       <span className="row">
@@ -185,6 +197,37 @@ function DocumentRow({
   );
 }
 
+/** Asks before deleting a document, then hides it from every list. */
+export function RemoveDocumentDialog({
+  document,
+  onClose,
+}: {
+  readonly document: DocumentFile;
+  readonly onClose: () => void;
+}) {
+  const api = useApi();
+  const { t } = useI18n();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  return (
+    <FormDialog
+      open
+      onClose={onClose}
+      title={t('documents.removeTitle', { name: document.fileName })}
+      description={t('documents.removeDescription')}
+      submitLabel={t('documents.remove')}
+      onSubmit={async () => {
+        await api.documents.remove(document.id);
+        await refreshDocuments(queryClient);
+        toast({ title: t('documents.removed'), tone: 'success' });
+        return undefined;
+      }}
+    >
+      {null}
+    </FormDialog>
+  );
+}
+
 /**
  * A record's documents: the list, downloads (fetched with the session's token,
  * saved under the server's file name), uploads checked before sending, and
@@ -198,8 +241,6 @@ export function DocumentsPanel({
 }: DocumentsPanelProps) {
   const api = useApi();
   const { t } = useI18n();
-  const toast = useToast();
-  const queryClient = useQueryClient();
   const can = usePermissions();
   const rule = DOCUMENT_PERMISSIONS[recordType];
   const canManage = can(rule.manage);
@@ -261,25 +302,12 @@ export function DocumentsPanel({
         />
       )}
       {removing !== null && (
-        <FormDialog
-          open
+        <RemoveDocumentDialog
+          document={removing}
           onClose={() => {
             setRemoving(null);
           }}
-          title={t('documents.removeTitle', { name: removing.fileName })}
-          description={t('documents.removeDescription')}
-          submitLabel={t('documents.remove')}
-          onSubmit={async () => {
-            await api.documents.remove(removing.id);
-            await queryClient.invalidateQueries({
-              queryKey: documentsKey(recordType, recordId),
-            });
-            toast({ title: t('documents.removed'), tone: 'success' });
-            return undefined;
-          }}
-        >
-          {null}
-        </FormDialog>
+        />
       )}
     </Card>
   );

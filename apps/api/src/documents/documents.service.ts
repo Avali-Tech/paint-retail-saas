@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { createHash } from 'node:crypto';
 import {
   BadRequestException,
+  HttpStatus,
   Inject,
   Injectable,
   NotFoundException,
@@ -10,14 +11,26 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { schema, withTenant, type DatabaseConnection, type Transaction } from '@paint/db';
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
+import { withinIndiaDays } from '../common/india-days.js';
 import { DATABASE } from '../database/database.module.js';
 import { ScannerUnavailableError, type VirusScanner } from './clamav.js';
-import type { ListDocumentsQuery, UploadFields } from './documents.schemas.js';
+import type {
+  BrowseDocumentsQuery,
+  ListDocumentsQuery,
+  UploadFields,
+} from './documents.schemas.js';
 import { ALLOWED_FILES_MESSAGE, cleanFileName, detectFileType } from './file-checks.js';
 import type { ObjectStorage } from './object-storage.js';
-import { requireRecordAccess, type RecordType } from './record-access.js';
+import {
+  RECORD_TYPES,
+  recordLabel,
+  requireRecordAccess,
+  visibleRecords,
+  type RecordType,
+} from './record-access.js';
+import { uploadRefusal } from './upload-refusals.js';
 
 const { documents, organizationMembers, users } = schema;
 
@@ -42,6 +55,17 @@ export interface DocumentView {
   readonly createdAt: string;
 }
 
+/** A document with the record it is on, in a list across records. */
+export interface DocumentListItem extends DocumentView {
+  /** How people name the record, e.g. "PO-000012" or "LD-000004 · Kondapur tower". */
+  readonly recordLabel: string;
+}
+
+export interface DocumentPage {
+  readonly items: DocumentListItem[];
+  readonly total: number;
+}
+
 export interface UploadedFile {
   readonly fileName: string;
   readonly data: Buffer;
@@ -59,25 +83,51 @@ export class DocumentsService {
     const { storage, scanner } = this.configured();
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
       await requireRecordAccess(tx, auth, fields.recordType, fields.recordId, 'manage');
-      if (file.data.length === 0) throw new BadRequestException('The file is empty');
+      if (file.data.length === 0) {
+        throw new BadRequestException(
+          uploadRefusal(HttpStatus.BAD_REQUEST, 'empty_file', 'The file is empty'),
+        );
+      }
       const type = detectFileType(file.data, file.fileName);
-      if (!type) throw new UnsupportedMediaTypeException(ALLOWED_FILES_MESSAGE);
+      if (!type) {
+        throw new UnsupportedMediaTypeException(
+          uploadRefusal(HttpStatus.UNSUPPORTED_MEDIA_TYPE, 'file_type', ALLOWED_FILES_MESSAGE),
+        );
+      }
       let result;
       try {
         result = await scanner.scan(file.data);
       } catch (error) {
         throw new ServiceUnavailableException(
-          `Virus scanning is unavailable, so the file was not saved; try again shortly (${(error as ScannerUnavailableError).message})`,
+          uploadRefusal(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            'scanner_unavailable',
+            `Virus scanning is unavailable, so the file was not saved; try again shortly (${(error as ScannerUnavailableError).message})`,
+          ),
         );
       }
       if (!result.clean) {
         throw new UnprocessableEntityException(
-          `This file contains a virus (${result.signature}) and was not saved`,
+          uploadRefusal(
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            'virus_found',
+            `This file contains a virus (${result.signature}) and was not saved`,
+          ),
         );
       }
       const id = crypto.randomUUID();
       const storageKey = `${auth.organization.id}/documents/${id}`;
-      await storage.put(storageKey, file.data, type.contentType);
+      try {
+        await storage.put(storageKey, file.data, type.contentType);
+      } catch (error) {
+        throw new ServiceUnavailableException(
+          uploadRefusal(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            'storage_unavailable',
+            `Document storage is unavailable, so the file was not saved; try again shortly (${(error as Error).message})`,
+          ),
+        );
+      }
       await tx.insert(documents).values({
         id,
         organizationId: auth.organization.id,
@@ -112,6 +162,46 @@ export class DocumentsService {
     });
   }
 
+  /**
+   * Documents on every record the member can see (as record-access.ts decides
+   * for each record), newest first, with filters and paging.
+   */
+  browse(auth: AuthContext, query: BrowseDocumentsQuery): Promise<DocumentPage> {
+    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      const uploader = query.uploadedBy === 'me' ? auth.memberId : query.uploadedBy;
+      const where = and(
+        isNull(documents.deletedAt),
+        visibleRecords(
+          auth,
+          documents.recordType,
+          documents.recordId,
+          query.recordType ? [query.recordType] : RECORD_TYPES,
+        ),
+        query.category ? eq(documents.category, query.category) : undefined,
+        uploader ? eq(documents.uploadedByMemberId, uploader) : undefined,
+        withinIndiaDays(documents.createdAt, query.from, query.to),
+      );
+      const rows = await tx
+        .select({
+          document: documents,
+          uploaderName: users.fullName,
+          recordLabel: recordLabel(documents.recordType, documents.recordId, RECORD_TYPES),
+        })
+        .from(documents)
+        .innerJoin(organizationMembers, eq(organizationMembers.id, documents.uploadedByMemberId))
+        .innerJoin(users, eq(users.id, organizationMembers.userId))
+        .where(where)
+        .orderBy(desc(documents.createdAt), desc(documents.id))
+        .limit(query.limit)
+        .offset(query.offset);
+      const [totals] = await tx.select({ total: count() }).from(documents).where(where);
+      return {
+        items: rows.map((row) => ({ ...this.toView(row), recordLabel: row.recordLabel })),
+        total: Number(totals?.total),
+      };
+    });
+  }
+
   /** The file's bytes, for members who can see its record. */
   download(
     auth: AuthContext,
@@ -143,7 +233,13 @@ export class DocumentsService {
 
   private configured(): DocumentServices {
     if (!this.services) {
-      throw new ServiceUnavailableException('Document storage is not set up on this server');
+      throw new ServiceUnavailableException(
+        uploadRefusal(
+          HttpStatus.SERVICE_UNAVAILABLE,
+          'storage_unavailable',
+          'Document storage is not set up on this server',
+        ),
+      );
     }
     return this.services;
   }

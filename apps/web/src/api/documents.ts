@@ -56,6 +56,21 @@ export const DOCUMENT_PERMISSIONS: Readonly<
   contract: { read: 'contracts:read', manage: 'contracts:manage' },
 };
 
+/** Where each kind of record opens in the app; stores have no page of their own. */
+export const DOCUMENT_RECORD_PATHS: Readonly<Record<DocumentRecordType, string | null>> = {
+  party: '/parties/',
+  product: '/products/',
+  store: null,
+  purchase_order: '/purchase-orders/',
+  goods_receipt: '/goods-receipts/',
+  transfer: '/transfers/',
+  stock_count: '/stock-counts/',
+  lead: '/leads/',
+  opportunity: '/opportunities/',
+  project: '/projects/',
+  contract: '/contracts/',
+};
+
 export interface DocumentFile {
   readonly id: string;
   readonly recordType: DocumentRecordType;
@@ -70,6 +85,30 @@ export interface DocumentFile {
   readonly createdAt: string;
 }
 
+/** A document in the list across records (GET /documents without a record). */
+export interface DocumentListItem extends DocumentFile {
+  /** How people name the record, e.g. "PO-000012" or "LD-000004 · Kondapur tower". */
+  readonly recordLabel: string;
+}
+
+export interface DocumentPage {
+  readonly items: DocumentListItem[];
+  readonly total: number;
+}
+
+/** GET /documents without a record: filters and paging. */
+export interface DocumentQuery {
+  readonly recordType?: DocumentRecordType | undefined;
+  readonly category?: DocumentCategory | undefined;
+  /** A member id or "me". */
+  readonly uploadedBy?: string | undefined;
+  /** India-time days of the upload, inclusive (YYYY-MM-DD). */
+  readonly from?: string | undefined;
+  readonly to?: string | undefined;
+  readonly limit?: number;
+  readonly offset?: number;
+}
+
 export interface DocumentUpload {
   readonly recordType: DocumentRecordType;
   readonly recordId: string;
@@ -82,6 +121,9 @@ export function documentEndpoints(api: ApiClient) {
   return {
     list: (recordType: DocumentRecordType, recordId: string, signal?: AbortSignal) =>
       api.get<DocumentFile[]>('/documents', { query: { recordType, recordId }, signal }),
+    /** Documents on every record the member can see, newest first. */
+    browse: (query: DocumentQuery, signal?: AbortSignal) =>
+      api.get<DocumentPage>('/documents', { query: { ...query }, signal }),
     /** Scanned for viruses before it is stored; refused (503) when scanning is down. */
     upload: (upload: DocumentUpload) => {
       const form = new FormData();

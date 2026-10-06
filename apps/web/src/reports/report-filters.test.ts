@@ -3,34 +3,27 @@ import { createI18n } from '../i18n/i18n.js';
 import { filterChoices, filterLabel, reportText } from './report-filters.js';
 
 const i18n = createI18n('en');
+const choice = (name: string, values: string[]) =>
+  filterChoices(i18n, { name, type: 'enum', values });
 
 describe('report filters', () => {
-  it('offers the values of each choice filter', () => {
-    expect(filterChoices(i18n, 'stock-ledger', 'movementType')?.[1]).toEqual({
-      value: 'purchase_receipt',
-      label: 'Purchase receipt',
-    });
-    expect(filterChoices(i18n, 'transfers', 'status')?.[2]).toEqual({
-      value: 'in_transit',
-      label: 'In transit',
-    });
-    expect(filterChoices(i18n, 'leads', 'stage')?.map((choice) => choice.value)).toEqual([
-      'new',
-      'contacted',
-      'qualified',
-      'opportunity',
-      'won',
-      'lost',
+  it('names the values the API lists for each choice filter', () => {
+    expect(choice('movementType', ['opening', 'purchase_receipt'])).toEqual([
+      { value: 'opening', label: 'Opening stock' },
+      { value: 'purchase_receipt', label: 'Purchase receipt' },
     ]);
-    expect(filterChoices(i18n, 'projects', 'stage')?.[0]).toEqual({
-      value: 'identified',
-      label: 'Identified',
-    });
-    expect(filterChoices(i18n, 'leads', 'source')?.[0]).toEqual({
-      value: 'walk_in',
-      label: 'Walk-in',
-    });
-    expect(filterChoices(i18n, 'leads', 'from')).toBeNull();
+    expect(choice('status', ['in_transit'])).toEqual([
+      { value: 'in_transit', label: 'In transit' },
+    ]);
+    expect(choice('stage', ['qualified', 'identified', 'brand_new'])).toEqual([
+      { value: 'qualified', label: 'Qualified' },
+      { value: 'identified', label: 'Identified' },
+      { value: 'brand_new', label: 'Brand new' },
+    ]);
+    expect(choice('source', ['walk_in'])).toEqual([{ value: 'walk_in', label: 'Walk-in' }]);
+    // A filter the app does not know yet: its values humanized.
+    expect(choice('channel', ['walk_in'])).toEqual([{ value: 'walk_in', label: 'Walk in' }]);
+    expect(filterChoices(i18n, { name: 'from', type: 'date' })).toEqual([]);
   });
 
   it('names filters and reports, falling back to the API for new ones', () => {

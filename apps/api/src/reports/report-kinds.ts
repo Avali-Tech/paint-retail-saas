@@ -1,10 +1,20 @@
 import { schema, type Transaction } from '@paint/db';
 import { paiseToRupees, type Permission } from '@paint/shared';
-import { and, asc, desc, eq, gte, lt, or, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, or, sql, type AnyColumn } from 'drizzle-orm';
 import { alias, type PgSelect } from 'drizzle-orm/pg-core';
-import { z } from 'zod';
+import type { z } from 'zod';
 import type { AuthContext } from '../auth/auth-context.js';
+import { withinIndiaDays } from '../common/india-days.js';
 import { storeScope } from '../leads/crm-lookups.js';
+import {
+  booleanFilter,
+  dateFilter,
+  enumFilter,
+  reportFilters,
+  storeFilter,
+  supplierFilter,
+  type ReportFilter,
+} from './report-filters.js';
 
 const {
   brands,
@@ -40,22 +50,15 @@ export interface ReportKind<F> {
   readonly columns: readonly ReportColumn[];
   /** The filters this report understands, besides format and paging. */
   readonly filters: z.ZodType<F, Record<string, unknown>>;
+  /** The same filters described for the web app (GET /reports). */
+  readonly filterInfo: readonly ReportFilter[];
   /** The rows, newest or most relevant first; `select` turns a query into rows. */
   query(tx: Transaction, auth: AuthContext, filters: F): PgSelect;
   toRow(record: Record<string, unknown>): ReportRow;
 }
 
-const day = z.iso.date();
-const dateRange = { from: day.optional(), to: day.optional() };
-const storeFilter = { storeId: z.uuid().optional() };
-
-/** India-time calendar days, inclusive at both ends. */
-function withinDays(column: AnyColumn, from?: string, to?: string): SQL | undefined {
-  return and(
-    from ? gte(column, sql`(${from}::date)::timestamp at time zone 'Asia/Kolkata'`) : undefined,
-    to ? lt(column, sql`(${to}::date + 1)::timestamp at time zone 'Asia/Kolkata'`) : undefined,
-  );
-}
+const store = { storeId: storeFilter };
+const dateRange = { from: dateFilter, to: dateFilter };
 
 /** A moment as people in India read it, e.g. "2026-10-01 18:05". */
 const ist = (column: AnyColumn) =>
@@ -88,13 +91,7 @@ const stockByLocation: ReportKind<{ storeId?: string; inStockOnly: boolean }> = 
     { key: 'averageCost', header: 'Average cost (₹)' },
     { key: 'value', header: 'Value (₹)' },
   ],
-  filters: z.object({
-    ...storeFilter,
-    inStockOnly: z
-      .enum(['true', 'false'])
-      .default('true')
-      .transform((value) => value === 'true'),
-  }),
+  ...reportFilters({ ...store, inStockOnly: booleanFilter(true) }),
   query: (tx, auth, filters) =>
     tx
       .select({
@@ -155,11 +152,7 @@ const ledger: ReportKind<{
     { key: 'note', header: 'Note' },
     { key: 'by', header: 'By' },
   ],
-  filters: z.object({
-    ...storeFilter,
-    ...dateRange,
-    movementType: z.enum(MOVEMENT_TYPES).optional(),
-  }),
+  ...reportFilters({ ...store, ...dateRange, movementType: enumFilter(MOVEMENT_TYPES) }),
   query: (tx, auth, filters) =>
     tx
       .select({
@@ -182,7 +175,7 @@ const ledger: ReportKind<{
       .where(
         and(
           storeScope(auth, stockLedger.storeId, filters.storeId),
-          withinDays(stockLedger.createdAt, filters.from, filters.to),
+          withinIndiaDays(stockLedger.createdAt, filters.from, filters.to),
           filters.movementType ? eq(stockLedger.movementType, filters.movementType) : undefined,
         ),
       )
@@ -223,7 +216,7 @@ const transferReport: ReportKind<{
     { key: 'products', header: 'Products' },
     { key: 'value', header: 'Dispatched value (₹)' },
   ],
-  filters: z.object({ ...storeFilter, ...dateRange, status: z.enum(TRANSFER_STATUSES).optional() }),
+  ...reportFilters({ ...store, ...dateRange, status: enumFilter(TRANSFER_STATUSES) }),
   query: (tx, auth, filters) =>
     tx
       .select({
@@ -248,7 +241,7 @@ const transferReport: ReportKind<{
             storeScope(auth, transfers.fromStoreId, filters.storeId),
             storeScope(auth, transfers.toStoreId, filters.storeId),
           ),
-          withinDays(transfers.requestedAt, filters.from, filters.to),
+          withinIndiaDays(transfers.requestedAt, filters.from, filters.to),
           filters.status ? eq(transfers.status, filters.status) : undefined,
         ),
       )
@@ -284,7 +277,7 @@ const receipts: ReportKind<{ storeId?: string; from?: string; to?: string; suppl
       { key: 'freeUnits', header: 'Free units' },
       { key: 'value', header: 'Value (₹)' },
     ],
-    filters: z.object({ ...storeFilter, ...dateRange, supplierId: z.uuid().optional() }),
+    ...reportFilters({ ...store, ...dateRange, supplierId: supplierFilter }),
     query: (tx, auth, filters) =>
       tx
         .select({
@@ -306,7 +299,7 @@ const receipts: ReportKind<{ storeId?: string; from?: string; to?: string; suppl
         .where(
           and(
             storeScope(auth, goodsReceipts.storeId, filters.storeId),
-            withinDays(goodsReceipts.receivedAt, filters.from, filters.to),
+            withinIndiaDays(goodsReceipts.receivedAt, filters.from, filters.to),
             filters.supplierId ? eq(goodsReceipts.supplierPartyId, filters.supplierId) : undefined,
           ),
         )
@@ -353,11 +346,11 @@ const leadReport: ReportKind<{
     { key: 'assignedTo', header: 'Assigned to' },
     { key: 'lostReason', header: 'Lost reason' },
   ],
-  filters: z.object({
-    ...storeFilter,
+  ...reportFilters({
+    ...store,
     ...dateRange,
-    stage: z.enum(LEAD_STAGES).optional(),
-    source: z.enum(LEAD_SOURCES).optional(),
+    stage: enumFilter(LEAD_STAGES),
+    source: enumFilter(LEAD_SOURCES),
   }),
   query: (tx, auth, filters) =>
     tx
@@ -383,7 +376,7 @@ const leadReport: ReportKind<{
       .where(
         and(
           storeScope(auth, leads.storeId, filters.storeId),
-          withinDays(leads.createdAt, filters.from, filters.to),
+          withinIndiaDays(leads.createdAt, filters.from, filters.to),
           filters.stage ? eq(leads.stage, filters.stage) : undefined,
           filters.source ? eq(leads.source, filters.source) : undefined,
         ),
@@ -426,7 +419,7 @@ const projectReport: ReportKind<{ storeId?: string; stage?: (typeof PROJECT_STAG
     { key: 'expectedValue', header: 'Expected value (₹)' },
     { key: 'assignedTo', header: 'Assigned to' },
   ],
-  filters: z.object({ ...storeFilter, stage: z.enum(PROJECT_STAGES).optional() }),
+  ...reportFilters({ ...store, stage: enumFilter(PROJECT_STAGES) }),
   query: (tx, auth, filters) =>
     tx
       .select({

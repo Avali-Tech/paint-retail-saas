@@ -1,7 +1,6 @@
 import { SYSTEM_ROLES } from '@paint/shared';
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { Member } from '../api/team.js';
 import { OWNER, json, profile } from '../test-support/fake-api.js';
 import { CONTRACT, DRAFT, ENDED } from '../test-support/contract-fixtures.js';
 import { PARTY } from '../test-support/party-fixtures.js';
@@ -35,19 +34,9 @@ const STORES = [
     isActive: false,
   },
 ];
-const member = (id: string, userId: string, fullName: string, isActive = true): Member => ({
-  id,
-  user: { id: userId, fullName, phone: null, email: null },
-  role: { id: 'r1', key: 'crm_executive', name: 'CRM Executive' },
-  allStores: true,
-  storeIds: [],
-  isActive,
-  twoFactorEnabled: false,
-});
-const MEMBERS = [
-  member('member-1', 'user-1', 'Anil Kumar'),
-  member('member-2', 'user-2', 'Priya Sharma'),
-  member('member-3', 'user-3', 'Gone Person', false),
+const ASSIGNEES = [
+  { id: 'member-1', name: 'Anil Kumar', role: 'Owner', allStores: true, storeIds: [] },
+  { id: 'member-2', name: 'Priya Sharma', role: 'CRM Executive', allStores: true, storeIds: [] },
 ];
 const location = () => screen.getByTestId('location').textContent;
 const facts = () => screen.getByRole('region', { name: 'Details' });
@@ -260,13 +249,13 @@ describe('contract form', { timeout: 30_000 }, () => {
   it('creates a draft for a chosen party, checking the form first', async () => {
     const created: unknown[] = [];
     let refuse: 'field' | 'other' | null = 'field';
-    const { user } = renderApp({
+    const { user, requests } = renderApp({
       path: '/contracts/new',
       routes: {
         'GET /auth/me': () => json(OWNER),
         'GET /parties': () => json({ items: [PARTY], total: 1 }),
         'GET /stores': () => json(STORES),
-        'GET /members': () => json(MEMBERS),
+        'GET /members/assignable': () => json(ASSIGNEES),
         'GET /contracts/:id': () => json(CONTRACT),
         'GET /documents': () => json([]),
         'POST /contracts': (request) => {
@@ -312,6 +301,15 @@ describe('contract form', { timeout: 30_000 }, () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Type' }), 'Dealer agreement');
     await user.type(screen.getByRole('textbox', { name: 'Title' }), 'Dealer terms 2026');
     await user.selectOptions(store, 'HYD · Hyderabad');
+    // Who may look after it is asked for the chosen store.
+    await waitFor(() => {
+      expect(
+        requests
+          .filter((request) => request.path === '/members/assignable')
+          .at(-1)
+          ?.query.toString(),
+      ).toBe('for=contract&storeId=store-hyd');
+    });
     await user.type(screen.getByLabelText(/^Start date/), '2026-11-01');
     await user.type(screen.getByLabelText(/^End date/), '2026-10-01');
     await user.type(screen.getByRole('textbox', { name: 'Value (₹)' }), '2,50,000');
@@ -350,11 +348,16 @@ describe('contract form', { timeout: 30_000 }, () => {
         'GET /auth/me': () => json(CRM),
         'GET /parties/:id': () => json(PARTY),
         'GET /stores': () => json(STORES),
+        'GET /members/assignable': () => json(ASSIGNEES),
       },
     });
     expect(await screen.findByRole('region', { name: 'Apex Builders' })).toBeVisible();
-    // Without the team list there is no one else to choose.
-    expect(screen.queryByRole('combobox', { name: 'Looked after by' })).toBeNull();
+    // Without the team list, the people who handle contracts are still offered.
+    expect(
+      await within(screen.getByRole('combobox', { name: 'Looked after by' })).findByRole('option', {
+        name: 'Priya Sharma',
+      }),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Choose someone else' }));
     expect(await screen.findByRole('region', { name: 'Who the contract is with' })).toBeVisible();
   });
@@ -378,7 +381,7 @@ describe('contract form', { timeout: 30_000 }, () => {
         'GET /auth/me': () => json(OWNER),
         'GET /contracts/:id': () => json(CONTRACT),
         'GET /stores': () => json(STORES),
-        'GET /members': () => json(MEMBERS),
+        'GET /members/assignable': () => json(ASSIGNEES),
         'GET /documents': () => json([]),
         'PATCH /contracts/:id': (request) => {
           changes.push(request.body);
@@ -411,5 +414,26 @@ describe('contract form', { timeout: 30_000 }, () => {
         assignedMemberId: 'member-1',
       },
     ]);
+  });
+
+  it('keeps the saved assignee on the list when they no longer handle contracts there', async () => {
+    renderApp({
+      path: `/contracts/${CONTRACT.id}/edit`,
+      routes: {
+        'GET /auth/me': () => json(OWNER),
+        'GET /contracts/:id': () => json(CONTRACT),
+        'GET /stores': () => json(STORES),
+        'GET /members/assignable': () => json(ASSIGNEES.slice(1)),
+        'GET /documents': () => json([]),
+      },
+    });
+    const assignee = await screen.findByRole('combobox', { name: 'Looked after by' });
+    expect(await within(assignee).findByRole('option', { name: 'Priya Sharma' })).toBeVisible();
+    expect(
+      within(assignee)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['Anil Kumar', 'Priya Sharma']);
+    expect(assignee).toHaveValue('member-1');
   });
 });

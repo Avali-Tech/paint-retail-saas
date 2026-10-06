@@ -1,10 +1,24 @@
-import type { MemberView, Permission, RoleView } from '@paint/shared';
+import type { AssignableMember, MemberView, Permission, RoleView } from '@paint/shared';
 import type { ApiClient } from './client.js';
 
 // Team members and roles. Shapes are shared with apps/api/src/members.
 
 export type Member = MemberView;
 export type Role = RoleView;
+export type { AssignableMember };
+
+/**
+ * GET /members/assignable: who a record can be handed to. `for` is the kind of
+ * record (an activity names the record type it is on); `storeId` its store,
+ * left out for business-wide records.
+ */
+export type AssignmentQuery =
+  | { readonly for: 'lead' | 'opportunity' | 'project' | 'contract'; readonly storeId?: string }
+  | {
+      readonly for: 'activity';
+      readonly recordType: 'party' | 'lead' | 'opportunity' | 'project';
+      readonly storeId?: string;
+    };
 
 /** POST /members: a new person, or an existing account linked to this business. */
 export interface MemberInput {
@@ -36,6 +50,9 @@ export function teamEndpoints(api: ApiClient) {
   return {
     members: (signal?: AbortSignal) => api.get<Member[]>('/members', { signal }),
     member: (id: string, signal?: AbortSignal) => api.get<Member>(`/members/${id}`, { signal }),
+    /** No members:read needed: anyone who may create such records can ask. */
+    assignable: (query: AssignmentQuery, signal?: AbortSignal) =>
+      api.get<AssignableMember[]>('/members/assignable', { query: { ...query }, signal }),
     addMember: (input: MemberInput) => api.post<Member>('/members', input),
     updateMember: (id: string, change: MemberChange) => api.patch<Member>(`/members/${id}`, change),
     /** Owners only: removes the member's authenticator app and signs them out. */

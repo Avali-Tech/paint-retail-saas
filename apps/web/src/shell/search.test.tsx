@@ -168,6 +168,12 @@ describe('keyboard shortcuts', () => {
     expect(match(QUICK_ACTIONS, 'n')).toBeNull();
     now += SHORTCUT_WINDOW_MS + 1;
     expect(match(QUICK_ACTIONS, 'c')).toBeNull();
+    // "N A" opens + Contract.
+    expect(match(QUICK_ACTIONS, 'n')).toBeNull();
+    expect(match(QUICK_ACTIONS, 'a')).toMatchObject({
+      key: 'new_contract',
+      path: '/contracts/new',
+    });
     // Not a shortcut.
     expect(match(QUICK_ACTIONS, 'x')).toBeNull();
     expect(createShortcutMatcher()(QUICK_ACTIONS, 'g')).toBeNull();

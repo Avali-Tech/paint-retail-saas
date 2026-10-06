@@ -8,7 +8,7 @@
   },
   "scripts": {
     "typecheck": "turbo run typecheck",
-    "lint": "eslint .",
+    "lint": "NODE_OPTIONS=--max-old-space-size=4096 eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",

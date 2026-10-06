@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { json, profile } from '../test-support/fake-api.js';
 import { page } from '../test-support/inventory-fixtures.js';
@@ -67,7 +67,13 @@ describe('NewLeadPage', () => {
     const member = profile(['stores:read', 'parties:read', 'leads:read', 'leads:manage']);
     const { user, requests } = renderNew(member);
     await user.click(await screen.findByRole('button', { name: 'New contact' }));
-    expect(screen.queryByRole('combobox', { name: /Assigned to/ })).toBeNull();
+    // Without the team list, the salesperson picker still offers who may take leads.
+    expect(
+      within(await screen.findByRole('combobox', { name: /Assigned to/ }))
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['Me', 'Sita Sales · Sales Executive']);
+    expect(requests.some((request) => request.path === '/members')).toBe(false);
     await user.type(screen.getByRole('textbox', { name: /Name/ }), 'R');
     await user.type(screen.getByRole('textbox', { name: /Mobile number/ }), '12345');
     await user.click(screen.getByRole('button', { name: 'Add lead' }));
@@ -79,6 +85,18 @@ describe('NewLeadPage', () => {
     await user.type(screen.getByRole('textbox', { name: /Mobile number/ }), '98765 11111');
     await user.type(screen.getByRole('textbox', { name: /Title/ }), 'Two rooms');
     await user.selectOptions(screen.getByRole('combobox', { name: /Store/ }), 'store-pun');
+    // The choice follows the store.
+    await waitFor(() => {
+      expect(
+        requests
+          .filter((request) => request.path === '/members/assignable')
+          .at(-1)
+          ?.query.toString(),
+      ).toBe('for=lead&storeId=store-pun');
+    });
+    expect(
+      requests.find((request) => request.path === '/members/assignable')?.query.toString(),
+    ).toBe('for=lead');
     await user.click(screen.getByRole('button', { name: 'Add lead' }));
     expect(await screen.findByText('Lead added')).toBeInTheDocument();
     expect(sent(requests, 'POST', '/leads')).toEqual({

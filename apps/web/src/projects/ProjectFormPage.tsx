@@ -210,6 +210,7 @@ function ProjectForm({ project }: { readonly project: Project | null }) {
                 onChange={(value) => {
                   form.setValue('assignee', value);
                 }}
+                assignment={{ for: 'project', ...(storeId === '' ? {} : { storeId }) }}
               />
             </>
           )}

@@ -383,16 +383,28 @@ describe('refusals', () => {
     expect(response.json<{ message: string }>().message).toMatch(
       /^This file contains a virus \(.*EICAR.*\) and was not saved$/i,
     );
+    expect(response.json<{ code: string }>().code).toBe('virus_found');
     const listed = (await listOf(owner, 'party', party())).json<DocumentView[]>();
     expect(listed.map((d) => d.fileName)).not.toContain('contract.docx');
   });
 
   it.each([
-    [{ fileName: 'invoice.pdf', data: Buffer.from('<html><script>alert(1)</script></html>') }, 415],
-    [{ fileName: 'empty.pdf', data: Buffer.alloc(0) }, 400],
-    [{ fileName: 'huge.pdf', data: Buffer.concat([PDF, Buffer.alloc(10 * 1024 * 1024)]) }, 413],
-  ])('refuses %#: wrong kind of file, empty or too large', async (file, status) => {
-    expect((await upload(owner, fields(), [file])).statusCode).toBe(status);
+    [
+      { fileName: 'invoice.pdf', data: Buffer.from('<html><script>alert(1)</script></html>') },
+      415,
+      'file_type',
+    ],
+    [{ fileName: 'empty.pdf', data: Buffer.alloc(0) }, 400, 'empty_file'],
+    [
+      { fileName: 'huge.pdf', data: Buffer.concat([PDF, Buffer.alloc(10 * 1024 * 1024)]) },
+      413,
+      'too_large',
+    ],
+  ])('refuses %#: wrong kind of file, empty or too large', async (file, status, code) => {
+    const response = await upload(owner, fields(), [file]);
+
+    // The app reads the code; people read the message.
+    expect([response.statusCode, response.json<{ code: string }>().code]).toEqual([status, code]);
   });
 
   it('refuses uploads without exactly one file, or with bad fields', async () => {
@@ -437,6 +449,11 @@ describe('when storage or scanning is unavailable', () => {
       ...env,
       CLAMAV_PORT: '1',
     });
+    // Scanning works, but the files cannot be stored.
+    const storageDown = await startTestApp(database.connectionString, {
+      ...env,
+      STORAGE_ENDPOINT: 'http://127.0.0.1:1',
+    });
     try {
       const upload503 = await upload(
         owner,
@@ -455,19 +472,39 @@ describe('when storage or scanning is unavailable', () => {
         [{ fileName: 'a.pdf', data: PDF }],
         withoutScanner,
       );
+      const unstored = await upload(
+        owner,
+        fields(),
+        [{ fileName: 'a.pdf', data: PDF }],
+        storageDown,
+      );
 
-      expect([upload503.statusCode, upload503.json<{ message: string }>().message]).toEqual([
-        503,
-        'Document storage is not set up on this server',
-      ]);
+      expect(upload503.json()).toEqual({
+        statusCode: 503,
+        message: 'Document storage is not set up on this server',
+        code: 'storage_unavailable',
+      });
       expect(download503.statusCode).toBe(503);
       expect(unscanned.statusCode).toBe(503);
       expect(unscanned.json<{ message: string }>().message).toMatch(
         /^Virus scanning is unavailable, so the file was not saved; try again shortly \(ClamAV is unavailable: /,
       );
+      expect(unscanned.json<{ code: string }>().code).toBe('scanner_unavailable');
+      expect(unstored.statusCode).toBe(503);
+      expect(unstored.json<{ code: string; message: string }>()).toMatchObject({
+        code: 'storage_unavailable',
+        message: expect.stringMatching(
+          /^Document storage is unavailable, so the file was not saved; try again shortly \(/,
+        ),
+      });
+      const listed = (await listOf(owner, 'party', String(records.supplier))).json<
+        DocumentView[]
+      >();
+      expect(listed.map((d) => d.fileName)).not.toContain('a.pdf');
     } finally {
       await withoutStorage.close();
       await withoutScanner.close();
+      await storageDown.close();
     }
   });
 

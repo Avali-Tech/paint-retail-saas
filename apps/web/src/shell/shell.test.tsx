@@ -24,7 +24,7 @@ describe('visibleNav', () => {
   it('shows each section only with its permission', () => {
     expect(visibleNav(() => true)).toEqual(NAV_ITEMS);
     expect(visibleNav((permission) => permission === 'leads:read').map((item) => item.key)).toEqual(
-      ['leads', 'opportunities', 'followUps', 'reports'],
+      ['leads', 'opportunities', 'followUps', 'documents', 'reports'],
     );
     // Imports need any one of the permissions to change what they import.
     expect(
@@ -108,6 +108,7 @@ describe('navigation by role', () => {
       'Projects',
       'Contracts',
       'Follow-ups',
+      'Documents',
       'Credit requests',
       'Credit rules',
       'Loyalty programme',
@@ -140,6 +141,7 @@ describe('navigation by role', () => {
       'Products',
       'Stock',
       'Follow-ups',
+      'Documents',
       'Reports',
       'Account security',
     ]);
@@ -178,6 +180,7 @@ describe('navigation by role', () => {
       'Projects',
       'Contracts',
       'Follow-ups',
+      'Documents',
       'Credit requests',
       'Credit rules',
       'Loyalty programme',

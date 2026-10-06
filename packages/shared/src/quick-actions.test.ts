@@ -37,6 +37,11 @@ describe('quickActions', () => {
       'low_stock',
     ]);
     expect(keys(quickActions(everyone, 'add contractor'))).toEqual(['new_customer']);
+    expect(keys(quickActions(everyone, 'agreement'))).toEqual(['new_contract']);
+    expect(quickActions(access(['contracts:manage']), 'contract')).toEqual([
+      expect.objectContaining({ path: '/contracts/new', shortcut: 'N A' }),
+    ]);
+    expect(quickActions(access(['contracts:read']), 'contract')).toEqual([]);
     expect(quickActions(everyone, 'invoice payment')).toEqual([]);
   });
 

@@ -121,6 +121,9 @@ export function catalogEndpoints(api: ApiClient) {
       api.post<Category>('/categories', input),
     renameCategory: (id: string, name: string) =>
       api.patch<Category>(`/categories/${id}`, { name }),
+    /** Inactive categories keep their products but take no new ones. */
+    setCategoryActive: (id: string, isActive: boolean) =>
+      api.patch<Category>(`/categories/${id}`, { isActive }),
     products: (query: ProductQuery, signal?: AbortSignal) =>
       api.get<Page<Product>>('/products', { query: { ...query }, signal }),
     product: (id: string, signal?: AbortSignal) => api.get<Product>(`/products/${id}`, { signal }),

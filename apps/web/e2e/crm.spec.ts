@@ -1,6 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
 import { expectUsable } from './checks.js';
-import { call, createBusiness, signInWithPassword, uniquePhone, type Business } from './support.js';
+import {
+  PASSWORD,
+  addMember,
+  call,
+  createBusiness,
+  signInWithPassword,
+  uniquePhone,
+  type Business,
+} from './support.js';
 
 // Leads, opportunities and projects: from a walk-in's enquiry to a site with its people.
 
@@ -128,6 +136,50 @@ test('an owner takes a walk-in from lead to opportunity to project', async ({ pa
   await page.getByRole('region', { name: 'Leads' }).getByRole('link').first().click();
   await expect(heading).toBeVisible();
   await expect(page.getByText('This lead became an opportunity.')).toBeVisible();
+});
+
+test('a salesperson without the team list hands a lead to a colleague', async ({ page }) => {
+  test.setTimeout(90_000);
+  const business = await createBusiness('Handover Paints');
+  const ravi = uniquePhone();
+  await addMember(business, 'sales_executive', {
+    fullName: 'Ravi Sales',
+    phone: ravi,
+    password: PASSWORD,
+  });
+  await addMember(business, 'sales_executive', {
+    fullName: 'Sunita Sales',
+    phone: uniquePhone(),
+    password: PASSWORD,
+  });
+  await signInWithPassword(page, ravi);
+  await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+
+  await page.goto('/leads/new');
+  await page.getByRole('button', { name: 'New contact' }).click();
+  await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Meera Reddy');
+  await page.getByRole('textbox', { name: 'Mobile number', exact: true }).fill(uniquePhone());
+  await page.getByRole('textbox', { name: 'Title', exact: true }).fill('Villa interiors');
+  await page.getByRole('combobox', { name: 'Store' }).selectOption({ label: 'HYD · Hyderabad' });
+  const assignee = page.getByRole('combobox', { name: /Assigned to/ });
+  await expect(
+    assignee.getByRole('option', { name: 'Sunita Sales · Sales Executive' }),
+  ).toBeAttached();
+  await assignee.selectOption({ label: 'Sunita Sales · Sales Executive' });
+  await expectUsable(page);
+  await page.getByRole('button', { name: 'Add lead' }).click();
+  await expect(page.getByText('Lead added')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Details' })).toContainText('Sunita Sales');
+
+  // And back again, from the lead.
+  await page.getByRole('button', { name: 'Reassign' }).click();
+  const dialog = page.getByRole('dialog', { name: /^Reassign LD-/ });
+  await dialog
+    .getByRole('combobox', { name: 'Assigned to' })
+    .selectOption({ label: 'Ravi Sales · Sales Executive' });
+  await dialog.getByRole('button', { name: 'Assign' }).click();
+  await expect(page.getByText('Reassigned')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Details' })).toContainText('Ravi Sales');
 });
 
 test('the CRM screens work on a phone @phone', async ({ page }) => {

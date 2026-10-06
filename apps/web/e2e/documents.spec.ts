@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { expectUsable } from './checks.js';
-import { SCANNER_ON } from './env.js';
+import { API_URL, SCANNER_ON } from './env.js';
 import { call, createBusiness, signInWithPassword } from './support.js';
 
 // Uploads are scanned by ClamAV. By default the e2e stack runs without it, like
@@ -83,6 +83,60 @@ test('documents upload, download under their name and delete', async ({ page }) 
   await page.getByRole('dialog').getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByText('Document deleted')).toBeVisible();
   await expect(documents).toContainText('No documents yet');
+});
+
+test('the documents page lists documents across records, with filters', async ({ page }) => {
+  test.setTimeout(90_000);
+  const business = await createBusiness('Document List Paints');
+  const party = await call<{ id: string }>('POST', '/parties', {
+    token: business.token,
+    body: { displayName: 'Apex Builders', roles: ['customer'] },
+  });
+  if (SCANNER_ON) {
+    // A file on the customer, uploaded the way the app does.
+    const form = new FormData();
+    form.set('recordType', 'party');
+    form.set('recordId', party.id);
+    form.set('category', 'gst_certificate');
+    form.set('file', new Blob([PDF], { type: 'application/pdf' }), 'gst.pdf');
+    const response = await fetch(`${API_URL}/documents`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${business.token}` },
+      body: form,
+    });
+    expect(response.status).toBe(201);
+  }
+  await signInWithPassword(page, business.ownerPhone);
+  await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .first()
+    .getByRole('link', { name: 'Documents' })
+    .click();
+  await expect(page.getByRole('heading', { name: 'Documents', level: 1 })).toBeVisible();
+  if (SCANNER_ON) {
+    await expect(page.getByRole('link', { name: 'Apex Builders' })).toHaveAttribute(
+      'href',
+      `/parties/${party.id}`,
+    );
+    await expect(page.getByText('gst.pdf')).toBeVisible();
+    await page.getByRole('combobox', { name: 'What it is' }).selectOption('invoice');
+    await expect(page.getByText('No documents match these filters')).toBeVisible();
+  } else {
+    await expect(page.getByText('No documents yet')).toBeVisible();
+    await page.getByRole('combobox', { name: 'Record' }).selectOption({ label: 'Contract' });
+    await expect(page.getByText('No documents match these filters')).toBeVisible();
+  }
+  await expectUsable(page);
+});
+
+test('the documents page fits a phone @phone', async ({ page }) => {
+  const business = await createBusiness('Phone Document List Paints');
+  await signInWithPassword(page, business.ownerPhone);
+  await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+  await page.goto('/documents');
+  await expect(page.getByText('No documents yet')).toBeVisible();
+  await expectUsable(page);
 });
 
 test('the documents panel and upload fit a phone @phone', async ({ page }) => {

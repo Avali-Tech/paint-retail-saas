@@ -98,6 +98,8 @@ export interface LeadChanges {
 export interface CrmQuery {
   readonly q?: string | undefined;
   readonly storeId?: string | undefined;
+  /** One party's records, e.g. for the customer 360's "see all". */
+  readonly partyId?: string | undefined;
   /** A member id, or "me". */
   readonly assignedTo?: string | undefined;
   readonly limit?: number;

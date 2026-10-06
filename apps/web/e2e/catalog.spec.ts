@@ -1,7 +1,14 @@
 import { expect, test } from '@playwright/test';
 import { expectUsable } from './checks.js';
 import { createProduct } from './inventory-support.js';
-import { PASSWORD, addMember, createBusiness, signInWithPassword, uniquePhone } from './support.js';
+import {
+  PASSWORD,
+  addMember,
+  call,
+  createBusiness,
+  signInWithPassword,
+  uniquePhone,
+} from './support.js';
 
 test('brands, a product with two pack sizes, a price change and a barcode lookup', async ({
   page,
@@ -74,6 +81,34 @@ test('brands, a product with two pack sizes, a price change and a barcode lookup
   await page.getByRole('button', { name: 'Find' }).click();
   await expect(page.getByText('No product has the code “NO-SUCH-CODE”')).toBeVisible();
   await expectUsable(page);
+});
+
+test('a category is deactivated, leaves the product form, and comes back', async ({ page }) => {
+  const business = await createBusiness('Category Paints');
+  for (const name of ['Emulsions', 'Primers']) {
+    await call('POST', '/categories', { token: business.token, body: { name } });
+  }
+  await signInWithPassword(page, business.ownerPhone);
+  await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+  await page.goto('/products/setup');
+  const categories = page.getByRole('region', { name: 'Categories' });
+  await categories.getByRole('button', { name: 'Deactivate Primers' }).click();
+  await expect(
+    categories.getByRole('listitem').filter({ hasText: 'Primers' }).getByText('Inactive'),
+  ).toBeVisible();
+  await expectUsable(page);
+
+  // New products cannot go into it, so the form does not offer it.
+  await page.goto('/products/new');
+  const category = page.getByRole('combobox', { name: 'Category' });
+  await expect(category.getByRole('option', { name: 'Emulsions' })).toBeAttached();
+  await expect(category.getByRole('option', { name: 'Primers' })).toHaveCount(0);
+
+  await page.goto('/products/setup');
+  await categories.getByRole('button', { name: 'Activate Primers' }).click();
+  await expect(categories.getByRole('button', { name: 'Deactivate Primers' })).toBeVisible();
+  await page.goto('/products/new');
+  await expect(category.getByRole('option', { name: 'Primers' })).toBeAttached();
 });
 
 test('counter staff see prices but cannot change them', async ({ page }) => {

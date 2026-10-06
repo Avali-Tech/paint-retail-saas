@@ -7,9 +7,13 @@ export const membersKey = ['members'] as const;
 export const rolesKey = ['roles'] as const;
 
 /** The team (GET /members): the people the signed-in member can see. */
-export function useMembers() {
+export function useMembers({ enabled }: { readonly enabled?: boolean } = {}) {
   const api = useApi();
-  return useQuery({ queryKey: membersKey, queryFn: ({ signal }) => api.team.members(signal) });
+  return useQuery({
+    queryKey: membersKey,
+    queryFn: ({ signal }) => api.team.members(signal),
+    enabled,
+  });
 }
 
 /** The business's roles (GET /roles). */

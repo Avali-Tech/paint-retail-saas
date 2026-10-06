@@ -1,79 +1,39 @@
-import type { ReportSummary } from '../api/reports.js';
+import type { ReportColumn, ReportFilter, ReportSummary } from '../api/reports.js';
 import { en } from '../i18n/en.js';
 import { humanize, stageLabel, type I18n } from '../i18n/i18n.js';
 
-// The choices each report filter offers. The API lists a report's filter names
-// (GET /reports); the values mirror its enums in packages/db/src/schema.ts.
-
-const MOVEMENT_TYPES = [
-  'opening',
-  'purchase_receipt',
-  'purchase_return',
-  'transfer_in',
-  'transfer_out',
-  'sale',
-  'sale_return',
-  'adjustment',
-  'damage',
-  'count_correction',
-] as const;
-const TRANSFER_STATUSES = [
-  'requested',
-  'approved',
-  'in_transit',
-  'received',
-  'rejected',
-  'cancelled',
-] as const;
-const LEAD_STAGES = ['new', 'contacted', 'qualified', 'opportunity', 'won', 'lost'] as const;
-const PROJECT_STAGES = [
-  'identified',
-  'survey',
-  'specification',
-  'quotation',
-  'negotiation',
-  'order',
-  'execution',
-  'completed',
-  'cancelled',
-] as const;
-const LEAD_SOURCES = [
-  'walk_in',
-  'phone_call',
-  'referral',
-  'architect',
-  'contractor',
-  'painter',
-  'website',
-  'social_media',
-  'exhibition',
-  'other',
-] as const;
+// Report filters and columns as GET /reports describes them: each filter's
+// type and allowed values come from the API, so no enum is copied here; the
+// app only names them in the member's language.
 
 export interface Choice {
   readonly value: string;
   readonly label: string;
 }
 
-/** The values a choice filter offers on a report, or null when it is not a choice. */
-export function filterChoices(i18n: I18n, kind: string, filter: string): Choice[] | null {
+/** An enum filter's value in the member's language; unknown filters and values are humanized. */
+function choiceLabel(i18n: I18n, filter: string, value: string): string {
   const { t, label } = i18n;
-  const stages = kind === 'projects' ? PROJECT_STAGES : LEAD_STAGES;
   switch (filter) {
     case 'movementType':
-      return MOVEMENT_TYPES.map((value) => ({
-        value,
-        label: label('reportMovementTypes', value),
-      }));
+      return label('reportMovementTypes', value);
     case 'status':
-      return TRANSFER_STATUSES.map((value) => ({ value, label: label('transferStatus', value) }));
+      return label('transferStatus', value);
     case 'stage':
-      return stages.map((value) => ({ value, label: stageLabel(t, value) }));
+      return stageLabel(t, value);
     case 'source':
-      return LEAD_SOURCES.map((value) => ({ value, label: label('reportLeadSources', value) }));
+      return label('reportLeadSources', value);
     default:
-      return null;
+      return humanize(value);
   }
+}
+
+/** The values an enum filter offers, named; empty for other filters. */
+export function filterChoices(i18n: I18n, filter: ReportFilter): Choice[] {
+  return (filter.values ?? []).map((value) => ({
+    value,
+    label: choiceLabel(i18n, filter.name, value),
+  }));
 }
 
 type FilterName = keyof typeof en.reports.filters;
@@ -98,4 +58,19 @@ export function reportText(
     title: t(`reports.kinds.${kind}.title`),
     description: t(`reports.kinds.${kind}.description`),
   };
+}
+
+type Columns = Readonly<Record<string, Readonly<Record<string, string>>>>;
+const COLUMNS: Columns = en.reports.columns;
+
+/**
+ * A column's header in the member's language, found by the column's stable id
+ * ("<kind>.<key>"); the API's English header for columns the app does not know.
+ */
+export function columnHeader(t: I18n['t'], column: ReportColumn): string {
+  const split = column.id.indexOf('.');
+  const kind = column.id.slice(0, split);
+  const key = column.id.slice(split + 1);
+  if (split < 0 || COLUMNS[kind]?.[key] === undefined) return column.header;
+  return t(`reports.columns.${kind}.${key}` as Parameters<I18n['t']>[0]);
 }

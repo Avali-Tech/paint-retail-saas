@@ -8,7 +8,9 @@ import {
   leadsPage,
 } from '../test-support/report-fixtures.js';
 import { renderApp } from '../test-support/render-app.js';
+import { createI18n } from '../i18n/i18n.js';
 import { REPORT_PAGE_SIZE } from './ReportPage.js';
+import { columnHeader } from './report-filters.js';
 
 const NO_HEADERS: Record<string, string> = {};
 
@@ -224,10 +226,45 @@ describe('ReportPage', { timeout: 30_000 }, () => {
     });
     await user.click(screen.getByRole('link', { name: 'All reports' }));
     await user.click(await screen.findByRole('link', { name: 'Open Sales by day' }));
-    await user.type(await screen.findByRole('textbox', { name: 'Channel' }), 'online');
+    // New filters work from the API's description alone: choices, yes/no and text.
+    const channel = await screen.findByRole('combobox', { name: 'Channel' });
+    expect(
+      within(channel)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['Any', 'Online', 'Walk in']);
+    await user.selectOptions(channel, 'Walk in');
     await waitFor(() => {
-      expect(requests.at(-1)?.query.get('channel')).toBe('online');
+      expect(requests.at(-1)?.query.get('channel')).toBe('walk_in');
     });
+    const returns = screen.getByRole('checkbox', { name: 'Returns' });
+    expect(returns).not.toBeChecked();
+    await user.click(returns);
+    await waitFor(() => {
+      expect(requests.at(-1)?.query.get('returns')).toBe('true');
+    });
+    await user.type(screen.getByRole('textbox', { name: 'Invoice' }), 'INV-1');
+    await waitFor(() => {
+      expect(requests.at(-1)?.query.get('invoice')).toBe('INV-1');
+    });
+  });
+
+  it('names columns in the member’s language, keeping the API’s header for new ones', () => {
+    const { t } = createI18n('en');
+
+    expect(LEADS_REPORT.columns.map((column) => columnHeader(t, column))).toEqual([
+      'Lead',
+      'Stage',
+      'Estimated value (₹)',
+      'Products',
+    ]);
+    expect(columnHeader(t, { id: 'transfers.value', key: 'value', header: 'x' })).toBe(
+      'Dispatched value (₹)',
+    );
+    expect(columnHeader(t, { id: 'nodot', key: 'nodot', header: 'From the API' })).toBe(
+      'From the API',
+    );
+    expect(columnHeader(t, { id: 'sales.day', key: 'day', header: 'Day' })).toBe('Day');
   });
 
   it('points out a date that is not one, without sending it', async () => {

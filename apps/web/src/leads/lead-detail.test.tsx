@@ -196,6 +196,27 @@ describe('LeadDetailPage', () => {
         dueAt: '2026-10-09T16:30:00+05:30',
       });
     });
+
+    // A follow-up can go to a colleague who can see the lead at its store.
+    await user.click(within(card).getByRole('button', { name: 'Schedule follow-up' }));
+    dialog = screen.getByRole('dialog', { name: 'Schedule a follow-up' });
+    await user.type(within(dialog).getByRole('textbox', { name: /What about/ }), 'Measure up');
+    fireEvent.change(within(dialog).getByLabelText(/^Date/), { target: { value: '2026-10-10' } });
+    await user.selectOptions(
+      await within(dialog).findByRole('combobox', { name: /Assigned to/ }),
+      'member-2',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Schedule follow-up' }));
+    await waitFor(() => {
+      expect(
+        requests
+          .filter((request) => request.path === '/activities' && request.method === 'POST')
+          .at(-1)?.body,
+      ).toMatchObject({ subject: 'Measure up', assignedMemberId: 'member-2' });
+    });
+    expect(
+      requests.find((request) => request.path === '/members/assignable')?.query.toString(),
+    ).toBe('for=activity&recordType=lead&storeId=store-hyd');
   });
 
   it('logs a call with just a subject', async () => {

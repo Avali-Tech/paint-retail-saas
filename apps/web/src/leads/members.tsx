@@ -1,7 +1,7 @@
 import { Field, Select } from '@paint/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import type { Member } from '../api/team.js';
+import type { AssignableMember, AssignmentQuery, Member } from '../api/team.js';
 import { useApi } from '../app/services.js';
 import { useCurrentProfile, usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
@@ -9,30 +9,33 @@ import { FormDialog } from '../lib/FormDialog.js';
 import { membersKey } from '../team/team-data.js';
 
 /**
- * Active team members (GET /members, shared with the team screens) for choosing
- * who looks after a record. Only members who can see the team get a list (the
- * request would be refused otherwise); for the rest it stays empty and records
- * go to whoever creates them.
+ * Who a record can be handed to (GET /members/assignable): active people whose
+ * role handles it and who work at its store. Anyone who may create such records
+ * can ask, without seeing the team.
  */
-export function useAssignableMembers(): {
-  readonly canChoose: boolean;
-  readonly members: Member[];
-} {
+export function useAssignees(query: AssignmentQuery): AssignableMember[] {
   const api = useApi();
-  const canChoose = usePermissions()('members:read');
+  const assignees = useQuery({
+    queryKey: ['assignable', query],
+    queryFn: ({ signal }) => api.team.assignable(query, signal),
+  });
+  return assignees.data ?? [];
+}
+
+/**
+ * Active colleagues (GET /members, shared with the team screens) for the
+ * "Assigned to" list filters: only members who can see the team get a list.
+ */
+function useColleagues(): Member[] {
+  const api = useApi();
+  const { memberId } = useCurrentProfile();
+  const canSeeTeam = usePermissions()('members:read');
   const members = useQuery({
     queryKey: membersKey,
     queryFn: ({ signal }) => api.team.members(signal),
-    enabled: canChoose,
+    enabled: canSeeTeam,
   });
-  return { canChoose, members: (members.data ?? []).filter((member) => member.isActive) };
-}
-
-/** Colleagues: the active members other than the signed-in one, who is offered as "Me". */
-function useColleagues(): { readonly canChoose: boolean; readonly members: Member[] } {
-  const { memberId } = useCurrentProfile();
-  const { canChoose, members } = useAssignableMembers();
-  return { canChoose, members: members.filter((member) => member.id !== memberId) };
+  return (members.data ?? []).filter((member) => member.isActive && member.id !== memberId);
 }
 
 /** The "Assigned to" filter: anyone, me, or (for those who can see the team) one person. */
@@ -44,7 +47,7 @@ export function AssigneeFilter({
   readonly onChange: (value: string) => void;
 }) {
   const { t } = useI18n();
-  const { members } = useColleagues();
+  const members = useColleagues();
   return (
     <Field label={t('crm.assignedTo')}>
       <Select
@@ -65,17 +68,23 @@ export function AssigneeFilter({
   );
 }
 
-/** Who looks after a new record; renders nothing for members who cannot see the team. */
+/**
+ * Who looks after a new record: "Me" (the default) or a colleague who may take
+ * it at its store. Renders nothing while there is no one else to choose.
+ */
 export function MemberField({
   value,
   onChange,
+  assignment,
 }: {
   readonly value: string;
   readonly onChange: (memberId: string) => void;
+  readonly assignment: AssignmentQuery;
 }) {
   const { t } = useI18n();
-  const { canChoose, members } = useColleagues();
-  if (!canChoose) return null;
+  const { memberId } = useCurrentProfile();
+  const others = useAssignees(assignment).filter((member) => member.id !== memberId);
+  if (others.length === 0) return null;
   return (
     <Field label={t('crm.assignedTo')} hint={t('crm.assignHint')}>
       <Select
@@ -85,9 +94,9 @@ export function MemberField({
         }}
       >
         <option value="">{t('crm.me')}</option>
-        {members.map((member) => (
+        {others.map((member) => (
           <option key={member.id} value={member.id}>
-            {t('crm.memberOption', { name: member.user.fullName, role: member.role.name })}
+            {t('crm.memberOption', { name: member.name, role: member.role })}
           </option>
         ))}
       </Select>
@@ -95,20 +104,22 @@ export function MemberField({
   );
 }
 
-/** Hands a record to someone else. */
+/** Hands a record to someone else who may take it at its store. */
 export function AssignDialog({
   title,
   current,
+  assignment,
   onSubmit,
   onClose,
 }: {
   readonly title: string;
   readonly current: string;
+  readonly assignment: AssignmentQuery;
   readonly onSubmit: (memberId: string) => Promise<unknown>;
   readonly onClose: () => void;
 }) {
   const { t } = useI18n();
-  const { members } = useAssignableMembers();
+  const members = useAssignees(assignment);
   const [memberId, setMemberId] = useState(current);
   return (
     <FormDialog
@@ -130,7 +141,7 @@ export function AssignDialog({
         >
           {members.map((member) => (
             <option key={member.id} value={member.id}>
-              {t('crm.memberOption', { name: member.user.fullName, role: member.role.name })}
+              {t('crm.memberOption', { name: member.name, role: member.role })}
             </option>
           ))}
         </Select>

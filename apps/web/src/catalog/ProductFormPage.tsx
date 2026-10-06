@@ -23,7 +23,7 @@ import { showApiError } from '../auth/forms.js';
 import { useI18n, type I18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
 import { optional } from '../lib/inputs.js';
-import { categoryOptions } from './categories.js';
+import { categoryOptions, usableCategories } from './categories.js';
 import { EMPTY_VARIANT, toVariantInput, variantSchema, type VariantDraft } from './variant-form.js';
 
 /** A pack size's field in the form, e.g. "variants.0.sku". */
@@ -99,6 +99,10 @@ function ProductForm({ product, brands, categories }: ProductFormProps) {
   const variants = useFieldArray({ control: form.control, name: 'variants' });
   const [message, setMessage] = useState<string | null>(null);
   const activeBrands = brands.filter((brand) => brand.isActive || brand.id === product?.brand.id);
+  // Inactive categories take no new products; the product's own stays on the list.
+  const usable = new Set(
+    usableCategories(categories, product?.category?.id ?? null).map((category) => category.id),
+  );
   const { errors, isSubmitting } = form.formState;
 
   const save = async (values: Values) => {
@@ -164,11 +168,13 @@ function ProductForm({ product, brands, categories }: ProductFormProps) {
           <Field label={t('products.form.category')}>
             <Select {...form.register('categoryId')}>
               <option value="">{t('products.form.noCategory')}</option>
-              {categoryOptions(categories).map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.label}
-                </option>
-              ))}
+              {categoryOptions(categories)
+                .filter((category) => usable.has(category.id))
+                .map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.label}
+                  </option>
+                ))}
             </Select>
           </Field>
           <Field label={t('products.form.name')} required error={errors.name?.message}>

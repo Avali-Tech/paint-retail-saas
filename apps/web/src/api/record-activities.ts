@@ -45,6 +45,8 @@ export interface ActivityInput {
   readonly outcome?: string;
   /** With its offset, e.g. 2026-10-02T11:00:00+05:30. */
   readonly dueAt?: string;
+  /** Who does it; whoever adds it by default. */
+  readonly assignedMemberId?: string;
 }
 
 export function recordActivityEndpoints(api: ApiClient) {

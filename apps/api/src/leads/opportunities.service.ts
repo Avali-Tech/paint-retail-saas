@@ -139,6 +139,7 @@ export class OpportunitiesService {
       const where = and(
         storeScope(auth, opportunities.storeId, query.storeId),
         query.stage ? eq(opportunities.stage, query.stage) : undefined,
+        query.partyId ? eq(opportunities.partyId, query.partyId) : undefined,
         assigneeFilter(auth, opportunities.salespersonMemberId, query.assignedTo),
         query.q
           ? or(

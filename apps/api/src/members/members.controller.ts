@@ -1,15 +1,27 @@
 import 'reflect-metadata';
-import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import type { AuthContext } from '../auth/auth-context.js';
 import { CurrentAuth, RequirePermissions } from '../auth/decorators.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import {
+  assignableSchema,
   createMemberSchema,
   updateMemberSchema,
+  type AssignableQuery,
   type CreateMemberInput,
   type UpdateMemberInput,
 } from './members.schemas.js';
-import type { MemberView } from '@paint/shared';
+import type { AssignableMember, MemberView } from '@paint/shared';
 import { MembersService } from './members.service.js';
 
 @Controller()
@@ -20,6 +32,18 @@ export class MembersController {
   @RequirePermissions('members:read')
   list(@CurrentAuth() auth: AuthContext): Promise<MemberView[]> {
     return this.members.list(auth);
+  }
+
+  /**
+   * People a lead, opportunity, project, contract or follow-up can be handed
+   * to, for anyone who may create those (the service checks); no members:read needed.
+   */
+  @Get('members/assignable')
+  assignable(
+    @CurrentAuth() auth: AuthContext,
+    @Query(new ZodValidationPipe(assignableSchema)) query: AssignableQuery,
+  ): Promise<AssignableMember[]> {
+    return this.members.assignable(auth, query);
   }
 
   @Get('members/:id')

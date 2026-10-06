@@ -127,6 +127,7 @@ export class LeadsService {
         storeScope(auth, leads.storeId, query.storeId),
         query.stage ? eq(leads.stage, query.stage) : undefined,
         query.source ? eq(leads.source, query.source) : undefined,
+        query.partyId ? eq(leads.partyId, query.partyId) : undefined,
         assigneeFilter(auth, leads.assignedMemberId, query.assignedTo),
         query.q
           ? or(

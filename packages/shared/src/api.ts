@@ -45,6 +45,26 @@ export interface TwoFactorError {
   readonly attemptsRemaining?: number;
 }
 
+/**
+ * Why POST /documents refused a file, beside the message: empty, not an
+ * accepted kind, over 10 MB, the virus scanner or file storage is down, or a
+ * virus was found.
+ */
+export type DocumentUploadErrorCode =
+  | 'empty_file'
+  | 'file_type'
+  | 'too_large'
+  | 'scanner_unavailable'
+  | 'storage_unavailable'
+  | 'virus_found';
+
+/** The body of a refused upload. */
+export interface DocumentUploadError {
+  readonly statusCode: number;
+  readonly message: string;
+  readonly code: DocumentUploadErrorCode;
+}
+
 /** GET /auth/me. */
 export interface AuthProfile {
   /** The signed-in person's membership in this business (organization_members.id). */
@@ -107,8 +127,17 @@ export interface Dashboard {
   readonly opportunities: (StageCount & { readonly weightedValuePaise: number })[] | null;
   /** Null without projects:read. */
   readonly projects: StageCount[] | null;
-  /** Open follow-ups at these stores (and business-wide ones), by India time. */
-  readonly followUps: { readonly overdue: number; readonly today: number };
+  /**
+   * Open follow-ups on records the member can see, by India time, counted as
+   * GET /activities/follow-ups counts them: everyone's (`team`, for members
+   * with members:read, as `assignedTo=everyone`) or the member's own (`mine`),
+   * at the chosen store or every store they work at.
+   */
+  readonly followUps: {
+    readonly scope: 'team' | 'mine';
+    readonly overdue: number;
+    readonly today: number;
+  };
 }
 
 export interface SearchHit {
@@ -201,4 +230,18 @@ export interface MemberView {
   readonly isActive: boolean;
   /** Whether the person has a confirmed authenticator app. */
   readonly twoFactorEnabled: boolean;
+}
+
+/**
+ * GET /members/assignable: someone a record can be handed to, for pickers.
+ * Only what choosing needs; no contact details.
+ */
+export interface AssignableMember {
+  readonly id: string;
+  readonly name: string;
+  /** The role's name, e.g. "Sales Executive". */
+  readonly role: string;
+  readonly allStores: boolean;
+  /** Their stores among those the asker works at. */
+  readonly storeIds: string[];
 }

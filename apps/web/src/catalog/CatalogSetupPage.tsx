@@ -8,6 +8,7 @@ import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { FormDialog } from '../lib/FormDialog.js';
 import { QueryState } from '../lib/QueryState.js';
+import { inactiveThroughParent } from './categories.js';
 
 const validName = (name: string) => name.trim().length >= 2 && name.trim().length <= 120;
 
@@ -204,12 +205,23 @@ function Categories({
 }) {
   const api = useApi();
   const { t } = useI18n();
+  const toast = useToast();
   const queryClient = useQueryClient();
   const [parentId, setParentId] = useState('');
   const [renaming, setRenaming] = useState<Category | null>(null);
   const names = new Map(categories.map((category) => [category.id, category.name]));
   const topLevel = categories.filter((category) => category.parentId === null);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['categories'] });
+  // Deactivated categories keep their products but take no new ones (nor do their subcategories).
+  const toggle = async (category: Category) => {
+    try {
+      await api.catalog.setCategoryActive(category.id, !category.isActive);
+      await refresh();
+      toast({ title: t('common.saved'), tone: 'success' });
+    } catch (error) {
+      toast({ title: errorMessage(error), tone: 'danger' });
+    }
+  };
   return (
     <Card title={t('catalogSetup.categories')}>
       <div className="stack">
@@ -223,18 +235,43 @@ function Categories({
                   {category.parentId === null
                     ? category.name
                     : `${String(names.get(category.parentId))} › ${category.name}`}
+                  {!category.isActive && (
+                    <>
+                      {' '}
+                      <Badge>{t('catalogSetup.inactive')}</Badge>
+                    </>
+                  )}
+                  {inactiveThroughParent(category, categories) && (
+                    <>
+                      {' '}
+                      <Badge>{t('catalogSetup.parentInactive')}</Badge>
+                    </>
+                  )}
                 </span>
                 {manage && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={t('catalogSetup.rename', { name: category.name })}
-                    onClick={() => {
-                      setRenaming(category);
-                    }}
-                  >
-                    {t('common.edit')}
-                  </Button>
+                  <span className="row">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={t('catalogSetup.rename', { name: category.name })}
+                      onClick={() => {
+                        setRenaming(category);
+                      }}
+                    >
+                      {t('common.edit')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        void toggle(category);
+                      }}
+                    >
+                      {category.isActive
+                        ? t('catalogSetup.deactivate', { name: category.name })
+                        : t('catalogSetup.activate', { name: category.name })}
+                    </Button>
+                  </span>
                 )}
               </li>
             ))}

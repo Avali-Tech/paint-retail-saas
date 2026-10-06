@@ -18,12 +18,13 @@ import { OPPORTUNITY_TONE } from '../leads/crm.js';
 import { PAGE_SIZE, SEARCH_DELAY_MS, SearchFilter } from '../leads/SearchFilter.js';
 import { AssigneeFilter } from '../leads/members.js';
 import { LEAD_SECTIONS } from '../leads/nav.js';
+import { PartyFilterNote } from '../leads/PartyFilterNote.js';
 import { useDebouncedValue, useUrlFilters } from '../lib/hooks.js';
 import { QueryState } from '../lib/QueryState.js';
 import { SectionNav } from '../lib/SectionNav.js';
 import { StoreSelect } from '../stock/StoreSelect.js';
 
-const FILTERS = ['q', 'stage', 'store', 'assignee'] as const;
+const FILTERS = ['q', 'stage', 'store', 'assignee', 'party'] as const;
 
 /** Each stage's count, value and weighted value, for the filters chosen. */
 function StageStrip({
@@ -62,11 +63,11 @@ export function OpportunitiesPage() {
   const api = useApi();
   const { t, money, date } = useI18n();
   const filters = useUrlFilters(FILTERS);
-  const { stage, store, assignee } = filters.values;
+  const { stage, store, assignee, party } = filters.values;
   const q = useDebouncedValue(filters.values.q.trim(), SEARCH_DELAY_MS);
-  const filtered = q !== '' || stage !== '' || store !== '' || assignee !== '';
+  const filtered = [q, stage, store, assignee, party].some((value) => value !== '');
   const opportunities = useQuery({
-    queryKey: ['opportunities', { q, stage, store, assignee, offset: filters.offset }],
+    queryKey: ['opportunities', { q, stage, store, assignee, party, offset: filters.offset }],
     queryFn: ({ signal }) =>
       api.opportunities.list(
         {
@@ -74,6 +75,7 @@ export function OpportunitiesPage() {
           stage: (stage || undefined) as OpportunityStage | undefined,
           storeId: store || undefined,
           assignedTo: assignee || undefined,
+          partyId: party || undefined,
           limit: PAGE_SIZE,
           offset: filters.offset,
         },
@@ -87,6 +89,14 @@ export function OpportunitiesPage() {
       <SectionNav label="leads.sections.label" links={LEAD_SECTIONS} />
       <PageHeader title={t('opportunities.title')} description={t('opportunities.description')} />
       <StageStrip storeId={store || undefined} assignedTo={assignee || undefined} />
+      {party !== '' && (
+        <PartyFilterNote
+          partyId={party}
+          onClear={() => {
+            filters.set('party', '');
+          }}
+        />
+      )}
       <Card>
         <div className="filters">
           <SearchFilter

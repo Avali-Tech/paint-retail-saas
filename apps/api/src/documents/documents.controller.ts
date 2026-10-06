@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  HttpStatus,
   Inject,
   Param,
   ParseUUIDPipe,
@@ -20,12 +21,18 @@ import type { AuthContext } from '../auth/auth-context.js';
 import { CurrentAuth } from '../auth/decorators.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import {
+  browseDocumentsSchema,
   listDocumentsSchema,
   uploadFieldsSchema,
-  type ListDocumentsQuery,
 } from './documents.schemas.js';
-import { DocumentsService, type DocumentView, type UploadedFile } from './documents.service.js';
+import {
+  DocumentsService,
+  type DocumentPage,
+  type DocumentView,
+  type UploadedFile,
+} from './documents.service.js';
 import { attachmentHeader, MAX_DOCUMENT_BYTES } from './file-checks.js';
+import { uploadRefusal } from './upload-refusals.js';
 
 // Permissions follow the record a document is attached to; the service checks them.
 @Controller('documents')
@@ -59,7 +66,11 @@ export class DocumentsController {
     const [file] = files;
     if (file?.truncated) {
       throw new PayloadTooLargeException(
-        `Files can be at most ${String(MAX_DOCUMENT_BYTES / 1024 / 1024)} MB`,
+        uploadRefusal(
+          HttpStatus.PAYLOAD_TOO_LARGE,
+          'too_large',
+          `Files can be at most ${String(MAX_DOCUMENT_BYTES / 1024 / 1024)} MB`,
+        ),
       );
     }
     const parsed = new ZodValidationPipe(uploadFieldsSchema).transform(fields);
@@ -67,12 +78,22 @@ export class DocumentsController {
     return this.documents.upload(auth, parsed, { fileName: file.fileName, data: file.data });
   }
 
+  /**
+   * With recordType and recordId, that record's documents (a list). Without a
+   * record, documents on every record the member can see (a page), filtered.
+   */
   @Get()
   list(
     @CurrentAuth() auth: AuthContext,
-    @Query(new ZodValidationPipe(listDocumentsSchema)) query: ListDocumentsQuery,
-  ): Promise<DocumentView[]> {
-    return this.documents.list(auth, query);
+    @Query() query: Record<string, unknown>,
+  ): Promise<DocumentView[] | DocumentPage> {
+    if (query.recordId !== undefined) {
+      return this.documents.list(auth, new ZodValidationPipe(listDocumentsSchema).transform(query));
+    }
+    return this.documents.browse(
+      auth,
+      new ZodValidationPipe(browseDocumentsSchema).transform(query),
+    );
   }
 
   @Get(':id/download')

@@ -58,8 +58,12 @@ function FollowUpItem({
         <span className="record-list__meta">
           {label('activityTypes', followUp.type)} ·{' '}
           {t('followUps.due', { when: dateTime(followUp.dueAt) })}
-          {showAssignee && ` · ${followUp.assignedTo.name}`}
         </span>
+        {showAssignee && (
+          <span className="record-list__meta">
+            {t('followUps.assignedTo', { name: followUp.assignedTo.name })}
+          </span>
+        )}
         <span className="record-list__meta">
           <Link to={recordPath(record)}>{record.label}</Link>
           {TIMELINE_PERMISSIONS.some(can) && (
@@ -204,6 +208,7 @@ function TeamFilters({
             }}
           >
             <option value="">{t('followUps.me')}</option>
+            <option value="everyone">{t('followUps.everyone')}</option>
             {(members.data ?? [])
               .filter((member) => member.isActive && member.id !== profile.memberId)
               .map((member) => (
@@ -226,7 +231,11 @@ function TeamFilters({
   );
 }
 
-/** /follow-ups — the member's own (or, for managers, a colleague's) follow-ups by when they are due. */
+/**
+ * /follow-ups — the member's own follow-ups by when they are due; managers
+ * also see a colleague's, or everyone's at their stores (?assignedTo=everyone),
+ * each with who it is assigned to.
+ */
 export function FollowUpsPage() {
   const { t } = useI18n();
   const can = usePermissions();
@@ -242,8 +251,10 @@ export function FollowUpsPage() {
   return (
     <>
       <PageHeader
-        title={t('followUps.title')}
-        description={t('followUps.description')}
+        title={t(assignedTo === 'everyone' ? 'followUps.teamTitle' : 'followUps.title')}
+        description={t(
+          assignedTo === 'everyone' ? 'followUps.teamDescription' : 'followUps.description',
+        )}
         actions={
           TIMELINE_PERMISSIONS.some(can) ? (
             <Link to="/activities" {...buttonStyle('secondary')}>

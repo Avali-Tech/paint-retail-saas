@@ -60,17 +60,42 @@ export const completeActivitySchema = z.object({
 });
 export type CompleteActivityInput = z.output<typeof completeActivitySchema>;
 
-export const timelineSchema = z.object({
-  ...record,
-  limit: z.coerce.number().int().min(1).max(200).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
-});
+const member = z.union([z.uuid(), z.literal('me')]);
+const day = z.iso.date();
+
+/**
+ * One record's timeline (recordType and recordId), or, without a record,
+ * activities across every record the member can see (optionally of one record
+ * type). Filters apply to both.
+ */
+export const timelineSchema = z
+  .object({
+    recordType: z.enum(ACTIVITY_RECORD_TYPES).optional(),
+    recordId: z.uuid().optional(),
+    type: z.enum(ACTIVITY_TYPES).optional(),
+    /** Whoever is assigned it or logged it: a member id or "me". */
+    person: member.optional(),
+    /** India-time days, inclusive, of when it happened or is due. */
+    from: day.optional(),
+    to: day.optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+    offset: z.coerce.number().int().min(0).default(0),
+  })
+  .refine((query) => query.recordId === undefined || query.recordType !== undefined, {
+    path: ['recordType'],
+    message: 'Give the record type with the record id',
+  })
+  .refine((query) => !query.from || !query.to || query.from <= query.to, {
+    path: ['to'],
+    message: 'The “to” date cannot be before the “from” date',
+  });
 export type TimelineQuery = z.output<typeof timelineSchema>;
 
 export const followUpsSchema = z.object({
   /** In India time: before today, today, after today, or every open one. */
   when: z.enum(FOLLOW_UP_WINDOWS).default('open'),
-  assignedTo: z.union([z.uuid(), z.literal('me')]).default('me'),
+  /** A member, me, or (for managers) everyone's at the member's stores. */
+  assignedTo: z.union([member, z.literal('everyone')]).default('me'),
   storeId: z.uuid().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),

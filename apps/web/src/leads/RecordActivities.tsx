@@ -14,6 +14,7 @@ import { timelinePath } from '../followups/activity-helpers.js';
 import { FormDialog } from '../lib/FormDialog.js';
 import { QueryState } from '../lib/QueryState.js';
 import { given, indiaMoment, refreshCrm } from './crm.js';
+import { MemberField } from './members.js';
 
 /** Things already done; a follow-up is scheduled instead. */
 const LOGGED_TYPES = ACTIVITY_TYPES.filter((type) => type !== 'follow_up');
@@ -24,11 +25,13 @@ function ActivityDialog({
   mode,
   recordType,
   recordId,
+  storeId,
   onClose,
 }: {
   readonly mode: Mode;
   readonly recordType: CrmRecordType;
   readonly recordId: string;
+  readonly storeId: string;
   readonly onClose: () => void;
 }) {
   const api = useApi();
@@ -42,6 +45,7 @@ function ActivityDialog({
   const [outcome, setOutcome] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('10:00');
+  const [assignee, setAssignee] = useState('');
   return (
     <FormDialog
       open
@@ -58,7 +62,10 @@ function ActivityDialog({
           subject: subject.trim(),
           ...(given(notes) === undefined ? {} : { notes: notes.trim() }),
           ...(scheduling
-            ? { dueAt: indiaMoment(date, time) }
+            ? {
+                dueAt: indiaMoment(date, time),
+                ...(assignee === '' ? {} : { assignedMemberId: assignee }),
+              }
             : given(outcome) === undefined
               ? {}
               : { outcome: outcome.trim() }),
@@ -115,6 +122,14 @@ function ActivityDialog({
             />
           </Field>
         </div>
+      )}
+      {/* A follow-up can go to a colleague who can see the record at its store. */}
+      {scheduling && (
+        <MemberField
+          value={assignee}
+          onChange={setAssignee}
+          assignment={{ for: 'activity', recordType, storeId }}
+        />
       )}
       <Field label={t('crm.activities.notes')}>
         <Textarea
@@ -181,10 +196,13 @@ function ActivityItem({ activity }: { readonly activity: Activity }) {
 export function RecordActivities({
   recordType,
   recordId,
+  storeId,
   canAdd,
 }: {
   readonly recordType: CrmRecordType;
   readonly recordId: string;
+  /** The record's store: follow-ups go to people who work there. */
+  readonly storeId: string;
   readonly canAdd: boolean;
 }) {
   const api = useApi();
@@ -245,6 +263,7 @@ export function RecordActivities({
           mode={mode}
           recordType={recordType}
           recordId={recordId}
+          storeId={storeId}
           onClose={() => {
             setMode(null);
           }}

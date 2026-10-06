@@ -7,6 +7,8 @@ export const leadsEn = {
     me: 'Me',
     assignHint: 'Who follows it up',
     memberOption: '{name} · {role}',
+    forParty: 'For {name} only',
+    allParties: 'Show everyone’s',
     assign: 'Assign',
     reassign: 'Reassign',
     reassignTitle: 'Reassign {number}',
