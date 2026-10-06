@@ -23,7 +23,7 @@ export function MergeDialog({
   readonly onClose: () => void;
 }) {
   const api = useApi();
-  const { t, number } = useI18n();
+  const { t, plural } = useI18n();
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -45,7 +45,7 @@ export function MergeDialog({
         });
         toast({
           title: t('parties.merge.merged', { name: result.party.displayName }),
-          description: t('parties.merge.moved', { count: number(moved) }),
+          description: plural('parties.merge.moved', moved),
           tone: 'success',
         });
         void navigate(`/parties/${result.party.id}`);

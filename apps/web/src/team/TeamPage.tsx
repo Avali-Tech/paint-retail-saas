@@ -30,7 +30,8 @@ const STATUSES = ['active', 'inactive', 'all'] as const;
 
 /** /team — everyone the member can see, with role, stores, status and two-factor sign-in. */
 export function TeamPage() {
-  const { t } = useI18n();
+  const i18n = useI18n();
+  const { t } = i18n;
   const can = usePermissions();
   const profile = useCurrentProfile();
   const filters = useUrlFilters(FILTERS);
@@ -113,7 +114,7 @@ export function TeamPage() {
                         <span className="cell-meta">{member.user.phone ?? member.user.email}</span>
                       </th>
                       <td>{member.role.name}</td>
-                      <td>{storeSummary(member, stores.data ?? [], t)}</td>
+                      <td>{storeSummary(member, stores.data ?? [], i18n)}</td>
                       <td>
                         <Badge tone={member.isActive ? 'success' : 'neutral'}>
                           {member.isActive ? t('team.active') : t('team.inactive')}

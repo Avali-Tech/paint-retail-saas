@@ -55,7 +55,7 @@ export const importsEn = {
       capped: 'Showing the first {shown} of {total}.',
     },
     actions: { create: 'Add', update: 'Update', unchanged: 'No change' },
-    commit: 'Import {count} rows',
+    commit: { one: 'Import {count} row', other: 'Import {count} rows' },
     committed: 'Imported: {create} added, {update} updated, {unchanged} unchanged.',
     toast: 'Import finished',
     notSaved: 'Nothing was imported. Fix the rows with errors and try again.',

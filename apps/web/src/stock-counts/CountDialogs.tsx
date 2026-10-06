@@ -13,7 +13,7 @@ export function SubmitDialog({
   readonly onSubmit: (uncountedAsZero: boolean) => Promise<unknown>;
   readonly onClose: () => void;
 }) {
-  const { t, number } = useI18n();
+  const { t, plural } = useI18n();
   const [asZero, setAsZero] = useState(false);
   const { uncountedLines } = count.summary;
   return (
@@ -29,9 +29,7 @@ export function SubmitDialog({
       }}
     >
       {uncountedLines > 0 && (
-        <p className="notice">
-          {t('stockCounts.detail.uncounted', { count: number(uncountedLines) })}
-        </p>
+        <p className="notice">{plural('stockCounts.detail.uncounted', uncountedLines)}</p>
       )}
       <Checkbox
         label={t('stockCounts.detail.uncountedAsZero')}

@@ -97,7 +97,10 @@ export const stockEn = {
       selectColumn: 'Select',
       createPo: 'Create purchase order',
       poTitle: 'Purchase order from low stock',
-      poSelected: 'For the {count} selected items at {store}',
+      poSelected: {
+        one: 'For the selected item at {store}',
+        other: 'For the {count} selected items at {store}',
+      },
       poAll: 'For every low item at {store} that this supplier provides',
       supplier: 'Supplier',
       chooseSupplier: 'Choose a supplier',

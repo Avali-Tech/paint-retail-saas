@@ -157,7 +157,7 @@ export function TwoFactorFlow<G>({
   onRestart,
   calls,
 }: TwoFactorStepProps<G> & { readonly calls: TwoFactorCalls<G> }) {
-  const { t } = useI18n();
+  const { t, plural } = useI18n();
   const { branding } = useBranding();
   const titleId = useId();
   const [kind, setKind] = useState<CodeKind>('app');
@@ -203,9 +203,7 @@ export function TwoFactorFlow<G>({
         setMessage(errorMessage(error));
       } else if (refusal.code === 'wrong_code') {
         const left = refusal.attemptsRemaining;
-        setMessage(
-          left === 1 ? t('twoFactor.wrongCodeLast') : t('twoFactor.wrongCode', { count: left }),
-        );
+        setMessage(plural('twoFactor.wrongCode', left));
       } else if (refusal.code === 'too_many_attempts') {
         setEndedWith(t('twoFactor.tooMany'));
       } else {

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import type { PendingSignIn, SignInResult } from '../api/types.js';
 import { useI18n } from '../i18n/i18n.js';
+import { LanguagePicker } from '../i18n/LanguagePicker.js';
 import { useBranding } from '../theme/BrandingProvider.js';
 import { OtpSignIn } from './OtpSignIn.js';
 import { PasswordSignIn } from './PasswordSignIn.js';
@@ -73,6 +74,7 @@ export function SignInPage() {
           />
         )}
       </Card>
+      <LanguagePicker />
     </main>
   );
 }

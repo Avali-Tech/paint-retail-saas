@@ -74,7 +74,7 @@ test('a store is counted by scanning, submitted and approved with reasons', asyn
 
   await page.getByRole('button', { name: 'Submit for approval SC-000001' }).click();
   const submit = page.getByRole('dialog', { name: 'Submit SC-000001' });
-  await expect(submit).toContainText('1 products not counted yet');
+  await expect(submit).toContainText('1 product not counted yet');
   await submit.getByRole('checkbox', { name: /Count what is left as zero/ }).check();
   await submit.getByRole('button', { name: 'Submit for approval' }).click();
   await expect(page.getByText('Count submitted')).toBeVisible();

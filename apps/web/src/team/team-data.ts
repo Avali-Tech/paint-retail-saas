@@ -29,13 +29,13 @@ export function useRoles() {
 export function storeSummary(
   member: Pick<Member, 'allStores' | 'storeIds'>,
   stores: readonly { readonly id: string; readonly code: string }[],
-  t: I18n['t'],
+  { t, plural }: Pick<I18n, 't' | 'plural'>,
 ): string {
   if (member.allStores) return t('team.allStores');
   if (member.storeIds.length === 0) return t('team.noStores');
   const codes = stores.filter((store) => member.storeIds.includes(store.id)).map((s) => s.code);
   const others = member.storeIds.length - codes.length;
-  return [...codes, ...(others > 0 ? [t('team.moreStores', { count: others })] : [])].join(', ');
+  return [...codes, ...(others > 0 ? [plural('team.moreStores', others)] : [])].join(', ');
 }
 
 /** True when `member` matches every word of a search across name, mobile and email. */

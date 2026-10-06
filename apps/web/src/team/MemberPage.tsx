@@ -271,7 +271,8 @@ function TwoFactorCard({
 }
 
 function MemberDetail({ member }: { readonly member: Member }) {
-  const { t } = useI18n();
+  const i18n = useI18n();
+  const { t } = i18n;
   const can = usePermissions();
   const profile = useCurrentProfile();
   const stores = useStores();
@@ -281,7 +282,7 @@ function MemberDetail({ member }: { readonly member: Member }) {
     [t('team.form.phone'), member.user.phone ?? t('common.none')],
     [t('team.form.email'), member.user.email ?? t('common.none')],
     [t('team.role'), member.role.name],
-    [t('team.stores'), storeSummary(member, stores.data ?? [], t)],
+    [t('team.stores'), storeSummary(member, stores.data ?? [], i18n)],
   ];
   return (
     <>

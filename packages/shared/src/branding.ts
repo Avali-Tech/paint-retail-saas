@@ -37,8 +37,13 @@ export interface FontChoice {
   readonly googleFamily: string | null;
 }
 
+/**
+ * After the chosen font: fonts with Devanagari (Hindi) and Telugu letters. Noto (Android,
+ * and loaded by the web app when Hindi or Telugu is chosen), Mukta, Nirmala UI (Windows),
+ * Kohinoor (Apple), then the device's own.
+ */
 const INDIAN_FALLBACKS =
-  "'Noto Sans Devanagari', 'Noto Sans Telugu', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+  "'Noto Sans Devanagari', 'Noto Sans Telugu', Mukta, 'Nirmala UI', 'Kohinoor Devanagari', 'Kohinoor Telugu', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 
 /** Fonts a business can choose: all readable on low-end phones and friendly to Indian scripts. */
 export const FONTS = {

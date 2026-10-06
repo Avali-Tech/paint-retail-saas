@@ -112,7 +112,7 @@ export function GrantTable({
   readonly grants: readonly GrantView[];
   readonly showBusiness: boolean;
 }) {
-  const { t, dateTime } = useI18n();
+  const { t, plural, dateTime } = useI18n();
   return (
     <Table label={t('platform.support.list')}>
       <thead>
@@ -140,7 +140,7 @@ export function GrantTable({
             )}
             <td>{grant.requestedBy}</td>
             <td>{grant.reason}</td>
-            <td>{grantLength(t, grant.minutes)}</td>
+            <td>{grantLength(plural, grant.minutes)}</td>
             <td>
               <GrantStatusBadge grant={grant} />
             </td>
@@ -163,7 +163,7 @@ export function RequestAccessDialog({
   readonly tenant: { readonly id: string; readonly name: string };
   readonly onClose: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, plural } = useI18n();
   const api = usePlatformApi();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -201,7 +201,7 @@ export function RequestAccessDialog({
         >
           {GRANT_MINUTES.map((value) => (
             <option key={value} value={value}>
-              {grantLength(t, value)}
+              {grantLength(plural, value)}
             </option>
           ))}
         </Select>

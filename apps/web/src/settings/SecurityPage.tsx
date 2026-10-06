@@ -23,7 +23,8 @@ import { AuthenticatorSetup } from '../auth/AuthenticatorSetup.js';
 import { showApiError } from '../auth/forms.js';
 import { RecoveryCodes } from '../auth/RecoveryCodes.js';
 import { useCurrentProfile, usePermissions } from '../auth/session.js';
-import { useI18n } from '../i18n/i18n.js';
+import { LOCALES, useI18n } from '../i18n/i18n.js';
+import { LanguagePicker } from '../i18n/LanguagePicker.js';
 
 export const twoFactorStatusKey = ['two-factor-status'] as const;
 export const organizationSecurityKey = ['organization-security'] as const;
@@ -309,7 +310,29 @@ function TeamTwoFactor() {
   );
 }
 
-/** Settings → Account security: the member's own sign-in, and for owners and admins the business's. */
+/** The app's language for this person, on this device. */
+function Language() {
+  const { t } = useI18n();
+  const toast = useToast();
+  return (
+    <Card title={t('language.label')}>
+      <div className="stack">
+        <p className="muted">{t('language.hint')}</p>
+        <LanguagePicker
+          onChange={(locale) => {
+            // Said in the language just chosen.
+            toast({ title: LOCALES[locale].messages.language.changed, tone: 'success' });
+          }}
+        />
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * Settings → Account security: the member's language and own sign-in, and for owners
+ * and admins the business's.
+ */
 export function SecurityPage() {
   const { t } = useI18n();
   const profile = useCurrentProfile();
@@ -318,6 +341,7 @@ export function SecurityPage() {
     <>
       <PageHeader title={t('security.title')} description={t('security.description')} />
       <div className="settings-grid">
+        <Language />
         <AccountTwoFactor />
         {can('organization:manage') && <BusinessSecurity />}
         {profile.role.key === 'owner' && <TeamTwoFactor />}

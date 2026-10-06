@@ -17,10 +17,12 @@ import { supportAccessEn } from './en-support-access.js';
 import { teamEn } from './en-team.js';
 import { transferEnumsEn, transfersEn } from './en-transfers.js';
 import { workflowEn } from './en-workflow.js';
+import type { Translation } from './shape.js';
 
 /**
- * English messages. Every language (Hindi, Telugu next) is a file of this same
- * shape; TypeScript refuses one with a missing or extra key. "{name}" is filled in.
+ * English messages. Hindi (hi.ts) and Telugu (te.ts) have exactly this shape, file by
+ * file (en-team.ts, hi-team.ts, te-team.ts); TypeScript refuses a missing or extra key.
+ * "{name}" is filled in; { one, other } is a count-dependent message (see shape.ts).
  */
 export const en = {
   common: {
@@ -40,6 +42,20 @@ export const en = {
     required: 'This is required',
     notFound: 'This record does not exist, or you cannot see it.',
     saved: 'Saved',
+  },
+  /** Problems the app explains itself when the server gives no message. */
+  errors: {
+    offline: 'Cannot reach the server. Check your internet connection and try again.',
+    signIn: 'Please sign in again.',
+    forbidden: 'You do not have permission to do this.',
+    notFound: 'Not found.',
+    tooMany: 'Too many attempts. Please wait a moment and try again.',
+    generic: 'Something went wrong. Please try again.',
+  },
+  language: {
+    label: 'Language',
+    hint: 'Used on this device for the app’s screens',
+    changed: 'Language changed',
   },
   auth: {
     title: 'Sign in to {appName}',
@@ -84,8 +100,7 @@ export const en = {
     invalidRecovery: 'Enter a recovery code',
     useRecovery: 'Use a recovery code instead',
     useApp: 'Use a code from the app',
-    wrongCode: 'Wrong code. {count} tries left.',
-    wrongCodeLast: 'Wrong code. 1 try left.',
+    wrongCode: { one: 'Wrong code. {count} try left.', other: 'Wrong code. {count} tries left.' },
     tooMany: 'Too many wrong codes. Please sign in again.',
     expired: 'This sign-in has expired. Please sign in again.',
     signInAgain: 'Sign in again',
@@ -192,7 +207,7 @@ export const en = {
     emptyDescription: 'Once your stores are added, their stock, transfers and orders appear here.',
     stockValue: 'Stock value',
     units: 'Units',
-    skus: '{count} SKUs',
+    skus: { one: '{count} SKU', other: '{count} SKUs' },
     skuColumn: 'SKUs',
     uncosted: '{count} without a cost',
     lowStock: 'Low stock',
@@ -257,6 +272,7 @@ export const en = {
     density: 'Spacing',
     densities: { comfortable: 'Comfortable (larger buttons)', compact: 'Compact' },
     font: 'Font',
+    systemFont: 'Device default (fastest)',
     preview: 'Preview',
     previewDescription: 'How screens look with these choices',
     palette: 'Generated colours',
@@ -304,6 +320,24 @@ export const en = {
   ...supportAccessEn,
   /** Names of API values, for label(group, value). */
   enums: {
+    /** Quick actions offered with search, by the API's key. */
+    quickActions: {
+      new_customer: '+ Customer',
+      new_lead: '+ Lead',
+      new_project: '+ Project',
+      new_contract: '+ Contract',
+      new_credit_request: '+ Credit request',
+      new_loyalty_account: '+ Loyalty',
+      new_transfer: '+ Transfer',
+      record_stock: 'Record stock movement',
+      new_stock_count: 'Start stock count',
+      new_purchase_order: '+ Purchase order',
+      receive_goods: 'Receive goods (GRN)',
+      new_product: '+ Product',
+      import_data: 'Import from Excel or CSV',
+      low_stock: 'Low stock',
+      my_follow_ups: 'My follow-ups',
+    },
     ...partyEnumsEn,
     ...creditEnumsEn,
     ...loyaltyEnumsEn,
@@ -325,7 +359,5 @@ export const en = {
   },
 };
 
-type Shape<T> = { readonly [K in keyof T]: T[K] extends string ? string : Shape<T[K]> };
-
 /** Every language must provide exactly these messages. */
-export type Messages = Shape<typeof en>;
+export type Messages = Translation<typeof en>;

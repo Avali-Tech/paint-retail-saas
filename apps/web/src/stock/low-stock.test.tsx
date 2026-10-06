@@ -80,7 +80,7 @@ describe('LowStockPage', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Create purchase order' }));
     const dialog = screen.getByRole('dialog', { name: 'Purchase order from low stock' });
-    expect(dialog).toHaveTextContent('For the 1 selected items at Hyderabad');
+    expect(dialog).toHaveTextContent('For the selected item at Hyderabad');
     await user.click(within(dialog).getByRole('button', { name: 'Create order' }));
     expect(within(dialog).getByRole('alert')).toHaveTextContent('Choose a supplier');
     await user.selectOptions(

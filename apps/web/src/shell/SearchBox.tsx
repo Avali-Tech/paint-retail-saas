@@ -5,7 +5,8 @@ import { useId, useState, type KeyboardEvent, type RefObject } from 'react';
 import { useNavigate } from 'react-router';
 import type { SearchHit, SearchResults } from '../api/types.js';
 import { useApi } from '../app/services.js';
-import { useI18n, type MessageKey } from '../i18n/i18n.js';
+import { en } from '../i18n/en.js';
+import { useI18n, type I18n, type MessageKey } from '../i18n/i18n.js';
 import { useDebouncedValue } from '../lib/hooks.js';
 
 export const SEARCH_DELAY_MS = 250;
@@ -38,17 +39,28 @@ const RESULT_GROUPS = [
   ['documents', 'search.documents'],
 ] as const satisfies readonly (readonly [keyof SearchResults, MessageKey])[];
 
-export const actionHit = (action: QuickAction): SearchHit => ({
+/** A quick action's name in the person's language; the API's English for one the app does not know yet. */
+export function actionName(t: I18n['t'], action: QuickAction): string {
+  return action.key in en.enums.quickActions
+    ? t(`enums.quickActions.${action.key as keyof typeof en.enums.quickActions}`)
+    : action.label;
+}
+
+export const actionHit = (t: I18n['t'], action: QuickAction): SearchHit => ({
   id: action.key,
-  title: action.label,
+  title: actionName(t, action),
   subtitle: action.shortcut,
   path: action.path,
 });
 
 /** The groups to show, in order, leaving out empty ones and ones the member cannot see. */
-export function resultGroups(results: SearchResults): Group[] {
+export function resultGroups(results: SearchResults, t: I18n['t']): Group[] {
   const groups: Group[] = [
-    { key: 'actions', label: 'search.actions', items: results.actions.map(actionHit) },
+    {
+      key: 'actions',
+      label: 'search.actions',
+      items: results.actions.map((action) => actionHit(t, action)),
+    },
     ...RESULT_GROUPS.map(([key, label]) => ({ key, label, items: results[key] ?? [] })),
   ];
   return groups.filter((group) => group.items.length > 0);
@@ -78,9 +90,15 @@ export function SearchBox({ inputRef }: { readonly inputRef: RefObject<HTMLInput
 
   const groups: Group[] = searching
     ? results.data
-      ? resultGroups(results.data)
+      ? resultGroups(results.data, t)
       : []
-    : [{ key: 'actions', label: 'search.actions', items: (actions.data ?? []).map(actionHit) }];
+    : [
+        {
+          key: 'actions',
+          label: 'search.actions',
+          items: (actions.data ?? []).map((action) => actionHit(t, action)),
+        },
+      ];
   const options = groups.flatMap((group) => group.items);
   const optionId = (index: number) => `${listboxId}-${String(index)}`;
   const activeIndex = Math.min(active, options.length - 1);

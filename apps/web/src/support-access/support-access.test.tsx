@@ -14,6 +14,7 @@ import {
 import { ACTIVE_GRANT, grant } from '../test-support/platform-fixtures.js';
 import { found } from '../test-support/found.js';
 import { renderApp } from '../test-support/render-app.js';
+import { createI18n } from '../i18n/i18n.js';
 import { grantLength } from './grants.js';
 import { SUPPORT_TAB_KEY, isSupportTab, leaveSupportTab } from './support-tab.js';
 
@@ -77,7 +78,7 @@ describe('support access for owners and admins', () => {
     const waiting = screen.getByRole('region', { name: 'Waiting for your decision' });
     const items = within(waiting).getAllByRole('listitem');
     expect(items).toHaveLength(2);
-    expect(items[0]).toHaveTextContent('Asha Operator asks for 1 hour(s) of read-only access');
+    expect(items[0]).toHaveTextContent('Asha Operator asks for 1 hour of read-only access');
     expect(items[0]).toHaveTextContent('Stock report looks wrong');
     expect(items[0]).toHaveTextContent('Asked 1 Oct 2026, 10:00 am');
     const now = screen.getByRole('region', { name: 'Access now' });
@@ -240,10 +241,10 @@ describe('support banners', () => {
 
 describe('grantLength', () => {
   it('reads whole hours as hours and the rest as minutes', () => {
-    const t = (key: string, params?: Record<string, string | number>) =>
-      `${key}:${String(params?.count)}`;
-    expect(grantLength(t as never, 120)).toBe('supportAccess.hours:2');
-    expect(grantLength(t as never, 90)).toBe('supportAccess.minutes:90');
+    const { plural } = createI18n('en');
+    expect(grantLength(plural, 60)).toBe('1 hour');
+    expect(grantLength(plural, 120)).toBe('2 hours');
+    expect(grantLength(plural, 90)).toBe('90 minutes');
   });
 });
 

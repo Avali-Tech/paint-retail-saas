@@ -81,6 +81,8 @@ describe('fonts', () => {
   it('ends every stack with fallbacks for Hindi and Telugu', () => {
     for (const key of FONT_KEYS) {
       expect(FONTS[key].stack).toContain("'Noto Sans Devanagari', 'Noto Sans Telugu'");
+      expect(FONTS[key].stack).toContain("'Nirmala UI', 'Kohinoor Devanagari', 'Kohinoor Telugu'");
+      expect(FONTS[key].stack.endsWith('sans-serif')).toBe(true);
     }
   });
 

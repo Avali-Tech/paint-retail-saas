@@ -17,7 +17,7 @@ export const purchasingEn = {
     product: 'Product',
     value: 'Value',
     total: 'Total',
-    days: '{days} days',
+    days: { one: '{count} day', other: '{count} days' },
     cash: 'Cash',
     line: {
       quantity: 'Quantity of {sku}',

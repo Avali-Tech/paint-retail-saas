@@ -37,7 +37,7 @@ export const COUNT_TONE: Record<CountStatus, Tone> = {
 /** Each store's accuracy at its last approved count. */
 function Accuracy() {
   const api = useApi();
-  const { t, date, number } = useI18n();
+  const { t, plural, date, number } = useI18n();
   const accuracy = useQuery({
     queryKey: ['stock-counts', 'accuracy'],
     queryFn: ({ signal }) => api.stockCounts.accuracy(signal),
@@ -74,9 +74,7 @@ function Accuracy() {
                         <td>
                           {lastCount.number} · {date(lastCount.approvedAt)}
                           <span className="cell-meta">
-                            {t('stockCounts.accuracy.counted', {
-                              count: number(lastCount.countedLines),
-                            })}
+                            {plural('stockCounts.accuracy.counted', lastCount.countedLines)}
                           </span>
                         </td>
                         <td className="ui-num">

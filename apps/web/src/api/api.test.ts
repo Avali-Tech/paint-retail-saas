@@ -1,8 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { en } from '../i18n/en.js';
+import { hi } from '../i18n/hi.js';
 import { fakeFetch, json } from '../test-support/fake-api.js';
 import { buildUrl, createApiClient, parseJson } from './client.js';
 import { endpoints } from './endpoints.js';
-import { ApiError, errorMessage, toApiError } from './errors.js';
+import { ApiError, errorMessage, setErrorTexts, toApiError } from './errors.js';
 
 function client(routes: Parameters<typeof fakeFetch>[0], token: string | null = 'tok') {
   const api = fakeFetch(routes);
@@ -154,9 +156,24 @@ describe('toApiError', () => {
 });
 
 describe('errorMessage', () => {
+  afterEach(() => {
+    setErrorTexts(en.errors);
+  });
+
   it('shows API messages and hides anything else', () => {
     expect(errorMessage(new ApiError(500, 'Database down'))).toBe('Database down');
     expect(errorMessage(new Error('stack trace'))).toBe('Something went wrong. Please try again.');
+  });
+
+  it('explains problems without a server message in the current language', () => {
+    const offline = toApiError(0, null);
+    expect(offline.fallback).toBe('offline');
+    expect(toApiError(409, { message: 'Taken' }).fallback).toBeNull();
+    setErrorTexts(hi.errors);
+    expect(errorMessage(offline)).toBe(hi.errors.offline);
+    expect(errorMessage(new Error('x'))).toBe(hi.errors.generic);
+    expect(errorMessage(new ApiError(500, 'Database down'))).toBe('Database down');
+    expect(toApiError(403, null).message).toBe(hi.errors.forbidden);
   });
 });
 

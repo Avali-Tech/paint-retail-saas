@@ -199,7 +199,7 @@ test('support access: the operator asks, the owner approves, support looks read-
   await owner.getByRole('link', { name: 'Review' }).click();
   await expect(owner.getByRole('heading', { name: 'Support access', level: 1 })).toBeVisible();
   const waiting = owner.getByRole('region', { name: 'Waiting for your decision' });
-  await expect(waiting).toContainText('Asha Operator asks for 1 hour(s) of read-only access');
+  await expect(waiting).toContainText('Asha Operator asks for 1 hour of read-only access');
   await expect(waiting).toContainText('Stock report looks wrong');
   await expectUsable(owner);
   await waiting.getByRole('button', { name: 'Approve' }).click();

@@ -184,7 +184,7 @@ interface Checked {
 /** Choosing a file, checking it and importing it, for one kind. */
 function ImportFlow({ kind }: { readonly kind: ImportKind }) {
   const api = useApi();
-  const { t } = useI18n();
+  const { t, plural } = useI18n();
   const toast = useToast();
   const queryClient = useQueryClient();
   const kindName = useKindName();
@@ -352,7 +352,7 @@ function ImportFlow({ kind }: { readonly kind: ImportKind }) {
                     void commit(checked);
                   }}
                 >
-                  {t('imports.commit', { count: checked.report.totals.rows })}
+                  {plural('imports.commit', checked.report.totals.rows)}
                 </Button>
               </div>
             </>

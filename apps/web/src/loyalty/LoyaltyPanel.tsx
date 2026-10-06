@@ -118,7 +118,7 @@ export function LoyaltyPanel({
   readonly loyalty: LoyaltySummary;
 }) {
   const api = useApi();
-  const { t, number, date } = useI18n();
+  const { t, plural, number, date } = useI18n();
   const manage = usePermissions()('loyalty:manage');
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -174,7 +174,7 @@ export function LoyaltyPanel({
   }
 
   const facts: [string, string][] = [
-    [t('loyalty.balance'), t('loyalty.pointsValue', { points: number(loyalty.balance) })],
+    [t('loyalty.balance'), plural('loyalty.pointsValue', loyalty.balance)],
     [t('loyalty.tier'), loyalty.tier === null ? t('common.none') : loyalty.tier.name],
     [
       t('loyalty.nextTier'),
@@ -182,7 +182,7 @@ export function LoyaltyPanel({
         ? t('common.none')
         : t('loyalty.nextTierValue', {
             name: loyalty.nextTier.name,
-            points: number(loyalty.nextTier.pointsToGo),
+            points: plural('loyalty.pointsValue', loyalty.nextTier.pointsToGo),
           }),
     ],
     [t('loyalty.earned'), number(loyalty.totalEarned)],
@@ -192,7 +192,7 @@ export function LoyaltyPanel({
       loyalty.nextExpiry === null
         ? t('common.none')
         : t('loyalty.expiryValue', {
-            points: number(loyalty.nextExpiry.points),
+            points: plural('loyalty.pointsValue', loyalty.nextExpiry.points),
             date: date(loyalty.nextExpiry.expiresOn),
           }),
     ],

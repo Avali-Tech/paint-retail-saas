@@ -23,7 +23,7 @@ const finishedAt = (grant: GrantView) =>
  * first. What support looked at during access is shown to the business itself.
  */
 export function AccessLogPage() {
-  const { t, dateTime } = useI18n();
+  const { t, plural, dateTime } = useI18n();
   const api = usePlatformApi();
   const filters = useUrlFilters(FILTERS);
   const status = STATUSES.find((value) => value === filters.values.status);
@@ -82,7 +82,7 @@ export function AccessLogPage() {
                       </th>
                       <td>{grant.requestedBy}</td>
                       <td>{grant.reason}</td>
-                      <td>{grantLength(t, grant.minutes)}</td>
+                      <td>{grantLength(plural, grant.minutes)}</td>
                       <td>
                         <GrantStatusBadge grant={grant} />
                       </td>

@@ -1,3 +1,5 @@
+import { en, type Messages } from '../i18n/en.js';
+
 /** A problem with one field, as the API reports Zod validation issues. */
 export interface FieldIssue {
   /** Field path, e.g. "phone" or "variants.0.sku". */
@@ -22,27 +24,41 @@ export class ApiError extends Error {
     readonly organizations: readonly BusinessChoice[] = [],
     /** The whole error body, for extra fields such as a duplicate's existingPartyId. */
     readonly body: Readonly<Record<string, unknown>> = {},
+    /** Set when the server gave no message: the app explains it in the person's language. */
+    readonly fallback: ErrorText | null = null,
   ) {
     super(message);
   }
 }
 
-const FALLBACK_MESSAGES: Record<number, string> = {
-  0: 'Cannot reach the server. Check your internet connection and try again.',
-  401: 'Please sign in again.',
-  403: 'You do not have permission to do this.',
-  404: 'Not found.',
-  429: 'Too many attempts. Please wait a moment and try again.',
+/** The app's own explanations of failed calls, by kind (see `errors` in i18n/en.ts). */
+export type ErrorTexts = Messages['errors'];
+export type ErrorText = keyof ErrorTexts;
+
+let texts: ErrorTexts = en.errors;
+
+/** Switches the app's own error explanations to the person's language (the I18nProvider does). */
+export function setErrorTexts(next: ErrorTexts): void {
+  texts = next;
+}
+
+const FALLBACKS: Readonly<Record<number, ErrorText>> = {
+  0: 'offline',
+  401: 'signIn',
+  403: 'forbidden',
+  404: 'notFound',
+  429: 'tooMany',
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
-function messageFrom(status: number, body: unknown): string {
+/** The server's message, or null when it sent none. */
+function messageFrom(body: unknown): string | null {
   const message = isRecord(body) ? body.message : undefined;
   if (typeof message === 'string' && message !== '') return message;
   if (Array.isArray(message) && message.length > 0) return message.map(String).join('. ');
-  return FALLBACK_MESSAGES[status] ?? 'Something went wrong. Please try again.';
+  return null;
 }
 
 function listOf<T>(value: unknown, isItem: (item: Record<string, unknown>) => T | null): T[] {
@@ -69,7 +85,10 @@ export function toApiError(status: number, body: unknown): ApiError {
       ? { id: item.id, name: item.name }
       : null,
   );
-  return new ApiError(status, messageFrom(status, body), issues, organizations, record);
+  const message = messageFrom(body);
+  if (message !== null) return new ApiError(status, message, issues, organizations, record);
+  const fallback = FALLBACKS[status] ?? 'generic';
+  return new ApiError(status, texts[fallback], issues, organizations, record, fallback);
 }
 
 /** A string field of an error body (e.g. existingPartyId on a duplicate), if present. */
@@ -81,6 +100,6 @@ export function errorDetail(error: unknown, field: string): string | null {
 
 /** The message to show for any thrown value. */
 export function errorMessage(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  return 'Something went wrong. Please try again.';
+  if (!(error instanceof ApiError)) return texts.generic;
+  return error.fallback === null ? error.message : texts[error.fallback];
 }

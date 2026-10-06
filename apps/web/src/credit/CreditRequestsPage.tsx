@@ -32,7 +32,7 @@ export const REQUEST_TONE: Record<CreditRequest['status'], Tone> = {
 /** Credit requests, waiting ones first by default, for approvers to decide. */
 export function CreditRequestsPage() {
   const api = useApi();
-  const { t, label, money, date } = useI18n();
+  const { t, plural, label, money, date } = useI18n();
   const can = usePermissions();
   const filters = useUrlFilters(FILTERS);
   // "all" (or anything unknown) shows every status.
@@ -48,7 +48,10 @@ export function CreditRequestsPage() {
   });
 
   const terms = (limitPaise: number, creditDays: number) =>
-    t('credit.terms', { limit: money(limitPaise), days: creditDays });
+    t('credit.terms', {
+      limit: money(limitPaise),
+      days: plural('credit.daysValue', creditDays),
+    });
 
   return (
     <>
