@@ -38,11 +38,11 @@ export function OrderStatusBadge({ status }: { readonly status: PurchaseOrderSta
 
 /** "30 days", or "Cash" for no credit. */
 export function useDays() {
-  const { t } = useI18n();
+  const { t, plural } = useI18n();
   return {
-    terms: (days: number) => (days === 0 ? t('purchasing.cash') : t('purchasing.days', { days })),
+    terms: (days: number) => (days === 0 ? t('purchasing.cash') : plural('purchasing.days', days)),
     days: (days: number | null) =>
-      days === null ? t('common.none') : t('purchasing.days', { days }),
+      days === null ? t('common.none') : plural('purchasing.days', days),
   };
 }
 

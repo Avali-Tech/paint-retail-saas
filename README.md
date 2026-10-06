@@ -250,6 +250,16 @@ ends running access, and lists earlier requests; each request's page (`/settings
 in the notification) shows every request support made with it. Owners and admins see a banner on every
 page while support access runs or a request waits.
 
+**Languages.** The web app speaks English, Hindi and Telugu. Each person picks theirs on the
+sign-in page or under **Account security → Language**; it is kept on the device (`paint.locale`;
+the API has no per-user language yet) and sets `<html lang>`. Numbers, money and dates keep the
+Indian format with Latin digits in every language, and a Noto font for Devanagari or Telugu is
+loaded behind the business's chosen font. Each `en-<feature>.ts` has `hi-<feature>.ts` and
+`te-<feature>.ts` with exactly its keys (TypeScript and `translations.test.ts` check keys and
+`{placeholders}`); counts use `{ one, other }` messages through `plural()`. The Hindi and Telugu
+texts are drafts awaiting a native speaker's review: see
+[docs/translations/glossary.md](docs/translations/glossary.md).
+
 | Command                              | What it does                                                         |
 | ------------------------------------ | -------------------------------------------------------------------- |
 | `pnpm exec vitest run --project web` | Component tests for `apps/web` and `packages/ui` (jsdom, no network) |

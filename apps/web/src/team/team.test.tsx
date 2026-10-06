@@ -57,13 +57,7 @@ describe('team list', () => {
     await waitFor(() => {
       expect(rowTexts()).toEqual([
         ['Anil Kumar You+919876543210', 'Owner', 'All stores', 'Active', 'On'],
-        [
-          'Priya Managerpriya@abc.in',
-          'Branch Manager',
-          'HYD, PUN, 1 other store(s)',
-          'Active',
-          'On',
-        ],
+        ['Priya Managerpriya@abc.in', 'Branch Manager', 'HYD, PUN, 1 other store', 'Active', 'On'],
         ['Suresh Counter+919876500001', 'Store Employee', 'HYD', 'Active', 'Off'],
       ]);
     });
@@ -96,7 +90,7 @@ describe('team list', () => {
       'GET /stores': () => json({ statusCode: 503, message: 'Down' }, 503),
     });
     await screen.findByRole('table', { name: 'Team members' });
-    expect(rowTexts()[1]?.[2]).toBe('3 other store(s)');
+    expect(rowTexts()[1]?.[2]).toBe('3 other stores');
     expect(screen.queryByRole('link', { name: '+ Team member' })).toBeNull();
     // The Team entry is in the navigation for members:read.
     expect(

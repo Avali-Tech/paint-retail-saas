@@ -41,11 +41,11 @@ export function useSupportRequests<T = GrantView[]>(
   });
 }
 
-/** "1 hour(s)" for whole hours, else "45 minutes". */
-export function grantLength(t: I18n['t'], minutes: number): string {
+/** "1 hour" or "2 hours" for whole hours, else "45 minutes". */
+export function grantLength(plural: I18n['plural'], minutes: number): string {
   return minutes % 60 === 0
-    ? t('supportAccess.hours', { count: minutes / 60 })
-    : t('supportAccess.minutes', { count: minutes });
+    ? plural('supportAccess.hours', minutes / 60)
+    : plural('supportAccess.minutes', minutes);
 }
 
 /** How each status stands out: waiting and running access draw the eye. */

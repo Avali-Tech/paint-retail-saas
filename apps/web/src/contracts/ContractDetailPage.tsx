@@ -126,7 +126,7 @@ function Facts({ facts }: { readonly facts: readonly [string, ReactNode][] }) {
 
 function ContractView({ contract }: { readonly contract: Contract }) {
   const api = useApi();
-  const { t, label, money, date } = useI18n();
+  const { t, plural, label, money, date } = useI18n();
   const toast = useToast();
   const queryClient = useQueryClient();
   const can = usePermissions();
@@ -140,10 +140,10 @@ function ContractView({ contract }: { readonly contract: Contract }) {
   const running = contract.status === 'active' || contract.status === 'expired';
   const daysToEnd =
     contract.daysToEnd > 0
-      ? t('contracts.detail.daysLeft', { count: contract.daysToEnd })
+      ? plural('contracts.detail.daysLeft', contract.daysToEnd)
       : contract.daysToEnd === 0
         ? t('contracts.detail.endsToday')
-        : t('contracts.detail.endedDaysAgo', { count: -contract.daysToEnd });
+        : plural('contracts.detail.endedDaysAgo', -contract.daysToEnd);
 
   const details: [string, ReactNode][] = [
     [

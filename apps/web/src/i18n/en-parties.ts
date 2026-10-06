@@ -115,7 +115,7 @@ export const partiesEn = {
       chooseFirst: 'First choose the record to keep',
       same: 'Choose a different record to keep',
       merged: 'Merged into {name}',
-      moved: '{count} records moved',
+      moved: { one: '{count} record moved', other: '{count} records moved' },
     },
   },
 };

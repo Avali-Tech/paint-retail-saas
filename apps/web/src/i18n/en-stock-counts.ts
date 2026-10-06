@@ -27,7 +27,7 @@ export const stockCountsEn = {
       percent: 'Accuracy',
       percentValue: '{percent}%',
       never: 'Never counted',
-      counted: '{count} products counted',
+      counted: { one: '{count} product counted', other: '{count} products counted' },
       empty: 'No stores yet',
     },
     form: {
@@ -81,7 +81,10 @@ export const stockCountsEn = {
       submitTitle: 'Submit {number}',
       submitDescription: 'Once submitted, someone else checks the differences and approves.',
       uncountedAsZero: 'Count what is left as zero (not on the shelf)',
-      uncounted: '{count} products not counted yet',
+      uncounted: {
+        one: '{count} product not counted yet',
+        other: '{count} products not counted yet',
+      },
       submitted: 'Count submitted',
       reopen: 'Recount',
       reopened: 'Count reopened for recounting',

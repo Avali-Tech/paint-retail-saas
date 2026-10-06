@@ -77,7 +77,7 @@ export function CreditPanel({
   readonly credit: CreditSummary;
 }) {
   const api = useApi();
-  const { t, label, money, number } = useI18n();
+  const { t, plural, label, money, number } = useI18n();
   const can = usePermissions();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -143,7 +143,7 @@ export function CreditPanel({
           </div>
           <div>
             <dt>{t('credit.days')}</dt>
-            <dd>{t('credit.daysValue', { days: credit.creditDays })}</dd>
+            <dd>{plural('credit.daysValue', credit.creditDays)}</dd>
           </div>
           <div>
             <dt>{t('credit.exposure')}</dt>
@@ -163,7 +163,7 @@ export function CreditPanel({
           </div>
           <div>
             <dt>{t('credit.overdue')}</dt>
-            <dd>{t('credit.daysValue', { days: credit.overdueDays })}</dd>
+            <dd>{plural('credit.daysValue', credit.overdueDays)}</dd>
           </div>
           <div>
             <dt>{t('credit.risk')}</dt>
@@ -182,7 +182,7 @@ export function CreditPanel({
               {t('credit.pending', {
                 number: pendingRequest.number,
                 limit: money(pendingRequest.limitPaise),
-                days: pendingRequest.creditDays,
+                days: plural('credit.daysValue', pendingRequest.creditDays),
               })}
             </Link>
           </p>

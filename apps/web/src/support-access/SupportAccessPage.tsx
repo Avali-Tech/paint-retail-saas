@@ -41,13 +41,13 @@ function useDecision() {
 }
 
 function GrantSummary({ grant }: { readonly grant: GrantView }) {
-  const { t, dateTime } = useI18n();
+  const { t, plural, dateTime } = useI18n();
   return (
     <>
       <strong>
         {t('supportAccess.asks', {
           name: grant.requestedBy,
-          length: grantLength(t, grant.minutes),
+          length: grantLength(plural, grant.minutes),
         })}
       </strong>
       <span>{grant.reason}</span>
@@ -64,7 +64,7 @@ function GrantSummary({ grant }: { readonly grant: GrantView }) {
  * requests with what support looked at.
  */
 export function SupportAccessPage() {
-  const { t, dateTime } = useI18n();
+  const { t, plural, dateTime } = useI18n();
   const grants = useSupportRequests();
   const decide = useDecision();
 
@@ -162,7 +162,7 @@ export function SupportAccessPage() {
                             <Link to={`/settings/support/${grant.id}`}>{grant.requestedBy}</Link>
                           </th>
                           <td>{grant.reason}</td>
-                          <td>{grantLength(t, grant.minutes)}</td>
+                          <td>{grantLength(plural, grant.minutes)}</td>
                           <td>
                             <Badge tone={GRANT_TONES[grant.status]}>
                               {t(`supportAccess.statuses.${grant.status}`)}

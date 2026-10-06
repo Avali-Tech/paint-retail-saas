@@ -4,7 +4,10 @@ import { describe, expect, it } from 'vitest';
 import type { SearchResults } from '../api/types.js';
 import { OWNER, json } from '../test-support/fake-api.js';
 import { renderApp } from '../test-support/render-app.js';
-import { actionHit, resultGroups } from './SearchBox.js';
+import { createI18n } from '../i18n/i18n.js';
+import { en } from '../i18n/en.js';
+import { hi } from '../i18n/hi.js';
+import { actionHit, actionName, resultGroups } from './SearchBox.js';
 import { SHORTCUT_WINDOW_MS, createShortcutMatcher, isTyping } from './shortcuts.js';
 
 const ACTIONS = QUICK_ACTIONS.slice(0, 2);
@@ -44,7 +47,8 @@ function renderShell(search: (q: string) => ReturnType<typeof json> = () => json
 
 describe('resultGroups', () => {
   it('keeps groups in order and leaves out empty or hidden ones', () => {
-    const groups = resultGroups({ ...RESULTS, actions: [QUICK_ACTIONS[0] as never] });
+    const { t } = createI18n('en');
+    const groups = resultGroups({ ...RESULTS, actions: [QUICK_ACTIONS[0] as never] }, t);
     expect(groups.map((group) => group.key)).toEqual([
       'actions',
       'parties',
@@ -52,12 +56,29 @@ describe('resultGroups', () => {
       'contracts',
       'loyalty',
     ]);
-    expect(actionHit(QUICK_ACTIONS[0] as never)).toEqual({
+    expect(actionHit(t, QUICK_ACTIONS[0] as never)).toEqual({
       id: 'new_customer',
       title: '+ Customer',
       subtitle: 'N C',
       path: '/parties/new',
     });
+  });
+
+  it('has a message for every quick action the API offers, matching its English', () => {
+    expect(Object.entries(en.enums.quickActions)).toEqual(
+      QUICK_ACTIONS.map((action) => [action.key, action.label]),
+    );
+  });
+
+  it('names quick actions in the person’s language, or as the API does when unknown', () => {
+    const { t } = createI18n('hi');
+    expect(actionName(t, QUICK_ACTIONS[0] as never)).toBe(hi.enums.quickActions.new_customer);
+    const unknown = {
+      ...(QUICK_ACTIONS[0] as never as object),
+      key: 'new_thing',
+      label: '+ Thing',
+    };
+    expect(actionName(t, unknown as never)).toBe('+ Thing');
   });
 });
 

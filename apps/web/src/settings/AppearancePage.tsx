@@ -332,7 +332,7 @@ function AppearanceEditor({
               >
                 {FONT_KEYS.map((font) => (
                   <option key={font} value={font}>
-                    {FONTS[font].label}
+                    {font === 'system' ? t('appearance.systemFont') : FONTS[font].label}
                   </option>
                 ))}
               </Select>

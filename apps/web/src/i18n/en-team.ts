@@ -18,7 +18,7 @@ export const teamEn = {
     twoFactor: 'Two-factor',
     allStores: 'All stores',
     noStores: 'No stores',
-    moreStores: '{count} other store(s)',
+    moreStores: { one: '{count} other store', other: '{count} other stores' },
     active: 'Active',
     inactive: 'Inactive',
     on: 'On',

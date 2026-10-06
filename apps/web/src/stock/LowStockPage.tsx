@@ -51,7 +51,7 @@ function OrderDialog({
   readonly onClose: () => void;
 }) {
   const api = useApi();
-  const { t } = useI18n();
+  const { t, plural } = useI18n();
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -69,7 +69,7 @@ function OrderDialog({
       description={
         variantIds.length === 0
           ? t('stock.lowStock.poAll', { store: storeName })
-          : t('stock.lowStock.poSelected', { count: variantIds.length, store: storeName })
+          : plural('stock.lowStock.poSelected', variantIds.length, { store: storeName })
       }
       submitLabel={t('stock.lowStock.create')}
       onSubmit={async () => {

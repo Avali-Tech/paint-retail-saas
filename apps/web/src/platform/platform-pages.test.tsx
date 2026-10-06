@@ -318,7 +318,7 @@ describe('support access from the console', () => {
       ),
     ).toBeVisible();
     expect(await within(card).findByText('Waiting for the business')).toBeVisible();
-    expect(within(card).getByText('2 hour(s)')).toBeVisible();
+    expect(within(card).getByText('2 hours')).toBeVisible();
   });
 
   it('opens the read-only view in a new tab with the support session', async () => {

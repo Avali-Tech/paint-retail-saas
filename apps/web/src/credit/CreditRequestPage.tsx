@@ -10,10 +10,13 @@ import { REQUEST_TONE } from './CreditRequestsPage.js';
 import { RequestDecision } from './RequestDecision.js';
 
 function RequestDetail({ request }: { readonly request: CreditRequest }) {
-  const { t, label, money, dateTime } = useI18n();
+  const { t, plural, label, money, dateTime } = useI18n();
   const can = usePermissions();
   const terms = (limitPaise: number, creditDays: number) =>
-    t('credit.terms', { limit: money(limitPaise), days: creditDays });
+    t('credit.terms', {
+      limit: money(limitPaise),
+      days: plural('credit.daysValue', creditDays),
+    });
   const facts: [string, string][] = [
     [t('credit.requests.asked'), terms(request.limitPaise, request.creditDays)],
     [t('credit.requests.previous'), terms(request.previousLimitPaise, request.previousCreditDays)],

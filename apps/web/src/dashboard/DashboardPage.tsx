@@ -97,7 +97,7 @@ function Tiles({
   readonly dashboard: Dashboard;
   readonly storeId: string | null;
 }) {
-  const { t, number, compactMoney, money } = useI18n();
+  const { t, plural, number, compactMoney, money } = useI18n();
   const { stock, lowStock, transfers, purchaseOrders } = dashboard.totals;
   return (
     <section className="tiles" aria-label={t('dashboard.total')}>
@@ -107,7 +107,7 @@ function Tiles({
           value={<span title={money(stock.valuePaise)}>{compactMoney(stock.valuePaise)}</span>}
         >
           <Figure label={t('dashboard.units')} value={number(stock.units)} />
-          <span className="muted">{t('dashboard.skus', { count: number(stock.skus) })}</span>
+          <span className="muted">{plural('dashboard.skus', stock.skus)}</span>
           {stock.uncostedSkus > 0 && (
             <Badge tone="warning">
               {t('dashboard.uncosted', { count: number(stock.uncostedSkus) })}

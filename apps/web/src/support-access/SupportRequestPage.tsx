@@ -63,7 +63,7 @@ function ActivityLog({ grant }: { readonly grant: GrantView }) {
  * "support asks for access" notification) and what support looked at.
  */
 export function SupportRequestPage() {
-  const { t, dateTime } = useI18n();
+  const { t, plural, dateTime } = useI18n();
   const { id = '' } = useParams();
   const grant = useSupportRequests({
     select: (grants) => {
@@ -95,7 +95,7 @@ export function SupportRequestPage() {
                       {t(`supportAccess.statuses.${found.status}`)}
                     </Badge>,
                   ],
-                  [t('supportAccess.length'), grantLength(t, found.minutes)],
+                  [t('supportAccess.length'), grantLength(plural, found.minutes)],
                   [t('supportAccess.requestedAt'), dateTime(found.requestedAt)],
                   [t('supportAccess.detail.approvedAt'), when(found.approvedAt)],
                   [t('supportAccess.detail.declinedAt'), when(found.declinedAt)],

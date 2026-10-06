@@ -8,6 +8,7 @@ import type { PendingSignIn } from '../api/types.js';
 import { showApiError } from '../auth/forms.js';
 import { returnPath } from '../auth/SignInPage.js';
 import { TwoFactorFlow, splitRecoveryCodes, type TwoFactorCalls } from '../auth/TwoFactorStep.js';
+import { LanguagePicker } from '../i18n/LanguagePicker.js';
 import { useI18n } from '../i18n/i18n.js';
 import type { PlatformSession } from './platform-api.js';
 import { useDefaultTheme } from './PlatformLayout.js';
@@ -119,6 +120,7 @@ export function PlatformSignInPage() {
           />
         )}
       </Card>
+      <LanguagePicker />
     </main>
   );
 }
