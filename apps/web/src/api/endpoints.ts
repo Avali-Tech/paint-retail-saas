@@ -15,6 +15,7 @@ import { recordActivityEndpoints } from './record-activities.js';
 import { reportEndpoints } from './reports.js';
 import { stockCountEndpoints } from './stock-counts.js';
 import { stockEndpoints } from './stock.js';
+import { supportRequestEndpoints } from '../support-access/grants.js';
 import { teamEndpoints } from './team.js';
 import { transferEndpoints } from './transfers.js';
 import type {
@@ -99,6 +100,7 @@ export function endpoints(api: ApiClient) {
     contracts: contractEndpoints(api),
     documents: documentEndpoints(api),
     reports: reportEndpoints(api),
+    supportRequests: supportRequestEndpoints(api),
   };
 }
 

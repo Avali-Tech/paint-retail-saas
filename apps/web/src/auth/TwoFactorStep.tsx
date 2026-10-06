@@ -6,7 +6,7 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiError, errorMessage } from '../api/errors.js';
-import type { PendingSignIn, SessionGrant } from '../api/types.js';
+import type { PendingSignIn, SessionGrant, TwoFactorEnrolment } from '../api/types.js';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { useBranding } from '../theme/BrandingProvider.js';
@@ -106,11 +106,44 @@ function CodeForm({
   );
 }
 
-export interface TwoFactorStepProps {
+export interface TwoFactorStepProps<G = SessionGrant> {
   readonly pending: PendingSignIn;
-  readonly onSignedIn: (grant: SessionGrant) => void;
+  readonly onSignedIn: (grant: G) => void;
   /** Back to the first step (password or mobile code). */
   readonly onRestart: () => void;
+}
+
+/** Where the codes go: the business's sign-in, or the platform console's. */
+export interface TwoFactorCalls<G> {
+  readonly setUp: (pendingToken: string) => Promise<TwoFactorEnrolment>;
+  /** The session, and the recovery codes when an app was just added. */
+  readonly verify: (
+    pendingToken: string,
+    code: string,
+  ) => Promise<{ readonly grant: G; readonly recoveryCodes?: string[] }>;
+}
+
+/** Splits a sign-in answer into the session and the recovery codes that came with it. */
+export function splitRecoveryCodes<G extends object>(
+  answer: G & { readonly recoveryCodes?: string[] },
+): { readonly grant: Omit<G, 'recoveryCodes'>; readonly recoveryCodes?: string[] } {
+  const { recoveryCodes, ...grant } = answer;
+  return recoveryCodes ? { grant, recoveryCodes } : { grant };
+}
+
+/** The business's two-factor step (POST /auth/2fa/setup and /auth/2fa/verify). */
+export function TwoFactorStep(props: TwoFactorStepProps) {
+  const api = useApi();
+  return (
+    <TwoFactorFlow
+      {...props}
+      calls={{
+        setUp: api.twoFactor.setUp,
+        verify: async (pendingToken, code) =>
+          splitRecoveryCodes(await api.twoFactor.verify(pendingToken, code)),
+      }}
+    />
+  );
 }
 
 /**
@@ -118,8 +151,12 @@ export interface TwoFactorStepProps {
  * business requires one, then a code from it (or a recovery code). The pending
  * sign-in lasts 5 minutes and takes 5 tries; after that the person starts over.
  */
-export function TwoFactorStep({ pending, onSignedIn, onRestart }: TwoFactorStepProps) {
-  const api = useApi();
+export function TwoFactorFlow<G>({
+  pending,
+  onSignedIn,
+  onRestart,
+  calls,
+}: TwoFactorStepProps<G> & { readonly calls: TwoFactorCalls<G> }) {
   const { t } = useI18n();
   const { branding } = useBranding();
   const titleId = useId();
@@ -128,7 +165,7 @@ export function TwoFactorStep({ pending, onSignedIn, onRestart }: TwoFactorStepP
   /** Why the server ended the pending sign-in early (out of tries), in its words. */
   const [endedWith, setEndedWith] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [saving, setSaving] = useState<{ grant: SessionGrant; codes: string[] } | null>(null);
+  const [saving, setSaving] = useState<{ grant: G; codes: string[] } | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(
@@ -144,7 +181,7 @@ export function TwoFactorStep({ pending, onSignedIn, onRestart }: TwoFactorStepP
 
   const setup = useQuery({
     queryKey: ['two-factor-setup', pending.pendingToken],
-    queryFn: () => api.twoFactor.setUp(pending.pendingToken),
+    queryFn: () => calls.setUp(pending.pendingToken),
     enabled: pending.setupRequired,
     // One secret per pending sign-in: asking again would replace the one already scanned.
     staleTime: Infinity,
@@ -157,7 +194,7 @@ export function TwoFactorStep({ pending, onSignedIn, onRestart }: TwoFactorStepP
   const verify = async (code: string) => {
     setMessage(null);
     try {
-      const { recoveryCodes, ...grant } = await api.twoFactor.verify(pending.pendingToken, code);
+      const { recoveryCodes, grant } = await calls.verify(pending.pendingToken, code);
       if (recoveryCodes) setSaving({ grant, codes: recoveryCodes });
       else onSignedIn(grant);
     } catch (error) {

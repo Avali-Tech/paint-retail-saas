@@ -68,6 +68,9 @@ describe('start', () => {
     const win = {
       fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
       localStorage,
+      sessionStorage,
+      location: window.location,
+      history: window.history,
       matchMedia: (query: string) => window.matchMedia(query),
       document,
       navigator: { serviceWorker: { register } },

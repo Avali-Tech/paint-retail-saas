@@ -10,6 +10,7 @@ import { importRoutes } from '../imports/routes.js';
 import { leadRoutes } from '../leads/routes.js';
 import { opportunityRoutes } from '../opportunities/routes.js';
 import { partyRoutes } from '../parties/routes.js';
+import { platformRoutes } from '../platform/routes.js';
 import { projectRoutes } from '../projects/routes.js';
 import { purchasingRoutes } from '../purchasing/routes.js';
 import { reportRoutes } from '../reports/routes.js';
@@ -17,6 +18,7 @@ import { AppShell } from '../shell/AppShell.js';
 import { HomeRedirect, RequireAuth } from '../shell/guards.js';
 import { stockCountRoutes } from '../stock-counts/routes.js';
 import { stockRoutes } from '../stock/routes.js';
+import { supportAccessRoutes } from '../support-access/routes.js';
 import { teamRoutes } from '../team/routes.js';
 import { transferRoutes } from '../transfers/routes.js';
 import { guarded } from './guarded.js';
@@ -54,6 +56,7 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/sign-in" element={<SignInPage />} />
+      {platformRoutes()}
       <Route
         element={
           <RequireAuth>
@@ -77,6 +80,7 @@ export function AppRoutes() {
         {contractRoutes()}
         {reportRoutes()}
         {teamRoutes()}
+        {supportAccessRoutes()}
         <Route
           path="settings/appearance"
           element={guarded('organization:manage', AppearancePage)}

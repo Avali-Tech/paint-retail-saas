@@ -1,6 +1,7 @@
 import type { SessionGrant } from '../api/types.js';
 
-export type SessionEndReason = 'signed-out' | 'expired';
+/** Why a session ended; 'support-rejected': a support view link carried someone's ordinary session. */
+export type SessionEndReason = 'signed-out' | 'expired' | 'support-rejected';
 
 export interface SessionState {
   readonly session: SessionGrant | null;

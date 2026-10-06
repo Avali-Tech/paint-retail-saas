@@ -17,7 +17,7 @@ export function formatCredentials(credentials: DemoCredentials, webUrl: string):
       person.signIn,
     ].join('  '),
   );
-  const { twoFactor } = credentials;
+  const { twoFactor, operator } = credentials;
   return [
     `${credentials.business} — demo sign-in`,
     `Open ${webUrl} and sign in with a mobile number (or email) and the password below.`,
@@ -35,6 +35,12 @@ export function formatCredentials(credentials: DemoCredentials, webUrl: string):
     `  Setup key (same after every reset): ${twoFactor.secret}`,
     `  otpauth URI (paste into a QR code generator, or add the key by hand): ${twoFactor.otpauthUri}`,
     `  Recovery codes (each works once; new ones after every reset): ${twoFactor.recoveryCodes.join(' ')}`,
+    '',
+    `Platform console (the team that runs the service): ${webUrl}/platform`,
+    `  ${operator.name}: ${operator.email} and the password above, then an authenticator app.`,
+    `  Setup key (same after every reset): ${operator.secret}`,
+    `  otpauth URI: ${operator.otpauthUri}`,
+    `  Recovery codes (each works once; new ones after every reset): ${operator.recoveryCodes.join(' ')}`,
     '',
   ].join('\n');
 }

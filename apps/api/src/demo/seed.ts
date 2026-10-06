@@ -7,6 +7,8 @@ import { HistoryClock } from './history-clock.js';
 import {
   buildPlan,
   DEMO_BUSINESS,
+  DEMO_OPERATOR,
+  DEMO_OPERATOR_TOTP_SECRET,
   DEMO_PASSWORD,
   DEMO_SEED,
   DEMO_TOTP_SECRET,
@@ -37,6 +39,8 @@ export interface SeedOptions {
   readonly databaseUrl: string;
   /** The API's AUTH_SECRET: the demo admin's authenticator secret is sealed with it. */
   readonly authSecret: string;
+  /** The in-process API's PLATFORM_BOOTSTRAP_TOKEN, to create the demo's platform operator. */
+  readonly platformBootstrapToken: string;
   readonly size: DemoSize;
   readonly readSmsCode: ReadSmsCode;
 }
@@ -57,6 +61,14 @@ export interface DemoCredentials {
   readonly twoFactor: {
     readonly name: string;
     readonly phone: string;
+    readonly secret: string;
+    readonly otpauthUri: string;
+    readonly recoveryCodes: readonly string[];
+  };
+  /** The platform operator for the console at /platform. */
+  readonly operator: {
+    readonly name: string;
+    readonly email: string;
     readonly secret: string;
     readonly otpauthUri: string;
     readonly recoveryCodes: readonly string[];
@@ -117,6 +129,7 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
   // Today's reminders and alerts: stock at its reorder level, follow-ups due, renewals.
   await options.app.get(NotificationsWorker).runOnce();
   const twoFactor = await enrolAuthenticator(context, options);
+  const operator = await createOperator(options);
 
   const owner = context.as('owner');
   const low = await owner.get<{ total: number }>('/stock/low?limit=1');
@@ -140,7 +153,13 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
         : 'mobile code',
   }));
   return {
-    credentials: { business: DEMO_BUSINESS, password: DEMO_PASSWORD, people, twoFactor },
+    credentials: {
+      business: DEMO_BUSINESS,
+      password: DEMO_PASSWORD,
+      people,
+      twoFactor,
+      operator,
+    },
     counts: Object.fromEntries(context.created),
   };
 }
@@ -151,6 +170,61 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
  * the way the API seals it) before confirming, so a phone set up once keeps
  * working after every reset.
  */
+/** Replaces a user's authenticator secret with a fixed one, sealed the way the API seals it. */
+async function fixSecret(
+  options: SeedOptions,
+  secret: Buffer,
+  userIdQuery: string,
+  param: string,
+): Promise<void> {
+  const pool = new pg.Pool({ connectionString: options.databaseUrl, max: 1 });
+  try {
+    await pool.query(
+      `UPDATE user_totp SET secret_ciphertext = $1 WHERE user_id = (${userIdQuery})`,
+      [sealSecret(options.authSecret, secret), param],
+    );
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * The demo's platform operator, created the way the first real operator is
+ * (POST /platform/bootstrap), then signed in once to add an authenticator app
+ * whose random secret is swapped for the fixed demo one before confirming.
+ */
+async function createOperator(options: SeedOptions): Promise<DemoCredentials['operator']> {
+  const api = new DemoApi(options.app).public;
+  await api.post('/platform/bootstrap', {
+    token: options.platformBootstrapToken,
+    ...DEMO_OPERATOR,
+    password: DEMO_PASSWORD,
+  });
+  const { twoFactor } = await api.post<{ twoFactor: { pendingToken: string } }>('/platform/login', {
+    identifier: DEMO_OPERATOR.email,
+    password: DEMO_PASSWORD,
+  });
+  const enrolment = await api.post<{ otpauthUri: string }>('/platform/login/2fa/setup', {
+    pendingToken: twoFactor.pendingToken,
+  });
+  const secret = base32Decode(DEMO_OPERATOR_TOTP_SECRET);
+  await fixSecret(options, secret, 'SELECT id FROM users WHERE email = $2', DEMO_OPERATOR.email);
+  const { recoveryCodes } = await api.post<{ recoveryCodes: string[] }>('/platform/login/2fa', {
+    pendingToken: twoFactor.pendingToken,
+    code: totp(secret, Date.now()),
+  });
+  return {
+    name: DEMO_OPERATOR.fullName,
+    email: DEMO_OPERATOR.email,
+    secret: DEMO_OPERATOR_TOTP_SECRET,
+    otpauthUri: enrolment.otpauthUri.replace(
+      /secret=[A-Z2-7]+/,
+      `secret=${DEMO_OPERATOR_TOTP_SECRET}`,
+    ),
+    recoveryCodes,
+  };
+}
+
 async function enrolAuthenticator(
   context: SeedContext,
   options: SeedOptions,
@@ -162,16 +236,12 @@ async function enrolAuthenticator(
   const api = context.as(person.key);
   const enrolment = await api.post<{ otpauthUri: string }>('/auth/2fa/enrol');
   const secret = base32Decode(DEMO_TOTP_SECRET);
-  const pool = new pg.Pool({ connectionString: options.databaseUrl, max: 1 });
-  try {
-    await pool.query(
-      `UPDATE user_totp SET secret_ciphertext = $1
-        WHERE user_id = (SELECT user_id FROM organization_members WHERE id = $2)`,
-      [sealSecret(options.authSecret, secret), context.memberId(person.key)],
-    );
-  } finally {
-    await pool.end();
-  }
+  await fixSecret(
+    options,
+    secret,
+    'SELECT user_id FROM organization_members WHERE id = $2',
+    context.memberId(person.key),
+  );
   const { recoveryCodes } = await api.post<{ recoveryCodes: string[] }>('/auth/2fa/confirm', {
     code: totp(secret, Date.now()),
   });

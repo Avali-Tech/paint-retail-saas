@@ -48,6 +48,7 @@ export function SignInPage() {
         </div>
         {ended === 'expired' && <Alert tone="warning">{t('auth.expired')}</Alert>}
         {ended === 'signed-out' && <Alert tone="info">{t('auth.signedOut')}</Alert>}
+        {ended === 'support-rejected' && <Alert tone="danger">{t('supportAccess.rejected')}</Alert>}
         {pending === null ? (
           <Tabs value={method} onValueChange={setMethod}>
             <TabsList aria-label={t('auth.methods')}>

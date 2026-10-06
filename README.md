@@ -150,6 +150,13 @@ its `otpauth://` URI and ten recovery codes). Add the key to any authenticator a
 working after every reset. Turn the rule back on under **Settings → Account security** to show
 what an owner sees.
 
+**Platform console in the demo.** `pnpm demo` also creates the platform's operator, **Meera Iyer**
+(`operator@paintretail.demo`, password `Demo@2026`), and prints a line pointing at
+**http://localhost:5173/platform**. Operators always use an authenticator app; hers has a fixed setup
+key, `PAINTRETAILDEMOPLATFORMOPERATOR2` (the sheet also has its `otpauth://` URI and recovery codes).
+Only the seed can create her: it runs its in-process API with a one-time random
+`PLATFORM_BOOTSTRAP_TOKEN`, and the running demo API has none, so bootstrap stays off.
+
 **What depends on what.** The demo data only goes through the API (the seed runs the API
 in-process), so business rules, numbering, notifications, row-level security and the audit log
 all apply; the one exception is back-dating: everything the seed does on a simulated day is moved
@@ -212,6 +219,27 @@ screen is its own chunk (`React.lazy`), loaded when first opened. Features keep 
 (`src/<feature>/routes.tsx`), navigation entries (`src/<feature>/nav.ts`) and messages
 (`src/i18n/en-<feature>.ts`) in their own files.
 
+**Platform console** (`/platform`, `src/platform`): the operators' own sign-in (password, then an
+authenticator app added with a QR code at the first sign-in) and session, kept under its own storage key
+(`paint.platform-session`) with its own API client, so an operator's token and a business member's never
+stand in for each other. It always shows the product's default look, never a business's branding, in a
+plain frame marked "Platform console". **Businesses** (`/platform/tenants`: search, status, plan, stores and
+team against the plan's limits, last sign-in), a **business** (`/platform/tenants/:id`: usage and owners,
+change plan, turn features on or off or back to the plan, suspend with a reason and a confirmation or
+reactivate, ask for support access with a reason and a length), **Support access** (`/platform/support`:
+requests waiting or running; open the read-only view, end access) and the **Access log**
+(`/platform/access-log`: every request, decision and end). There is no operators screen: the API has no
+routes to manage operators beyond the one-time bootstrap. **Open read-only view** opens the business's
+app in a new tab with the support session handed over in the address fragment (never sent to a server);
+that tab keeps it in its own `sessionStorage`, so it never replaces a business session on the device, and
+shows a "Support view – read only" banner. The handed-over session must be platform support's: once `/auth/me` answers,
+any other session (a forged link carrying someone's own account) is ended before anything shows, and the
+sign-in page says the link was not a valid support view. Support views keep the product's own look. On the business's side, **Settings → Support access**
+(`/settings/support`, `organization:manage`) approves or declines requests (who asked, why, for how long),
+ends running access, and lists earlier requests; each request's page (`/settings/support/:id`, the link
+in the notification) shows every request support made with it. Owners and admins see a banner on every
+page while support access runs or a request waits.
+
 | Command                              | What it does                                                         |
 | ------------------------------------ | -------------------------------------------------------------------- |
 | `pnpm exec vitest run --project web` | Component tests for `apps/web` and `packages/ui` (jsdom, no network) |
@@ -220,7 +248,9 @@ screen is its own chunk (`React.lazy`), loaded when first opened. Features keep 
 
 End-to-end tests (`apps/web/e2e`) start a throwaway PostgreSQL with Testcontainers, the built API
 (migrating on start, `SMS_PROVIDER=log` so the OTP test reads codes from its log) and `vite preview`,
-then drive Chromium on desktop and phone (Pixel 5) viewports, including axe WCAG AA checks. First run:
+then drive Chromium on desktop and phone (Pixel 5) viewports, including axe WCAG AA checks. The global setup also
+creates the platform's operator (`PLATFORM_BOOTSTRAP_TOKEN`) for the console tests; only the console
+sign-in test uses authenticator codes, the others start with that operator's session. First run:
 `pnpm --filter @paint/web exec playwright install chromium`. They run in CI as their own job, not in
 `pnpm verify`. Document uploads need a virus scanner: by default the e2e stack has none, like
 `pnpm demo` without `--clamav`, and the tests check that uploads are refused with a clear message;
@@ -534,6 +564,24 @@ audit log. Support access must be approved by the business's owners or admins, l
 hours, is read-only, can be ended by either side, and every request made with it is recorded for the
 business to review.
 
+## The first platform operator
+
+Operators run the service from the platform console (`/platform`), apart from any business. The first
+one is created once with a bootstrap token; the API refuses a second bootstrap.
+
+```sh
+# apps/api/.env: a long random secret (32+ characters), only for as long as you need it
+echo "PLATFORM_BOOTSTRAP_TOKEN=$(openssl rand -hex 32)" >> apps/api/.env
+pnpm --filter @paint/api build && pnpm --filter @paint/api start
+curl -X POST localhost:3000/platform/bootstrap -H 'content-type: application/json' \
+  -d '{"token":"<the token>","fullName":"Your Name","email":"you@example.com","password":"a long password"}'
+```
+
+Then remove `PLATFORM_BOOTSTRAP_TOKEN` from `apps/api/.env` and restart the API. Open
+http://localhost:5173/platform (with `pnpm --filter @paint/web dev` running), sign in with that email and
+password, and add an authenticator app from the QR code; every later sign-in asks for a code from it.
+`pnpm demo` creates a demo operator instead (see Run the demo).
+
 ## Database
 
 - Tables are defined in `packages/db/src/schema.ts`. After changing it, generate a migration with
@@ -547,7 +595,7 @@ business to review.
 
 ```
 apps/api              HTTP API (NestJS on Fastify), built with Vite into dist/server
-apps/web              Web app (React + Vite PWA): sign-in (with two-factor), shell, dashboard, customers, credit, loyalty, team and roles, appearance, account security
+apps/web              Web app (React + Vite PWA): sign-in (with two-factor), shell, dashboard, customers, credit, loyalty, team and roles, appearance, account security, support access, platform console
 packages/ui           Design system: theme runtime and accessible components on design tokens
 packages/db           PostgreSQL schema, migrations, tenant isolation (Drizzle)
 packages/shared       code shared by all apps (money in paise, branding and theme derivation, …)

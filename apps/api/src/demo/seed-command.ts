@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { createDatabase, migrateDatabase } from '@paint/db';
@@ -131,6 +132,8 @@ async function hasBusinesses(databaseUrl: string): Promise<boolean> {
 
 /** Seeds the demo through an in-process API and notes the date on the database. */
 async function seed(settings: Settings): Promise<SeedResult> {
+  // Only this in-process API can create the demo's platform operator; the running demo API cannot.
+  const platformBootstrapToken = randomBytes(32).toString('hex');
   const config = loadConfig({
     NODE_ENV: 'development',
     DATABASE_URL: settings.databaseUrl,
@@ -139,6 +142,7 @@ async function seed(settings: Settings): Promise<SeedResult> {
     // The running API's worker sends the emails and reminders; the seed runs it once itself.
     WORKER_INTERVAL_SECONDS: '0',
     SIGNUP_PLAN: 'standard',
+    PLATFORM_BOOTSTRAP_TOKEN: platformBootstrapToken,
   });
   const sms = new CapturingSmsSender();
   const connection = createDatabase(settings.databaseUrl);
@@ -148,6 +152,7 @@ async function seed(settings: Settings): Promise<SeedResult> {
       app,
       databaseUrl: settings.databaseUrl,
       authSecret: settings.authSecret,
+      platformBootstrapToken,
       size: settings.size,
       readSmsCode: (phone) => sms.codeFor(phone),
     });

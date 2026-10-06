@@ -114,6 +114,13 @@ describe('sign-in sheet', () => {
         otpauthUri: 'otpauth://totp/x?secret=ABC',
         recoveryCodes: ['aaaa-bbbb', 'cccc-dddd'],
       },
+      operator: {
+        name: 'Meera Iyer',
+        email: 'operator@paintretail.demo',
+        secret: 'XYZ',
+        otpauthUri: 'otpauth://totp/p?secret=XYZ',
+        recoveryCodes: ['eeee-ffff'],
+      },
     };
     const sheet = formatCredentials(credentials, 'http://localhost:5173');
     expect(sheet).toContain('Open http://localhost:5173');
@@ -124,6 +131,13 @@ describe('sign-in sheet', () => {
     expect(sheet).toContain('Setup key (same after every reset): ABC');
     expect(sheet).toContain('otpauth://totp/x?secret=ABC');
     expect(sheet).toContain('aaaa-bbbb cccc-dddd');
+    expect(sheet).toContain(
+      'Platform console (the team that runs the service): http://localhost:5173/platform',
+    );
+    expect(sheet).toContain('Meera Iyer: operator@paintretail.demo and the password above');
+    expect(sheet).toContain('Setup key (same after every reset): XYZ');
+    expect(sheet).toContain('otpauth URI: otpauth://totp/p?secret=XYZ');
+    expect(sheet).toContain('eeee-ffff');
   });
 });
 
