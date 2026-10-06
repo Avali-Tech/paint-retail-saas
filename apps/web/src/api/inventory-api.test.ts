@@ -37,6 +37,8 @@ function recorder() {
     put: record('PUT'),
     patch: record('PATCH'),
     delete: record('DELETE'),
+    download: record('DOWNLOAD'),
+    upload: record('UPLOAD'),
   };
   return { api, calls };
 }

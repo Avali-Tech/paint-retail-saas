@@ -1,9 +1,11 @@
 import type { Permission } from '@paint/shared';
 import type { IconName } from '@paint/ui';
 import type { MessageKey } from '../i18n/i18n.js';
+import { FOLLOW_UP_NAV_ITEMS } from '../followups/nav.js';
 import { IMPORT_NAV_ITEMS } from '../imports/nav.js';
 import type { AnyOf } from '../lib/guard.js';
 import { CUSTOMER_NAV_ITEMS } from '../parties/nav.js';
+import { REPORT_NAV_ITEMS } from '../reports/nav.js';
 import { TEAM_NAV_ITEMS } from '../team/nav.js';
 
 export interface NavItem {
@@ -62,8 +64,10 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: 'contracts:read',
   },
   // Each feature keeps its own entries in its own file.
+  ...FOLLOW_UP_NAV_ITEMS,
   ...CUSTOMER_NAV_ITEMS,
   ...IMPORT_NAV_ITEMS,
+  ...REPORT_NAV_ITEMS,
   ...TEAM_NAV_ITEMS,
   {
     key: 'appearance',

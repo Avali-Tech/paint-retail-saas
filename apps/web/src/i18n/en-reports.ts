@@ -1,0 +1,88 @@
+// English messages for reports (spread into en.ts).
+
+export const reportsEn = {
+  reports: {
+    title: 'Reports',
+    description: 'Stock, transfers, purchases and sales pipeline, ready for Excel',
+    error: 'Could not load the reports',
+    reportError: 'Could not load this report',
+    empty: 'No reports are available with your role',
+    unknown: 'This report does not exist, or your role cannot see it.',
+    open: 'Open {title}',
+    openButton: 'Open',
+    all: 'All reports',
+    csv: 'Download CSV',
+    csvFailed: 'Could not download the report',
+    noRows: 'Nothing matches these filters',
+    pages: 'Report pages',
+    any: 'Any',
+    dateHint: 'India time',
+    dateInvalid: 'Enter a date',
+    rangeInvalid: 'The “to” date cannot be before the “from” date',
+    filters: {
+      storeId: 'Store',
+      allStores: 'All my stores',
+      inStockOnly: 'Only products in stock',
+      from: 'From',
+      to: 'To',
+      movementType: 'Movement',
+      status: 'Status',
+      supplierId: 'Supplier',
+      stage: 'Stage',
+      source: 'Source',
+    },
+    kinds: {
+      'stock-by-location': {
+        title: 'Stock by location',
+        description: 'On hand, reserved and available at each store, with cost and value',
+      },
+      'stock-ledger': {
+        title: 'Stock ledger',
+        description: 'Every stock movement with who made it, newest first',
+      },
+      transfers: {
+        title: 'Transfers',
+        description: 'Transfers between stores with their dates and dispatched value',
+      },
+      'goods-receipts': {
+        title: 'Goods receipts',
+        description: 'What arrived from suppliers: invoices, paid and free units, value',
+      },
+      leads: {
+        title: 'Leads',
+        description: 'Leads with their source, stage, estimated value and owner',
+      },
+      projects: {
+        title: 'Projects',
+        description: 'Projects with stage, dates, area, paint and expected value',
+      },
+    },
+  },
+};
+
+export const reportEnumsEn = {
+  reportMovementTypes: {
+    opening: 'Opening stock',
+    purchase_receipt: 'Purchase receipt',
+    purchase_return: 'Purchase return',
+    transfer_in: 'Transfer in',
+    transfer_out: 'Transfer out',
+    sale: 'Sale',
+    sale_return: 'Sale return',
+    adjustment: 'Adjustment',
+    damage: 'Damage or expiry',
+    count_correction: 'Stock count correction',
+  },
+  reportLeadSources: {
+    walk_in: 'Walk-in',
+    phone_call: 'Phone call',
+    referral: 'Referral',
+    architect: 'Architect',
+    contractor: 'Contractor',
+    painter: 'Painter',
+    website: 'Website',
+    social_media: 'Social media',
+    exhibition: 'Exhibition',
+    other: 'Other',
+  },
+};

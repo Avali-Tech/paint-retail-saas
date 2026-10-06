@@ -1,9 +1,13 @@
 import { catalogEn, catalogEnumsEn } from './en-catalog.js';
+import { contractsEn } from './en-contracts.js';
 import { creditEn, creditEnumsEn } from './en-credit.js';
+import { documentsEn } from './en-documents.js';
+import { followUpEnumsEn, followUpsEn } from './en-followups.js';
 import { importsEn } from './en-imports.js';
 import { loyaltyEn, loyaltyEnumsEn } from './en-loyalty.js';
 import { partiesEn, partyEnumsEn } from './en-parties.js';
 import { purchasingEn, purchasingEnumsEn } from './en-purchasing.js';
+import { reportEnumsEn, reportsEn } from './en-reports.js';
 import { stockCountEnumsEn, stockCountsEn } from './en-stock-counts.js';
 import { stockEn, stockEnumsEn } from './en-stock.js';
 import { teamEn } from './en-team.js';
@@ -199,6 +203,7 @@ export const en = {
     openOrders: 'Open',
     dueValue: 'Still due',
     followUps: 'Follow-ups',
+    openFollowUps: 'Open my follow-ups',
     overdue: 'Overdue',
     today: 'Due today',
     stores: 'Stores',
@@ -284,6 +289,10 @@ export const en = {
   ...purchasingEn,
   ...importsEn,
   ...workflowEn,
+  ...followUpsEn,
+  ...contractsEn,
+  ...documentsEn,
+  ...reportsEn,
   ...teamEn,
   /** Names of API values, for label(group, value). */
   enums: {
@@ -295,6 +304,8 @@ export const en = {
     ...transferEnumsEn,
     ...stockCountEnumsEn,
     ...purchasingEnumsEn,
+    ...followUpEnumsEn,
+    ...reportEnumsEn,
   },
   pages: {
     comingSoonTitle: 'Coming soon',
