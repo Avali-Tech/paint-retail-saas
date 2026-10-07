@@ -137,6 +137,7 @@ export const teamHi: Translation<typeof teamEn> = {
       credit: 'क्रेडिट',
       loyalty: 'लॉयल्टी',
       audit: 'ऑडिट लॉग',
+      tax: 'टैक्स और GST',
     },
     organization: {
       manage: 'बिजनेस चलाएं: सेटिंग, दिखावट, लॉगिन नियम और सपोर्ट एक्सेस',
@@ -182,5 +183,9 @@ export const teamHi: Translation<typeof teamEn> = {
       manage: 'मेंबर जोड़ें, पॉइंट दें और रिडीम करें',
     },
     audit: { read: 'ऑडिट लॉग देखें' },
+    tax: {
+      read: 'GST रजिस्ट्रेशन और टैक्स रेट देखें',
+      manage: 'GST रजिस्ट्रेशन, टैक्स कैटेगरी और रेट बदलें',
+    },
   },
 };

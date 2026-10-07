@@ -194,6 +194,7 @@ export interface LargeProductPlan {
   readonly name: string;
   readonly type: (typeof CATEGORIES)[CategoryKey]['type'];
   readonly hsnCode: string;
+  readonly taxCategory: (typeof CATEGORIES)[CategoryKey]['taxCategory'];
   readonly variants: readonly LargeVariantPlan[];
 }
 
@@ -250,6 +251,7 @@ export function buildLargeCatalogue(
       name,
       type: spec.type,
       hsnCode: spec.hsnCode,
+      taxCategory: spec.taxCategory,
       variants,
     };
   });

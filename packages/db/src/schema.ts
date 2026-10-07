@@ -62,6 +62,8 @@ export const organizations = pgTable(
     suspendReason: text('suspend_reason'),
     /** Owners and organization admins must use two-factor sign-in (TOTP). */
     twoFactorRequired: boolean('two_factor_required').notNull().default(true),
+    /** Registered legal name: the default for each store's GST registration. */
+    legalName: text('legal_name'),
     ...timestamps,
   },
   (table) => [
@@ -93,6 +95,13 @@ export const organizations = pgTable(
 /** Where stock is held: a retail store or a godown (warehouse). */
 export const locationType = pgEnum('location_type', ['store', 'godown']);
 
+/** How a store is registered under GST (one registration per state). */
+export const gstRegistrationType = pgEnum('gst_registration_type', [
+  'regular',
+  'composition',
+  'unregistered',
+]);
+
 /** A store or godown belonging to an organisation. */
 export const stores = pgTable(
   'stores',
@@ -108,11 +117,32 @@ export const stores = pgTable(
     city: text('city'),
     state: text('state'),
     gstin: text('gstin'),
+    /** GSTN state code of the registration, e.g. "36" (Telangana); the GSTIN starts with it. */
+    stateCode: text('gst_state_code'),
+    registrationType: gstRegistrationType('gst_registration_type')
+      .notNull()
+      .default('unregistered'),
+    /** As on the registration certificate; defaults to the business's legal name. */
+    legalName: text('legal_name'),
+    tradeName: text('trade_name'),
+    addressLine: text('address_line'),
+    pincode: text('pincode'),
     isActive: boolean('is_active').notNull().default(true),
     ...timestamps,
   },
   (table) => [
     unique('stores_organization_code_unique').on(table.organizationId, table.code),
+    check('stores_gst_state_code_format', sql`${table.stateCode} ~ '^[0-9]{2}$'`),
+    check('stores_pincode_format', sql`${table.pincode} ~ '^[1-9][0-9]{5}$'`),
+    // Releases before GST registrations saved a bare GSTIN without a state code.
+    check(
+      'stores_gstin_in_state',
+      sql`${table.gstin} is null or ${table.stateCode} is null or left(${table.gstin}, 2) = ${table.stateCode}`,
+    ),
+    check(
+      'stores_registration_complete',
+      sql`${table.registrationType} = 'unregistered' or (${table.gstin} is not null and ${table.stateCode} is not null and ${table.legalName} is not null)`,
+    ),
     // Lets other tables reference (organization_id, store_id) so a row can never
     // point at a store from a different organisation.
     unique('stores_organization_id_id_unique').on(table.organizationId, table.id),
@@ -437,6 +467,11 @@ export const parties = pgTable(
     city: text('city'),
     state: text('state'),
     pincode: text('pincode'),
+    /**
+     * GSTN state code of the place of supply. A trigger sets it from the GSTIN
+     * whenever there is one (migration 0052); otherwise it is entered.
+     */
+    placeOfSupply: text('place_of_supply'),
     /** Store the party mainly deals with; null = business-wide (e.g. a supplier). */
     homeStoreId: uuid('home_store_id'),
     notes: text('notes'),
@@ -471,6 +506,7 @@ export const parties = pgTable(
     ),
     check('parties_pan_format', sql`${table.pan} ~ '^[A-Z]{5}[0-9]{4}[A-Z]$'`),
     check('parties_pincode_format', sql`${table.pincode} ~ '^[1-9][0-9]{5}$'`),
+    check('parties_place_of_supply_format', sql`${table.placeOfSupply} ~ '^[0-9]{2}$'`),
     foreignKey({
       name: 'parties_merged_into_fk',
       columns: [table.organizationId, table.mergedIntoId],
@@ -616,6 +652,86 @@ export const categories = pgTable(
   ],
 ).enableRLS();
 
+/**
+ * A business's tax category, e.g. "Paints 18%". Its rate lives in tax_rates, one
+ * row per period, so a change in law is a new row and history stays as it was.
+ * Every business starts with the defaults of seed_default_tax_categories (0052).
+ */
+export const taxCategories = pgTable(
+  'tax_categories',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // Created with the business by a trigger, so they go with it (tenants cannot delete either).
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    /** Set on the categories every business starts with, e.g. "paints"; null for the business's own. */
+    key: text('key'),
+    name: text('name').notNull(),
+    /** The category new products get when none is chosen (before GST registration). */
+    isDefault: boolean('is_default').notNull().default(false),
+    isActive: boolean('is_active').notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('tax_categories_organization_name_unique').on(
+      table.organizationId,
+      sql`lower(${table.name})`,
+    ),
+    unique('tax_categories_organization_key_unique').on(table.organizationId, table.key),
+    unique('tax_categories_organization_id_id_unique').on(table.organizationId, table.id),
+    uniqueIndex('tax_categories_one_default')
+      .on(table.organizationId)
+      .where(sql`${table.isDefault}`),
+    check('tax_categories_default_active', sql`not ${table.isDefault} or ${table.isActive}`),
+    pgPolicy('tax_categories_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * One period of a tax category's rate. Periods never overlap (an exclusion
+ * constraint, 0052); rows are never edited or deleted, except that the open
+ * period is closed (effective_to set) when the next rate is added.
+ */
+export const taxRates = pgTable(
+  'tax_rates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    taxCategoryId: uuid('tax_category_id').notNull(),
+    /** Basis points: 1800 = 18%. */
+    rateBps: integer('rate_bps').notNull(),
+    /** India-time calendar days, both inclusive; effective_to null = still in force. */
+    effectiveFrom: date('effective_from', { mode: 'string' }).notNull(),
+    effectiveTo: date('effective_to', { mode: 'string' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('tax_rates_category_from_unique').on(table.taxCategoryId, table.effectiveFrom),
+    foreignKey({
+      name: 'tax_rates_category_fk',
+      columns: [table.organizationId, table.taxCategoryId],
+      foreignColumns: [taxCategories.organizationId, taxCategories.id],
+    }).onDelete('cascade'),
+    check('tax_rates_rate_range', sql`${table.rateBps} between 0 and 10000`),
+    check(
+      'tax_rates_period_order',
+      sql`${table.effectiveTo} is null or ${table.effectiveTo} >= ${table.effectiveFrom}`,
+    ),
+    pgPolicy('tax_rates_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
 export const productType = pgEnum('product_type', [
   'interior_paint',
   'exterior_paint',
@@ -650,8 +766,16 @@ export const products = pgTable(
     type: productType('type').notNull(),
     description: text('description'),
     hsnCode: text('hsn_code').notNull(),
-    /** GST rate in basis points: 1800 = 18%. */
+    /**
+     * Deprecated: the tax category's rate when the product was last saved, kept
+     * only so the previous release can still read products. Drop in a later release.
+     */
     gstRateBps: integer('gst_rate_bps').notNull(),
+    /**
+     * Where the GST rate comes from. Null only for products the previous release
+     * created during a rollout; the API sets it on every create (migration 0052).
+     */
+    taxCategoryId: uuid('tax_category_id'),
     isActive: boolean('is_active').notNull().default(true),
     ...timestamps,
   },
@@ -673,6 +797,12 @@ export const products = pgTable(
       columns: [table.organizationId, table.categoryId],
       foreignColumns: [categories.organizationId, categories.id],
     }).onDelete('restrict'),
+    foreignKey({
+      name: 'products_tax_category_fk',
+      columns: [table.organizationId, table.taxCategoryId],
+      foreignColumns: [taxCategories.organizationId, taxCategories.id],
+    }).onDelete('restrict'),
+    index('products_tax_category_idx').on(table.organizationId, table.taxCategoryId),
     check('products_hsn_format', sql`${table.hsnCode} ~ '^[0-9]{4}([0-9]{2}){0,2}$'`),
     check('products_gst_rate_range', sql`${table.gstRateBps} between 0 and 10000`),
     pgPolicy('products_tenant_isolation', {

@@ -1,7 +1,13 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { OWNER, json, type FakeHandler } from '../test-support/fake-api.js';
-import { APEX, BRANDS, CATEGORIES, product } from '../test-support/inventory-fixtures.js';
+import {
+  APEX,
+  BRANDS,
+  CATEGORIES,
+  product,
+  TAX_OPTIONS,
+} from '../test-support/inventory-fixtures.js';
 import { renderApp } from '../test-support/render-app.js';
 import { initialValues } from './ProductFormPage.js';
 
@@ -14,6 +20,7 @@ function renderForm(path: string, routes: Record<string, FakeHandler> = {}) {
       'GET /auth/me': () => json(OWNER),
       'GET /brands': () => json(BRANDS),
       'GET /categories': () => json(CATEGORIES),
+      'GET /tax-categories/options': () => json(TAX_OPTIONS),
       'GET /products/:id': () => json(APEX),
       'GET /stock': () => json({ items: [], total: 0 }),
       ...routes,
@@ -26,7 +33,7 @@ describe('initialValues', () => {
     expect(initialValues(null)).toMatchObject({
       brandId: '',
       hsnCode: '3209',
-      gstRatePercent: '18',
+      taxCategoryId: '',
       variants: [{ sku: '', unit: 'l' }],
     });
     expect(
@@ -43,7 +50,7 @@ describe('initialValues', () => {
       type: 'exterior_paint',
       description: 'Tough',
       hsnCode: '3209',
-      gstRatePercent: '18',
+      taxCategoryId: 'tax-paints',
       isActive: true,
       variants: [],
     });
@@ -71,7 +78,11 @@ describe('NewProductPage', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Category' }), 'Emulsions');
     await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Tractor Emulsion');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Type' }), 'Interior paint');
-    await user.selectOptions(screen.getByRole('combobox', { name: 'GST rate' }), '28%');
+    const tax = screen.getByRole('combobox', { name: 'Tax category' });
+    expect(tax).toHaveDisplayValue('Default (Paints 18%)');
+    // user-event matches an option's HTML, where & is &amp;; pick it by value.
+    await user.selectOptions(tax, 'tax-putty');
+    expect(screen.getByText('GST 18% today')).toBeInTheDocument();
     await user.type(screen.getByRole('textbox', { name: 'Description' }), 'Smooth finish');
     const first = screen.getByRole('group', { name: 'Size / pack 1' });
     await user.type(within(first).getByRole('textbox', { name: 'SKU' }), 'tr-1l');
@@ -99,7 +110,7 @@ describe('NewProductPage', () => {
       name: 'Tractor Emulsion',
       type: 'interior_paint',
       hsnCode: '3209',
-      gstRatePercent: 28,
+      taxCategoryId: 'tax-putty',
       description: 'Smooth finish',
       variants: [
         { sku: 'TR-1L', packSize: 1, unit: 'l', label: null, mrpPaise: 30_000, barcodes: [] },
@@ -182,7 +193,6 @@ describe('EditProductPage', () => {
       name: 'Apex Ultima',
       type: 'exterior_paint',
       hsnCode: '3209',
-      gstRatePercent: 18,
       categoryId: null,
       description: null,
       isActive: false,
@@ -234,5 +244,69 @@ describe('EditProductPage', () => {
       'GET /products/:id': () => json({ message: 'Product not found' }, 404),
     });
     expect(await screen.findByText('Could not load this product')).toBeInTheDocument();
+  });
+});
+
+describe('tax category', () => {
+  it('must be chosen for a new product once the business is registered for GST', async () => {
+    let body: unknown;
+    const { user } = renderForm('/products/new', {
+      'GET /tax-categories/options': () => json({ ...TAX_OPTIONS, gstRegistered: true }),
+      'POST /products': (request) => {
+        body = request.body;
+        return json(product({ id: 'product-new' }), 201);
+      },
+    });
+    const tax = await screen.findByRole('combobox', { name: /Tax category/ });
+    expect(tax).toHaveDisplayValue('Choose a tax category');
+    await user.click(screen.getByRole('button', { name: 'Add product' }));
+    expect(
+      screen.getByText('Choose a tax category: the business is registered for GST'),
+    ).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Brand' }), 'Asian Paints');
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Wall Putty');
+    await user.selectOptions(tax, 'Starts later 5%');
+    // A category whose first rate starts later has no rate today.
+    expect(screen.queryByText(/today/)).toBeNull();
+    const first = screen.getByRole('group', { name: 'Size / pack 1' });
+    await user.type(within(first).getByRole('textbox', { name: 'SKU' }), 'WP-1');
+    await user.type(within(first).getByRole('textbox', { name: 'Size' }), '1');
+    await user.click(screen.getByRole('button', { name: 'Add product' }));
+    await waitFor(() => {
+      expect(body).toMatchObject({ taxCategoryId: 'tax-later' });
+    });
+  });
+
+  it('offers no default without one, and keeps an existing product’s inactive category', async () => {
+    const view = renderForm('/products/new', {
+      'GET /tax-categories/options': () =>
+        json({ gstRegistered: false, categories: TAX_OPTIONS.categories.slice(1) }),
+    });
+    expect(await screen.findByRole('combobox', { name: 'Tax category' })).toHaveDisplayValue(
+      'Choose a tax category',
+    );
+    view.unmount();
+
+    let body: unknown;
+    const { user } = renderForm('/products/product-apex/edit', {
+      'GET /products/:id': () => json(product({ taxCategory: { id: 'tax-old', name: 'Old 12%' } })),
+      'PATCH /products/:id': (request) => {
+        body = request.body;
+        return json(product());
+      },
+    });
+    const tax = await screen.findByRole('combobox', { name: 'Tax category' });
+    expect(
+      within(tax)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['Paints 18%', 'Putty & fillers 18%', 'Starts later 5%', 'Old 12%']);
+    expect(tax).toHaveDisplayValue('Old 12%');
+    await user.selectOptions(tax, 'Paints 18%');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(body).toMatchObject({ taxCategoryId: 'tax-paints' });
+    });
   });
 });

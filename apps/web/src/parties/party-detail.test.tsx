@@ -40,6 +40,7 @@ describe('PartyDetailPage (customer 360)', { timeout: 30_000 }, () => {
     expect(within(contact).getByText('Apex Builders Private Limited')).toBeVisible();
     expect(within(contact).getByText('Pays on time')).toBeVisible();
     expect(within(contact).getByText('36AABCU9603R1ZO')).toBeVisible();
+    expect(within(contact).getByText('36 · Telangana')).toBeVisible();
     expect(within(contact).getByText('Builder')).toBeVisible();
     expect(within(contact).getByText('WhatsApp')).toBeVisible();
     expect(await within(contact).findByText('HYD · Hyderabad')).toBeVisible();

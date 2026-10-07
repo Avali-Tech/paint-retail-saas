@@ -1,5 +1,5 @@
 import { schema } from '@paint/db';
-import { isValidGstin, isValidPan, isValidPincode } from '@paint/shared';
+import { isCurrentGstStateCode, isValidGstin, isValidPan, isValidPincode } from '@paint/shared';
 import { z } from 'zod';
 import { email, phone } from '../auth/auth.schemas.js';
 
@@ -19,6 +19,8 @@ export const pan = z
   .trim()
   .toUpperCase()
   .refine(isValidPan, 'Enter a valid 10-character PAN');
+/** GSTN state code of the place of supply; taken from the GSTIN when there is one. */
+export const placeOfSupply = z.string().trim().refine(isCurrentGstStateCode, 'Choose a state');
 export const pincode = z.string().trim().refine(isValidPincode, 'Enter a 6-digit PIN code');
 const tags = z.array(z.string().trim().toLowerCase().min(1).max(30)).max(20).transform(unique);
 const roles = z.array(z.enum(PARTY_ROLES)).min(1).max(PARTY_ROLES.length).transform(unique);
@@ -44,6 +46,7 @@ export const createPartySchema = z
     city: text(80).optional(),
     state: text(80).optional(),
     pincode: pincode.optional(),
+    placeOfSupply: placeOfSupply.optional(),
     homeStoreId: z.uuid().optional(),
     notes: text(2000).optional(),
     tags: tags.default([]),
@@ -73,6 +76,7 @@ export const updatePartySchema = z
     city: text(80).nullable().optional(),
     state: text(80).nullable().optional(),
     pincode: pincode.nullable().optional(),
+    placeOfSupply: placeOfSupply.nullable().optional(),
     homeStoreId: z.uuid().nullable().optional(),
     notes: text(2000).nullable().optional(),
     tags: tags.optional(),

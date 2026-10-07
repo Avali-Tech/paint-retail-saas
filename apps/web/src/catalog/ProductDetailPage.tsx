@@ -194,6 +194,11 @@ function ProductView({ product }: { readonly product: Product }) {
             <span className="muted">
               {t('products.detail.tax', { hsn: product.hsnCode, rate: product.gstRatePercent })}
             </span>
+            <span className="muted">
+              {product.taxCategory === null
+                ? t('products.detail.noTaxCategory')
+                : t('products.detail.taxCategory', { name: product.taxCategory.name })}
+            </span>
           </span>
         }
         actions={

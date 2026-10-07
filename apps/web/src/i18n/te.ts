@@ -19,6 +19,7 @@ import { reportEnumsTe, reportsTe } from './te-reports.js';
 import { stockCountEnumsTe, stockCountsTe } from './te-stock-counts.js';
 import { stockEnumsTe, stockTe } from './te-stock.js';
 import { supportAccessTe } from './te-support-access.js';
+import { taxTe, taxEnumsTe } from './te-tax.js';
 import { teamTe } from './te-team.js';
 import { transferEnumsTe, transfersTe } from './te-transfers.js';
 import { workflowTe } from './te-workflow.js';
@@ -333,6 +334,7 @@ export const te: Messages = {
   ...printTe,
   ...supportAccessTe,
   ...brandingTe,
+  ...taxTe,
   enums: {
     quickActions: {
       new_customer: '+ కస్టమర్',
@@ -362,6 +364,7 @@ export const te: Messages = {
     ...leadEnumsTe,
     ...followUpEnumsTe,
     ...reportEnumsTe,
+    ...taxEnumsTe,
   },
   pages: {
     notFound: 'ఈ చిరునామాలో ఏ స్క్రీన్ లేదు. లింక్‌ను చూడండి, లేదా మెనూ లేదా వెతకడం ఉపయోగించండి.',

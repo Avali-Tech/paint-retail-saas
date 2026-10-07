@@ -1,0 +1,20 @@
+/* Settings, Tax & GST. Design tokens only (theme-guard.test.ts). */
+
+.tax-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.record-list .tax-rates {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.record-list .tax-rates li {
+  padding: 0;
+  border-bottom: 0;
+}

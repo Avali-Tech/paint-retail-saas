@@ -116,6 +116,7 @@ describe('navigation by role', () => {
       'Reports',
       'Team',
       'Appearance',
+      'Tax & GST',
       'Support access',
       // Everyone's own sign-in settings, next to signing out.
       'Account security',
@@ -202,6 +203,7 @@ describe('navigation by role', () => {
       'Reports',
       'Team',
       'Appearance',
+      'Tax & GST',
       'Support access',
       'Account security',
     ]);

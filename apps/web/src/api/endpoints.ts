@@ -16,6 +16,7 @@ import { reportEndpoints } from './reports.js';
 import { stockCountEndpoints } from './stock-counts.js';
 import { stockEndpoints } from './stock.js';
 import { supportRequestEndpoints } from '../support-access/grants.js';
+import { taxEndpoints } from './tax.js';
 import { teamEndpoints } from './team.js';
 import { transferEndpoints } from './transfers.js';
 import type {
@@ -86,6 +87,7 @@ export function endpoints(api: ApiClient) {
     parties: partyEndpoints(api),
     credit: creditEndpoints(api),
     loyalty: loyaltyEndpoints(api),
+    tax: taxEndpoints(api),
     catalog: catalogEndpoints(api),
     stock: stockEndpoints(api),
     transfers: transferEndpoints(api),

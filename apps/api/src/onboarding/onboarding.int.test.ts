@@ -86,8 +86,8 @@ describe('onboarding checklist', () => {
     });
     await api(owner).post('/imports/products', {
       csv: toCsv([
-        ['brand', 'product', 'type', 'hsn_code', 'gst_percent', 'sku', 'pack_size', 'unit'],
-        ['Asian Paints', 'Apex', 'exterior_paint', '3209', '18', 'APX-1L', '1', 'l'],
+        ['brand', 'product', 'type', 'hsn_code', 'tax_category', 'sku', 'pack_size', 'unit'],
+        ['Asian Paints', 'Apex', 'exterior_paint', '3209', 'Paints 18%', 'APX-1L', '1', 'l'],
       ]),
     });
     await api(owner).post('/imports/parties', {

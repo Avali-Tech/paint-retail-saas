@@ -91,7 +91,6 @@ async function newProduct(
       name: `Stock Product ${String(seq)}`,
       type: 'interior_paint',
       hsnCode: '3209',
-      gstRatePercent: 18,
       variants: [
         { sku: `${sku}-1L`, packSize: 1, unit: 'l' },
         { sku: `${sku}-20L`, packSize: 20, unit: 'l' },

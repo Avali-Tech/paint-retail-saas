@@ -81,6 +81,7 @@ export const PRODUCT: Product = {
   description: null,
   hsnCode: '3209',
   gstRatePercent: 18,
+  taxCategory: { id: 'tax-paints', name: 'Paints 18%' },
   isActive: true,
   brand: { id: 'b-1', name: 'Asian Paints' },
   category: null,

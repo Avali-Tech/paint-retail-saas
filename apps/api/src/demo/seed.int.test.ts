@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { findStockMismatches, schema } from '@paint/db';
+import { isValidGstin, type GstRegistrations } from '@paint/shared';
 import { withPgClient } from '@paint/testing';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
@@ -243,6 +244,47 @@ describe('the demo business', () => {
     expect(renewals.total).toBeGreaterThan(0);
     const notifications = await get<{ unread: number }>('/notifications');
     expect(notifications.unread).toBeGreaterThan(0);
+  });
+
+  it('is registered for GST in Telangana, with HSN codes, tax categories and customers by state', async () => {
+    const registrations = await get<GstRegistrations>('/gst-registrations');
+    expect(registrations.legalName).toBe('Sharma Paints & Hardware');
+    expect(registrations.pan).toMatch(/^[A-Z]{3}F[A-Z]\d{4}[A-Z]$/);
+    expect(
+      registrations.stores.map((store) => [store.code, store.registrationType, store.stateCode]),
+    ).toEqual([
+      ['AMP', 'regular', '36'],
+      ['KPL', 'regular', '36'],
+      ['SEC', 'regular', '36'],
+    ]);
+    expect(registrations.stores.every((store) => isValidGstin(String(store.gstin)))).toBe(true);
+
+    const products = await get<{
+      items: { hsnCode: string; type: string; taxCategory: { name: string } | null }[];
+    }>('/products?limit=200');
+    const taxOf = (type: string) =>
+      new Set(
+        products.items
+          .filter((product) => product.type === type)
+          .map((product) => `${product.hsnCode} ${String(product.taxCategory?.name)}`),
+      );
+    expect(taxOf('interior_paint')).toEqual(new Set(['3209 Paints 18%']));
+    expect(taxOf('enamel')).toEqual(new Set(['3208 Paints 18%']));
+    expect(taxOf('putty')).toEqual(new Set(['3214 Putty & fillers 18%']));
+    expect(taxOf('wood_finish')).toEqual(new Set(['3208 Varnishes & wood finishes 18%']));
+    expect(taxOf('tool')).toEqual(new Set(['9603 Brushes & rollers 18%']));
+
+    const customers = await get<{
+      items: { displayName: string; city: string; placeOfSupply: string; gstin: string | null }[];
+    }>('/parties?limit=200');
+    const andhra = customers.items.filter((party) => party.placeOfSupply === '37');
+    expect(andhra.map((party) => party.city).sort()).toEqual(['Guntur', 'Vijayawada']);
+    expect(andhra.find((party) => party.city === 'Vijayawada')?.gstin?.slice(0, 2)).toBe('37');
+    expect(
+      customers.items
+        .filter((party) => party.placeOfSupply !== '37')
+        .every((p) => p.placeOfSupply === '36'),
+    ).toBe(true);
   });
 
   it('has near-duplicate parties to merge', async () => {

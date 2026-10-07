@@ -1,5 +1,6 @@
 import { buildCatalogue, BRAND_NAMES, type BrandName, type ProductPlan } from './catalogue.js';
 import {
+  ANDHRA_PRADESH,
   gstinFor,
   LOCALITIES,
   panFor,
@@ -8,6 +9,7 @@ import {
   STREETS,
   type Locality,
   type PanHolder,
+  TELANGANA,
 } from './identity.js';
 import { Random } from './random.js';
 
@@ -57,6 +59,8 @@ export interface StorePlan {
   readonly code: StoreKey;
   readonly city: 'Hyderabad';
   readonly state: 'Telangana';
+  /** GST state code of the registration; all three branches are in Telangana. */
+  readonly stateCode: typeof TELANGANA;
   readonly gstin: string;
   readonly locality: Locality;
 }
@@ -151,6 +155,9 @@ export interface PartyPlan {
   readonly email: string | null;
   readonly gstin: string | null;
   readonly addressLine: string;
+  readonly city: string;
+  /** GST state code of the party's state (its place of supply). */
+  readonly stateCode: string;
   readonly pincode: string;
   /** Null for business-wide parties (suppliers, architects). */
   readonly homeStore: StoreKey | null;
@@ -225,12 +232,13 @@ export function buildPlan(size: StorySize, seed = DEMO_SEED): DemoPlan {
     code: key,
     city: 'Hyderabad',
     state: 'Telangana',
-    // Branches in one state share the business's GSTIN.
+    stateCode: TELANGANA,
+    // Branches in one state share the business's GSTIN (one registration per state).
     gstin: gstinFor(businessPan),
     locality,
   }));
   const catalogue = buildCatalogue(random, size === 'full' ? 1 : 4);
-  const parties = buildParties(random, phones, SEGMENT_COUNTS[size]);
+  const parties = buildParties(random, phones, SEGMENT_COUNTS[size]).map(acrossTheBorder);
   return {
     size,
     stores,
@@ -239,6 +247,32 @@ export function buildPlan(size: StorySize, seed = DEMO_SEED): DemoPlan {
     catalogue,
     parties,
     historyDays: size === 'full' ? 60 : 20,
+  };
+}
+
+/**
+ * Two customers in Andhra Pradesh, so the demo has inter-state sales: a builder
+ * registered there (its GSTIN moves to state 37) and a retail customer without one.
+ */
+const ANDHRA_CUSTOMERS: Readonly<
+  Record<string, Pick<PartyPlan, 'city' | 'pincode' | 'addressLine'>>
+> = {
+  'builder-1': {
+    city: 'Vijayawada',
+    pincode: '520010',
+    addressLine: '40-1-52, MG Road, Benz Circle',
+  },
+  'retail-1': { city: 'Guntur', pincode: '522002', addressLine: '7-12-3, Brodipet' },
+};
+
+function acrossTheBorder(party: PartyPlan): PartyPlan {
+  const address = ANDHRA_CUSTOMERS[party.key];
+  if (!address) return party;
+  return {
+    ...party,
+    ...address,
+    stateCode: ANDHRA_PRADESH,
+    gstin: party.gstin === null ? null : gstinFor(party.gstin.slice(2, 12), 1, ANDHRA_PRADESH),
   };
 }
 
@@ -288,6 +322,8 @@ function buildParties(
       email: null,
       gstin,
       addressLine: `${String(random.int(1, 999))}-${String(random.int(1, 99))}, ${random.pick(STREETS)}, ${locality.area}`,
+      city: 'Hyderabad',
+      stateCode: TELANGANA,
       pincode: locality.pincode,
       homeStore: nearestStore(locality),
       customerType: null,

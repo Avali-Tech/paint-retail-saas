@@ -32,6 +32,7 @@ import { ReportsModule } from './reports/reports.module.js';
 import { SearchModule } from './search/search.module.js';
 import { StockCountsModule } from './stock-counts/stock-counts.module.js';
 import { StoresModule } from './stores/stores.module.js';
+import { TaxModule } from './tax/tax.module.js';
 import { TransfersModule } from './transfers/transfers.module.js';
 
 export interface AppModuleOptions {
@@ -82,6 +83,7 @@ export class AppModule {
         SearchModule,
         StockCountsModule,
         StoresModule,
+        TaxModule,
         TransfersModule,
       ],
     };

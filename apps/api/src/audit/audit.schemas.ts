@@ -22,6 +22,9 @@ export const AUDIT_AREAS = {
   organization_branding: 'Branding',
   organization_logos: 'Logo',
   parties: 'Party merges',
+  tax_categories: 'Tax categories',
+  tax_rates: 'Tax rates',
+  stores: 'GST registrations',
 } as const;
 export type AuditTable = keyof typeof AUDIT_AREAS;
 

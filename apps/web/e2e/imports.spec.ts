@@ -5,10 +5,10 @@ import { expectUsable } from './checks.js';
 import { createBusiness, signInWithPassword, uniquePhone } from './support.js';
 
 const PRODUCTS_CSV = [
-  'brand,product,type,hsn_code,gst_percent,sku,pack_size,unit,mrp,selling_price',
-  'Asian Paints,Apex Ultima,exterior_paint,3209,18,APX-ULT-1L,1,l,650.00,610.00',
-  'Asian Paints,Apex Ultima,exterior_paint,3209,18,APX-ULT-4L,4,l,2400.00,2300.00',
-  'Berger,Easy Clean,interior_paint,3209,18,BEC-1L,1,l,520.00,',
+  'brand,product,type,hsn_code,tax_category,sku,pack_size,unit,mrp,selling_price',
+  'Asian Paints,Apex Ultima,exterior_paint,3209,Paints 18%,APX-ULT-1L,1,l,650.00,610.00',
+  'Asian Paints,Apex Ultima,exterior_paint,3209,Paints 18%,APX-ULT-4L,4,l,2400.00,2300.00',
+  'Berger,Easy Clean,interior_paint,3209,Paints 18%,BEC-1L,1,l,520.00,',
 ].join('\r\n');
 
 /** A minimal .xlsx: the parts Excel needs for one sheet of inline strings and numbers. */
@@ -114,8 +114,8 @@ test('lists the problems in a bad file and will not import it', async ({ page })
   await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
   await page.goto('/imports?kind=products');
   const bad = PRODUCTS_CSV.replace(
-    'exterior_paint,3209,18,APX-ULT-4L',
-    'emulsion,3209,18,APX-ULT-4L',
+    'exterior_paint,3209,Paints 18%,APX-ULT-4L',
+    'emulsion,3209,Paints 18%,APX-ULT-4L',
   );
   await chooseFile(page, 'bad.csv', 'text/csv', Buffer.from(bad));
   await expect(page.getByText('Problems in bad.csv: 1.', { exact: false })).toBeVisible();

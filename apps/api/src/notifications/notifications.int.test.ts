@@ -129,7 +129,6 @@ beforeAll(async () => {
         name: 'Apex',
         type: 'exterior_paint',
         hsnCode: '3209',
-        gstRatePercent: 18,
         variants: [{ sku: 'APX-1L', packSize: 1, unit: 'l' }],
       })
     ).json<{ variants: { id: string }[] }>().variants[0]?.id,

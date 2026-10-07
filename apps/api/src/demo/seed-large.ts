@@ -195,6 +195,8 @@ export async function seedLargeShop(
           name: product.name,
           type: product.type,
           hsnCode: product.hsnCode,
+          taxCategoryId: context.taxCategoryId(product.taxCategory),
+          // Every demo category is at 18%; the API copies the rate the same way.
           gstRateBps: 1800,
           description: `${product.brand} ${product.name}`,
         });

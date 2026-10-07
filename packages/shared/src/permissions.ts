@@ -29,6 +29,8 @@ export const PERMISSIONS = [
   'loyalty:read',
   'loyalty:manage',
   'audit:read',
+  'tax:read',
+  'tax:manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
