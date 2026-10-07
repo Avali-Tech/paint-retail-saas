@@ -54,7 +54,7 @@ describe('ReorderRulesPage', () => {
         .map((row) => row.textContent),
     ).toEqual([
       'ProductStoreMinimumReorder atOrder up toActions',
-      'Asian Paints Apex UltimaAPX-1LHYD2520EditRemove',
+      'Asian Paints Apex UltimaAPX-1L · 1 lHYD2520EditRemove',
     ]);
     await screen.findByRole('option', { name: 'PUN · Pune' });
     await user.selectOptions(screen.getByRole('combobox', { name: 'Store' }), 'PUN · Pune');

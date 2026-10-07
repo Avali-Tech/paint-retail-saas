@@ -53,6 +53,7 @@ export interface AuditPage {
 const FIELD_LABELS: Record<string, string> = {
   mrp_paise: 'MRP',
   selling_price_paise: 'Selling price',
+  label: 'Label',
   key: 'Key',
   name: 'Name',
   permission: 'Permission',

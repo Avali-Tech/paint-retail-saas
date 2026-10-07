@@ -131,6 +131,18 @@ beforeAll(async () => {
     headers: bearer(owner),
     payload: { isActive: false },
   });
+  // Hardware: one product, a labelled piece per width.
+  await o.post('/products', {
+    brandId: await idOf(o.post('/brands', { name: 'Pidilite' })),
+    name: 'Pidilite Masking Tape',
+    type: 'tool',
+    hsnCode: '3919',
+    gstRatePercent: 18,
+    variants: [
+      { sku: 'MT-24', packSize: 1, unit: 'piece', label: '24 mm' },
+      { sku: 'MT-48', packSize: 1, unit: 'piece', label: '48 mm', barcodes: ['8901234567029'] },
+    ],
+  });
   await o.post('/products', {
     brandId: berger,
     name: 'WeatherCoat',
@@ -247,6 +259,13 @@ describe('search', () => {
     });
     expect(titles(barcode.products)).toEqual(['Asian Paints Apex Ultima 1 l']);
     expect(brand.products?.map((hit) => hit.subtitle)).toEqual(['WC-1L']);
+    // Labelled pieces: found by their label, named by it, the brand said once.
+    expect(titles((await search(cashier, 'tape 48')).products)).toEqual([
+      'Pidilite Masking Tape 48 mm',
+    ]);
+    expect(titles((await search(cashier, '8901234567029')).products)).toEqual([
+      'Pidilite Masking Tape 48 mm',
+    ]);
     // A discontinued pack is not offered.
     expect((await search(cashier, 'apx')).products?.map((hit) => hit.subtitle)).toEqual([
       'APX-ULT-1L',

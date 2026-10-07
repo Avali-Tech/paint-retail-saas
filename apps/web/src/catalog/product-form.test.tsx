@@ -73,20 +73,21 @@ describe('NewProductPage', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Type' }), 'Interior paint');
     await user.selectOptions(screen.getByRole('combobox', { name: 'GST rate' }), '28%');
     await user.type(screen.getByRole('textbox', { name: 'Description' }), 'Smooth finish');
-    const first = screen.getByRole('group', { name: 'Pack size 1' });
+    const first = screen.getByRole('group', { name: 'Size / pack 1' });
     await user.type(within(first).getByRole('textbox', { name: 'SKU' }), 'tr-1l');
     await user.type(within(first).getByRole('textbox', { name: 'Size' }), '1');
     await user.type(within(first).getByRole('textbox', { name: 'MRP (₹)' }), '300');
 
-    await user.click(screen.getByRole('button', { name: 'Add another pack size' }));
-    const second = screen.getByRole('group', { name: 'Pack size 2' });
+    await user.click(screen.getByRole('button', { name: 'Add another size / pack' }));
+    const second = screen.getByRole('group', { name: 'Size / pack 2' });
     await user.type(within(second).getByRole('textbox', { name: 'SKU' }), 'TR-4L');
     await user.type(within(second).getByRole('textbox', { name: 'Size' }), '4');
     await user.selectOptions(within(second).getByRole('combobox', { name: 'Unit' }), 'kg');
+    await user.type(within(second).getByRole('textbox', { name: 'Label' }), 'Grit 120');
     await user.type(within(second).getByRole('textbox', { name: 'Barcodes' }), '8901234567890');
-    await user.click(screen.getByRole('button', { name: 'Add another pack size' }));
-    await user.click(screen.getByRole('button', { name: 'Remove pack size 3' }));
-    expect(screen.queryByRole('group', { name: 'Pack size 3' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Add another size / pack' }));
+    await user.click(screen.getByRole('button', { name: 'Remove size / pack 3' }));
+    expect(screen.queryByRole('group', { name: 'Size / pack 3' })).toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'Add product' }));
     await waitFor(() => {
@@ -101,8 +102,14 @@ describe('NewProductPage', () => {
       gstRatePercent: 28,
       description: 'Smooth finish',
       variants: [
-        { sku: 'TR-1L', packSize: 1, unit: 'l', mrpPaise: 30_000, barcodes: [] },
-        { sku: 'TR-4L', packSize: 4, unit: 'kg', barcodes: ['8901234567890'] },
+        { sku: 'TR-1L', packSize: 1, unit: 'l', label: null, mrpPaise: 30_000, barcodes: [] },
+        {
+          sku: 'TR-4L',
+          packSize: 4,
+          unit: 'kg',
+          label: 'Grit 120',
+          barcodes: ['8901234567890'],
+        },
       ],
     });
     expect(await screen.findByText('Product added')).toBeInTheDocument();
@@ -163,7 +170,7 @@ describe('EditProductPage', () => {
     ).toBeVisible();
     // The product's own brand stays available even though it is inactive.
     expect(await screen.findByRole('combobox', { name: 'Brand' })).toHaveDisplayValue('Old Brand');
-    expect(screen.queryByRole('group', { name: 'Pack size 1' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Size / pack 1' })).toBeNull();
     await user.clear(screen.getByRole('textbox', { name: 'Description' }));
     await user.click(screen.getByRole('checkbox', { name: 'Active' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));

@@ -1,5 +1,11 @@
 import { schema, type Transaction } from '@paint/db';
-import { GST_RATES_PERCENT, percentToBasisPoints } from '@paint/shared';
+import {
+  GST_RATES_PERCENT,
+  VARIANT_LABEL_MAX_LENGTH,
+  percentToBasisPoints,
+  variantName,
+  variantTitle,
+} from '@paint/shared';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AuthContext } from '../auth/auth-context.js';
@@ -35,6 +41,7 @@ const row = z
     sku: required(sku),
     pack_size: required(decimal.pipe(packSize)),
     unit: required(choice(UNITS)),
+    variant_label: optional(text(1, VARIANT_LABEL_MAX_LENGTH)),
     category: optional(catalogName),
     description: optional(text(1, 2000)),
     mrp: optional(rupees),
@@ -50,6 +57,7 @@ const row = z
     sku: cells.sku,
     packSize: cells.pack_size,
     unit: cells.unit,
+    label: cells.variant_label,
     category: cells.category,
     description: cells.description,
     mrpPaise: cells.mrp,
@@ -77,6 +85,9 @@ interface PlannedRow {
 }
 
 const lower = (value: string) => value.toLowerCase();
+/** Packs of a product are told apart by size, unit and label (no label is one value; any case). */
+const packKey = (packSize: number, unit: string, label: string | null | undefined) =>
+  `${String(packSize)}|${unit}|${lower(label ?? '')}`;
 const familyKey = (value: ProductRow) => `${lower(value.brand)}|${lower(value.product)}`;
 const REQUIRED_FAMILY_FIELDS = [
   ['type', 'type'],
@@ -117,6 +128,12 @@ export const productsImporter: Importer<ProductRow> = {
     },
     { name: 'pack_size', required: true, description: 'Pack size, such as 1 or 3.6', example: '1' },
     { name: 'unit', required: true, description: `One of: ${UNITS.join(', ')}`, example: 'l' },
+    {
+      name: 'variant_label',
+      required: false,
+      description: `What tells same-sized packs apart, such as 2 inch, Grit 120 or Red; up to ${String(VARIANT_LABEL_MAX_LENGTH)} characters`,
+      example: '',
+    },
     {
       name: 'category',
       required: false,
@@ -178,8 +195,13 @@ export const productsImporter: Importer<ProductRow> = {
           }
         }
       }
-      const packRow = packs.check(`${key}|${String(value.packSize)}|${value.unit}`, parsed.row);
-      if (packRow) problems.push(['pack_size', `Same pack size as row ${String(packRow)}`]);
+      const packRow = packs.check(
+        `${key}|${packKey(value.packSize, value.unit, value.label)}`,
+        parsed.row,
+      );
+      if (packRow) {
+        problems.push(['pack_size', `Same pack size and label as row ${String(packRow)}`]);
+      }
 
       if (problems.length > 0) {
         for (const [column, message] of problems) fail(parsed.row, column, message);
@@ -310,17 +332,19 @@ export const productsImporter: Importer<ProductRow> = {
           `${value.sku} already belongs to ${match.brandName} ${match.productName}`,
         ]);
       }
+      // A blank label keeps the saved one, so the pack is compared with the label it will have.
+      const label = value.label ?? match?.variant.label;
+      const pack = packKey(value.packSize, value.unit, label);
       const clash = variantRows.find(
         ({ variant }) =>
           variant.productId === product?.id &&
-          variant.packSize === value.packSize &&
-          variant.unit === value.unit &&
+          packKey(variant.packSize, variant.unit, variant.label) === pack &&
           variant.sku !== value.sku,
       );
       if (clash) {
         problems.push([
           'pack_size',
-          `${value.product} already has a ${String(value.packSize)} ${value.unit} pack (SKU ${clash.variant.sku})`,
+          `${value.product} already has a ${variantName({ ...value, label })} pack (SKU ${clash.variant.sku})`,
         ]);
       }
       const newBarcodes: string[] = [];
@@ -348,6 +372,7 @@ export const productsImporter: Importer<ProductRow> = {
           familyChanged(family, product) ||
           variant.packSize !== value.packSize ||
           variant.unit !== value.unit ||
+          (value.label !== undefined && value.label !== variant.label) ||
           (value.mrpPaise !== undefined && value.mrpPaise !== variant.mrpPaise) ||
           (value.sellingPricePaise !== undefined &&
             value.sellingPricePaise !== variant.sellingPricePaise) ||
@@ -368,7 +393,7 @@ export const productsImporter: Importer<ProductRow> = {
       rows: planned.map(({ row, value, action }): RowPlan => ({
         row,
         action,
-        label: `${value.sku} · ${value.brand} ${value.product} ${String(value.packSize)} ${value.unit}`,
+        label: `${value.sku} · ${variantTitle(value.brand, value.product, value)}`,
       })),
       apply: (applyTx) =>
         apply(applyTx, auth, planned, { brandIds, categoryIds, existingProduct, familyChanged }),
@@ -457,6 +482,7 @@ async function apply(
           sku: value.sku,
           packSize: value.packSize,
           unit: value.unit,
+          label: value.label ?? null,
           ...prices,
         })
         .returning({ id: productVariants.id });
@@ -464,7 +490,13 @@ async function apply(
     } else if (action === 'update') {
       await tx
         .update(productVariants)
-        .set({ packSize: value.packSize, unit: value.unit, ...prices, updatedAt: sql`now()` })
+        .set({
+          packSize: value.packSize,
+          unit: value.unit,
+          ...(value.label === undefined ? {} : { label: value.label }),
+          ...prices,
+          updatedAt: sql`now()`,
+        })
         .where(eq(productVariants.id, id));
     }
     if (newBarcodes.length > 0) {

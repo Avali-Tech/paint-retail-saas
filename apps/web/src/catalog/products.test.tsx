@@ -63,15 +63,24 @@ describe('ProductsPage', () => {
       id: 'product-old',
       name: 'Old Enamel',
       isActive: false,
-      variants: [variant({ mrpPaise: null, sellingPricePaise: null })],
+      variants: [
+        variant({ mrpPaise: null, sellingPricePaise: null }),
+        variant({
+          id: 'v-red',
+          sku: 'OE-RED',
+          label: 'Red',
+          mrpPaise: null,
+          sellingPricePaise: null,
+        }),
+      ],
     });
     renderProducts({ 'GET /products': () => json(page([APEX, inactive])) });
     const table = await screen.findByRole('table', { name: 'Products' });
     const rows = within(table).getAllByRole('row');
     expect(rows.map((row) => row.textContent)).toEqual([
-      'ProductBrandTypePack sizesPrice',
+      'ProductBrandTypeSizes / packsPrice',
       'Apex UltimaAsian PaintsExterior paint1 l, 4 l₹450.00 – ₹1,700.00',
-      'Old Enamel InactiveAsian PaintsExterior paint1 l—',
+      'Old Enamel InactiveAsian PaintsExterior paint1 l, Red · 1 l—',
     ]);
     expect(screen.getByRole('link', { name: '+ Product' })).toHaveAttribute(
       'href',
@@ -92,7 +101,7 @@ describe('ProductsPage', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Type' }), 'Primer');
     await user.click(screen.getByRole('checkbox', { name: 'Show inactive' }));
     await user.type(
-      screen.getByRole('searchbox', { name: 'Search by name, brand or SKU' }),
+      screen.getByRole('searchbox', { name: 'Search by name, brand, SKU or label' }),
       'apex',
     );
     await waitFor(() => {

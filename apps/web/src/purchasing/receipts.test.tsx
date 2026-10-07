@@ -312,7 +312,7 @@ describe('GoodsReceiptDetailPage', () => {
     expect(screen.getByText('2 Oct 2026')).toBeInTheDocument();
     expect(screen.getByText('Two dented')).toBeInTheDocument();
     const rows = within(screen.getByRole('table', { name: 'Products' })).getAllByRole('row');
-    expect(rows[1]).toHaveTextContent('Asian Paints Apex UltimaAPX-1L61₹400.00₹2,400.00');
+    expect(rows[1]).toHaveTextContent('Asian Paints Apex UltimaAPX-1L · 1 l61₹400.00₹2,400.00');
     expect(rows[2]).toHaveTextContent('10——');
     expect(screen.getByText(/Total/)).toHaveTextContent('Total ₹2,400.00');
   });

@@ -20,6 +20,10 @@ export interface SupplierProduct {
   readonly sku: string;
   readonly productName: string;
   readonly brandName: string;
+  readonly packSize: number;
+  readonly unit: string;
+  /** Tells same-sized packs apart, e.g. "2 inch"; see variantName. */
+  readonly label: string | null;
   readonly supplierSku: string | null;
   readonly lastCostPaise: number | null;
   readonly lastReceivedAt: string | null;
@@ -66,6 +70,7 @@ export interface PurchaseOrderLine {
   readonly brandName: string;
   readonly packSize: number;
   readonly unit: string;
+  readonly label: string | null;
   readonly orderedQuantity: number;
   readonly receivedQuantity: number;
   /** Still to arrive. */
@@ -130,6 +135,10 @@ export interface GoodsReceiptLine {
   readonly sku: string;
   readonly productName: string;
   readonly brandName: string;
+  readonly packSize: number;
+  readonly unit: string;
+  /** Tells same-sized packs apart, e.g. "2 inch"; see variantName. */
+  readonly label: string | null;
   readonly quantity: number;
   readonly freeQuantity: number;
   readonly unitCostPaise: number | null;

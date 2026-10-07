@@ -36,6 +36,7 @@ export const variant = (overrides: Partial<Variant> = {}): Variant => ({
   sku: 'APX-1L',
   packSize: 1,
   unit: 'l',
+  label: null,
   mrpPaise: 50_000,
   sellingPricePaise: 45_000,
   isActive: true,
@@ -71,7 +72,7 @@ export const APEX = product();
 
 export const stockRow = (overrides: Partial<StockRow> = {}): StockRow => ({
   store: { id: HYD.id, code: HYD.code, name: HYD.name },
-  variant: { id: 'variant-1l', sku: 'APX-1L', packSize: 1, unit: 'l' },
+  variant: { id: 'variant-1l', sku: 'APX-1L', packSize: 1, unit: 'l', label: null },
   product: { id: APEX.id, name: APEX.name },
   brand: { id: 'brand-asian', name: 'Asian Paints' },
   onHand: 12,
@@ -84,7 +85,7 @@ export const stockRow = (overrides: Partial<StockRow> = {}): StockRow => ({
 
 export const rule = (overrides: Partial<ReorderRule> = {}): ReorderRule => ({
   store: { id: HYD.id, code: HYD.code },
-  variant: { id: 'variant-1l', sku: 'APX-1L' },
+  variant: { id: 'variant-1l', sku: 'APX-1L', packSize: 1, unit: 'l', label: null },
   product: { name: APEX.name },
   brand: { name: 'Asian Paints' },
   minQuantity: 2,

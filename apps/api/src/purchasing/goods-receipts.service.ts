@@ -48,6 +48,9 @@ export interface GoodsReceiptLineView {
   readonly sku: string;
   readonly productName: string;
   readonly brandName: string;
+  readonly packSize: number;
+  readonly unit: string;
+  readonly label: string | null;
   readonly quantity: number;
   readonly freeQuantity: number;
   readonly unitCostPaise: number | null;
@@ -405,6 +408,9 @@ export class GoodsReceiptsService {
         sku: productVariants.sku,
         productName: products.name,
         brandName: brands.name,
+        packSize: productVariants.packSize,
+        unit: productVariants.unit,
+        label: productVariants.label,
       })
       .from(goodsReceiptLines)
       .innerJoin(productVariants, eq(productVariants.id, goodsReceiptLines.variantId))
