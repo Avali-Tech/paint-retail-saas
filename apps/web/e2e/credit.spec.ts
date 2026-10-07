@@ -46,7 +46,7 @@ test('a branch manager asks for credit, the owner approves it, holds and release
   // The request has its own page, where its notifications lead.
   await credit.getByRole('link', { name: /is waiting for approval/ }).click();
   await expect(
-    manager.getByRole('heading', { name: /^Credit request CR-/, level: 1 }),
+    manager.getByRole('heading', { name: /^CR-\d+ · Credit request$/, level: 1 }),
   ).toBeVisible();
   await expect(manager.getByRole('region', { name: 'Details' })).toContainText('Big order');
   await expectUsable(manager);
@@ -137,7 +137,9 @@ test('"+ Credit request" finds the customer and sends the request (N K)', async 
   await page.getByRole('textbox', { name: 'Days to pay' }).fill('30');
   await expectUsable(page);
   await page.getByRole('button', { name: 'Send for approval' }).click();
-  await expect(page.getByRole('heading', { name: /^Credit request CR-/, level: 1 })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: /^CR-\d+ · Credit request$/, level: 1 }),
+  ).toBeVisible();
   await expect(page.getByRole('region', { name: 'Details' })).toContainText('₹75,000.00 · 30 days');
 });
 

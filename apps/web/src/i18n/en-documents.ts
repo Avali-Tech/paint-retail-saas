@@ -56,6 +56,8 @@ export const documentsEn = {
       rangeInvalid: 'The “to” date cannot be before the “from” date',
       empty: 'No documents yet',
       noMatches: 'No documents match these filters',
+      emptyHint:
+        'Files you upload on a customer, order, lead, project or contract page show up here.',
       pages: 'Document pages',
     },
     recordTypes: {

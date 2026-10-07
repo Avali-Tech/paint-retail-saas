@@ -109,6 +109,8 @@ export const leadsTe: Translation<typeof leadsEn> = {
       editTitle: '{number} మార్చండి',
       chooseCustomer: 'కస్టమర్‌ను వెతకండి',
       newContact: 'కొత్త కాంటాక్ట్',
+      notOnFile: 'ఇంకా రికార్డ్‌లో లేరా?',
+      addNewContact: 'కొత్త కాంటాక్ట్ జోడించండి',
       chooseSomeoneElse: 'వేరేవారిని ఎంచుకోండి',
       contactName: 'పేరు',
       contactPhone: 'మొబైల్ నంబర్',

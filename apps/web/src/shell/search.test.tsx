@@ -216,7 +216,7 @@ describe('keyboard shortcuts', () => {
     renderShell();
     const box = await screen.findByRole('combobox', { name: 'Search' });
     await waitFor(() => {
-      expect(screen.getByText('Coming soon')).toBeInTheDocument();
+      expect(screen.getByText('Page not found')).toBeInTheDocument();
     });
     fireEvent.keyDown(document.body, { key: '/' });
     expect(box).toHaveFocus();

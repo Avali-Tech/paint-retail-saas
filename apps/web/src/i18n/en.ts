@@ -53,6 +53,13 @@ export const en = {
     tooMany: 'Too many attempts. Please wait a moment and try again.',
     generic: 'Something went wrong. Please try again.',
   },
+  /** The banner shown when a new version of the app has been deployed. */
+  update: {
+    region: 'App updates',
+    available: 'A new version of the app is available.',
+    reload: 'Reload',
+    later: 'Later',
+  },
   language: {
     label: 'Language',
     hint: 'Used on this device for the app’s screens',
@@ -222,7 +229,6 @@ export const en = {
     purchaseOrders: 'Purchase orders',
     openOrders: 'Open',
     dueValue: 'Still due',
-    followUps: 'Follow-ups',
     openFollowUps: 'Open my follow-ups',
     overdue: 'Overdue',
     today: 'Due today',
@@ -353,8 +359,7 @@ export const en = {
     ...reportEnumsEn,
   },
   pages: {
-    comingSoonTitle: 'Coming soon',
-    comingSoon: 'This screen is on its way. Until then, use the dashboard and search.',
+    notFound: 'This address does not lead to a screen. Check the link, or use the menu or search.',
     noAccessTitle: 'No access',
     noAccess: 'Your role does not include this screen. Ask your owner if you need it.',
     notFoundTitle: 'Page not found',

@@ -212,6 +212,7 @@ jobs:
           VITE_SENTRY_DSN: ${{ inputs.environment == 'prod' && vars.WEB_SENTRY_DSN_PROD || vars.WEB_SENTRY_DSN_STAGING }}
           VITE_SENTRY_ENVIRONMENT: ${{ inputs.environment }}
           VITE_SENTRY_RELEASE: ${{ needs.prepare.outputs.sha }}
+          VITE_BUILD_ID: ${{ needs.prepare.outputs.sha }}
         run: pnpm --filter @paint/web build
 
       - name: Upload the web app
