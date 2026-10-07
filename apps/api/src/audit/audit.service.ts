@@ -99,6 +99,11 @@ const FIELD_LABELS: Record<string, string> = {
   parent_id: 'Parent category',
   brand_id: 'Brand',
   category_id: 'Category',
+  slug: 'Sign-in link',
+  sha256: 'Logo file (SHA-256)',
+  content_type: 'File type',
+  width: 'Width (px)',
+  height: 'Height (px)',
 };
 
 const recordLabel = sql<string | null>`case ${auditLog.tableName}
@@ -116,6 +121,7 @@ const recordLabel = sql<string | null>`case ${auditLog.tableName}
   when 'credit_rules' then 'Credit rules'
   when 'loyalty_settings' then 'Loyalty programme'
   when 'organization_branding' then 'Branding'
+  when 'organization_logos' then 'Logo'
   when 'parties' then (select p.display_name from parties p where p.id::text = ${auditLog.recordId})
   when 'loyalty_accounts' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id::text = ${auditLog.recordId})
   when 'loyalty_ledger' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id::text = ${auditLog.recordId})

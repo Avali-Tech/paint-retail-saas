@@ -4,7 +4,9 @@ import { NavLink, Outlet, useNavigate } from 'react-router';
 import { useCurrentProfile, usePermissions, useSignOut } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { SupportBanner } from '../support-access/SupportBanner.js';
+import { BrandMark } from '../theme/BrandMark.js';
 import { useBranding } from '../theme/BrandingProvider.js';
+import { useIdentity } from '../theme/IdentityProvider.js';
 import { BOTTOM_BAR_SIZE, visibleNav, type NavItem } from './nav.js';
 import { NotificationBell } from './NotificationBell.js';
 import { SearchBox, useQuickActions } from './SearchBox.js';
@@ -34,6 +36,7 @@ function NavEntry({
 export function AppShell() {
   const { t } = useI18n();
   const { branding } = useBranding();
+  const { logoSrc } = useIdentity();
   const profile = useCurrentProfile();
   const can = usePermissions();
   const signOut = useSignOut();
@@ -88,9 +91,7 @@ export function AppShell() {
       </a>
       <header className="shell__header">
         <div className="shell__brand">
-          <span className="brand-mark" aria-hidden="true">
-            {branding.appName.slice(0, 1)}
-          </span>
+          <BrandMark appName={branding.appName} logoSrc={logoSrc} />
           <div className="shell__names">
             <span className="shell__app-name">{branding.appName}</span>
             <span className="shell__business">{profile.organization.name}</span>

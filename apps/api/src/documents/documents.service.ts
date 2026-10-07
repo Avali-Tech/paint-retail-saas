@@ -6,8 +6,6 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-  ServiceUnavailableException,
-  UnprocessableEntityException,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { schema, withTenant, type DatabaseConnection, type Transaction } from '@paint/db';
@@ -15,14 +13,12 @@ import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { withinIndiaDays } from '../common/india-days.js';
 import { DATABASE } from '../database/database.module.js';
-import { ScannerUnavailableError, type VirusScanner } from './clamav.js';
 import type {
   BrowseDocumentsQuery,
   ListDocumentsQuery,
   UploadFields,
 } from './documents.schemas.js';
 import { ALLOWED_FILES_MESSAGE, cleanFileName, detectFileType } from './file-checks.js';
-import type { ObjectStorage } from './object-storage.js';
 import {
   RECORD_TYPES,
   recordLabel,
@@ -30,16 +26,15 @@ import {
   visibleRecords,
   type RecordType,
 } from './record-access.js';
+import {
+  DOCUMENT_SERVICES,
+  requireUploadServices,
+  scanAndStore,
+  type DocumentServices,
+} from './safe-upload.js';
 import { uploadRefusal } from './upload-refusals.js';
 
 const { documents, organizationMembers, users } = schema;
-
-/** Where files go and how they are checked; null when uploads are not set up. */
-export const DOCUMENT_SERVICES = Symbol('DOCUMENT_SERVICES');
-export interface DocumentServices {
-  readonly storage: ObjectStorage;
-  readonly scanner: VirusScanner;
-}
 
 export interface DocumentView {
   readonly id: string;
@@ -80,7 +75,7 @@ export class DocumentsService {
 
   /** Checks, scans and stores a file, then records it against the record. */
   upload(auth: AuthContext, fields: UploadFields, file: UploadedFile): Promise<DocumentView> {
-    const { storage, scanner } = this.configured();
+    const services = requireUploadServices(this.services);
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
       await requireRecordAccess(tx, auth, fields.recordType, fields.recordId, 'manage');
       if (file.data.length === 0) {
@@ -94,40 +89,13 @@ export class DocumentsService {
           uploadRefusal(HttpStatus.UNSUPPORTED_MEDIA_TYPE, 'file_type', ALLOWED_FILES_MESSAGE),
         );
       }
-      let result;
-      try {
-        result = await scanner.scan(file.data);
-      } catch (error) {
-        throw new ServiceUnavailableException(
-          uploadRefusal(
-            HttpStatus.SERVICE_UNAVAILABLE,
-            'scanner_unavailable',
-            `Virus scanning is unavailable, so the file was not saved; try again shortly (${(error as ScannerUnavailableError).message})`,
-          ),
-        );
-      }
-      if (!result.clean) {
-        throw new UnprocessableEntityException(
-          uploadRefusal(
-            HttpStatus.UNPROCESSABLE_ENTITY,
-            'virus_found',
-            `This file contains a virus (${result.signature}) and was not saved`,
-          ),
-        );
-      }
       const id = crypto.randomUUID();
       const storageKey = `${auth.organization.id}/documents/${id}`;
-      try {
-        await storage.put(storageKey, file.data, type.contentType);
-      } catch (error) {
-        throw new ServiceUnavailableException(
-          uploadRefusal(
-            HttpStatus.SERVICE_UNAVAILABLE,
-            'storage_unavailable',
-            `Document storage is unavailable, so the file was not saved; try again shortly (${(error as Error).message})`,
-          ),
-        );
-      }
+      await scanAndStore(services, {
+        key: storageKey,
+        data: file.data,
+        contentType: type.contentType,
+      });
       await tx.insert(documents).values({
         id,
         organizationId: auth.organization.id,
@@ -207,7 +175,7 @@ export class DocumentsService {
     auth: AuthContext,
     documentId: string,
   ): Promise<{ document: DocumentView; data: Buffer }> {
-    const { storage } = this.configured();
+    const { storage } = requireUploadServices(this.services);
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
       const document = await this.visible(tx, auth, documentId, 'read');
       const [stored] = await tx
@@ -230,19 +198,6 @@ export class DocumentsService {
   }
 
   // Helpers -----------------------------------------------------------------
-
-  private configured(): DocumentServices {
-    if (!this.services) {
-      throw new ServiceUnavailableException(
-        uploadRefusal(
-          HttpStatus.SERVICE_UNAVAILABLE,
-          'storage_unavailable',
-          'Document storage is not set up on this server',
-        ),
-      );
-    }
-    return this.services;
-  }
 
   /** A document that is not deleted and whose record the member can see or change. */
   private async visible(

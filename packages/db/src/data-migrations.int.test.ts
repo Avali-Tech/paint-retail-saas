@@ -106,3 +106,34 @@ describe.each([
     expect(permissions.some((row) => row.key === 'custom')).toBe(false);
   });
 });
+
+describe('0048_organization_slug_and_logo', () => {
+  it('gives every existing business a unique slug from its name, oldest first', async () => {
+    const { connectionString: url } = await freshDatabase();
+    await migrateDatabase(url, migrationsUpTo('0047_list_indexes'));
+    await withPgClient(url, (client) =>
+      client.query(
+        `INSERT INTO organizations (name, created_at) VALUES
+           ('Sharma Paints', now() - interval '3 days'),
+           ('sharma  paints!', now() - interval '2 days'),
+           ('Admin', now() - interval '1 day'),
+           ('हिंदी पेंट्स', now())`,
+      ),
+    );
+
+    await migrateDatabase(url);
+
+    const slugs = await withPgClient(url, async (client) => {
+      const result = await client.query<{ name: string; slug: string }>(
+        'SELECT name, slug FROM organizations ORDER BY created_at',
+      );
+      return result.rows;
+    });
+    expect(slugs).toEqual([
+      { name: 'Sharma Paints', slug: 'sharma-paints' },
+      { name: 'sharma  paints!', slug: 'sharma-paints-2' },
+      { name: 'Admin', slug: 'admin-2' },
+      { name: 'हिंदी पेंट्स', slug: 'business' },
+    ]);
+  });
+});

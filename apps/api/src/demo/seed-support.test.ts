@@ -88,6 +88,7 @@ describe('sign-in sheet', () => {
   it('lists everyone with how they sign in, and the authenticator details', () => {
     const credentials: DemoCredentials = {
       business: 'Sharma Paints & Hardware',
+      slug: 'sharma-paints',
       password: 'Demo@2026',
       people: [
         {
@@ -123,6 +124,9 @@ describe('sign-in sheet', () => {
       },
     };
     const sheet = formatCredentials(credentials, 'http://localhost:5173');
+    expect(sheet).toContain(
+      "Branded sign-in page (the business's own name and colours): http://localhost:5173/sign-in?b=sharma-paints",
+    );
     expect(sheet).toContain('Open http://localhost:5173');
     expect(sheet).toContain('Password for everyone with one: Demo@2026');
     expect(sheet).toMatch(/Rajesh Sharma\s+Owner\s+\+919000000001\s+All stores\s+password/);

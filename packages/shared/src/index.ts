@@ -6,10 +6,15 @@ export type {
   Dashboard,
   DocumentUploadError,
   DocumentUploadErrorCode,
+  LogoUploadError,
+  LogoUploadErrorCode,
+  LogoView,
   MemberView,
   NotificationPage,
   NotificationView,
+  OrganizationIdentity,
   PendingSignIn,
+  PublicBranding,
   RoleView,
   SearchHit,
   SearchResults,
@@ -77,6 +82,17 @@ export {
   type LoyaltyTier,
   type PointsEntry,
 } from './loyalty.js';
+export {
+  RESERVED_SLUGS,
+  SIGN_IN_BUSINESS_PARAM,
+  SLUG_MAX_LENGTH,
+  SLUG_MIN_LENGTH,
+  normalizeSlug,
+  signInPath,
+  validateSlug,
+  type SlugProblem,
+  type SlugResult,
+} from './slug.js';
 export { QUICK_ACTIONS, quickActions, type QuickAction } from './quick-actions.js';
 export {
   CsvError,

@@ -1,3 +1,4 @@
+import { signInPath } from '@paint/shared';
 import type { DemoCredentials } from './seed.js';
 
 /** The sign-in sheet printed after seeding and kept in .demo/credentials.txt. */
@@ -21,6 +22,7 @@ export function formatCredentials(credentials: DemoCredentials, webUrl: string):
   return [
     `${credentials.business} — demo sign-in`,
     `Open ${webUrl} and sign in with a mobile number (or email) and the password below.`,
+    `Branded sign-in page (the business's own name and colours): ${webUrl}${signInPath(credentials.slug)}`,
     '',
     `Password for everyone with one: ${credentials.password}`,
     '',

@@ -138,7 +138,8 @@ and the sign-in sheet are in `.demo/`. Remove it all with `docker compose -p pai
 
 **Signing in.** Everyone signs in with their mobile number (or email) and the password
 `Demo@2026`, for example the owner **Rajesh Sharma, 9000000001**; `pnpm demo` prints the whole
-team with roles and stores. Counter staff (Ravi Teja 9000000041, Suresh Yadav 9000000042, Farhan
+team with roles and stores, and the business's branded sign-in page,
+**http://localhost:5173/sign-in?b=sharma-paints** (its name and colours before anyone signs in). Counter staff (Ravi Teja 9000000041, Suresh Yadav 9000000042, Farhan
 Ali 9000000043) have no password: choose **Mobile code**; with the local SMS provider the code is
 printed in the `pnpm demo` terminal (a line with `[SMS]`) and in `.demo/api.log`.
 
@@ -388,6 +389,11 @@ Every route requires `Authorization: Bearer <token>` unless marked public.
 | GET                | `/reports`, `/reports/:kind?format=csv`                                                          | the report's permission                                            | Stock by location, stock ledger, transfers, goods receipts, leads, projects; `GET /reports` describes each filter (`name`, `type`: store, date, enum with `values`, supplier or boolean with `default`) and each column (`key`, stable `id` `<kind>.<key>`, English `header`); JSON paging or CSV for Excel                           |
 | GET                | `/organization/features`                                                                         | signed in                                                          | The business's plan, its limits, usage, and which features are on                                                                                                                                                                                                                                                                     |
 | GET · PUT          | `/organization/branding`                                                                         | signed in to read; `organization:manage` to change                 | The business's look (app name, colours, mode, corners, density, font), checked with `validateBranding`; 404 until set. Saving answers the theme's readability adjustments                                                                                                                                                             |
+| GET                | `/organization/identity`                                                                         | signed in                                                          | The business's sign-in link name (`slug`) and logo (`url`, type, size), as `OrganizationIdentity`                                                                                                                                                                                                                                     |
+| PUT                | `/organization/slug`                                                                             | `organization:manage`                                              | Change the sign-in link name: 3–40 lower-case letters, digits and single hyphens, not a reserved name (`RESERVED_SLUGS`); 400 with `code` `length`, `format` or `reserved`, 409 `taken` when another business has it (ignoring case); the old link stops working; audited                                                             |
+| POST · DELETE      | `/organization/logo` (multipart: `file`)                                                         | `organization:manage`                                              | Upload (≤ 1 MB; PNG, JPEG or WebP, 16–2048 px a side, checked from the bytes; never SVG) after a virus scan, or remove it; answers the identity. A refusal has a `code`: the document ones plus `svg_not_allowed` and `dimensions`; audited                                                                                           |
+| GET                | `/public/branding/:slug`                                                                         | public                                                             | A business's branded sign-in page: `slug`, `branding` (app name and theme) and `logoUrl`, nothing else; the same 404 for unknown and suspended businesses                                                                                                                                                                             |
+| GET                | `/public/branding/:slug/logo/:version`                                                           | public                                                             | The logo, `inline`, `nosniff`, a CSP allowing nothing, cached for good (the address changes with every logo) with an `ETag` (304); never an S3 address                                                                                                                                                                                |
 | GET · POST         | `/support-requests`, `/:id/approve`, `/:id/decline`, `/:id/end`, `/:id/activity`                 | `organization:manage`                                              | Decide on platform support's requests for access, end access, and see every request support made                                                                                                                                                                                                                                      |
 | POST               | `/platform/bootstrap`, `/platform/login`, `/platform/logout`                                     | platform operators                                                 | The SaaS operator's own sign-in; the first operator is created once with `PLATFORM_BOOTSTRAP_TOKEN`                                                                                                                                                                                                                                   |
 | POST               | `/platform/login/2fa/setup`, `/platform/login/2fa`                                               | platform operators, with the `pendingToken` from `/platform/login` | Operators always use an authenticator app: add it at first sign-in, then a code each time                                                                                                                                                                                                                                             |
@@ -573,6 +579,36 @@ merge; merges are audited. A guard test fails when a new table references partie
 dark / system mode, corner radius, density and font. The API validates and normalises it with
 `validateBranding` from `@paint/shared`, the same rules the web app uses, and answers which colours
 `deriveTheme` had to adjust to stay readable. Changes are in the audit log.
+
+**Logo and branded sign-in page** (white-label): owners and admins upload a logo under **Settings →
+Appearance** (PNG, JPEG or WebP up to 1 MB and 2048 px a side). Like documents, its type comes from its
+bytes and it is scanned by ClamAV before it is stored in S3 (`<organization>/branding/logo-<id>`;
+replaced and removed logos keep their file for the audit trail). **SVG is refused**: it is a document
+that can carry scripts, event handlers and links to other sites, and the logo is served from our own
+origin; a sanitiser robust enough to trust would mean a server-side DOM and an allowlist to maintain,
+for no gain over a PNG. The file is stored as uploaded, not re-encoded (no native image libraries); the
+API reads its size from the header and refuses sizes outside 16–2048 px. It is served only through
+`GET /public/branding/:slug/logo/:version` (`inline`, `nosniff`, `Content-Security-Policy:
+default-src 'none'; sandbox`, cached for a year under an address that changes with every logo, with an
+ETag), and shows in the header (on a light plate in dark mode), on the sign-in page and as the browser
+tab's and home-screen icon (the installed app's manifest icon stays the product's).
+
+Each business has a **slug**, its sign-in link name (`sharma-paints`): derived from its name when it is
+created (`generate_organization_slug()` in migration 0048, numbered `-2`, `-3`… when taken, never a
+reserved name), unique ignoring case, and changeable by its owners (audited). Its branded sign-in page
+is **`/sign-in?b=<slug>`**: a query parameter rather than `/<slug>/sign-in`, so slugs can never collide
+with the app's own routes (today's or future ones) and there is one sign-in route for the service
+worker and the redirects. A future `<slug>.<domain>` address maps onto the same thing: the web app
+reads the slug from the host name where it now reads `b` (the reserved names already cover `www`,
+`api`, `admin` and the like). The page calls `GET /public/branding/:slug`, which reads only the app
+name, theme and logo address, outside tenant scope like sign-in itself (row-level security is
+unchanged), with one query and the same 404 whether the business is unknown or suspended. The device
+remembers the business (`paint.sign-in-business`: the last link opened, or the business last signed in
+to), so the plain `/sign-in` shows its look too. Signing in never depends on the slug: someone in
+several businesses gets the usual chooser with the page's business first, and someone in one business
+signs in to their own. Support views, refused support links and the platform console keep the
+product's own look. The API has no rate limiter yet; the endpoint answers from one indexed query, and a
+limit belongs in the load balancer or CDN in front of it.
 
 **Shared response types:** the shapes the web app reads (`SessionGrant`, `AuthProfile`, `Dashboard`,
 `SearchResults`, `NotificationPage`, `BrandingView`, …) live in `packages/shared/src/api.ts`; the API

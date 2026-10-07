@@ -1,0 +1,95 @@
+/* The business's logo in the header and on the sign-in page (BrandMark), and the
+   logo and sign-in link settings (settings/IdentitySettings). Tokens only. */
+
+.brand-mark--lg {
+  width: 56px;
+  height: 56px;
+  font-size: var(--font-size-xl);
+}
+
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  height: 36px;
+  max-width: 9rem;
+  border-radius: var(--radius-sm);
+}
+
+.brand-logo--lg {
+  height: 56px;
+  max-width: 14rem;
+}
+
+.brand-logo img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* Many logos are dark lettering on a transparent background: give them a light plate on dark pages. */
+[data-theme='dark'] .brand-logo {
+  padding: 3px;
+  background: var(--palette-neutral-50);
+}
+
+.identity-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  align-items: start;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+/* The logo as it shows on a light and on a dark page, whatever the current mode. */
+.logo-previews {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.logo-preview {
+  display: grid;
+  place-items: center;
+  gap: var(--space-1);
+  min-height: 6rem;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+}
+
+.logo-preview img {
+  max-width: 100%;
+  max-height: 3rem;
+  object-fit: contain;
+}
+
+.logo-preview--light {
+  background: var(--palette-neutral-50);
+  color: var(--palette-neutral-900);
+}
+
+.logo-preview--dark {
+  background: var(--palette-neutral-900);
+  color: var(--palette-neutral-50);
+}
+
+/* On the dark sample, the logo sits on the same light plate as in the dark header. */
+.logo-preview--dark img {
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--palette-neutral-50);
+}
+
+.sign-in-link {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.sign-in-link input {
+  flex: 1;
+  min-width: 0;
+}
