@@ -1,0 +1,87 @@
+// Telugu messages for Settings, Tax & GST (draft: see docs/translations/glossary.md).
+// Same keys as en-tax.ts.
+import type { taxEn, taxEnumsEn } from './en-tax.js';
+import type { Translation } from './shape.js';
+
+export const taxTe: Translation<typeof taxEn> = {
+  taxSettings: {
+    title: 'టాక్స్ & GST',
+    description: 'మీ స్టోర్‌ల GST రిజిస్ట్రేషన్‌లు, రేట్‌లతో టాక్స్ కేటగిరీలు',
+    error: 'టాక్స్ సెట్టింగ్‌లు లోడ్ కాలేదు',
+    readOnly: 'వీటిని యజమానులు, అడ్మిన్‌లు మాత్రమే మార్చగలరు.',
+    business: {
+      title: 'బిజినెస్',
+      legalName: 'లీగల్ పేరు',
+      legalNameHint:
+        'GST సర్టిఫికేట్‌లో ఉన్నట్లు; వేరే పేరు లేకపోతే రిజిస్ట్రేషన్‌లు ఇదే తీసుకుంటాయి',
+      pan: 'PAN',
+      panNone: 'మొదటి GSTIN నుండి నింపబడుతుంది',
+      save: 'లీగల్ పేరు సేవ్ చేయండి',
+      saved: 'లీగల్ పేరు సేవ్ అయింది',
+    },
+    stores: {
+      title: 'GST రిజిస్ట్రేషన్‌లు',
+      hint: 'GST రిజిస్ట్రేషన్ రాష్ట్రానికి ఒకటి; ఒకే రాష్ట్రంలోని స్టోర్‌లకు ఒకే GSTIN.',
+      empty: 'ముందుగా ఒక స్టోర్ జోడించండి.',
+      edit: 'మార్చండి',
+      editLabel: '{name} GST రిజిస్ట్రేషన్ మార్చండి',
+      dialogTitle: 'GST రిజిస్ట్రేషన్: {name}',
+      type: 'రిజిస్ట్రేషన్ రకం',
+      state: 'రాష్ట్రం',
+      chooseState: 'రాష్ట్రం ఎంచుకోండి',
+      stateRequired: 'రాష్ట్రం ఎంచుకోండి',
+      gstin: 'GSTIN',
+      gstinInvalid: 'సరైన GSTIN ఇవ్వండి (టైపింగ్ తప్పులు చూడండి)',
+      gstinRequired: 'ఈ రిజిస్ట్రేషన్ GSTIN ఇవ్వండి',
+      gstinOtherState: 'ఈ GSTIN వేరే రాష్ట్రానిది',
+      legalName: 'లీగల్ పేరు',
+      legalNameHint: 'ఖాళీగా వదిలితే బిజినెస్ లీగల్ పేరు వాడబడుతుంది',
+      tradeName: 'ట్రేడ్ పేరు',
+      address: 'వీధి, ఏరియా',
+      city: 'నగరం',
+      pincode: 'పిన్ కోడ్',
+      pincodeInvalid: '6 అంకెల పిన్ కోడ్ ఇవ్వండి',
+      save: 'రిజిస్ట్రేషన్ సేవ్ చేయండి',
+      saved: 'రిజిస్ట్రేషన్ సేవ్ అయింది',
+      noState: 'ఇంకా రాష్ట్రం లేదు',
+    },
+    categories: {
+      title: 'టాక్స్ కేటగిరీలు',
+      hint: 'ప్రోడక్ట్‌లు తమ టాక్స్ కేటగిరీ నుండి GST రేట్ తీసుకుంటాయి. కొత్త రేట్ ఒక తేదీ నుండి మొదలవుతుంది; పాత రేట్‌లు మారవు.',
+      today: 'ఈ రోజు GST {rate}%',
+      notStarted: 'ఇంకా అమలులో లేదు',
+      default: 'డిఫాల్ట్',
+      inactive: 'నిలిపివేయబడింది',
+      history: '{name} రేట్‌లు',
+      from: '{date} నుండి',
+      fromTo: '{from} నుండి {to} వరకు',
+      rateValue: '{rate}%',
+      add: '+ టాక్స్ కేటగిరీ',
+      addTitle: 'కొత్త టాక్స్ కేటగిరీ',
+      name: 'పేరు',
+      nameInvalid: '2 నుండి 80 అక్షరాలు ఇవ్వండి',
+      rate: 'GST రేట్ (%)',
+      rateInvalid: '0 నుండి 100 వరకు రేట్ ఇవ్వండి, గరిష్టంగా 2 దశాంశాలు',
+      startsOn: 'మొదలయ్యే తేదీ',
+      startsOnHint: 'ఈ రోజు లేదా తర్వాత',
+      dateInvalid: 'తేదీ ఎంచుకోండి',
+      created: 'టాక్స్ కేటగిరీ జోడించబడింది',
+      addRate: 'కొత్త రేట్',
+      addRateTitle: '{name} కొత్త రేట్',
+      rateAdded: 'కొత్త రేట్ సేవ్ అయింది',
+      makeDefault: 'డిఫాల్ట్ చేయండి',
+      deactivate: 'నిలిపివేయండి',
+      activate: 'మళ్ళీ మొదలుపెట్టండి',
+      updated: 'టాక్స్ కేటగిరీ అప్‌డేట్ అయింది',
+      actions: '{name} కోసం చర్యలు',
+    },
+  },
+};
+
+export const taxEnumsTe: Translation<typeof taxEnumsEn> = {
+  gstRegistrationTypes: {
+    regular: 'రెగ్యులర్',
+    composition: 'కంపోజిషన్',
+    unregistered: 'రిజిస్టర్ కాలేదు',
+  },
+};

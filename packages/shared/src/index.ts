@@ -138,6 +138,20 @@ export {
   panFromGstin,
 } from './tax-ids.js';
 export {
+  CURRENT_GST_STATES,
+  GST_REGISTRATION_TYPES,
+  gstStateName,
+  isCurrentGstStateCode,
+  taxRateOn,
+  type GstRegistrationType,
+  type GstRegistrations,
+  type StoreGstRegistration,
+  type TaxCategoryOption,
+  type TaxCategoryOptions,
+  type TaxCategoryView,
+  type TaxRateView,
+} from './gst-master.js';
+export {
   contrastRatio,
   ensureContrast,
   hexToOklch,

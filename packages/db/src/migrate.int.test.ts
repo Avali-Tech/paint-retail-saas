@@ -80,6 +80,8 @@ describe('migrateDatabase', () => {
       'supplier_profiles',
       'support_access_log',
       'support_grants',
+      'tax_categories',
+      'tax_rates',
       'transfer_lines',
       'transfers',
       'two_factor_challenges',

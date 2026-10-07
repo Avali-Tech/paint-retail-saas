@@ -145,7 +145,6 @@ async function newVariants(count = 2): Promise<string[]> {
       name: `P Product ${String(seq)}`,
       type: 'interior_paint',
       hsnCode: '3209',
-      gstRatePercent: 18,
       variants: Array.from({ length: count }, (_, i) => ({
         sku: `P${String(seq)}-${String.fromCharCode(65 + i)}`,
         packSize: i + 1,

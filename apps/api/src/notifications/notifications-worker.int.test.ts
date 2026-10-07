@@ -73,7 +73,6 @@ async function product(quantity: number): Promise<{ id: string; sku: string }> {
         name: `Paint ${String(seq)}`,
         type: 'interior_paint',
         hsnCode: '3209',
-        gstRatePercent: 18,
         variants: [{ sku, packSize: 1, unit: 'l' }],
       })
     ).json<{ variants: { id: string }[] }>().variants[0]?.id,

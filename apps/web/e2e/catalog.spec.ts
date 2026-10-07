@@ -35,7 +35,9 @@ test('brands, a product with two pack sizes, a price change and a barcode lookup
   await page.getByRole('link', { name: '+ Product' }).click();
   await expect(page.getByRole('heading', { name: 'New product', level: 1 })).toBeVisible();
   await page.getByRole('combobox', { name: 'Brand' }).selectOption({ label: 'Asian Paints' });
-  await page.getByRole('combobox', { name: 'Category' }).selectOption({ label: 'Emulsions' });
+  await page
+    .getByRole('combobox', { name: 'Category', exact: true })
+    .selectOption({ label: 'Emulsions' });
   await page.getByRole('textbox', { name: 'Name' }).fill('Apex Ultima');
   await page.getByRole('combobox', { name: 'Type' }).selectOption({ label: 'Exterior paint' });
   const first = page.getByRole('group', { name: 'Size / pack 1' });
@@ -104,7 +106,7 @@ test('a category is deactivated, leaves the product form, and comes back', async
 
   // New products cannot go into it, so the form does not offer it.
   await page.goto('/products/new');
-  const category = page.getByRole('combobox', { name: 'Category' });
+  const category = page.getByRole('combobox', { name: 'Category', exact: true });
   await expect(category.getByRole('option', { name: 'Emulsions' })).toBeAttached();
   await expect(category.getByRole('option', { name: 'Primers' })).toHaveCount(0);
 

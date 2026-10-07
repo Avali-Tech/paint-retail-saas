@@ -1,8 +1,10 @@
 import { gstinCheckCharacter } from '@paint/shared';
 import type { Random } from './random.js';
 
-/** Telangana's GST state code; every demo business is in Hyderabad. */
+/** Telangana's GST state code; every demo store is in Hyderabad. */
 export const TELANGANA = '36';
+/** Andhra Pradesh's: a few customers across the border make inter-state sales. */
+export const ANDHRA_PRADESH = '37';
 
 export const FIRST_NAMES = [
   'Ramesh',
@@ -134,9 +136,9 @@ export function panFor(random: Random, name: string, holder: PanHolder): string 
   return `${random.letters(3)}${holder}${initial}${random.digits(4)}${random.letters(1)}`;
 }
 
-/** A Telangana GSTIN with the correct GSTN check character, built on a PAN. */
-export function gstinFor(pan: string, entity = 1): string {
-  const first14 = `${TELANGANA}${pan}${String(entity)}Z`;
+/** A GSTIN (Telangana unless said) with the correct GSTN check character, built on a PAN. */
+export function gstinFor(pan: string, entity = 1, state = TELANGANA): string {
+  const first14 = `${state}${pan}${String(entity)}Z`;
   return `${first14}${gstinCheckCharacter(first14)}`;
 }
 

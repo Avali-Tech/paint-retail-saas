@@ -45,6 +45,8 @@ export interface Party {
   readonly city: string | null;
   readonly state: string | null;
   readonly pincode: string | null;
+  /** GSTN state code: from the GSTIN when there is one, else as entered. */
+  readonly placeOfSupply: string | null;
   readonly homeStoreId: string | null;
   readonly notes: string | null;
   readonly tags: string[];
@@ -79,6 +81,7 @@ export interface PartyInput {
   readonly city?: string | null;
   readonly state?: string | null;
   readonly pincode?: string | null;
+  readonly placeOfSupply?: string | null;
   readonly homeStoreId?: string | null;
   readonly notes?: string | null;
   readonly tags: string[];

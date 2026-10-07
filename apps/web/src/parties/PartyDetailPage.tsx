@@ -12,6 +12,7 @@ import { DocumentsPanel } from '../documents/DocumentsPanel.js';
 import { timelinePath } from '../followups/activity-helpers.js';
 import { LOYALTY_PANEL_ID, LoyaltyPanel } from '../loyalty/LoyaltyPanel.js';
 import { MergeDialog } from './MergeDialog.js';
+import { stateLabel } from '../lib/gst-states.js';
 
 interface RecordItem {
   readonly id: string;
@@ -91,6 +92,10 @@ function Contact({ party }: { readonly party: Party }) {
     [t('parties.form.gstin'), party.gstin],
     [t('parties.form.pan'), party.pan],
     [t('parties.form.addressLine'), address === '' ? null : address],
+    [
+      t('parties.form.placeOfSupply'),
+      party.placeOfSupply === null ? null : stateLabel(party.placeOfSupply),
+    ],
     [t('parties.form.homeStore'), homeStore ? `${homeStore.code} · ${homeStore.name}` : null],
     [
       t('parties.form.customerType'),

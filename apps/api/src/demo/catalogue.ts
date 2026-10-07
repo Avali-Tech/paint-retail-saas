@@ -23,11 +23,15 @@ type ProductType =
   | 'waterproofing'
   | 'tool';
 type Unit = 'l' | 'kg' | 'piece';
+/** Keys of the tax categories every business starts with (migration 0052). */
+export type DemoTaxCategory = 'paints' | 'varnishes' | 'putty' | 'brushes_rollers';
 
 interface CategorySpec {
   readonly name: string;
   readonly type: ProductType;
+  /** HSN headings: paints 3208 (solvent-based) and 3209 (water-based), putty 3214, brushes and rollers 9603. */
   readonly hsnCode: string;
+  readonly taxCategory: DemoTaxCategory;
   readonly unit: Unit;
   readonly packs: readonly number[];
   /** Subcategories, by keyword in the product name. */
@@ -70,6 +74,7 @@ export const CATEGORIES = {
     name: 'Interior Emulsion',
     type: 'interior_paint',
     hsnCode: '3209',
+    taxCategory: 'paints',
     unit: 'l',
     packs: [1, 4, 10, 20],
   },
@@ -77,23 +82,48 @@ export const CATEGORIES = {
     name: 'Exterior Emulsion',
     type: 'exterior_paint',
     hsnCode: '3209',
+    taxCategory: 'paints',
     unit: 'l',
     packs: [1, 4, 10, 20],
   },
-  enamel: { name: 'Enamel', type: 'enamel', hsnCode: '3208', unit: 'l', packs: [0.5, 1, 4] },
-  primer: { name: 'Primer', type: 'primer', hsnCode: '3209', unit: 'l', packs: [1, 4, 10, 20] },
-  putty: { name: 'Putty', type: 'putty', hsnCode: '3214', unit: 'kg', packs: [1, 5, 20, 40] },
+  enamel: {
+    name: 'Enamel',
+    type: 'enamel',
+    hsnCode: '3208',
+    taxCategory: 'paints',
+    unit: 'l',
+    packs: [0.5, 1, 4],
+  },
+  primer: {
+    name: 'Primer',
+    type: 'primer',
+    hsnCode: '3209',
+    taxCategory: 'paints',
+    unit: 'l',
+    packs: [1, 4, 10, 20],
+  },
+  putty: {
+    name: 'Putty',
+    type: 'putty',
+    hsnCode: '3214',
+    taxCategory: 'putty',
+    unit: 'kg',
+    packs: [1, 5, 20, 40],
+  },
   wood: {
     name: 'Wood Finish',
     type: 'wood_finish',
     hsnCode: '3208',
+    taxCategory: 'varnishes',
     unit: 'l',
     packs: [0.5, 1, 4],
   },
   waterproofing: {
     name: 'Waterproofing',
     type: 'waterproofing',
+    // Waterproofing coatings: 3824 (chemical preparations), 18% like paints.
     hsnCode: '3824',
+    taxCategory: 'paints',
     unit: 'l',
     packs: [1, 4, 10, 20],
   },
@@ -101,6 +131,7 @@ export const CATEGORIES = {
     name: 'Tools',
     type: 'tool',
     hsnCode: '9603',
+    taxCategory: 'brushes_rollers',
     unit: 'piece',
     packs: [1],
     subcategories: [
@@ -288,7 +319,7 @@ export interface ProductPlan {
   readonly name: string;
   readonly type: ProductType;
   readonly hsnCode: string;
-  readonly gstRatePercent: 18;
+  readonly taxCategory: DemoTaxCategory;
   readonly variants: readonly VariantPlan[];
 }
 
@@ -392,7 +423,7 @@ export function buildCatalogue(random: Random, every = 1): ProductPlan[] {
       name: entry.name,
       type: spec.type,
       hsnCode: spec.hsnCode,
-      gstRatePercent: 18,
+      taxCategory: spec.taxCategory,
       variants,
     };
   });

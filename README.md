@@ -84,12 +84,14 @@ API's console.
 One command starts everything on a Mac with a realistic demo business, **Sharma Paints &
 Hardware**: three branches in Hyderabad (Ameerpet, Kukatpally, Secunderabad), a 13-person team,
 about 300 products and pack sizes from Asian Paints, Berger, Nerolac, Dulux, Indigo and Birla Opus,
-84 customers, contractors, painters, architects, dealers and distributors, and two months of
+84 customers (two of them across the border in Andhra Pradesh, for inter-state sales), contractors, painters, architects, dealers and distributors, and two months of
 history ending today: opening stock, purchase orders and goods receipts (with scheme units free),
 transfers in every state, a stock count, damage and adjustments, low stock, leads, opportunities,
 projects, follow-ups due today and overdue, contracts (one renewing this month), credit (one
 account on hold, one near its limit, requests waiting), loyalty tiers and points, notifications and
-its own brand colours. Leads, opportunities, projects, contracts and follow-ups are seeded too and
+its own brand colours. The three branches are registered for GST in Telangana (state code 36) with one
+GSTIN, and every product has its real HSN code (paints 3208/3209, putty 3214, brushes and rollers 9603)
+and tax category. Leads, opportunities, projects, contracts and follow-ups are seeded too and
 show on the dashboard, and each has its own screens, as do documents and reports.
 
 **On a fresh Mac** (once):
@@ -312,6 +314,12 @@ Every route requires `Authorization: Bearer <token>` unless marked public.
 | GET                | `/stores/directory`                                                                              | `stores:read`                                                      | Every open store of the business (id, code, name), for pickers such as which store to ask for stock                                                                                                                                                                                                                                   |
 | GET                | `/stores/:id`                                                                                    | `stores:read`                                                      | One store (404 if not accessible)                                                                                                                                                                                                                                                                                                     |
 | POST               | `/stores`                                                                                        | `stores:manage`                                                    | Create a store or godown                                                                                                                                                                                                                                                                                                              |
+| GET                | `/tax-categories`                                                                                | `tax:read`                                                         | Tax categories with their full rate history and today's rate (India time)                                                                                                                                                                                                                                                             |
+| GET                | `/tax-categories/options`                                                                        | `catalog:read`                                                     | Active tax categories with today's rate, and whether the business is registered for GST (for the product form)                                                                                                                                                                                                                        |
+| POST · PATCH       | `/tax-categories`, `/tax-categories/:id`                                                         | `tax:manage`                                                       | Add a category with its first rate (`rateBps`, optional `effectiveFrom`); rename, deactivate or reactivate one, or make it the default                                                                                                                                                                                                |
+| POST               | `/tax-categories/:id/rates`                                                                      | `tax:manage`                                                       | Add the next rate from a date (today or later, after the last one); the previous period closes the day before                                                                                                                                                                                                                         |
+| GET                | `/gst-registrations`                                                                             | `tax:read`                                                         | The business's legal name and PAN, and each store's GST registration                                                                                                                                                                                                                                                                  |
+| PUT                | `/gst-registrations/business`, `/gst-registrations/stores/:storeId`                              | `tax:manage`                                                       | Set the legal name; register a store (type, state code, GSTIN, legal and trade name, address)                                                                                                                                                                                                                                         |
 | GET                | `/roles`                                                                                         | `members:read`                                                     | Roles with their permissions and how many active members hold each                                                                                                                                                                                                                                                                    |
 | POST · PATCH       | `/roles`, `/roles/:id`                                                                           | `roles:manage`                                                     | Create a custom role, or rename one / replace its permissions; never system roles, your own role, or permissions you lack. Members get changes on their next request; audited                                                                                                                                                         |
 | GET                | `/members`, `/members/:id`                                                                       | `members:read`                                                     | Team members the caller can see (people in their stores)                                                                                                                                                                                                                                                                              |
@@ -430,6 +438,25 @@ GSTINs are checked with the GSTN check character; the PAN is filled from the GST
 home store are visible to that store's staff; parties without one (suppliers, architects) are
 business-wide.
 
+**Tax & GST** (MVP 2, Sell & Bill; Settings → Tax & GST, `tax:read` to see, `tax:manage` to change,
+owners and admins): GST is registered per state, so each store has its registration: type (regular,
+composition or unregistered), GSTN state code, GSTIN (checksum checked, and it must start with the
+state code), legal name (defaulting to the business's) and trade name, address. Every GSTIN of a
+business carries one PAN, which the business shows as its own. Tax categories hold the GST rate in
+basis points (1800 = 18%) with effective-from and effective-to dates: a change in law is a new rate from
+a date (today or later), which closes the previous period; past rates are never edited (a trigger and
+column grants refuse it, and periods cannot overlap). Every business starts with Paints 18% (the
+default), Varnishes & wood finishes 18%, Putty & fillers 18%, Brushes & rollers 18%, Tools 18% and
+Exempt, as of CBIC Notification 9/2025-Central Tax (Rate), in force from 22 September 2025
+(`seed_default_tax_categories`, migration 0052; to be confirmed by a CA before the first invoice).
+Each product has an HSN code (4, 6 or 8 digits) and a tax category; products get the default until a
+store is registered, and from then on a new product needs one picked. Existing products were given the
+category matching their catalogue category's name (putty, varnish/wood, brush/roller, tool), else
+their product type, else Paints 18%, always keeping the rate they had (a "GST n%" category is added for
+a rate no default carries). Customers have a place of supply (state code): taken from the GSTIN when
+there is one, chosen otherwise. Changes to registrations, the legal name, categories, rates and a
+product's HSN or tax category are in the audit log; the defaults a business starts with are not.
+
 **Catalogue** (roadmap §3.11): one product family (e.g. Apex Ultima) with a variant per pack
 size, each with its own SKU, MRP and selling price in paise, and barcodes. Hardware sold by the
 piece is one product too: an optional variant `label` ("2 inch", "Grit 120", "48 mm", "Red")
@@ -477,7 +504,10 @@ mobile number, opening stock by store and SKU. An optional `variant_label` colum
 sizes: products are refused when they repeat a product's size, unit and label (in the file or
 against saved packs), and on opening stock it must match the SKU's label, catching a mistyped SKU
 among look-alike pieces. Blank cells keep saved values. Opening stock is
-refused once a product has other movements at that store; use a stock count instead.
+refused once a product has other movements at that store; use a stock count instead. The products
+file names each product's tax category in `tax_category` (by name, any case; it replaced the old
+`gst_percent` column): unknown or inactive categories are refused, and a blank one keeps the saved
+category, or gives a new product the default until the business registers for GST, when it is required.
 
 **Documents** (roadmap P1-M18): files attach to parties, products, stores, purchase orders, goods
 receipts, transfers, stock counts, leads, opportunities, projects and contracts. Whoever can see the record sees its documents; whoever can
@@ -676,7 +706,7 @@ password, and add an authenticator app from the QR code; every later sign-in ask
 
 ```
 apps/api              HTTP API (NestJS on Fastify), built with Vite into dist/server
-apps/web              Web app (React + Vite PWA): sign-in (with two-factor), shell, dashboard, customers, credit, loyalty, team and roles, appearance, account security, support access, platform console
+apps/web              Web app (React + Vite PWA): sign-in (with two-factor), shell, dashboard, customers, credit, loyalty, team and roles, appearance, tax & GST, account security, support access, platform console
 packages/ui           Design system: theme runtime and accessible components on design tokens
 packages/db           PostgreSQL schema, migrations, tenant isolation (Drizzle)
 packages/shared       code shared by all apps (money in paise, branding and theme derivation, …)

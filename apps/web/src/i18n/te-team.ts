@@ -136,6 +136,7 @@ export const teamTe: Translation<typeof teamEn> = {
       credit: 'క్రెడిట్',
       loyalty: 'లాయల్టీ',
       audit: 'ఆడిట్ లాగ్',
+      tax: 'టాక్స్ & GST',
     },
     organization: {
       manage: 'బిజినెస్ నడపండి: సెట్టింగ్‌లు, రూపురేఖలు, లాగిన్ నియమాలు మరియు సపోర్ట్ యాక్సెస్',
@@ -181,5 +182,9 @@ export const teamTe: Translation<typeof teamEn> = {
       manage: 'మెంబర్లను చేర్చండి, పాయింట్లు ఇవ్వండి, రిడీమ్ చేయండి',
     },
     audit: { read: 'ఆడిట్ లాగ్ చూడండి' },
+    tax: {
+      read: 'GST రిజిస్ట్రేషన్‌లు, టాక్స్ రేట్‌లు చూడండి',
+      manage: 'GST రిజిస్ట్రేషన్‌లు, టాక్స్ కేటగిరీలు, రేట్‌లు మార్చండి',
+    },
   },
 };

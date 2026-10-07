@@ -23,6 +23,11 @@ const variantRows = () =>
     .map((row) => row.textContent);
 
 describe('ProductDetailPage', () => {
+  it('says when a product has no tax category yet', async () => {
+    renderDetail({ 'GET /products/:id': () => json(product({ taxCategory: null })) });
+    expect(await screen.findByText('No tax category yet')).toBeInTheDocument();
+  });
+
   it('shows the product, its pack sizes and prices, and stock by store', async () => {
     const { requests } = renderDetail({
       'GET /products/:id': () =>
@@ -47,6 +52,7 @@ describe('ProductDetailPage', () => {
     });
     expect(await screen.findByRole('heading', { name: 'Apex Ultima', level: 1 })).toBeVisible();
     expect(screen.getByText('HSN 3209 · GST 18%')).toBeInTheDocument();
+    expect(screen.getByText('Tax category: Paints 18%')).toBeInTheDocument();
     expect(screen.getByText('Emulsions')).toBeInTheDocument();
     expect(screen.getByText('Weatherproof exterior emulsion')).toBeInTheDocument();
     expect(variantRows()).toEqual([

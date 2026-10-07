@@ -15,6 +15,7 @@ import { reportEnumsEn, reportsEn } from './en-reports.js';
 import { stockCountEnumsEn, stockCountsEn } from './en-stock-counts.js';
 import { stockEn, stockEnumsEn } from './en-stock.js';
 import { supportAccessEn } from './en-support-access.js';
+import { taxEn, taxEnumsEn } from './en-tax.js';
 import { teamEn } from './en-team.js';
 import { transferEnumsEn, transfersEn } from './en-transfers.js';
 import { workflowEn } from './en-workflow.js';
@@ -326,6 +327,7 @@ export const en = {
   ...platformEn,
   ...supportAccessEn,
   ...brandingEn,
+  ...taxEn,
   /** Names of API values, for label(group, value). */
   enums: {
     /** Quick actions offered with search, by the API's key. */
@@ -357,6 +359,7 @@ export const en = {
     ...leadEnumsEn,
     ...followUpEnumsEn,
     ...reportEnumsEn,
+    ...taxEnumsEn,
   },
   pages: {
     notFound: 'This address does not lead to a screen. Check the link, or use the menu or search.',

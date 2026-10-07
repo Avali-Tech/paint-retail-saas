@@ -134,6 +134,7 @@ export const teamEn = {
       credit: 'Credit',
       loyalty: 'Loyalty',
       audit: 'Audit log',
+      tax: 'Tax & GST',
     },
     organization: {
       manage: 'Run the business: settings, appearance, sign-in rules and support access',
@@ -173,5 +174,9 @@ export const teamEn = {
     },
     loyalty: { read: 'See loyalty points', manage: 'Enrol members, award and redeem points' },
     audit: { read: 'See the audit log' },
+    tax: {
+      read: 'See GST registrations and tax rates',
+      manage: 'Change GST registrations, tax categories and rates',
+    },
   },
 };

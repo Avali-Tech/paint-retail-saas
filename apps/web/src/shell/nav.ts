@@ -81,6 +81,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: 'settings',
     permission: 'organization:manage',
   },
+  {
+    key: 'tax',
+    label: 'taxSettings.title',
+    path: '/settings/tax',
+    icon: 'settings',
+    permission: 'tax:read',
+  },
   ...SUPPORT_ACCESS_NAV_ITEMS,
 ];
 

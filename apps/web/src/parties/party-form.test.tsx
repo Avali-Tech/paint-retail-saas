@@ -48,11 +48,15 @@ describe('initialValues and toInput', () => {
     expect(input).toMatchObject({
       legalName: null,
       gstin: null,
+      placeOfSupply: '36',
       pan: 'AABCU9603R',
       roles: ['painter'],
       isActive: true,
     });
     expect(input).not.toHaveProperty('customer');
+    // With a GSTIN the API takes the place of supply from it; without, an emptied one clears.
+    expect(toInput(values, true).placeOfSupply).toBeUndefined();
+    expect(toInput({ ...values, gstin: '', placeOfSupply: '' }, true).placeOfSupply).toBeNull();
   });
 });
 
@@ -116,6 +120,8 @@ describe('NewPartyPage', { timeout: 30_000 }, () => {
     await user.type(box('GSTIN'), '36aabcu9603r1zo');
     expect(screen.getByText('Valid GSTIN · PAN AABCU9603R')).toBeInTheDocument();
     expect(box('PAN')).toHaveValue('AABCU9603R');
+    expect(box('Place of supply (GST state)')).toHaveValue('36 · Telangana');
+    expect(screen.getByText('From the GSTIN')).toBeInTheDocument();
     await user.type(box('Tags'), 'Builder, VIP,,');
     await waitFor(() => {
       expect(screen.getByRole('option', { name: 'HYD · Hyderabad' })).toBeInTheDocument();
@@ -277,5 +283,26 @@ describe('EditPartyPage', { timeout: 30_000 }, () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+  });
+});
+
+describe('place of supply', () => {
+  it('is chosen for a customer without a GSTIN', async () => {
+    let body: unknown;
+    const { user } = renderForm('/parties/new', {
+      'POST /parties': (request) => {
+        body = request.body;
+        return json(PARTY, 201);
+      },
+    });
+    await screen.findByRole('heading', { name: 'New customer', level: 1 });
+    await user.type(box('Name'), 'Guntur Walk-in');
+    const state = screen.getByRole('combobox', { name: 'Place of supply (GST state)' });
+    expect(state).toHaveDisplayValue('Choose a state');
+    await user.selectOptions(state, '37 · Andhra Pradesh');
+    await user.click(screen.getByRole('button', { name: 'Add customer' }));
+    await waitFor(() => {
+      expect(body).toMatchObject({ displayName: 'Guntur Walk-in', placeOfSupply: '37' });
+    });
   });
 });

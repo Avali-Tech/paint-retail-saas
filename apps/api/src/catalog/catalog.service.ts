@@ -15,11 +15,12 @@ import {
   type DatabaseConnection,
   type Transaction,
 } from '@paint/db';
-import { basisPointsToPercent, percentToBasisPoints } from '@paint/shared';
+import { basisPointsToPercent } from '@paint/shared';
 import { and, count, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
+import { chooseTaxCategory, productTaxRateBps } from '../tax/tax-lookups.js';
 import { containsPattern } from '../parties/party-access.js';
 import type {
   CreateProductInput,
@@ -30,7 +31,7 @@ import type {
 } from './catalog.schemas.js';
 import { variantOrder } from './variant-order.js';
 
-const { brands, categories, productBarcodes, productVariants, products } = schema;
+const { brands, categories, productBarcodes, productVariants, products, taxCategories } = schema;
 
 /** Friendly messages for duplicates, keyed by the unique constraint that caught them. */
 const CONFLICTS: Record<string, string> = {
@@ -76,7 +77,10 @@ export interface ProductView {
   readonly type: (typeof products.$inferSelect)['type'];
   readonly description: string | null;
   readonly hsnCode: string;
+  /** Today's rate of its tax category. */
   readonly gstRatePercent: number;
+  /** Null only for a product the previous release created during a rollout. */
+  readonly taxCategory: { readonly id: string; readonly name: string } | null;
   readonly isActive: boolean;
   readonly brand: { readonly id: string; readonly name: string };
   readonly category: CategoryView | null;
@@ -270,16 +274,18 @@ export class CatalogService {
   }
 
   createProduct(auth: AuthContext, input: CreateProductInput): Promise<ProductView> {
-    const { variants, gstRatePercent, ...fields } = input;
+    const { variants, taxCategoryId, ...fields } = input;
     const productId = randomUUID();
     return this.tenant(auth, async (tx) => {
       await this.assertBrand(tx, fields.brandId);
       await this.assertCategory(tx, fields.categoryId ?? null);
+      const tax = await chooseTaxCategory(tx, taxCategoryId);
       await tx.insert(products).values({
         id: productId,
         organizationId: auth.organization.id,
         ...fields,
-        gstRateBps: percentToBasisPoints(gstRatePercent),
+        taxCategoryId: tax.id,
+        gstRateBps: tax.rateBps,
       });
       for (const variant of variants) await this.insertVariant(tx, auth, productId, variant);
       return this.productView(tx, productId);
@@ -291,7 +297,7 @@ export class CatalogService {
     productId: string,
     input: UpdateProductInput,
   ): Promise<ProductView> {
-    const { gstRatePercent, ...fields } = input;
+    const { taxCategoryId, ...fields } = input;
     return this.tenant(auth, async (tx) => {
       const [current] = await tx
         .select({ brandId: products.brandId, categoryId: products.categoryId })
@@ -309,13 +315,13 @@ export class CatalogService {
           fields.categoryId === undefined ? current.categoryId : fields.categoryId,
         );
       }
+      const tax =
+        taxCategoryId === undefined ? undefined : await chooseTaxCategory(tx, taxCategoryId);
       await tx
         .update(products)
         .set({
           ...fields,
-          ...(gstRatePercent === undefined
-            ? {}
-            : { gstRateBps: percentToBasisPoints(gstRatePercent) }),
+          ...(tax && { taxCategoryId: tax.id, gstRateBps: tax.rateBps }),
           updatedAt: sql`now()`,
         })
         .where(eq(products.id, productId));
@@ -486,10 +492,17 @@ export class CatalogService {
   /** Products with brand, category, variants and barcodes, in the order of `ids`. */
   private async productViews(tx: Transaction, ids: string[]): Promise<ProductView[]> {
     const rows = await tx
-      .select({ product: products, brand: brands, category: categories })
+      .select({
+        product: products,
+        brand: brands,
+        category: categories,
+        taxCategoryName: taxCategories.name,
+        rateBps: sql<number>`coalesce(${productTaxRateBps}, ${products.gstRateBps})`,
+      })
       .from(products)
       .innerJoin(brands, eq(brands.id, products.brandId))
       .leftJoin(categories, eq(categories.id, products.categoryId))
+      .leftJoin(taxCategories, eq(taxCategories.id, products.taxCategoryId))
       .where(inArray(products.id, ids));
     const variants = await tx
       .select()
@@ -506,20 +519,26 @@ export class CatalogService {
         ),
       );
 
-    const views = rows.map(({ product, brand, category }): ProductView => ({
-      id: product.id,
-      name: product.name,
-      type: product.type,
-      description: product.description,
-      hsnCode: product.hsnCode,
-      gstRatePercent: basisPointsToPercent(product.gstRateBps),
-      isActive: product.isActive,
-      brand: { id: brand.id, name: brand.name },
-      category: category ? toCategory(category) : null,
-      variants: variants
-        .filter((variant) => variant.productId === product.id)
-        .map((variant) => toVariant(variant, barcodeRows)),
-    }));
+    const views = rows.map(
+      ({ product, brand, category, taxCategoryName, rateBps }): ProductView => ({
+        id: product.id,
+        name: product.name,
+        type: product.type,
+        description: product.description,
+        hsnCode: product.hsnCode,
+        gstRatePercent: basisPointsToPercent(rateBps),
+        taxCategory:
+          product.taxCategoryId === null
+            ? null
+            : { id: product.taxCategoryId, name: String(taxCategoryName) },
+        isActive: product.isActive,
+        brand: { id: brand.id, name: brand.name },
+        category: category ? toCategory(category) : null,
+        variants: variants
+          .filter((variant) => variant.productId === product.id)
+          .map((variant) => toVariant(variant, barcodeRows)),
+      }),
+    );
     return ids.flatMap((id) => views.filter((view) => view.id === id));
   }
 }

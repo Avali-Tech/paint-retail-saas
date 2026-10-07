@@ -5,7 +5,7 @@ import {
   isGstStateCode,
   stateCodeFromGstin,
   stateTaxLabel,
-} from '../index.js';
+} from './states.js';
 
 describe('GST state codes', () => {
   it('lists 01 to 38 and 97 once each', () => {

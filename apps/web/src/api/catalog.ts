@@ -54,7 +54,9 @@ export interface Product {
   readonly type: ProductType;
   readonly description: string | null;
   readonly hsnCode: string;
+  /** Today's rate of its tax category. */
   readonly gstRatePercent: number;
+  readonly taxCategory: { readonly id: string; readonly name: string } | null;
   readonly isActive: boolean;
   readonly brand: { readonly id: string; readonly name: string };
   readonly category: Category | null;
@@ -88,7 +90,8 @@ export interface NewProduct {
   readonly type: ProductType;
   readonly description?: string;
   readonly hsnCode: string;
-  readonly gstRatePercent: number;
+  /** Left out: the default category, until the business registers for GST. */
+  readonly taxCategoryId?: string;
   readonly variants: VariantInput[];
 }
 
@@ -100,7 +103,7 @@ export interface ProductChanges {
   readonly type?: ProductType;
   readonly description?: string | null;
   readonly hsnCode?: string;
-  readonly gstRatePercent?: number;
+  readonly taxCategoryId?: string;
   readonly isActive?: boolean;
 }
 

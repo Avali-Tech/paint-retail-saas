@@ -114,7 +114,6 @@ beforeAll(async () => {
       name: 'Apex Ultima',
       type: 'exterior_paint',
       hsnCode: '3209',
-      gstRatePercent: 18,
       variants: [
         { sku: 'APX-ULT-1L', packSize: 1, unit: 'l', barcodes: ['8901234567890'] },
         { sku: 'APX-ULT-20L', packSize: 20, unit: 'l' },
@@ -137,7 +136,6 @@ beforeAll(async () => {
     name: 'Pidilite Masking Tape',
     type: 'tool',
     hsnCode: '3919',
-    gstRatePercent: 18,
     variants: [
       { sku: 'MT-24', packSize: 1, unit: 'piece', label: '24 mm' },
       { sku: 'MT-48', packSize: 1, unit: 'piece', label: '48 mm', barcodes: ['8901234567029'] },
@@ -148,7 +146,6 @@ beforeAll(async () => {
     name: 'WeatherCoat',
     type: 'exterior_paint',
     hsnCode: '3209',
-    gstRatePercent: 18,
     variants: [{ sku: 'WC-1L', packSize: 1, unit: 'l' }],
   });
   ids.lead = await idOf(
@@ -396,7 +393,6 @@ describe('speed', () => {
         name: 'Seed Paint',
         type: 'interior_paint',
         hsnCode: '3209',
-        gstRatePercent: 18,
         variants: [{ sku: 'SEED-0', packSize: 0.5, unit: 'l' }],
       })
     ).json<{ id: string }>().id;

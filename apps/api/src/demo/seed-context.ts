@@ -29,6 +29,8 @@ export class SeedContext {
   readonly storeIds = new Map<StoreKey, string>();
   readonly brandIds = new Map<string, string>();
   readonly categoryIds = new Map<string, string>();
+  /** The business's tax categories, by key (paints, putty…). */
+  readonly taxCategoryIds = new Map<string, string>();
   readonly variants: SeededVariant[] = [];
   readonly parties = new Map<string, SeededParty>();
   /** What the seed expects on hand, per store and variant id, to keep every movement possible. */
@@ -56,6 +58,10 @@ export class SeedContext {
 
   storeId(store: StoreKey): string {
     return this.required(this.storeIds, store, 'store');
+  }
+
+  taxCategoryId(key: string): string {
+    return this.required(this.taxCategoryIds, key, 'tax category');
   }
 
   party(key: string): SeededParty {

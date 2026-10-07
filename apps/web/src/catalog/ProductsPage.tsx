@@ -246,6 +246,7 @@ export function ProductsPage() {
                         <th scope="col">{t('products.brand')}</th>
                         <th scope="col">{t('products.type')}</th>
                         <th scope="col">{t('products.packs')}</th>
+                        <th scope="col">{t('products.tax')}</th>
                         <th scope="col" className="ui-num">
                           {t('products.price')}
                         </th>
@@ -269,6 +270,12 @@ export function ProductsPage() {
                             {sellable(product)
                               .map((variant) => variantName(variant))
                               .join(', ')}
+                          </td>
+                          <td>
+                            {t('products.taxValue', {
+                              hsn: product.hsnCode,
+                              category: product.taxCategory?.name ?? t('common.none'),
+                            })}
                           </td>
                           <td className="ui-num">
                             {priceRange(product, money) ?? t('common.none')}

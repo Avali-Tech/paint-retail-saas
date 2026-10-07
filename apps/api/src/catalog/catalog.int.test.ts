@@ -99,7 +99,6 @@ async function product(overrides: object = {}, token = owner): Promise<Product> 
     name: `Product ${String(n)}`,
     type: 'interior_paint',
     hsnCode: '3209',
-    gstRatePercent: 18,
     variants: [{ sku: `SKU-${String(n)}-1L`, packSize: 1, unit: 'l' }],
     ...overrides,
   });
@@ -218,7 +217,6 @@ describe('catalogue lifecycle', () => {
       name: `Life ${String(next())}`,
       type: 'interior_paint',
       hsnCode: '3209',
-      gstRatePercent: 18,
       variants: [{ sku: `LIFE-${String(next())}`, packSize: 1, unit: 'l' }],
       ...overrides,
     });
@@ -327,7 +325,6 @@ describe('POST /products', () => {
       name: 'Apex Ultima',
       type: 'exterior_paint',
       hsnCode: '32091090',
-      gstRatePercent: 18,
       variants: [
         {
           sku: 'ap-ult-20l',
@@ -348,7 +345,6 @@ describe('POST /products', () => {
       name: 'Apex Ultima',
       type: 'exterior_paint',
       hsnCode: '32091090',
-      gstRatePercent: 18,
       brand: { id: asian, name: 'Asian Paints Pro' },
       category: { id: exterior, name: 'Exterior Emulsions', parentId: null },
     });
@@ -369,7 +365,7 @@ describe('POST /products', () => {
 
   it.each([
     [{ hsnCode: '320' }, 'hsnCode'],
-    [{ gstRatePercent: 17 }, 'gstRatePercent'],
+    [{ taxCategoryId: 'paints' }, 'taxCategoryId'],
     [{ type: 'lipstick' }, 'type'],
     [{ variants: [] }, 'variants'],
     [{ variants: [{ sku: 'bad sku!', packSize: 1, unit: 'l' }] }, 'variants.0.sku'],
@@ -392,7 +388,6 @@ describe('POST /products', () => {
       name: 'Invalid Product',
       type: 'primer',
       hsnCode: '3209',
-      gstRatePercent: 18,
       variants: [{ sku: 'OK-1', packSize: 1, unit: 'l' }],
       ...overrides,
     });
@@ -412,7 +407,6 @@ describe('POST /products', () => {
       name: 'Orphan',
       type: 'primer',
       hsnCode: '3209',
-      gstRatePercent: 18,
       variants: [{ sku: 'ORPHAN-1', packSize: 1, unit: 'l' }],
     };
 
@@ -458,7 +452,6 @@ describe('POST /products', () => {
       name: `Other ${n}`,
       type: 'primer',
       hsnCode: '3209',
-      gstRatePercent: 18,
       variants: [{ sku: `OTHER-${n}`, packSize: 1, unit: 'l' }],
       ...payloads[kind],
     });
@@ -472,7 +465,6 @@ describe('POST /products', () => {
       name: 'Not Allowed',
       type: 'primer',
       hsnCode: '3209',
-      gstRatePercent: 18,
       variants: [{ sku: 'NOPE-1', packSize: 1, unit: 'l' }],
     });
 
@@ -492,7 +484,7 @@ describe('GET /products', () => {
     const berger = await make('/brands', { name: 'berger' });
     const interior = await make('/categories', { name: 'Interior' });
     const emulsions = await make('/categories', { name: 'Emulsions', parentId: interior });
-    const base = { hsnCode: '3209', gstRatePercent: 18 };
+    const base = { hsnCode: '3209' };
     ids = {
       royale: await make('/products', {
         ...base,
@@ -579,10 +571,14 @@ describe('PATCH /products/:id', () => {
   it('renames, re-rates, moves and deactivates a product', async () => {
     const created = await product({ categoryId: await category(`Cat ${String(next())}`) });
 
+    const options = (await api(owner).get('/tax-categories/options')).json<{
+      categories: { id: string; name: string }[];
+    }>();
+    const exempt = options.categories.find((option) => option.name === 'Exempt');
     const updated = (
       await api(owner).patch(`/products/${created.id}`, {
         name: 'Renamed',
-        gstRatePercent: 5,
+        taxCategoryId: exempt?.id,
         categoryId: null,
         description: 'Low-VOC formula',
         isActive: false,
@@ -591,7 +587,8 @@ describe('PATCH /products/:id', () => {
 
     expect(updated).toMatchObject({
       name: 'Renamed',
-      gstRatePercent: 5,
+      gstRatePercent: 0,
+      taxCategory: { id: exempt?.id, name: 'Exempt' },
       category: null,
       description: 'Low-VOC formula',
       isActive: false,
@@ -891,7 +888,6 @@ describe('labelled variants', () => {
       name: `Paint Brush ${n}`,
       type: 'tool',
       hsnCode: '9603',
-      gstRatePercent: 18,
       variants: [piece(`PB${n}-2`, '2 inch', ['4006381333955'])],
     });
     expect(theirs.statusCode).toBe(201);

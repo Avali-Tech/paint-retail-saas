@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { GST_RATES_PERCENT, isValidHsn } from '@paint/shared';
+import { basisPointsToPercent, isValidHsn, type TaxCategoryOptions } from '@paint/shared';
 import {
   Alert,
   Button,
@@ -14,10 +14,11 @@ import {
 } from '@paint/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { useFieldArray, useForm, type Path } from 'react-hook-form';
+import { useFieldArray, useForm, useWatch, type Path } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router';
 import { z } from 'zod';
 import { PRODUCT_TYPES, UNITS, type Brand, type Category, type Product } from '../api/catalog.js';
+import { TAX_OPTIONS_KEY } from '../api/tax.js';
 import { useApi } from '../app/services.js';
 import { showApiError } from '../auth/forms.js';
 import { useI18n, type I18n } from '../i18n/i18n.js';
@@ -26,14 +27,14 @@ import { optional } from '../lib/inputs.js';
 import { categoryOptions, usableCategories } from './categories.js';
 import { EMPTY_VARIANT, toVariantInput, variantSchema, type VariantDraft } from './variant-form.js';
 
-/** A pack size's field in the form, e.g. "variants.0.sku". */
 /** The most pack sizes a new product may start with (the API's limit). */
 export const MAX_VARIANTS = 50;
 
 const variantPath = <K extends keyof VariantDraft>(index: number, key: K) =>
   `variants.${String(index)}.${key}` as `variants.${number}.${K}`;
 
-function formSchema(t: I18n['t']) {
+/** `taxRequired`: a new product of a business registered for GST needs its tax category picked. */
+function formSchema(t: I18n['t'], taxRequired: boolean) {
   return z.object({
     brandId: z.string().min(1, t('common.required')),
     categoryId: z.string(),
@@ -45,7 +46,9 @@ function formSchema(t: I18n['t']) {
     type: z.enum(PRODUCT_TYPES),
     description: z.string(),
     hsnCode: z.string().refine((value) => isValidHsn(value.trim()), t('products.form.hsnInvalid')),
-    gstRatePercent: z.string(),
+    taxCategoryId: z
+      .string()
+      .refine((value) => !taxRequired || value !== '', t('products.form.taxCategoryRequired')),
     isActive: z.boolean(),
     variants: z.array(variantSchema(t)),
   });
@@ -60,7 +63,7 @@ const FIELDS = [
   'type',
   'description',
   'hsnCode',
-  'gstRatePercent',
+  'taxCategoryId',
 ] as const satisfies readonly Path<Values>[];
 
 export function initialValues(product: Product | null): Values {
@@ -71,7 +74,8 @@ export function initialValues(product: Product | null): Values {
     type: product?.type ?? 'interior_paint',
     description: product?.description ?? '',
     hsnCode: product?.hsnCode ?? '3209',
-    gstRatePercent: String(product?.gstRatePercent ?? 18),
+    // Blank: the default category (until the business registers for GST).
+    taxCategoryId: product?.taxCategory?.id ?? '',
     isActive: product?.isActive ?? true,
     // Pack sizes of an existing product are edited one by one on its page.
     variants: product === null ? [{ ...EMPTY_VARIANT }] : [],
@@ -82,16 +86,18 @@ interface ProductFormProps {
   readonly product: Product | null;
   readonly brands: readonly Brand[];
   readonly categories: readonly Category[];
+  readonly tax: TaxCategoryOptions;
 }
 
 /** The form, once brands and categories are loaded (so its pickers start on the saved choice). */
-function ProductForm({ product, brands, categories }: ProductFormProps) {
+function ProductForm({ product, brands, categories, tax }: ProductFormProps) {
   const api = useApi();
   const { t, label } = useI18n();
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const schema = useMemo(() => formSchema(t), [t]);
+  const taxRequired = tax.gstRegistered && product === null;
+  const schema = useMemo(() => formSchema(t, taxRequired), [t, taxRequired]);
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: initialValues(product),
@@ -104,6 +110,15 @@ function ProductForm({ product, brands, categories }: ProductFormProps) {
     usableCategories(categories, product?.category?.id ?? null).map((category) => category.id),
   );
   const { errors, isSubmitting } = form.formState;
+  const savedTax = product?.taxCategory ?? null;
+  // An inactive category takes no new products; the product's own stays on the list.
+  const taxChoices = [
+    ...tax.categories.map(({ id, name }) => ({ id, name })),
+    ...(savedTax && !tax.categories.some((option) => option.id === savedTax.id) ? [savedTax] : []),
+  ];
+  const defaultTax = tax.categories.find((option) => option.isDefault);
+  const chosenTaxId = useWatch({ control: form.control, name: 'taxCategoryId' });
+  const chosenTax = tax.categories.find((option) => option.id === chosenTaxId);
 
   const save = async (values: Values) => {
     setMessage(null);
@@ -112,7 +127,9 @@ function ProductForm({ product, brands, categories }: ProductFormProps) {
       name: values.name.trim(),
       type: values.type,
       hsnCode: values.hsnCode.trim(),
-      gstRatePercent: Number(values.gstRatePercent),
+      ...(values.taxCategoryId === '' || values.taxCategoryId === savedTax?.id
+        ? {}
+        : { taxCategoryId: values.taxCategoryId }),
     };
     try {
       const saved =
@@ -192,11 +209,29 @@ function ProductForm({ product, brands, categories }: ProductFormProps) {
           <Field label={t('products.form.hsn')} required error={errors.hsnCode?.message}>
             <Input inputMode="numeric" maxLength={8} {...form.register('hsnCode')} />
           </Field>
-          <Field label={t('products.form.gst')}>
-            <Select {...form.register('gstRatePercent')}>
-              {GST_RATES_PERCENT.map((rate) => (
-                <option key={rate} value={String(rate)}>
-                  {t('products.form.gstValue', { rate })}
+          <Field
+            label={t('products.form.taxCategory')}
+            required={taxRequired}
+            hint={
+              chosenTax?.currentRateBps == null
+                ? undefined
+                : t('products.form.taxCategoryHint', {
+                    rate: basisPointsToPercent(chosenTax.currentRateBps),
+                  })
+            }
+            error={errors.taxCategoryId?.message}
+          >
+            <Select {...form.register('taxCategoryId')}>
+              {savedTax === null && (
+                <option value="">
+                  {!tax.gstRegistered && defaultTax
+                    ? t('products.form.defaultTaxCategory', { name: defaultTax.name })
+                    : t('products.form.chooseTaxCategory')}
+                </option>
+              )}
+              {taxChoices.map((choice) => (
+                <option key={choice.id} value={choice.id}>
+                  {choice.name}
                 </option>
               ))}
             </Select>
@@ -320,12 +355,25 @@ function ProductFormLoader({ product }: { readonly product: Product | null }) {
     queryKey: ['categories'],
     queryFn: () => api.catalog.categories(),
   });
+  const tax = useQuery({
+    queryKey: TAX_OPTIONS_KEY,
+    queryFn: ({ signal }) => api.tax.options(signal),
+  });
   return (
     <QueryState query={brands} error="catalogSetup.error">
       {(brandList) => (
         <QueryState query={categories} error="catalogSetup.error">
           {(categoryList) => (
-            <ProductForm product={product} brands={brandList} categories={categoryList} />
+            <QueryState query={tax} error="catalogSetup.error">
+              {(options) => (
+                <ProductForm
+                  product={product}
+                  brands={brandList}
+                  categories={categoryList}
+                  tax={options}
+                />
+              )}
+            </QueryState>
           )}
         </QueryState>
       )}

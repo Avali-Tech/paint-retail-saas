@@ -97,7 +97,6 @@ async function setup(
       name: `Reorder Product ${String(seq)}`,
       type: 'interior_paint',
       hsnCode: '3209',
-      gstRatePercent: 18,
       variants: Array.from({ length: variants }, (_, i) => ({
         sku: `RO${String(seq)}-${String(i + 1)}L`,
         packSize: i + 1,

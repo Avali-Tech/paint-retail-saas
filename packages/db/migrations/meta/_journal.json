@@ -358,6 +358,27 @@
       "when": 1791382189726,
       "tag": "0050_variant_label",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1791397831948,
+      "tag": "0051_gst_master_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1791397832598,
+      "tag": "0052_gst_master_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1791397833232,
+      "tag": "0053_grant_tax_permissions",
+      "breakpoints": true
     }
   ]
 }

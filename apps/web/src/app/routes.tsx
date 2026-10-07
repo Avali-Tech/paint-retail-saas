@@ -32,6 +32,9 @@ const DashboardPage = lazy(() =>
 const AppearancePage = lazy(() =>
   import('../settings/AppearancePage.js').then((module) => ({ default: module.AppearancePage })),
 );
+const TaxSettingsPage = lazy(() =>
+  import('../settings/TaxSettingsPage.js').then((module) => ({ default: module.TaxSettingsPage })),
+);
 const SecurityPage = lazy(() =>
   import('../settings/SecurityPage.js').then((module) => ({ default: module.SecurityPage })),
 );
@@ -87,6 +90,7 @@ export function AppRoutes() {
           path="settings/appearance"
           element={guarded('organization:manage', AppearancePage)}
         />
+        <Route path="settings/tax" element={guarded('tax:read', TaxSettingsPage)} />
         {/* Every signed-in member manages their own two-factor sign-in. */}
         <Route path="settings/security" element={<SecurityPage />} />
         <Route path="*" element={<NotFoundPage />} />

@@ -1,11 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
+  CURRENT_GST_STATES,
   isValidGstin,
   isValidPan,
   isValidPincode,
   normalizeEmail,
   normalizePhone,
   panFromGstin,
+  stateCodeFromGstin,
 } from '@paint/shared';
 import {
   Alert,
@@ -25,6 +27,7 @@ import { useForm, useWatch, type Path } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router';
 import { z } from 'zod';
 import { conflictOf } from '../api/conflict.js';
+import { stateLabel } from '../lib/gst-states.js';
 import { errorDetail } from '../api/errors.js';
 import {
   CONTACT_METHODS,
@@ -72,6 +75,7 @@ function formSchema(t: I18n['t']) {
     addressLine: z.string(),
     city: z.string(),
     state: z.string(),
+    placeOfSupply: z.string(),
     pincode: z.string().refine(
       blankOr((value) => isValidPincode(value.trim())),
       t('parties.form.pincodeInvalid'),
@@ -101,6 +105,7 @@ const FIELDS = [
   'addressLine',
   'city',
   'state',
+  'placeOfSupply',
   'pincode',
   'homeStoreId',
   'notes',
@@ -123,6 +128,7 @@ export function initialValues(party: Party | null): Values {
     addressLine: party?.addressLine ?? '',
     city: party?.city ?? '',
     state: party?.state ?? '',
+    placeOfSupply: party?.placeOfSupply ?? '',
     pincode: party?.pincode ?? '',
     homeStoreId: party?.homeStoreId ?? '',
     notes: party?.notes ?? '',
@@ -160,6 +166,8 @@ export function toInput(values: Values, editing: boolean): PartyInput & { isActi
     addressLine: text(values.addressLine),
     city: text(values.city),
     state: text(values.state),
+    // With a GSTIN the place of supply is the GSTIN's state; the API sets it.
+    placeOfSupply: values.gstin.trim() === '' ? text(values.placeOfSupply) : undefined,
     pincode: text(values.pincode),
     homeStoreId: text(values.homeStoreId),
     notes: text(values.notes),
@@ -326,6 +334,25 @@ function PartyForm({ party }: { readonly party: Party | null }) {
           <Field label={t('parties.form.state')}>
             <Input {...form.register('state')} />
           </Field>
+          {gstinValid ? (
+            <Field
+              label={t('parties.form.placeOfSupply')}
+              hint={t('parties.form.placeOfSupplyFromGstin')}
+            >
+              <Input readOnly value={stateLabel(stateCodeFromGstin(gstin))} />
+            </Field>
+          ) : (
+            <Field label={t('parties.form.placeOfSupply')}>
+              <Select {...form.register('placeOfSupply')}>
+                <option value="">{t('parties.form.chooseState')}</option>
+                {CURRENT_GST_STATES.map((state) => (
+                  <option key={state.code} value={state.code}>
+                    {stateLabel(state.code)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
           <Field label={t('parties.form.pincode')} error={errors.pincode?.message}>
             <Input inputMode="numeric" maxLength={6} {...form.register('pincode')} />
           </Field>

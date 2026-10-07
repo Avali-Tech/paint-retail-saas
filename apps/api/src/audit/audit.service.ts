@@ -18,6 +18,7 @@ const {
   roles,
   stockLedger,
   stores,
+  taxCategories,
   users,
 } = schema;
 
@@ -105,6 +106,20 @@ const FIELD_LABELS: Record<string, string> = {
   content_type: 'File type',
   width: 'Width (px)',
   height: 'Height (px)',
+  tax_category_id: 'Tax category',
+  hsn_code: 'HSN code',
+  rate_bps: 'GST rate (basis points)',
+  effective_from: 'From',
+  effective_to: 'To',
+  is_default: 'Default',
+  gst_registration_type: 'Registration type',
+  gst_state_code: 'State code',
+  gstin: 'GSTIN',
+  legal_name: 'Legal name',
+  trade_name: 'Trade name',
+  address_line: 'Address',
+  city: 'City',
+  pincode: 'PIN code',
 };
 
 // Every named table's records are keyed by a uuid: comparing uuids (not id::text) lets each
@@ -129,6 +144,9 @@ const recordLabel = sql<string | null>`case ${auditLog.tableName}
   when 'organization_logos' then 'Logo'
   when 'parties' then (select p.display_name from parties p where p.id = ${recordUuid})
   when 'loyalty_accounts' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id = ${recordUuid})
+  when 'tax_categories' then (select tc.name from tax_categories tc where tc.id = ${recordUuid})
+  when 'tax_rates' then (select tc.name from tax_rates tr join tax_categories tc on tc.id = tr.tax_category_id where tr.id = ${recordUuid})
+  when 'stores' then (select s.code || ' · ' || s.name from stores s where s.id = ${recordUuid})
   when 'loyalty_ledger' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id = ${recordUuid})
   else (select ${users.fullName} from ${organizationMembers} join ${users} on ${users.id} = ${organizationMembers.userId} where ${organizationMembers.id}::text = ${auditLog.recordId})
 end`;
@@ -239,6 +257,10 @@ export class AuditService {
         .select({ id: categories.id, name: categories.name })
         .from(categories)
         .where(inArray(categories.id, [...ids('category_id'), ...ids('parent_id')]))),
+      ...(await tx
+        .select({ id: taxCategories.id, name: taxCategories.name })
+        .from(taxCategories)
+        .where(inArray(taxCategories.id, ids('tax_category_id')))),
     ];
     return new Map(found.map(({ id, name }) => [id, name]));
   }

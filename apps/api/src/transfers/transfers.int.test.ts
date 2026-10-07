@@ -97,7 +97,6 @@ async function stockedAtPune(): Promise<{ a: string; b: string; skuA: string; sk
       name: `T Product ${String(seq)}`,
       type: 'interior_paint',
       hsnCode: '3209',
-      gstRatePercent: 18,
       variants: [
         { sku: `T${String(seq)}-A`, packSize: 1, unit: 'l' },
         { sku: `T${String(seq)}-B`, packSize: 4, unit: 'l' },
@@ -655,7 +654,6 @@ describe('GET /transfers', () => {
         name: 'L Product',
         type: 'primer',
         hsnCode: '3209',
-        gstRatePercent: 18,
         variants: [{ sku: 'L-1', packSize: 1, unit: 'l' }],
       })
     ).json<{ variants: { id: string }[] }>().variants[0]?.id;

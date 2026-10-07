@@ -1,10 +1,5 @@
 import { schema } from '@paint/db';
-import {
-  GST_RATES_PERCENT,
-  VARIANT_LABEL_MAX_LENGTH,
-  isValidBarcode,
-  isValidHsn,
-} from '@paint/shared';
+import { VARIANT_LABEL_MAX_LENGTH, isValidBarcode, isValidHsn } from '@paint/shared';
 import { z } from 'zod';
 
 export const PRODUCT_TYPES = schema.productType.enumValues;
@@ -40,11 +35,6 @@ export const variantLabel = z
   .max(VARIANT_LABEL_MAX_LENGTH)
   .transform((value) => (value === '' ? null : value));
 export const hsnCode = z.string().trim().refine(isValidHsn, 'Enter a 4, 6 or 8-digit HSN code');
-export const gstRatePercent = z
-  .number()
-  .refine((rate) => (GST_RATES_PERCENT as readonly number[]).includes(rate), {
-    message: `Use a GST rate of ${GST_RATES_PERCENT.join(', ')}%`,
-  });
 
 const withinMrp = (variant: { mrpPaise?: number | null; sellingPricePaise?: number | null }) =>
   variant.mrpPaise == null ||
@@ -100,7 +90,8 @@ export const createProductSchema = z.object({
   type: z.enum(PRODUCT_TYPES),
   description: z.string().trim().min(1).max(2000).optional(),
   hsnCode,
-  gstRatePercent,
+  /** Where the GST rate comes from; the default category until the business registers for GST. */
+  taxCategoryId: z.uuid().optional(),
   variants: z.array(variantSchema).min(1).max(50),
 });
 export type CreateProductInput = z.output<typeof createProductSchema>;
@@ -113,7 +104,7 @@ export const updateProductSchema = z
     type: z.enum(PRODUCT_TYPES).optional(),
     description: z.string().trim().min(1).max(2000).nullable().optional(),
     hsnCode: hsnCode.optional(),
-    gstRatePercent: gstRatePercent.optional(),
+    taxCategoryId: z.uuid().optional(),
     isActive: z.boolean().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, { message: 'Nothing to change' });
