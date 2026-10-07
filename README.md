@@ -264,6 +264,12 @@ ends running access, and lists earlier requests; each request's page (`/settings
 in the notification) shows every request support made with it. Owners and admins see a banner on every
 page while support access runs or a request waits.
 
+**Invoice print** (MVP 2 round 2b, [docs/mvp-2/print.md](docs/mvp-2/print.md)): `buildInvoiceView()` in
+`@paint/shared` turns the GST engine's invoice and the document's header data into a print-ready view
+that decides which Rule 46 fields the case needs; the web app prints it on A4 and 80 mm thermal paper
+(`src/print`, previewed with sample data at `/print-preview`), `renderThermalText()` gives 48-column
+text, and the API draws the A4 PDF with pdfkit and bundled Noto fonts (`apps/api/src/print`).
+
 **Languages.** The web app speaks English, Hindi and Telugu. Each person picks theirs on the
 sign-in page or under **Account security → Language**; it is kept on the device (`paint.locale`;
 the API has no per-user language yet) and sets `<html lang>`. Numbers, money and dates keep the

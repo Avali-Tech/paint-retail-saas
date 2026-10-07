@@ -12,6 +12,7 @@ import { leadRoutes } from '../leads/routes.js';
 import { opportunityRoutes } from '../opportunities/routes.js';
 import { partyRoutes } from '../parties/routes.js';
 import { platformRoutes } from '../platform/routes.js';
+import { printRoutes } from '../print/routes.js';
 import { projectRoutes } from '../projects/routes.js';
 import { purchasingRoutes } from '../purchasing/routes.js';
 import { reportRoutes } from '../reports/routes.js';
@@ -83,6 +84,7 @@ export function AppRoutes() {
         {reportRoutes()}
         {teamRoutes()}
         {supportAccessRoutes()}
+        {printRoutes()}
         <Route
           path="settings/appearance"
           element={guarded('organization:manage', AppearancePage)}

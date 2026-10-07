@@ -1,0 +1,367 @@
+/* Invoice templates (A4 and 80 mm thermal) and their print preview. Tokens only: the
+   paper is the theme's lightest neutral with its darkest text in every mode (an
+   invoice is printed on white), headings take the business's primary colour, and
+   sizes on paper are in pt and mm so they do not follow the screen's density. */
+
+.invoice-preview__options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  align-items: end;
+  gap: var(--space-3);
+}
+
+/* The paper scrolls inside its own box on a phone, so the page never scrolls sideways. */
+.invoice-preview__paper {
+  overflow-x: auto;
+  padding: var(--space-2) 0;
+}
+
+.invoice {
+  margin: 0 auto;
+  background: var(--palette-neutral-50);
+  color: var(--palette-neutral-950);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-family);
+  line-height: 1.35;
+}
+
+.invoice p,
+.invoice h2,
+.invoice h3,
+.invoice dl,
+.invoice dd,
+.invoice ol {
+  margin: 0;
+}
+
+.invoice__translation {
+  display: block;
+  font-weight: 400;
+  font-size: 0.85em;
+  color: var(--palette-neutral-700);
+}
+
+.invoice__logo {
+  display: block;
+  max-width: 30mm;
+  max-height: 16mm;
+  object-fit: contain;
+}
+
+.invoice__business {
+  font-weight: 700;
+  font-size: 14pt;
+  color: var(--palette-primary-800);
+}
+
+.invoice__title {
+  font-size: 13pt;
+  font-weight: 700;
+  color: var(--palette-primary-800);
+}
+
+.invoice__copy,
+.invoice__strong,
+.invoice__party-title {
+  font-weight: 700;
+}
+
+.invoice__party-title {
+  font-size: inherit;
+}
+
+.invoice__notice {
+  font-weight: 700;
+  text-align: center;
+}
+
+.invoice__variant {
+  display: block;
+  color: var(--palette-neutral-700);
+}
+
+.invoice__num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.invoice__signature-space {
+  height: 12mm;
+}
+
+/* ---- A4 ---- */
+
+.invoice--a4 {
+  page: invoice-a4;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 12mm;
+  font-size: 8.5pt;
+}
+
+.invoice--a4 .invoice__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 6mm;
+  padding-bottom: 3mm;
+  border-bottom: 1.5pt solid var(--palette-neutral-900);
+}
+
+.invoice--a4 .invoice__brand {
+  display: flex;
+  gap: 4mm;
+}
+
+.invoice--a4 .invoice__heading {
+  text-align: right;
+}
+
+.invoice--a4 .invoice__notice {
+  margin-top: 2mm;
+}
+
+.invoice--a4 .invoice__parties {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6mm;
+  padding: 3mm 0;
+  border-bottom: 0.75pt solid var(--palette-neutral-500);
+}
+
+.invoice--a4 .invoice__facts > div {
+  display: grid;
+  grid-template-columns: 45% 55%;
+  gap: 2mm;
+  margin-bottom: 1.5mm;
+}
+
+.invoice--a4 .invoice__facts dt {
+  font-weight: 700;
+}
+
+.invoice table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.invoice th {
+  font-weight: 700;
+  text-align: left;
+  vertical-align: bottom;
+}
+
+.invoice tbody th {
+  font-weight: 400;
+  vertical-align: top;
+}
+
+.invoice--a4 .invoice__lines {
+  margin-top: 3mm;
+}
+
+.invoice--a4 .invoice__lines th,
+.invoice--a4 .invoice__lines td {
+  padding: 1.2mm 1mm;
+}
+
+.invoice--a4 .invoice__lines thead tr:last-child th {
+  border-bottom: 0.75pt solid var(--palette-neutral-900);
+  font-size: 7.5pt;
+}
+
+.invoice--a4 .invoice__lines tbody tr {
+  border-bottom: 0.5pt solid var(--palette-neutral-300);
+  break-inside: avoid;
+}
+
+/* The running header only shows on paper, where it heads every page. */
+.invoice__running {
+  display: none;
+}
+
+.invoice__running th {
+  font-weight: 400;
+  color: var(--palette-neutral-700);
+}
+
+.invoice--a4 .invoice__summary {
+  display: grid;
+  grid-template-columns: 1fr 70mm;
+  gap: 8mm;
+  margin-top: 3mm;
+  break-inside: avoid;
+}
+
+.invoice--a4 .invoice__tax-summary th,
+.invoice--a4 .invoice__tax-summary td {
+  padding: 0.8mm 1mm;
+  border-bottom: 0.5pt solid var(--palette-neutral-300);
+}
+
+.invoice__totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+  padding: 0.8mm 0;
+}
+
+.invoice__totals dd {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.invoice__grand {
+  border-top: 1pt solid var(--palette-neutral-900);
+  font-weight: 700;
+  font-size: 11pt;
+}
+
+.invoice--a4 .invoice__closing {
+  display: grid;
+  grid-template-columns: 1fr 60mm;
+  gap: 8mm;
+  margin-top: 5mm;
+  break-inside: avoid;
+}
+
+.invoice--a4 .invoice__texts {
+  display: grid;
+  gap: 2.5mm;
+}
+
+.invoice__terms {
+  padding-left: 4mm;
+}
+
+.invoice--a4 .invoice__signatory {
+  align-self: end;
+  text-align: right;
+}
+
+/* ---- Thermal 80 mm: 72 mm printable ---- */
+
+.invoice--thermal {
+  page: invoice-thermal;
+  width: 80mm;
+  padding: 3mm 4mm;
+  font-size: 8.5pt;
+}
+
+.receipt__head {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  padding-bottom: 2mm;
+  border-bottom: 0.75pt dashed var(--palette-neutral-900);
+}
+
+.receipt__head .invoice__title {
+  margin-top: 2mm;
+  font-size: 11pt;
+}
+
+.receipt__rows > div,
+.receipt__pair {
+  display: flex;
+  justify-content: space-between;
+  gap: 2mm;
+}
+
+.receipt__rows dd,
+.receipt__pair > :last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.receipt__rows,
+.receipt__block,
+.receipt__items,
+.receipt__tax {
+  padding: 1.5mm 0;
+  border-bottom: 0.75pt dashed var(--palette-neutral-900);
+}
+
+.receipt__items {
+  list-style: none;
+  padding-left: 0;
+}
+
+.receipt__items li {
+  padding: 1mm 0;
+  break-inside: avoid;
+}
+
+.receipt__meta {
+  color: var(--palette-neutral-700);
+}
+
+.receipt__totals .invoice__grand {
+  font-size: 10pt;
+}
+
+.receipt__tax {
+  font-size: 7.5pt;
+}
+
+.receipt__tax td,
+.receipt__tax th {
+  text-align: right;
+}
+
+.receipt__tax th:first-child {
+  text-align: left;
+}
+
+.receipt__sign {
+  padding-top: 2mm;
+  text-align: center;
+}
+
+/* ---- Paper ---- */
+
+@page invoice-a4 {
+  size: A4;
+  margin: 12mm;
+}
+
+/* Thermal rolls have no fixed length; printer drivers cut after the content (PO-7). */
+@page invoice-thermal {
+  size: 80mm 297mm;
+  margin: 0;
+}
+
+@media print {
+  /* Only the invoice prints: no app frame, options or shadows. */
+  body:has(.invoice-preview) :is(.shell__header, .shell__sidebar, .shell__bottom-bar, .no-print) {
+    display: none !important;
+  }
+
+  body:has(.invoice-preview) .shell {
+    display: block;
+  }
+
+  .shell__main:has(.invoice-preview) {
+    max-width: none;
+    padding: 0;
+  }
+
+  .invoice-preview__paper {
+    overflow: visible;
+    padding: 0;
+  }
+
+  .invoice {
+    box-shadow: none;
+  }
+
+  /* The page's margins replace the sheet's padding, so every page keeps them. */
+  .invoice--a4 {
+    width: auto;
+    min-height: 0;
+    padding: 0;
+  }
+
+  .invoice__running {
+    display: table-row;
+  }
+}

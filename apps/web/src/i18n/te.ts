@@ -12,6 +12,7 @@ import { leadEnumsTe, leadsTe } from './te-leads.js';
 import { loyaltyEnumsTe, loyaltyTe } from './te-loyalty.js';
 import { partiesTe, partyEnumsTe } from './te-parties.js';
 import { platformTe } from './te-platform.js';
+import { printTe } from './te-print.js';
 import { projectsTe } from './te-projects.js';
 import { purchasingEnumsTe, purchasingTe } from './te-purchasing.js';
 import { reportEnumsTe, reportsTe } from './te-reports.js';
@@ -329,6 +330,7 @@ export const te: Messages = {
   ...reportsTe,
   ...teamTe,
   ...platformTe,
+  ...printTe,
   ...supportAccessTe,
   ...brandingTe,
   enums: {

@@ -12,6 +12,7 @@ import { leadEnumsHi, leadsHi } from './hi-leads.js';
 import { loyaltyEnumsHi, loyaltyHi } from './hi-loyalty.js';
 import { partiesHi, partyEnumsHi } from './hi-parties.js';
 import { platformHi } from './hi-platform.js';
+import { printHi } from './hi-print.js';
 import { projectsHi } from './hi-projects.js';
 import { purchasingEnumsHi, purchasingHi } from './hi-purchasing.js';
 import { reportEnumsHi, reportsHi } from './hi-reports.js';
@@ -322,6 +323,7 @@ export const hi: Messages = {
   ...reportsHi,
   ...teamHi,
   ...platformHi,
+  ...printHi,
   ...supportAccessHi,
   ...brandingHi,
   enums: {
