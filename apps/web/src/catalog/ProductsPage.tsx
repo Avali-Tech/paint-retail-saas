@@ -22,6 +22,7 @@ import { useApi } from '../app/services.js';
 import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { useDebouncedValue, useUrlFilters } from '../lib/hooks.js';
+import { variantName } from '../lib/product-title.js';
 import { QueryState } from '../lib/QueryState.js';
 import { categoryOptions } from './categories.js';
 
@@ -266,7 +267,7 @@ export function ProductsPage() {
                           <td>{label('productTypes', product.type)}</td>
                           <td>
                             {sellable(product)
-                              .map((variant) => `${String(variant.packSize)} ${variant.unit}`)
+                              .map((variant) => variantName(variant))
                               .join(', ')}
                           </td>
                           <td className="ui-num">

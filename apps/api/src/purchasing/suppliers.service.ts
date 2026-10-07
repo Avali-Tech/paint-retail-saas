@@ -38,6 +38,9 @@ export interface SupplierProductView {
   readonly sku: string;
   readonly productName: string;
   readonly brandName: string;
+  readonly packSize: number;
+  readonly unit: string;
+  readonly label: string | null;
   readonly supplierSku: string | null;
   readonly lastCostPaise: number | null;
   readonly lastReceivedAt: string | null;
@@ -197,6 +200,9 @@ export class SuppliersService {
         sku: productVariants.sku,
         productName: products.name,
         brandName: brands.name,
+        packSize: productVariants.packSize,
+        unit: productVariants.unit,
+        label: productVariants.label,
       })
       .from(supplierProducts)
       .innerJoin(productVariants, eq(productVariants.id, supplierProducts.variantId))
@@ -211,6 +217,9 @@ export class SuppliersService {
         sku: product.sku,
         productName: product.productName,
         brandName: product.brandName,
+        packSize: product.packSize,
+        unit: product.unit,
+        label: product.label,
         supplierSku: link.supplierSku,
         lastCostPaise: link.lastCostPaise,
         lastReceivedAt: link.lastReceivedAt ? link.lastReceivedAt.toISOString() : null,

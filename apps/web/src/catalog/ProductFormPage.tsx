@@ -246,6 +246,13 @@ function ProductForm({ product, brands, categories }: ProductFormProps) {
                         ))}
                       </Select>
                     </Field>
+                    <Field
+                      label={t('products.form.label')}
+                      hint={t('products.form.labelHint')}
+                      error={fieldErrors?.label?.message}
+                    >
+                      <Input {...form.register(variantPath(index, 'label'))} />
+                    </Field>
                     <Field label={t('products.form.mrp')} error={fieldErrors?.mrp?.message}>
                       <Input inputMode="decimal" {...form.register(variantPath(index, 'mrp'))} />
                     </Field>

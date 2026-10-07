@@ -20,7 +20,7 @@ const SUPPLIER = {
 const ITEMS = [
   lowItem(),
   lowItem({
-    variant: { id: 'variant-4l', sku: 'APX-4L' },
+    variant: { id: 'variant-4l', sku: 'APX-4L', packSize: 4, unit: 'l', label: null },
     severity: 'out_of_stock',
     onHand: 0,
     available: 0,
@@ -54,8 +54,8 @@ describe('LowStockPage', () => {
         .map((row) => row.textContent),
     ).toEqual([
       'ProductStoreStatusAvailableReorder atSuggested order',
-      'Asian Paints Apex UltimaAPX-1LHYDBelow minimum1519',
-      'Asian Paints Apex UltimaAPX-4LHYDOut of stock0520',
+      'Asian Paints Apex UltimaAPX-1L · 1 lHYDBelow minimum1519',
+      'Asian Paints Apex UltimaAPX-4L · 4 lHYDOut of stock0520',
     ]);
     expect(screen.getByText('Choose one store above to order for it')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create purchase order' })).toBeNull();

@@ -37,7 +37,14 @@ describe('TransferDetailPage', () => {
         note: 'For the wedding order',
         lines: [
           transferLine(),
-          transferLine({ variantId: 'v-4l', sku: 'APX-4L', requestedQuantity: 2 }),
+          transferLine({
+            variantId: 'v-4l',
+            sku: 'APX-4L',
+            productName: 'Paint Brush',
+            unit: 'piece',
+            label: '2 inch',
+            requestedQuantity: 2,
+          }),
         ],
       }),
       { 'POST /transfers/:id/approve': () => json(approved) },
@@ -48,8 +55,8 @@ describe('TransferDetailPage', () => {
     expect(screen.getByRole('list', { name: 'Progress' })).toHaveTextContent(/^Requested /);
     expect(rows('Products')).toEqual([
       'ProductRequestedAvailable at HYDApprovedDispatchedReceivedDamagedShort',
-      'APX-1LAsian Paints Apex Ultima · 1 l1012—————',
-      'APX-4LAsian Paints Apex Ultima · 1 l212—————',
+      'APX-1LAsian Paints Apex Ultima 1 l1012—————',
+      'APX-4LAsian Paints Paint Brush 2 inch212—————',
     ]);
     expect(screen.getByRole('button', { name: 'Cancel request TR-000001' })).toBeInTheDocument();
     expect(screen.queryByText('Delivery challan')).toBeNull();
@@ -240,7 +247,7 @@ describe('TransferDetailPage', () => {
       lines: [{ variantId: 'variant-1l', received: 6, damaged: 1 }],
     });
     await waitFor(() => {
-      expect(rows('Products')[1]).toBe('APX-1LAsian Paints Apex Ultima · 1 l1088611');
+      expect(rows('Products')[1]).toBe('APX-1LAsian Paints Apex Ultima 1 l1088611');
     });
     expect(screen.getByRole('list', { name: 'Progress' })).toHaveTextContent(/Received /);
   });

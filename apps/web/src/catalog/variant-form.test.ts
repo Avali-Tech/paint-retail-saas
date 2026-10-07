@@ -57,7 +57,12 @@ describe('variant form', () => {
     expect(problems({ ...draft, packSize: '1000000' })).toEqual([]);
     const eleven = Array.from({ length: 11 }, (_, index) => `CODE-${String(index)}`).join(' ');
     expect(problems({ ...draft, barcodes: eleven })).toEqual([
-      'barcodes: Up to 10 barcodes per pack size',
+      'barcodes: Up to 10 barcodes per size / pack',
+    ]);
+    // A label is optional, trimmed, and up to 40 characters.
+    expect(problems({ ...draft, label: `  ${'x'.repeat(40)}  ` })).toEqual([]);
+    expect(problems({ ...draft, label: 'x'.repeat(41) })).toEqual([
+      'label: Use at most 40 characters',
     ]);
     expect(problems({ ...draft, sellingPrice: '600' })).toEqual([
       'sellingPrice: Selling price cannot exceed the MRP',
@@ -74,18 +79,23 @@ describe('variant form', () => {
       sku: 'APX-1L',
       packSize: 1,
       unit: 'l',
+      label: null,
       mrpPaise: 50_000,
       sellingPricePaise: 45_000,
       barcodes: ['8901234567890'],
     });
-    expect(toVariantInput({ ...draft, mrp: '', sellingPrice: '' })).toEqual({
+    expect(
+      toVariantInput({ ...draft, unit: 'piece', label: ' 2 inch ', mrp: '', sellingPrice: '' }),
+    ).toEqual({
       sku: 'APX-1L',
       packSize: 1,
-      unit: 'l',
+      unit: 'piece',
+      label: '2 inch',
       barcodes: [],
     });
     expect(toVariantChanges({ ...draft, mrp: '', isActive: false })).toEqual({
       sku: 'APX-1L',
+      label: null,
       mrpPaise: null,
       sellingPricePaise: 45_000,
       barcodes: [],
@@ -98,10 +108,15 @@ describe('variant form', () => {
       sku: 'APX-1L',
       packSize: '1',
       unit: 'l',
+      label: '',
       mrp: '',
       sellingPrice: '450.00',
       barcodes: '8901234567890',
       isActive: true,
+    });
+    expect(variantDraft(variant({ unit: 'piece', label: 'Grit 120' }))).toMatchObject({
+      unit: 'piece',
+      label: 'Grit 120',
     });
   });
 });

@@ -61,6 +61,7 @@ export interface PurchaseOrderLineView {
   readonly brandName: string;
   readonly packSize: number;
   readonly unit: string;
+  readonly label: string | null;
   readonly orderedQuantity: number;
   readonly receivedQuantity: number;
   /** Still to arrive. */
@@ -373,6 +374,7 @@ export class PurchaseOrdersService {
         sku: productVariants.sku,
         packSize: productVariants.packSize,
         unit: productVariants.unit,
+        label: productVariants.label,
         productName: products.name,
         brandName: brands.name,
       })

@@ -21,6 +21,7 @@ import { useApi } from '../app/services.js';
 import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { FormDialog } from '../lib/FormDialog.js';
+import { variantName } from '../lib/product-title.js';
 import { QueryState } from '../lib/QueryState.js';
 import {
   EMPTY_VARIANT,
@@ -97,6 +98,13 @@ function VariantDialog({
           </Field>
         </div>
       )}
+      <Field
+        label={t('products.form.label')}
+        hint={t('products.form.labelHint')}
+        error={errors.label?.message}
+      >
+        <Input {...form.register('label')} />
+      </Field>
       <div className="form-grid">
         <Field label={t('products.form.mrp')} error={errors.mrp?.message}>
           <Input inputMode="decimal" {...form.register('mrp')} />
@@ -149,7 +157,9 @@ function StockByStore({ product }: { readonly product: Product }) {
                 {page.items.map((row) => (
                   <tr key={`${row.store.id}-${row.variant.id}`}>
                     <th scope="row">{row.store.code}</th>
-                    <td>{row.variant.sku}</td>
+                    <td>
+                      {row.variant.sku} · {variantName(row.variant)}
+                    </td>
                     <td className="ui-num">{number(row.onHand)}</td>
                     <td className="ui-num">{number(row.available)}</td>
                   </tr>
@@ -247,9 +257,7 @@ function ProductView({ product }: { readonly product: Product }) {
                       </>
                     )}
                   </th>
-                  <td>
-                    {String(variant.packSize)} {label('units', variant.unit)}
-                  </td>
+                  <td>{variantName(variant, (unit) => label('units', unit))}</td>
                   <td className="ui-num">{price(variant.mrpPaise)}</td>
                   <td className="ui-num">{price(variant.sellingPricePaise)}</td>
                   <td>

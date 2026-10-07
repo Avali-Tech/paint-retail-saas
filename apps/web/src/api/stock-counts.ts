@@ -17,6 +17,10 @@ export interface CountLine {
   readonly sku: string;
   readonly productName: string;
   readonly brandName: string;
+  readonly packSize: number;
+  readonly unit: string;
+  /** Tells same-sized packs apart, e.g. "2 inch"; see variantName. */
+  readonly label: string | null;
   readonly expectedQuantity: number;
   readonly countedQuantity: number | null;
   /** counted - expected; null until counted. */

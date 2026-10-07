@@ -246,9 +246,9 @@ describe('StockCountDetailPage', () => {
     await screen.findByRole('table', { name: 'Products' });
     expect(rows()).toEqual([
       'ProductBooksCountedDifferenceValue',
-      'APX-1LAsian Paints Apex Ultima1210-2-₹800.00',
-      'APX-4LAsian Paints Apex Ultima341—',
-      'APX-20LAsian Paints Apex Ultima110₹0.00',
+      'APX-1LAsian Paints Apex Ultima 1 l1210-2-₹800.00',
+      'APX-4LAsian Paints Apex Ultima 1 l341—',
+      'APX-20LAsian Paints Apex Ultima 1 l110₹0.00',
     ]);
     expect(screen.getByText('33.3%')).toBeInTheDocument();
     expect(screen.getAllByText('-₹800.00')).toHaveLength(2);

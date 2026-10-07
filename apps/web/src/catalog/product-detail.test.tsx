@@ -18,7 +18,7 @@ function renderDetail(routes: Record<string, FakeHandler> = {}, member = OWNER) 
 }
 
 const variantRows = () =>
-  within(screen.getByRole('table', { name: 'Pack sizes' }))
+  within(screen.getByRole('table', { name: 'Sizes / packs' }))
     .getAllByRole('row')
     .map((row) => row.textContent);
 
@@ -36,6 +36,7 @@ describe('ProductDetailPage', () => {
               variant({
                 id: 'v-20',
                 sku: 'APX-20L',
+                label: 'Red',
                 isActive: false,
                 mrpPaise: null,
                 barcodes: [],
@@ -51,10 +52,10 @@ describe('ProductDetailPage', () => {
     expect(variantRows()).toEqual([
       'SKUSizeMRP (₹)Selling price (₹)BarcodesEdit',
       'APX-1L1 l₹500.00₹450.008901234567890Edit APX-1L',
-      'APX-20L Inactive1 l—₹450.00—Edit APX-20L',
+      'APX-20L InactiveRed · 1 l—₹450.00—Edit APX-20L',
     ]);
     const stock = await screen.findByRole('table', { name: 'Stock by store' });
-    expect(within(stock).getAllByRole('row')[1]).toHaveTextContent('HYDAPX-1L1210');
+    expect(within(stock).getAllByRole('row')[1]).toHaveTextContent('HYDAPX-1L · 1 l1210');
     expect(requests.find((request) => request.path === '/stock')?.query.get('productId')).toBe(
       'product-apex',
     );
@@ -68,7 +69,7 @@ describe('ProductDetailPage', () => {
     renderDetail({ 'GET /stock': () => json(page([])) }, CASHIER);
     await screen.findByRole('heading', { name: 'Apex Ultima', level: 1 });
     expect(screen.queryByRole('link', { name: 'Edit' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Add pack size' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add size / pack' })).toBeNull();
     expect(variantRows()[0]).toBe('SKUSizeMRP (₹)Selling price (₹)Barcodes');
     expect(
       await screen.findByText('None of your stores has this product in stock.'),
@@ -91,7 +92,7 @@ describe('ProductDetailPage', () => {
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
   });
 
-  it('adds a pack size', async () => {
+  it('adds a labelled size', async () => {
     const saved = product({
       variants: [...APEX.variants, variant({ id: 'v-10', sku: 'APX-10L', packSize: 10 })],
     });
@@ -102,12 +103,13 @@ describe('ProductDetailPage', () => {
         return json(saved, 201);
       },
     });
-    await user.click(await screen.findByRole('button', { name: 'Add pack size' }));
-    const dialog = screen.getByRole('dialog', { name: 'Add pack size' });
+    await user.click(await screen.findByRole('button', { name: 'Add size / pack' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add size / pack' });
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
     expect(within(dialog).getByText('Use 2 to 40 letters, digits or . _ / -')).toBeInTheDocument();
     await user.type(within(dialog).getByRole('textbox', { name: 'SKU' }), 'apx-10l');
     await user.type(within(dialog).getByRole('textbox', { name: 'Size' }), '10');
+    await user.type(within(dialog).getByRole('textbox', { name: 'Label' }), ' Tinted ');
     await user.type(within(dialog).getByRole('textbox', { name: 'MRP (₹)' }), '3500');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(() => {
@@ -117,10 +119,11 @@ describe('ProductDetailPage', () => {
       sku: 'APX-10L',
       packSize: 10,
       unit: 'l',
+      label: 'Tinted',
       mrpPaise: 350_000,
       barcodes: [],
     });
-    expect(await screen.findByText('Pack size added')).toBeInTheDocument();
+    expect(await screen.findByText('Size / pack added')).toBeInTheDocument();
     expect(variantRows()).toHaveLength(4);
   });
 
@@ -159,12 +162,13 @@ describe('ProductDetailPage', () => {
     });
     expect(body).toEqual({
       sku: 'APX-1L',
+      label: null,
       mrpPaise: 50_000,
       sellingPricePaise: 42_000,
       barcodes: ['8901234567890'],
       isActive: false,
     });
-    expect(await screen.findByText('Pack size saved')).toBeInTheDocument();
+    expect(await screen.findByText('Size / pack saved')).toBeInTheDocument();
     expect(found(variantRows()[1])).toContain('₹420.00');
   });
 

@@ -31,7 +31,13 @@ const { brands, productVariants, products, reorderRules, stockBalances, stockLed
 
 export interface ItemRef {
   readonly store: { readonly id: string; readonly code: string };
-  readonly variant: { readonly id: string; readonly sku: string };
+  readonly variant: {
+    readonly id: string;
+    readonly sku: string;
+    readonly packSize: number;
+    readonly unit: string;
+    readonly label: string | null;
+  };
   readonly product: { readonly name: string };
   readonly brand: { readonly name: string };
 }
@@ -71,6 +77,9 @@ const itemColumns = {
   storeCode: stores.code,
   variantId: productVariants.id,
   sku: productVariants.sku,
+  packSize: productVariants.packSize,
+  unit: productVariants.unit,
+  label: productVariants.label,
   productName: products.name,
   brandName: brands.name,
 };
@@ -80,11 +89,20 @@ const itemRef = (row: {
   storeCode: string;
   variantId: string;
   sku: string;
+  packSize: number;
+  unit: string;
+  label: string | null;
   productName: string;
   brandName: string;
 }): ItemRef => ({
   store: { id: row.storeId, code: row.storeCode },
-  variant: { id: row.variantId, sku: row.sku },
+  variant: {
+    id: row.variantId,
+    sku: row.sku,
+    packSize: row.packSize,
+    unit: row.unit,
+    label: row.label,
+  },
   product: { name: row.productName },
   brand: { name: row.brandName },
 });
@@ -159,6 +177,7 @@ export class ReorderService {
               ilike(productVariants.sku, containsPattern(query.q)),
               ilike(products.name, containsPattern(query.q)),
               ilike(brands.name, containsPattern(query.q)),
+              ilike(productVariants.label, containsPattern(query.q)),
             )
           : undefined,
       );
