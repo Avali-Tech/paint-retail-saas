@@ -59,7 +59,30 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm --filter @paint/web exec playwright install --with-deps chromium
+      # A stuck Ubuntu mirror once held this job for its whole 20 minutes: make apt give up on
+      # an unresponsive mirror quickly and retry, and keep the browser download in a cache.
+      - name: Make apt fail fast on an unresponsive mirror
+        run: |
+          printf 'Acquire::Retries "3";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' \
+            | sudo tee /etc/apt/apt.conf.d/99-ci-timeouts
+
+      - name: Find the Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --filter @paint/web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Chromium and its system libraries
+        timeout-minutes: 12
+        run: |
+          for attempt in 1 2; do
+            timeout 300 pnpm --filter @paint/web exec playwright install --with-deps chromium && exit 0
+            echo "Install attempt ${attempt} failed or timed out; retrying"
+          done
+          exit 1
 
       # Builds the API and the web app, then starts PostgreSQL (Testcontainers),
       # the built API and `vite preview`, and runs Playwright against them.
