@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { crc32 } from 'node:zlib';
 import { S3Client, CreateBucketCommand } from '@aws-sdk/client-s3';
 
@@ -46,7 +47,8 @@ export function multipartBody(
   fields: Record<string, string>,
   files: { name?: string; fileName: string; data: Buffer; contentType?: string }[],
 ): { payload: Buffer; headers: Record<string, string> } {
-  const boundary = `----paint${String(Date.now())}`;
+  // Unique per call: a time-based boundary let two calls in one test disagree.
+  const boundary = `----paint${randomUUID().replaceAll('-', '')}`;
   const parts: Buffer[] = [];
   for (const [name, value] of Object.entries(fields)) {
     parts.push(
