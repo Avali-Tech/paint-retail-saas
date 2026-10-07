@@ -36,7 +36,10 @@ export function createDatabase(
     onIdleConnectionError = logIdleConnectionError,
   }: DatabaseOptions = {},
 ): DatabaseConnection {
-  const pool = new pg.Pool({ connectionString, connectionTimeoutMillis });
+  // JIT compilation off: it costs ~100 ms per query whenever the planner over-estimates a
+  // plan (e.g. the OR'ed visibility checks on activities and documents) and never pays
+  // back on these short queries. See docs/performance.md.
+  const pool = new pg.Pool({ connectionString, connectionTimeoutMillis, options: '-c jit=off' });
   // Without this listener, an idle connection dropped by the server is an
   // uncaught exception and crashes the whole process.
   pool.on('error', onIdleConnectionError);

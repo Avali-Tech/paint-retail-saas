@@ -64,6 +64,7 @@ export const stockCountsHi: Translation<typeof stockCountsEn> = {
       note: 'नोट: {note}',
       closingReason: 'कारण: {reason}',
       lines: 'प्रोडक्ट',
+      linePages: 'प्रोडक्ट पेज',
       noLines: 'अभी इसमें कुछ नहीं है। प्रोडक्ट मिलते ही स्कैन करें।',
       product: 'प्रोडक्ट',
       books: 'हिसाब में',

@@ -1,4 +1,15 @@
-import { Alert, Badge, Button, Card, Field, Input, PageHeader, Table, useToast } from '@paint/ui';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Field,
+  Input,
+  PageHeader,
+  Pagination,
+  Table,
+  useToast,
+} from '@paint/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type SyntheticEvent } from 'react';
 import { useParams } from 'react-router';
@@ -17,6 +28,9 @@ import { COUNT_TONE } from './StockCountsPage.js';
 
 /** The most counts the API takes in one request. */
 export const COUNTS_PER_REQUEST = 500;
+
+/** Lines shown at once: a whole-store count at a large shop has thousands. */
+export const LINES_PER_PAGE = 100;
 
 /** Keeps the latest version of a count everywhere it is shown. */
 function useSaveCount() {
@@ -108,6 +122,7 @@ function Lines({ count, editable }: { readonly count: StockCount; readonly edita
   const [invalid, setInvalid] = useState<readonly string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [offset, setOffset] = useState(0);
   const shown = (value: number | null) => (value === null ? t('common.none') : number(value));
 
   const submit = async (event: SyntheticEvent) => {
@@ -119,7 +134,12 @@ function Lines({ count, editable }: { readonly count: StockCount; readonly edita
     const bad = entries.filter((entry) => entry.quantity === null).map((entry) => entry.variantId);
     setInvalid(bad);
     setMessage(null);
-    if (bad.length > 0) return;
+    if (bad.length > 0) {
+      // Show the page with the first count to fix; drafts are kept on every page.
+      const first = count.lines.findIndex((line) => bad.includes(line.variantId));
+      setOffset(Math.floor(first / LINES_PER_PAGE) * LINES_PER_PAGE);
+      return;
+    }
     setPending(true);
     try {
       const counts = entries.map((entry) => ({
@@ -174,7 +194,7 @@ function Lines({ count, editable }: { readonly count: StockCount; readonly edita
           </tr>
         </thead>
         <tbody>
-          {count.lines.map((line) => (
+          {count.lines.slice(offset, offset + LINES_PER_PAGE).map((line) => (
             <tr key={line.variantId}>
               <th scope="row">
                 {line.sku}
@@ -213,6 +233,16 @@ function Lines({ count, editable }: { readonly count: StockCount; readonly edita
           ))}
         </tbody>
       </Table>
+      <Pagination
+        offset={offset}
+        limit={LINES_PER_PAGE}
+        total={count.lines.length}
+        onChange={setOffset}
+        label={t('stockCounts.detail.linePages')}
+        range={(from, to, total) => t('common.range', { from, to, total })}
+        previousLabel={t('common.previous')}
+        nextLabel={t('common.next')}
+      />
       {editable && (
         <div className="row row--end">
           <Button

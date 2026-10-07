@@ -114,6 +114,44 @@ describe('StockCountDetailPage', () => {
     expect(screen.getByRole('button', { name: 'Save counts' })).toBeDisabled();
   });
 
+  it('shows a whole-store count a page at a time, keeping counts typed on every page', async () => {
+    const lines = Array.from({ length: 150 }, (_, index) =>
+      countLine({ variantId: `v${String(index)}`, sku: `SKU-${String(index + 1)}` }),
+    );
+    const { user, requests } = renderCount(stockCount({ lines }), {
+      'POST /stock-counts/:id/counts': () => json(stockCount({ lines })),
+    });
+    expect(await screen.findByRole('textbox', { name: 'Count of SKU-1' })).toBeVisible();
+    expect(rows()).toHaveLength(101);
+    expect(screen.getByText('1–100 of 150')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Count of SKU-101' })).not.toBeInTheDocument();
+
+    await user.type(screen.getByRole('textbox', { name: 'Count of SKU-1' }), '4');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByText('101–150 of 150')).toBeInTheDocument();
+    expect(rows()).toHaveLength(51);
+    await user.type(screen.getByRole('textbox', { name: 'Count of SKU-150' }), '-2');
+    await user.click(screen.getByRole('button', { name: 'Previous' }));
+    expect(screen.getByRole('textbox', { name: 'Count of SKU-1' })).toHaveValue('4');
+
+    // Saving with a mistake on another page shows that page.
+    await user.click(screen.getByRole('button', { name: 'Save counts' }));
+    const wrong = screen.getByRole('textbox', { name: 'Count of SKU-150' });
+    expect(wrong).toHaveAttribute('aria-invalid', 'true');
+    await user.clear(wrong);
+    await user.type(wrong, '2');
+    await user.click(screen.getByRole('button', { name: 'Save counts' }));
+    expect(await screen.findByText('Counts saved')).toBeInTheDocument();
+    expect(posts(requests, '/stock-counts/count-1/counts')).toEqual([
+      {
+        entries: [
+          { variantId: 'v0', quantity: 4, mode: 'set' },
+          { variantId: 'v149', quantity: 2, mode: 'set' },
+        ],
+      },
+    ]);
+  });
+
   it('submits, counting what is left as zero, and shows what the API refuses', async () => {
     let refuse = true;
     const submitted = stockCount({

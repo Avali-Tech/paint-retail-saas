@@ -37,8 +37,14 @@ export const DEMO_OPERATOR = {
 } as const;
 export const DEMO_OPERATOR_TOTP_SECRET = 'PAINTRETAILDEMOPLATFORMOPERATOR2';
 
-export type DemoSize = 'full' | 'small';
-export const DEMO_SIZES: readonly DemoSize[] = ['full', 'small'];
+/**
+ * `full` for client demos, `small` for quick tests, and `large`: the full demo
+ * plus a large shop's volume in bulk (large-plan.ts), for performance testing.
+ */
+export type DemoSize = 'full' | 'small' | 'large';
+export const DEMO_SIZES: readonly DemoSize[] = ['full', 'small', 'large'];
+/** The story the seed plays day by day: the large shop plays the full one. */
+export type StorySize = Exclude<DemoSize, 'large'>;
 
 export type StoreKey = 'AMP' | 'KPL' | 'SEC';
 export const STORE_KEYS: readonly StoreKey[] = ['AMP', 'KPL', 'SEC'];
@@ -156,7 +162,7 @@ export interface PartyPlan {
 }
 
 /** How many parties of each kind the demo has. */
-export const SEGMENT_COUNTS: Readonly<Record<DemoSize, Readonly<Record<Segment, number>>>> = {
+export const SEGMENT_COUNTS: Readonly<Record<StorySize, Readonly<Record<Segment, number>>>> = {
   full: {
     retail: 30,
     painter: 16,
@@ -189,7 +195,7 @@ const DISTRIBUTORS: Readonly<Record<BrandName, string>> = {
 };
 
 export interface DemoPlan {
-  readonly size: DemoSize;
+  readonly size: StorySize;
   readonly stores: readonly StorePlan[];
   readonly owner: TeamMemberPlan;
   /** The team besides the owner. */
@@ -201,7 +207,7 @@ export interface DemoPlan {
 }
 
 /** Everything about the demo business that does not depend on the database. */
-export function buildPlan(size: DemoSize, seed = DEMO_SEED): DemoPlan {
+export function buildPlan(size: StorySize, seed = DEMO_SEED): DemoPlan {
   const random = new Random(seed);
   const phones = new PhoneBook(random);
   const businessPan = panFor(random, 'Sharma', 'F');
