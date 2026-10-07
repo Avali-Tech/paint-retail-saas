@@ -193,9 +193,76 @@ describe('catalog: uniqueness', () => {
         .values({ organizationId: orgA, barcode: '4006381333931', variantId: otherVariant }),
     );
 
-    expect(samePack).toMatch(/product_variants_product_pack_unique/);
+    expect(samePack).toMatch(/product_variants_product_pack_label_unique/);
     expect(sameSku).toMatch(/product_variants_organization_sku_unique/);
     expect(sameBarcode).toMatch(/product_barcodes_pkey|duplicate key/);
+  });
+});
+
+describe('catalog: variant labels', () => {
+  const piece = (sku: string, label: string | null, productId = productA) => ({
+    organizationId: orgA,
+    productId,
+    sku,
+    packSize: 1,
+    unit: 'piece' as const,
+    label,
+  });
+
+  it('tells same-sized packs apart by label, once each, ignoring case', async () => {
+    const { db } = connection;
+    await db
+      .insert(productVariants)
+      .values([piece('BR-1', '1 inch'), piece('BR-2', '2 inch'), piece('BR-0', null)]);
+
+    const sameLabel = await failureMessage(
+      db.insert(productVariants).values(piece('BR-2B', '2 INCH')),
+    );
+    const secondUnlabelled = await failureMessage(
+      db.insert(productVariants).values(piece('BR-0B', null)),
+    );
+
+    expect(sameLabel).toMatch(/product_variants_product_pack_label_unique/);
+    expect(secondUnlabelled).toMatch(/product_variants_product_pack_label_unique/);
+    // A different product, or a different size, may use the same label.
+    const other = id(
+      await db
+        .insert(products)
+        .values({ ...apex(orgA, brandA), name: 'Roller' })
+        .returning(),
+    );
+    await db
+      .insert(productVariants)
+      .values([piece('RL-2', '2 inch', other), { ...piece('BR-2-PK', '2 inch'), packSize: 6 }]);
+    const labels = await db
+      .select({ sku: productVariants.sku, label: productVariants.label })
+      .from(productVariants)
+      .where(eq(productVariants.label, '2 inch'));
+    expect(labels.map((row) => row.sku).sort()).toEqual(['BR-2', 'BR-2-PK', 'RL-2']);
+  });
+
+  it.each([[''], [' 2 inch'], ['2 inch '], ['x'.repeat(41)]])(
+    'refuses the label %j: blank, untrimmed or over 40 characters',
+    async (label) => {
+      const message = await failureMessage(
+        connection.db.insert(productVariants).values(piece('BR-X', label)),
+      );
+
+      expect(message).toMatch(/product_variants_label_format/);
+    },
+  );
+
+  it('keeps labelled variants inside their business', async () => {
+    await connection.db.insert(productVariants).values(piece('BR-1', '1 inch'));
+    const labels = (org: string) =>
+      withTenant(connection.db, org, async (tx) =>
+        (await tx.select({ label: productVariants.label }).from(productVariants)).map(
+          (row) => row.label,
+        ),
+      );
+
+    expect((await labels(orgA)).sort()).toEqual(['1 inch', null]);
+    expect(await labels(orgB)).toEqual([]);
   });
 });
 

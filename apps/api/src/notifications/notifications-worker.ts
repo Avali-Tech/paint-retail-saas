@@ -7,6 +7,7 @@ import {
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { schema, type DatabaseConnection } from '@paint/db';
+import { variantName } from '@paint/shared';
 import { and, asc, eq, isNull, lt, lte, notExists, or, sql } from 'drizzle-orm';
 import { RECORD_PATHS, recordLabel } from '../activities/activity-records.js';
 import { todayInIndia } from '../contracts/contract-dates.js';
@@ -162,6 +163,9 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
           variantId: reorderRules.variantId,
           sku: productVariants.sku,
           productName: products.name,
+          packSize: productVariants.packSize,
+          unit: productVariants.unit,
+          label: productVariants.label,
           available: sql<string>`${available}`,
           reorderLevel: reorderRules.reorderLevel,
         })
@@ -222,7 +226,7 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
           body: items
             .map(
               (item) =>
-                `${item.sku} ${item.productName}: ${String(Number(item.available))} left (reorder at ${String(item.reorderLevel)})`,
+                `${item.sku} ${item.productName} ${variantName(item)}: ${String(Number(item.available))} left (reorder at ${String(item.reorderLevel)})`,
             )
             .join('\n'),
           link: `/stock/low?storeId=${storeId}`,

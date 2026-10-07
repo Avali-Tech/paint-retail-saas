@@ -4,7 +4,7 @@ import type { QuantityLine, ReceiveLine, Transfer, TransferLine } from '../api/t
 import { useI18n, type MessageKey } from '../i18n/i18n.js';
 import { FormDialog } from '../lib/FormDialog.js';
 import { parseNonNegative } from './quantity.js';
-import { productTitle } from '../lib/product-title.js';
+import { variantTitle } from '../lib/product-title.js';
 
 export interface QuantitiesDialogProps {
   readonly transfer: Transfer;
@@ -153,7 +153,7 @@ export function ReceiveDialog({ transfer, onSubmit, onClose }: ReceiveDialogProp
         return (
           <fieldset key={line.variantId} className="variant-row">
             <legend>
-              {line.sku} · {productTitle(line.brandName, line.productName)} ·{' '}
+              {line.sku} · {variantTitle(line.brandName, line.productName, line)} ·{' '}
               {t('transfers.detail.dispatched')} {number(Number(line.dispatchedQuantity))}
             </legend>
             <div className="form-grid">

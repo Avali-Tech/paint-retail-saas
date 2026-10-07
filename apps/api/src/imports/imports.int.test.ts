@@ -24,6 +24,7 @@ interface Lookup {
     category: { name: string } | null;
     variants: {
       sku: string;
+      label: string | null;
       mrpPaise: number | null;
       sellingPricePaise: number | null;
       barcodes: string[];
@@ -255,7 +256,11 @@ describe('reading the file', () => {
     const response = await preview('opening-stock', 'store,sku,qty\nHYD,X,1\n');
 
     expect(errorsOf(response)).toEqual([
-      [1, 'qty', "Unknown column; use the template's columns: store, sku, quantity, unit_cost"],
+      [
+        1,
+        'qty',
+        "Unknown column; use the template's columns: store, sku, variant_label, quantity, unit_cost",
+      ],
       [1, 'quantity', 'This column is missing'],
     ]);
   });
@@ -579,7 +584,7 @@ describe('products', () => {
 
     expect(response.statusCode).toBe(400);
     expect(errorsOf(response)).toEqual([
-      [3, 'pack_size', 'Same pack size as row 2'],
+      [3, 'pack_size', 'Same pack size and label as row 2'],
       [3, 'sku', 'Also on row 2'],
       [4, 'barcodes', `${CODES.repeat} is also on row 2`],
       [4, 'category', 'Differs from row 2 for the same product'],
@@ -587,7 +592,7 @@ describe('products', () => {
       [4, 'gst_percent', 'Differs from row 2 for the same product'],
       [4, 'hsn_code', 'Differs from row 2 for the same product'],
       [4, 'type', 'Differs from row 2 for the same product'],
-      [5, 'pack_size', 'Same pack size as row 2'],
+      [5, 'pack_size', 'Same pack size and label as row 2'],
       [6, 'selling_price', 'Selling price cannot exceed the MRP'],
     ]);
     expect((await api(owner).get(`/products/lookup?code=${sku}-1L`)).statusCode).toBe(404);
@@ -679,6 +684,115 @@ describe('products', () => {
     ]);
     expect(errorsOf(repriced)).toEqual([]);
     expect(report(repriced).rows).toEqual([expect.objectContaining({ row: 2, action: 'update' })]);
+  });
+});
+
+describe('labelled pieces', () => {
+  /** A hardware row: one piece of `size` told apart by `label` (the last column). */
+  const piece = (
+    brand: string,
+    code: string,
+    label: string,
+    extra: Record<number, string> = {},
+  ) => {
+    const cells = [
+      brand,
+      'Paint Brush',
+      'tool',
+      '9603',
+      '18',
+      code,
+      '1',
+      'piece',
+      '',
+      '',
+      '',
+      '',
+      '',
+      label,
+    ];
+    for (const [index, value] of Object.entries(extra)) cells[Number(index)] = value;
+    return cells;
+  };
+  const labelledCsv = (...rows: string[][]) =>
+    toCsv([[...PRODUCT_HEADER, 'variant_label'], ...rows]);
+
+  it('imports one product with a piece per label, and matches the labels next time', async () => {
+    const { brand, sku } = names();
+    const file = labelledCsv(
+      piece(brand, `${sku}-1I`, '1 inch'),
+      piece(brand, `${sku}-2I`, '2 inch'),
+      piece(brand, `${sku}-3I`, '3 inch', { 6: '6' }),
+    );
+
+    const saved = report(await commit('products', file));
+    const again = report(await commit('products', file));
+    const renamed = report(
+      await commit(
+        'products',
+        labelledCsv(
+          piece(brand, `${sku}-1I`, '1 inch flat'),
+          piece(brand, `${sku}-2I`, ''),
+          piece(brand, `${sku}-3I`, '3 inch', { 6: '6' }),
+        ),
+      ),
+    );
+
+    expect(saved.rows.map((row) => row.label)).toEqual([
+      `${sku}-1I · ${brand} Paint Brush 1 inch`,
+      `${sku}-2I · ${brand} Paint Brush 2 inch`,
+      `${sku}-3I · ${brand} Paint Brush 3 inch · 6 piece`,
+    ]);
+    expect(again.totals).toMatchObject({ create: 0, update: 0, unchanged: 3 });
+    // A new label updates the piece; a blank one keeps the saved label.
+    expect(renamed.rows.map((row) => row.action)).toEqual(['update', 'unchanged', 'unchanged']);
+    const { product } = await lookup(`${sku}-2I`);
+    expect(product.variants.map((variant) => [variant.sku, variant.label])).toEqual([
+      [`${sku}-1I`, '1 inch flat'],
+      [`${sku}-2I`, '2 inch'],
+      [`${sku}-3I`, '3 inch'],
+    ]);
+  });
+
+  it('refuses the same size and label twice, in the file or against saved pieces', async () => {
+    const { brand, sku } = names();
+    await commit('products', labelledCsv(piece(brand, `${sku}-2I`, '2 inch')));
+
+    const response = await preview(
+      'products',
+      labelledCsv(
+        piece(brand, `${sku}-4I`, '4 inch'),
+        piece(brand, `${sku}-4I-B`, '4 INCH'),
+        piece(brand, `${sku}-2I-B`, '2 Inch'),
+        piece(brand, `${sku}-X`, 'x'.repeat(41)),
+      ),
+    );
+
+    expect(errorsOf(response)).toEqual([
+      [3, 'pack_size', 'Same pack size and label as row 2'],
+      [4, 'pack_size', `Paint Brush already has a 2 Inch pack (SKU ${sku}-2I)`],
+      [5, 'variant_label', 'Use at most 40 characters'],
+    ]);
+  });
+
+  it('checks an opening-stock row’s label against its SKU', async () => {
+    const { brand, sku } = names();
+    await commit(
+      'products',
+      labelledCsv(piece(brand, `${sku}-1I`, '1 inch'), piece(brand, `${sku}-2I`, '2 inch')),
+    );
+    const stockCsv = (...rows: string[][]) =>
+      toCsv([['store', 'sku', 'variant_label', 'quantity'], ...rows]);
+
+    const wrong = await preview(
+      'opening-stock',
+      stockCsv(['HYD', `${sku}-1I`, '2 inch', '5'], ['HYD', `${sku}-2I`, '2 INCH', '7']),
+    );
+
+    expect(errorsOf(wrong)).toEqual([[2, 'variant_label', `Does not match ${sku}-1I (1 inch)`]]);
+    expect(report(wrong).rows).toEqual([
+      { row: 3, action: 'create', label: `HYD · ${sku}-2I · 2 inch` },
+    ]);
   });
 });
 
@@ -966,7 +1080,7 @@ describe('opening stock', () => {
     const again = await commit('opening-stock', file, manager);
 
     expect(report(saved).totals).toMatchObject({ create: 2 });
-    expect(report(saved).rows[0]?.label).toBe(`HYD · ${one}`);
+    expect(report(saved).rows[0]?.label).toBe(`HYD · ${one} · 1 l`);
     expect(report(again).totals).toMatchObject({ create: 0, unchanged: 2 });
     expect(await stockAt(oneId)).toMatchObject({ onHand: 24, avgCostPaise: 52_000 });
     expect(await stockAt(fourId)).toMatchObject({ onHand: 2.5, avgCostPaise: null });
@@ -1029,6 +1143,8 @@ describe('opening stock', () => {
       [8, 'sku', 'Required'],
       [8, 'store', 'Required'],
     ]);
-    expect(report(response).rows).toEqual([{ row: 2, action: 'create', label: `HYD · ${one}` }]);
+    expect(report(response).rows).toEqual([
+      { row: 2, action: 'create', label: `HYD · ${one} · 1 l` },
+    ]);
   });
 });

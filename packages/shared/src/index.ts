@@ -48,11 +48,17 @@ export {
 } from './branding.js';
 export {
   GST_RATES_PERCENT,
+  VARIANT_LABEL_MAX_LENGTH,
   basisPointsToPercent,
   isValidBarcode,
   isValidGtin,
   isValidHsn,
+  normalizeVariantLabel,
   percentToBasisPoints,
+  productTitle,
+  variantName,
+  variantTitle,
+  type VariantSize,
 } from './catalog.js';
 export { normalizeEmail, normalizePhone } from './contact.js';
 export {
@@ -106,6 +112,7 @@ export {
 export { formatDocumentNumber } from './documents.js';
 export * from './gst/index.js';
 export * from './invoice-print/index.js';
+export * from './tally/index.js';
 export {
   assertPaise,
   formatINR,

@@ -45,6 +45,7 @@
 | Dealer / sub-dealer / distributor   | डीलर / सब-डीलर / डिस्ट्रीब्यूटर          | డీలర్ / సబ్-డీలర్ / డిస్ట్రిబ్యూటర్                |                                                                              |
 | Supplier                            | सप्लायर                                  | సప్లయర్                                            |                                                                              |
 | Product / pack size / brand         | प्रोडक्ट / पैक साइज / ब्रांड             | ప్రోడక్ట్ / ప్యాక్ సైజ్ / బ్రాండ్                  |                                                                              |
+| Size / pack · label (variant)       | साइज/पैक · लेबल                          | సైజ్/ప్యాక్ · లేబుల్                               | label tells same-sized items apart: 2 inch, Grit 120                         |
 | Category / shade                    | कैटेगरी / शेड                            | కేటగిరీ / షేడ్                                     |                                                                              |
 | Primer / putty / enamel / emulsion  | प्राइमर / पुट्टी / इनेमल / इमल्शन        | ప్రైమర్ / పుట్టీ / ఎనామెల్ / ఎమల్షన్               |                                                                              |
 | Price / MRP / cost                  | कीमत / MRP / लागत                        | ధర / MRP / ఖర్చు ధర                                | cost = what the shop paid                                                    |

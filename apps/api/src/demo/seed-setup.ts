@@ -149,6 +149,7 @@ export async function setUpCatalogueAndParties(context: SeedContext): Promise<vo
         sku: variant.sku,
         packSize: variant.packSize,
         unit: variant.unit,
+        label: variant.label,
         mrpPaise: variant.mrpPaise,
         sellingPricePaise: variant.sellingPricePaise,
         barcodes: [variant.barcode],

@@ -20,6 +20,7 @@ import {
 } from './drafts.js';
 import { receivable, usePurchaseOrder } from './PurchaseOrderDetailPage.js';
 import { SupplierSelect, useSupplier } from './shared.js';
+import { variantTitle } from '../lib/product-title.js';
 import { refreshInventory } from '../lib/refresh.js';
 
 /** The order's lines still due, ready to receive in full. */
@@ -29,7 +30,7 @@ export function linesFromOrder(order: PurchaseOrder): ReceiptLineDraft[] {
     .map((line) => ({
       variantId: line.variantId,
       sku: line.sku,
-      name: `${line.brandName} ${line.productName} ${String(line.packSize)} ${line.unit}`,
+      name: variantTitle(line.brandName, line.productName, line),
       pending: line.pendingQuantity,
       orderCostPaise: line.unitCostPaise,
       quantity: String(line.pendingQuantity),

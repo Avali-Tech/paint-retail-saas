@@ -1,4 +1,4 @@
-import { isValidBarcode } from '@paint/shared';
+import { VARIANT_LABEL_MAX_LENGTH, isValidBarcode, normalizeVariantLabel } from '@paint/shared';
 import { z } from 'zod';
 import { UNITS, type Variant, type VariantChanges, type VariantInput } from '../api/catalog.js';
 import type { I18n } from '../i18n/i18n.js';
@@ -25,6 +25,8 @@ export interface VariantDraft {
   sku: string;
   packSize: string;
   unit: (typeof UNITS)[number];
+  /** Optional: what tells same-sized packs apart, e.g. "2 inch". */
+  label: string;
   mrp: string;
   sellingPrice: string;
   barcodes: string;
@@ -35,6 +37,7 @@ export const EMPTY_VARIANT: VariantDraft = {
   sku: '',
   packSize: '',
   unit: 'l',
+  label: '',
   mrp: '',
   sellingPrice: '',
   barcodes: '',
@@ -46,6 +49,7 @@ export function variantDraft(variant: Variant): VariantDraft {
     sku: variant.sku,
     packSize: String(variant.packSize),
     unit: variant.unit,
+    label: variant.label ?? '',
     mrp: rupeesInput(variant.mrpPaise),
     sellingPrice: rupeesInput(variant.sellingPricePaise),
     barcodes: variant.barcodes.join(', '),
@@ -70,6 +74,12 @@ export function variantSchema(t: I18n['t']) {
         return size !== null && size > 0 && size <= MAX_PACK_SIZE;
       }, t('products.form.packSizeInvalid')),
       unit: z.enum(UNITS),
+      label: z
+        .string()
+        .refine(
+          (value) => value.trim().length <= VARIANT_LABEL_MAX_LENGTH,
+          t('products.form.labelTooLong', { max: VARIANT_LABEL_MAX_LENGTH }),
+        ),
       mrp: z
         .string()
         .refine(
@@ -121,6 +131,7 @@ export function toVariantInput(draft: VariantDraft): VariantInput {
     sku: draft.sku.trim().toUpperCase(),
     packSize: Number(parseQuantity(draft.packSize)),
     unit: draft.unit,
+    label: normalizeVariantLabel(draft.label),
     ...(mrp === null ? {} : { mrpPaise: mrp }),
     ...(selling === null ? {} : { sellingPricePaise: selling }),
     barcodes: splitBarcodes(draft.barcodes),
@@ -131,6 +142,7 @@ export function toVariantInput(draft: VariantDraft): VariantInput {
 export function toVariantChanges(draft: VariantDraft): VariantChanges {
   return {
     sku: draft.sku.trim().toUpperCase(),
+    label: normalizeVariantLabel(draft.label),
     mrpPaise: price(draft.mrp),
     sellingPricePaise: price(draft.sellingPrice),
     barcodes: splitBarcodes(draft.barcodes),

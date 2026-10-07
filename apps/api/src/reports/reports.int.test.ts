@@ -106,6 +106,7 @@ describe('stock reports', () => {
       sku: 'APX-1L',
       brand: 'Asian Paints',
       product: 'Apex',
+      variant: '1 l',
       onHand: 13,
       reserved: 0,
       available: 13,
@@ -113,7 +114,7 @@ describe('stock reports', () => {
       value: '1200.03',
     });
     expect(page.rows[2]).toMatchObject({ onHand: 5, averageCost: null, value: null });
-    expect(page.columns[7]).toEqual({
+    expect(page.columns[8]).toEqual({
       id: 'stock-by-location.averageCost',
       key: 'averageCost',
       header: 'Average cost (₹)',
@@ -276,6 +277,7 @@ describe('paging and export', () => {
       'SKU',
       'Brand',
       'Product',
+      'Size / pack',
       'On hand',
       'Reserved',
       'Available',
@@ -283,7 +285,18 @@ describe('paging and export', () => {
       'Value (₹)',
     ]);
     expect(rows).toHaveLength(4);
-    expect(rows[2]).toEqual(['PUN', 'APX-10L', 'Asian Paints', 'Apex', '5', '0', '5', '', '']);
+    expect(rows[2]).toEqual([
+      'PUN',
+      'APX-10L',
+      'Asian Paints',
+      'Apex',
+      '10 l',
+      '5',
+      '0',
+      '5',
+      '',
+      '',
+    ]);
     expect((await get(business.cashier, '/reports/leads?format=csv')).statusCode).toBe(403);
   });
 });

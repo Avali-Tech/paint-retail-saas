@@ -73,6 +73,16 @@ describe('the large shop', () => {
     const tools = catalogue.filter((product) => product.category === 'tools');
     expect(tools.length).toBeGreaterThan(0);
     expect(tools.every((product) => product.subcategory !== null)).toBe(true);
+    // Tools are labelled single pieces (brush widths, grits); paint packs have no label.
+    for (const product of catalogue) {
+      const labelled = product.variants.every(
+        (variant) => variant.label !== null && variant.packSize === 1 && variant.unit === 'piece',
+      );
+      expect(labelled, product.name).toBe(product.category === 'tools');
+    }
+    expect(new Set(tools.map((product) => product.subcategory))).toEqual(
+      new Set(['Brushes', 'Rollers', 'Sandpaper', 'Tapes']),
+    );
     expect(
       catalogue
         .filter((product) => product.category !== 'tools')
