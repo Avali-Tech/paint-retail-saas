@@ -13,7 +13,8 @@ jobs:
   verify:
     name: Format, lint, typecheck, tests (100% coverage)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # About 4.5 min of format, lint and typecheck plus about 15 min of tests on a 2-core runner.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v5
 
@@ -46,7 +47,7 @@ jobs:
   e2e:
     name: End-to-end (browser, real API and PostgreSQL)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v5
 
