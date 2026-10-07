@@ -7,6 +7,7 @@ import {
   findStockMismatches,
   migrateDatabase,
   postStockMovements,
+  postStockMovementsInBulk,
   schema,
   withTenant,
   type DatabaseConnection,
@@ -42,14 +43,19 @@ function id(rows: { id: string }[]): string {
   return row.id;
 }
 
-/** Posts movements for `org` in one tenant-scoped transaction. */
-const post = (movements: Omit<StockMovement, 'organizationId'>[], organizationId = org) =>
-  withTenant(connection.db, organizationId, (tx) =>
-    postStockMovements(
-      tx,
-      movements.map((movement) => ({ organizationId, ...movement })),
-    ),
-  );
+type Poster = typeof postStockMovements;
+
+/** Posts movements for `org` in one tenant-scoped transaction, with `implementation`. */
+const postWith =
+  (implementation: Poster) =>
+  (movements: Omit<StockMovement, 'organizationId'>[], organizationId = org) =>
+    withTenant(connection.db, organizationId, (tx) =>
+      implementation(
+        tx,
+        movements.map((movement) => ({ organizationId, ...movement })),
+      ),
+    );
+const post = postWith(postStockMovements);
 
 async function balance(storeId: string, variantId: string) {
   const [row] = await connection.db
@@ -131,7 +137,13 @@ beforeEach(async () => {
   );
 });
 
-describe('postStockMovements', () => {
+// The bulk path must behave exactly like the one-by-one path, so both run the same tests.
+describe.each([
+  ['postStockMovements', postStockMovements],
+  ['postStockMovementsInBulk', postStockMovementsInBulk],
+] as const)('%s', (_name, implementation) => {
+  const post = postWith(implementation);
+
   it('records opening stock in the ledger and the balance', async () => {
     await post([
       {
@@ -355,6 +367,104 @@ describe('postStockMovements', () => {
     );
 
     expect(message).toMatch(/stock_ledger_unit_cost_not_negative/);
+  });
+});
+
+describe('postStockMovementsInBulk', () => {
+  const bulk = postWith(postStockMovementsInBulk);
+  const balancesAt = (storeId: string) =>
+    connection.db
+      .select({
+        variantId: stockBalances.variantId,
+        onHand: stockBalances.onHand,
+        avgCostPaise: stockBalances.avgCostPaise,
+      })
+      .from(stockBalances)
+      .where(eq(stockBalances.storeId, storeId))
+      .orderBy(stockBalances.variantId);
+
+  it('ends with the same balances and costs as posting one movement at a time', async () => {
+    const oneByOne = store;
+    const together = id(
+      await connection.db
+        .insert(stores)
+        .values({ organizationId: org, name: 'Bulk', code: `B${String(Date.now()).slice(-8)}` })
+        .returning(),
+    );
+    // A deterministic mix of receipts at odd costs, sales and adjustments, never below zero.
+    const movements: Omit<StockMovement, 'organizationId' | 'storeId'>[] = [];
+    const onHand = new Map<string, number>();
+    let seed = 7;
+    const next = () => (seed = (seed * 48_271) % 2_147_483_647);
+    for (let index = 0; index < 120; index++) {
+      const variantId = index % 3 === 0 ? colorant : apex20;
+      const held = onHand.get(variantId) ?? 0;
+      const roll = next() % 10;
+      if (roll < 4 || held < 2) {
+        const quantity = (next() % 9) + 1 + (variantId === colorant ? 0.125 : 0);
+        movements.push({
+          variantId,
+          movementType: held === 0 && index < 3 ? 'opening' : 'purchase_receipt',
+          quantity,
+          unitCostPaise: roll === 0 ? null : 9_000 + (next() % 3_001),
+        });
+        onHand.set(variantId, held + quantity);
+      } else {
+        const quantity = Math.min(held, (next() % 3) + 1);
+        movements.push({
+          variantId,
+          movementType: roll < 8 ? 'sale' : 'damage',
+          quantity: -quantity,
+        });
+        onHand.set(variantId, held - quantity);
+      }
+    }
+    for (const movement of movements) await post([{ ...movement, storeId: oneByOne }]);
+    await bulk(movements.map((movement) => ({ ...movement, storeId: together })));
+
+    expect(await balancesAt(together)).toEqual(await balancesAt(oneByOne));
+    expect(await findStockMismatches(connection.db)).toEqual([]);
+  });
+
+  it('adds to balances that already exist, in more rows than one statement takes', async () => {
+    await post([{ storeId: store, variantId: apex20, movementType: 'opening', quantity: 5 }]);
+    const many = Array.from({ length: 4_001 }, () => ({
+      storeId: store,
+      variantId: apex20,
+      movementType: 'adjustment' as const,
+      quantity: 1,
+    }));
+    await bulk(many);
+
+    expect(await balance(store, apex20)).toMatchObject({ onHand: 4_006 });
+    const [entries] = await connection.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(stockLedger)
+      .where(eq(stockLedger.storeId, store));
+    expect(entries?.count).toBe(4_002);
+  });
+
+  it('back-dates entries given a time and does nothing for no movements', async () => {
+    const createdAt = new Date('2026-01-15T05:30:00.000Z');
+    await withTenant(connection.db, org, async (tx) => {
+      await postStockMovementsInBulk(tx, []);
+      await postStockMovementsInBulk(tx, [
+        {
+          organizationId: org,
+          storeId: store,
+          variantId: apex20,
+          movementType: 'opening',
+          quantity: 2,
+          createdAt,
+        },
+      ]);
+    });
+
+    const entries = await connection.db
+      .select({ createdAt: stockLedger.createdAt })
+      .from(stockLedger)
+      .where(eq(stockLedger.storeId, store));
+    expect(entries).toEqual([{ createdAt }]);
   });
 });
 

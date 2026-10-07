@@ -57,6 +57,7 @@ describe('demoSettings', () => {
     expect(settings.ports.api).toBe(3981);
     expect(settings.ports.web).toBe(5173);
     expect(demoSettings(['stop'], {}, root).command).toBe('stop');
+    expect(demoSettings([], { DEMO_SIZE: 'large' }, root).size).toBe('large');
   });
 
   it('explains mistakes', () => {

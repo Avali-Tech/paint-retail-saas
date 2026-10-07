@@ -101,6 +101,155 @@ export async function postStockMovements(
   }
 }
 
+/** A movement for postStockMovementsInBulk; `createdAt` back-dates it (bulk data loads). */
+export interface BulkStockMovement extends StockMovement {
+  readonly createdAt?: Date;
+}
+
+/** Rows per INSERT, well inside PostgreSQL's 65,535 parameters per statement. */
+const BULK_CHUNK = 4_000;
+
+/** Stock in thousandths, so quantities (at most 3 decimals) add exactly. */
+const toMilli = (quantity: number) => Math.round(quantity * 1000);
+
+interface BulkBalance {
+  readonly organizationId: string;
+  readonly storeId: string;
+  readonly variantId: string;
+  onHand: number;
+  reserved: number;
+  avgCostPaise: bigint | null;
+}
+
+/**
+ * postStockMovements for thousands of movements at once (data loads, such as
+ * the large demo): the same ledger entries, balances and weighted-average cost,
+ * with the same refusals, in a handful of statements instead of three per
+ * movement. Movements apply in the order given for each store and product.
+ * The balances touched are locked first, so concurrent movements wait.
+ */
+export async function postStockMovementsInBulk(
+  tx: Transaction,
+  movements: readonly BulkStockMovement[],
+): Promise<void> {
+  const balances = new Map<string, BulkBalance>();
+  const balanceOf = (movement: StockMovement): BulkBalance => {
+    const key = `${movement.storeId}:${movement.variantId}`;
+    let balance = balances.get(key);
+    if (balance === undefined) {
+      balance = {
+        organizationId: movement.organizationId,
+        storeId: movement.storeId,
+        variantId: movement.variantId,
+        onHand: 0,
+        reserved: 0,
+        avgCostPaise: null,
+      };
+      balances.set(key, balance);
+    }
+    return balance;
+  };
+  for (const movement of movements) balanceOf(movement);
+  if (balances.size === 0) return;
+  // A fixed order, as in postStockMovements, so concurrent loads cannot deadlock.
+  const touched = [...balances.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, balance]) => balance);
+
+  // Make sure every balance row exists, then lock them all, as postStockMovements does one by one.
+  for (const chunk of chunks(touched)) {
+    await tx
+      .insert(stockBalances)
+      .values(
+        chunk.map(({ organizationId, storeId, variantId }) => ({
+          organizationId,
+          storeId,
+          variantId,
+        })),
+      )
+      .onConflictDoNothing();
+  }
+  const locked = await tx.execute<{
+    organization_id: string;
+    store_id: string;
+    variant_id: string;
+    on_hand: string;
+    reserved: string;
+    avg_cost_paise: string | null;
+  }>(sql`
+    select b.organization_id, b.store_id, b.variant_id, b.on_hand, b.reserved, b.avg_cost_paise
+    from ${stockBalances} b
+    join unnest(
+      ${`{${touched.map((balance) => balance.storeId).join(',')}}`}::uuid[],
+      ${`{${touched.map((balance) => balance.variantId).join(',')}}`}::uuid[]
+    ) as k(store_id, variant_id) on k.store_id = b.store_id and k.variant_id = b.variant_id
+    order by b.store_id, b.variant_id
+    for update of b
+  `);
+  for (const row of locked.rows) {
+    const balance = balanceOf({
+      organizationId: row.organization_id,
+      storeId: row.store_id,
+      variantId: row.variant_id,
+      movementType: 'adjustment',
+      quantity: 0,
+    });
+    balance.onHand = toMilli(Number(row.on_hand));
+    balance.reserved = toMilli(Number(row.reserved));
+    balance.avgCostPaise = row.avg_cost_paise === null ? null : BigInt(row.avg_cost_paise);
+  }
+
+  for (const movement of movements) {
+    const balance = balanceOf(movement);
+    const quantity = toMilli(movement.quantity);
+    const onHand = balance.onHand + quantity;
+    if (onHand < balance.reserved) {
+      throw new InsufficientStockError(movement.storeId, movement.variantId);
+    }
+    const cost = movement.quantity > 0 ? (movement.unitCostPaise ?? null) : null;
+    if (cost !== null) {
+      if (balance.avgCostPaise === null || balance.onHand <= 0) {
+        balance.avgCostPaise = BigInt(cost);
+      } else {
+        // round((on hand × average + quantity × cost) / (on hand + quantity)), half up, exactly.
+        const value =
+          BigInt(balance.onHand) * balance.avgCostPaise + BigInt(quantity) * BigInt(cost);
+        balance.avgCostPaise = (2n * value + BigInt(onHand)) / (2n * BigInt(onHand));
+      }
+    }
+    balance.onHand = onHand;
+  }
+
+  for (const chunk of chunks(movements)) await tx.insert(stockLedger).values(chunk);
+  for (const chunk of chunks(touched)) {
+    await tx
+      .insert(stockBalances)
+      .values(
+        chunk.map((balance) => ({
+          organizationId: balance.organizationId,
+          storeId: balance.storeId,
+          variantId: balance.variantId,
+          onHand: balance.onHand / 1000,
+          avgCostPaise: balance.avgCostPaise === null ? null : Number(balance.avgCostPaise),
+        })),
+      )
+      .onConflictDoUpdate({
+        target: [stockBalances.storeId, stockBalances.variantId],
+        set: {
+          onHand: sql`excluded.on_hand`,
+          avgCostPaise: sql`excluded.avg_cost_paise`,
+          updatedAt: sql`now()`,
+        },
+      });
+  }
+}
+
+function* chunks<T>(items: readonly T[]): Generator<T[]> {
+  for (let start = 0; start < items.length; start += BULK_CHUNK) {
+    yield items.slice(start, start + BULK_CHUNK);
+  }
+}
+
 export interface StockMismatch {
   readonly organizationId: string;
   readonly storeId: string;

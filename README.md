@@ -170,6 +170,19 @@ http://localhost:58025. Ports can be moved if something else uses them:
 `DEMO_API_PORT=3100 DEMO_WEB_PORT=5200 pnpm demo` (and `PAINT_POSTGRES_PORT`,
 `PAINT_STORAGE_PORT`, `PAINT_MAIL_PORT`, `PAINT_SMTP_PORT`, `PAINT_CLAMAV_PORT` for the services).
 
+**A large shop, for performance testing (not for client demos).** `DEMO_SIZE=large pnpm demo
+--fresh` (or `DEMO_SIZE=large pnpm demo:reset`) seeds the full demo, then adds a large dealer's
+volume: five more branches with a manager and a salesperson each (8 stores), about 5,000 more
+products in 10,000 pack sizes across 20 brands, 5,000 more parties, about 100,000 stock ledger
+entries (opening stock, receipts against 2,500 purchase orders, sales and write-offs over six
+months), 6,000 leads, 1,400 opportunities, 800 projects, 30,000 activities, 5,000 documents
+(metadata only, so downloading one fails), 15,000 notifications and 15,000 loyalty entries. It
+takes about half a minute. That bulk part (`apps/api/src/demo/seed-large.ts`) is the second
+exception to "only through the API": it writes in batches inside the business's tenant scope as
+the owner, so row-level security and the audit triggers apply, stock goes through
+`postStockMovementsInBulk` (balances always equal the ledger), and every document number series
+continues. Timings and how they were measured: [docs/performance.md](docs/performance.md).
+
 | Where                   | What                                                                                |
 | ----------------------- | ----------------------------------------------------------------------------------- |
 | `apps/api/src/demo`     | The demo business: generators (tested for GSTIN checksums, prices, packs), the seed |
