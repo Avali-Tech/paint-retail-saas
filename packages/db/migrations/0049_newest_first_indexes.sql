@@ -1,0 +1,3 @@
+DROP INDEX "documents_recent_idx";--> statement-breakpoint
+CREATE INDEX "stock_ledger_organization_created_idx" ON "stock_ledger" USING btree ("organization_id","created_at" DESC NULLS FIRST,"id" DESC NULLS FIRST);--> statement-breakpoint
+CREATE INDEX "documents_recent_idx" ON "documents" USING btree ("organization_id","created_at" DESC NULLS FIRST,"id" DESC NULLS FIRST) WHERE "documents"."deleted_at" is null;

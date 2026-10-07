@@ -800,6 +800,13 @@ export const stockLedger = pgTable(
       table.createdAt,
     ),
     index('stock_ledger_reference_idx').on(table.referenceType, table.referenceId),
+    // Newest movements first (stock ledger report and GET /stock/ledger); NULLS FIRST matches
+    // ORDER BY ... DESC, so no sort is needed. See docs/performance.md.
+    index('stock_ledger_organization_created_idx').on(
+      table.organizationId,
+      table.createdAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst(),
+    ),
     foreignKey({
       name: 'stock_ledger_store_fk',
       columns: [table.organizationId, table.storeId],
@@ -1513,9 +1520,9 @@ export const documents = pgTable(
     index('documents_record_idx')
       .on(table.organizationId, table.recordType, table.recordId)
       .where(sql`${table.deletedAt} is null`),
-    // Documents across records, newest first.
+    // Documents across records, newest first. NULLS FIRST matches ORDER BY ... DESC.
     index('documents_recent_idx')
-      .on(table.organizationId, table.createdAt.desc())
+      .on(table.organizationId, table.createdAt.desc().nullsFirst(), table.id.desc().nullsFirst())
       .where(sql`${table.deletedAt} is null`),
     foreignKey({
       name: 'documents_uploaded_by_fk',

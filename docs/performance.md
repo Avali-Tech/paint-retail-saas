@@ -142,9 +142,13 @@ shows is paged at 50 (follow-ups at 20, the board at 50 per column); the custome
 latest 10 of each kind; the import preview shows a slice of its rows; lookups by barcode or SKU
 are 6 ms; search is 35–39 ms with the trigram indexes.
 
-## Indexes to add
+## Indexes added
 
-Not added here (no migrations in this change); tested by hand on the measurement database.
+Added in migration `0049_newest_first_indexes` (measured by hand on the measurement database first).
+The same migration rebuilds `documents_recent_idx` (from 0047) as `created_at DESC NULLS FIRST, id DESC
+NULLS FIRST`: Drizzle writes `.desc()` as `DESC NULLS LAST`, which does not match the queries'
+`ORDER BY created_at DESC, id DESC` (PostgreSQL's default for `DESC` is `NULLS FIRST`), so
+PostgreSQL still sorted after reading the index. `migrate.int.test.ts` checks both plans have no sort.
 
 ```sql
 CREATE INDEX stock_ledger_organization_created_idx

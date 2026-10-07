@@ -507,7 +507,6 @@ export async function seedLargeShop(
         createdAt,
       });
     }
-    const loadStarted = new Date();
     const ruleCount = await tenant(async (tx) => {
       await postStockMovementsInBulk(tx, movements);
       const rules = inEvents.slice(0, openings).filter(() => random.chance(0.5));
@@ -540,7 +539,7 @@ export async function seedLargeShop(
       );
       return ruleRows.length;
     });
-    await backDateStockAudit(databaseUrl, organizationId, loadStarted);
+    await backDateStockAudit(databaseUrl, organizationId);
     context.count('stock ledger entries', movements.length);
     context.count('reorder rules', ruleCount);
 
@@ -1049,27 +1048,31 @@ async function numbering(tx: TenantTransaction) {
 /**
  * The audit log stamps stock write-offs with the time they were written; the
  * bulk ledger is back-dated, so move their audit entries onto the ledger's
- * times. Like the history clock, this needs a superuser (the log refuses edits
- * otherwise) and is the demo's only way to give the log a past.
+ * times. A ledger entry is audited only on insert, in the same transaction, so
+ * its entry belongs at exactly its created_at: every entry that differs is
+ * moved, with no time window. (A window from the Node clock missed them all
+ * whenever the database's clock ran a few milliseconds behind.) Like the
+ * history clock, this needs a superuser (the log refuses edits otherwise) and
+ * is the demo's only way to give the log a past.
  */
-async function backDateStockAudit(
+export async function backDateStockAudit(
   databaseUrl: string,
   organizationId: string,
-  since: Date,
-): Promise<void> {
+): Promise<number> {
   const client = new pg.Client({ connectionString: databaseUrl });
   await client.connect();
   try {
     await client.query('BEGIN');
     await client.query("SET LOCAL session_replication_role = 'replica'");
-    await client.query(
+    const moved = await client.query(
       `UPDATE audit_log a SET occurred_at = l.created_at
          FROM stock_ledger l
         WHERE a.organization_id = $1 AND a.table_name = 'stock_ledger'
-          AND a.record_id = l.id::text AND a.occurred_at >= $2`,
-      [organizationId, since.toISOString()],
+          AND a.record_id = l.id::text AND a.occurred_at <> l.created_at`,
+      [organizationId],
     );
     await client.query('COMMIT');
+    return Number(moved.rowCount);
   } finally {
     await client.end();
   }
