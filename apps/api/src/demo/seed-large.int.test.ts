@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { findStockMismatches, schema } from '@paint/db';
+import { findStockMismatches, postStockMovementsInBulk, schema, withTenant } from '@paint/db';
 import { withPgClient } from '@paint/testing';
 import { sql } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, inject, it, vi } from 'vitest';
 import { bearer, startTestApp, TEST_AUTH_SECRET, type TestApp } from '../test-support/test-app.js';
 import { LARGE_SHAPED_TEST_SCALE as scale } from './large-plan.js';
 import { DEMO_PASSWORD } from './plan.js';
 import { runSeedCommand } from './seed-command.js';
+import { backDateStockAudit } from './seed-large.js';
 
 // The large demo at about 1/50 of its size: the same code paths, quick enough for CI.
 const serverUrl = inject('databaseUrl');
@@ -194,5 +195,48 @@ describe('the large demo', () => {
     expect(bell.unread).toBeLessThan(scale.notifications / 2);
     const dashboard = await get<{ totals: { stock: { valuePaise: number } } }>('/dashboard');
     expect(dashboard.totals.stock.valuePaise).toBeGreaterThan(0);
+  });
+});
+
+describe('back-dating the audit log of write-offs', () => {
+  it('moves every entry onto its ledger time, however far apart the two clocks are', async () => {
+    const [stock] = (
+      await t.connection.db.execute<{
+        organization_id: string;
+        store_id: string;
+        variant_id: string;
+      }>(sql`select organization_id, store_id, variant_id from ${schema.stockBalances} limit 1`)
+    ).rows;
+    const organizationId = String(stock?.organization_id);
+    const createdAt = new Date(Date.now() - 10 * 86_400_000);
+    // A back-dated write-off: the trigger stamps its audit entry with the database's now().
+    await withTenant(t.connection.db, organizationId, (tx) =>
+      postStockMovementsInBulk(tx, [
+        {
+          organizationId,
+          storeId: String(stock?.store_id),
+          variantId: String(stock?.variant_id),
+          movementType: 'adjustment',
+          quantity: 1,
+          note: 'Found in the back room',
+          createdAt,
+        },
+      ]),
+    );
+    // Node's clock a minute ahead of the database's (Docker's VM clock lagging the Mac's by
+    // 22 ms was enough): a window taken from Node's clock used to miss every entry.
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 60_000 });
+    try {
+      expect(await backDateStockAudit(demoUrl, organizationId)).toBe(1);
+      // Nothing left to move: running it again changes nothing.
+      expect(await backDateStockAudit(demoUrl, organizationId)).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+    const entry = await one<{ occurred: string }>(sql`
+      select a.occurred_at as occurred from ${schema.auditLog} a
+      join ${schema.stockLedger} l on l.id::text = a.record_id
+      where l.note = 'Found in the back room'`);
+    expect(Date.parse(entry.occurred)).toBe(createdAt.getTime());
   });
 });
