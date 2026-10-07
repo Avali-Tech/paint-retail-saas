@@ -159,12 +159,26 @@ describe('navigation by role', () => {
     expect(location()).toBe('/follow-ups');
   });
 
+  it('says an unknown address leads nowhere (never "coming soon") and offers the way back', async () => {
+    renderApp({ path: '/no-such-screen', routes: { 'GET /auth/me': () => json(OWNER) } });
+    expect(await screen.findByText('Page not found')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'This address does not lead to a screen. Check the link, or use the menu or search.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to the dashboard' })).toHaveAttribute(
+      'href',
+      '/',
+    );
+  });
+
   it('puts the remaining sections and sign-out under "More" on phones', async () => {
     const { user } = renderApp({
       path: '/billing',
       routes: { 'GET /auth/me': () => json(OWNER) },
     });
-    await screen.findByText('Coming soon');
+    await screen.findByText('Page not found');
     const bottomBar = found(screen.getAllByRole('navigation', { name: 'Main' })[1]);
     expect(within(bottomBar).getAllByRole('link')).toHaveLength(4);
     await user.click(within(bottomBar).getByRole('button', { name: 'More' }));
@@ -223,7 +237,7 @@ describe('sign-out', () => {
       path: '/billing',
       routes: { 'GET /auth/me': () => json(OWNER), 'POST /auth/logout': () => ({ status: 204 }) },
     });
-    await screen.findByText('Coming soon');
+    await screen.findByText('Page not found');
     const [sidebar] = screen.getAllByRole('navigation', { name: 'Main' });
     await user.click(within(found(sidebar)).getByRole('button', { name: 'Sign out' }));
     expect(await screen.findByText('You have signed out.')).toBeInTheDocument();
@@ -241,7 +255,7 @@ describe('sign-out', () => {
         'POST /auth/login': () => json(GRANT),
       },
     });
-    await screen.findByText('Coming soon');
+    await screen.findByText('Page not found');
     const [sidebar] = screen.getAllByRole('navigation', { name: 'Main' });
     await user.click(within(found(sidebar)).getByRole('button', { name: 'Sign out' }));
     await user.type(
@@ -261,7 +275,7 @@ describe('sign-out', () => {
         'POST /auth/logout': () => json({ message: 'Bad gateway' }, 502),
       },
     });
-    await screen.findByText('Coming soon');
+    await screen.findByText('Page not found');
     await user.click(
       found(screen.getAllByRole('navigation', { name: 'Main' })[1]?.querySelector('button')),
     );

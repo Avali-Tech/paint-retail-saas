@@ -8,6 +8,8 @@ export const API_PORT = Number(process.env.E2E_API_PORT ?? 3999);
 export const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 4999);
 export const API_URL = `http://127.0.0.1:${String(API_PORT)}`;
 export const WEB_URL = `http://localhost:${String(WEB_PORT)}`;
+/** The update test serves one build after another here, apart from the shared web app. */
+export const UPDATE_WEB_PORT = Number(process.env.E2E_UPDATE_PORT ?? WEB_PORT + 1);
 
 /** E2E_CLAMAV=1 runs real storage and ClamAV, so documents can be uploaded (see global-setup.ts). */
 export const SCANNER_ON = process.env.E2E_CLAMAV === '1';

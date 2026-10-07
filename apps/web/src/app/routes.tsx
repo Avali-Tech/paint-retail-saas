@@ -36,14 +36,14 @@ const SecurityPage = lazy(() =>
   import('../settings/SecurityPage.js').then((module) => ({ default: module.SecurityPage })),
 );
 
-/** Sections that have a place in the navigation but no screen yet. */
-export function ComingSoonPage() {
+/** An address inside the app that leads to no screen (a mistyped or old link). */
+export function NotFoundPage() {
   const { t } = useI18n();
   return (
     <EmptyState
-      icon={<Icon name="calendar" size={32} />}
-      title={t('pages.comingSoonTitle')}
-      description={t('pages.comingSoon')}
+      icon={<Icon name="search" size={32} />}
+      title={t('pages.notFoundTitle')}
+      description={t('pages.notFound')}
       action={
         <Link to="/" {...buttonStyle('secondary')}>
           {t('common.backToDashboard')}
@@ -89,8 +89,7 @@ export function AppRoutes() {
         />
         {/* Every signed-in member manages their own two-factor sign-in. */}
         <Route path="settings/security" element={<SecurityPage />} />
-        {/* Leads, projects and the rest land here for now. */}
-        <Route path="*" element={<ComingSoonPage />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );

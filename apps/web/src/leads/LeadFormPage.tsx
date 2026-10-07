@@ -154,14 +154,15 @@ function LeadForm({ lead }: { readonly lead: Lead | null }) {
             setWho(party);
           }}
         />
-        <div className="row row--end">
+        <div className="row">
+          <span className="muted">{t('leads.form.notOnFile')}</span>
           <Button
             variant="secondary"
             onClick={() => {
               setWho('new');
             }}
           >
-            {t('leads.form.newContact')}
+            {t('leads.form.addNewContact')}
           </Button>
         </div>
       </div>

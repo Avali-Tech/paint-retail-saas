@@ -14,6 +14,7 @@ import { useStoreAccess } from '../stock/StoreSelect.js';
 import { parseNonNegative } from '../transfers/quantity.js';
 import { ApproveDialog, SubmitDialog } from './CountDialogs.js';
 import { COUNT_TONE } from './StockCountsPage.js';
+import { productTitle } from '../lib/product-title.js';
 
 /** The most counts the API takes in one request. */
 export const COUNTS_PER_REQUEST = 500;
@@ -178,9 +179,7 @@ function Lines({ count, editable }: { readonly count: StockCount; readonly edita
             <tr key={line.variantId}>
               <th scope="row">
                 {line.sku}
-                <span className="cell-meta">
-                  {line.brandName} {line.productName}
-                </span>
+                <span className="cell-meta">{productTitle(line.brandName, line.productName)}</span>
               </th>
               <td className="ui-num">{number(line.expectedQuantity)}</td>
               <td className="ui-num">

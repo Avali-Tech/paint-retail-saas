@@ -19,7 +19,8 @@ export default defineConfig({
     VitePWA({
       // registerServiceWorker() in src/pwa registers it, only in production builds.
       injectRegister: false,
-      registerType: 'autoUpdate',
+      // A new version waits until the person chooses "Reload" (src/pwa/UpdateBanner.tsx).
+      registerType: 'prompt',
       includeAssets: ['favicon.svg', 'icons/*.png'],
       manifest: {
         name: 'Paint Retail',

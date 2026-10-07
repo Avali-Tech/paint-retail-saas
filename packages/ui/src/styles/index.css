@@ -224,6 +224,8 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* On a phone the actions move under the title instead of squeezing it. */
+  flex-wrap: wrap;
   gap: var(--space-3);
   padding: var(--space-4) var(--space-4) 0;
 }
@@ -459,6 +461,8 @@ a {
 .ui-page-header__actions {
   display: flex;
   flex-wrap: wrap;
+  /* A labelled field and a button sit on one baseline instead of the button stretching. */
+  align-items: flex-end;
   gap: var(--space-2);
 }
 
@@ -586,6 +590,8 @@ a {
 }
 
 .ui-checkbox input {
+  /* Keeps its size when a long label wraps. */
+  flex: none;
   width: 20px;
   height: 20px;
   margin: 0;

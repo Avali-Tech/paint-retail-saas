@@ -58,6 +58,8 @@ export const documentsHi: Translation<typeof documentsEn> = {
       rangeInvalid: '“तक” की तारीख “से” की तारीख से पहले नहीं हो सकती',
       empty: 'अभी कोई डॉक्यूमेंट नहीं',
       noMatches: 'इन फिल्टर से कोई डॉक्यूमेंट नहीं मिला',
+      emptyHint:
+        'ग्राहक, ऑर्डर, लीड, प्रोजेक्ट या कॉन्ट्रैक्ट के पेज पर अपलोड की गई फाइलें यहां दिखती हैं।',
       pages: 'डॉक्यूमेंट के पेज',
     },
     recordTypes: {

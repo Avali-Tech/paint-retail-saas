@@ -73,7 +73,7 @@ export const creditTe: Translation<typeof creditEn> = {
       why: 'ఎందుకు',
       decidedBy: 'నిర్ణయించినవారు',
       decisionNote: 'నిర్ణయ నోట్',
-      detailTitle: 'క్రెడిట్ రిక్వెస్ట్ {number}',
+      detailTitle: '{number} · క్రెడిట్ రిక్వెస్ట్',
       details: 'వివరాలు',
     },
   },

@@ -91,6 +91,12 @@ export const catalogEn = {
     rename: 'Rename {name}',
     deactivate: 'Deactivate {name}',
     activate: 'Activate {name}',
+    deactivateTitle: 'Deactivate {name}?',
+    deactivateBrand:
+      'Its products stay as they are, but it is no longer offered for new products. You can activate it again at any time.',
+    deactivateCategory:
+      'Its products stay as they are, but it and its subcategories take no new products. You can activate it again at any time.',
+    deactivateConfirm: 'Deactivate',
     inactive: 'Inactive',
     parentInactive: 'No new products: its category is inactive',
     added: 'Added',

@@ -106,6 +106,8 @@ export const leadsEn = {
       editTitle: 'Edit {number}',
       chooseCustomer: 'Find the customer',
       newContact: 'New contact',
+      notOnFile: 'Not on file yet?',
+      addNewContact: 'Add a new contact',
       chooseSomeoneElse: 'Choose someone else',
       contactName: 'Name',
       contactPhone: 'Mobile number',
