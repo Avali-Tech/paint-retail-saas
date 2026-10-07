@@ -1,0 +1,444 @@
+import { stateTaxLabel } from '../gst/states.js';
+import { TallyError, type TallyProblem } from './errors.js';
+import {
+  compositionSalesNeed,
+  partyNeed,
+  paymentModeNeed,
+  resolveLedger,
+  roundOffNeed,
+  salesNeed,
+  taxNeed,
+  type TallyDutyHead,
+  type TallyLedger,
+  type TallyLedgerNeed,
+  type TallyLedgerRule,
+} from './ledgers.js';
+import type {
+  TallyAllocation,
+  TallyDocumentRef,
+  TallyParty,
+  TallyPeriod,
+  TallyReceipt,
+  TallySalesDocument,
+  TallySalesKind,
+} from './types.js';
+import { checkPeriod } from './validate.js';
+
+/** Tally's bill types for bill-wise details. */
+export type TallyBillType = 'New Ref' | 'Agst Ref' | 'Advance' | 'On Account';
+
+/** One bill-wise line under a party entry; it takes the entry's side. */
+export interface TallyBill {
+  readonly type: TallyBillType;
+  /** The bill reference: our invoice number, or the receipt number for an advance. */
+  readonly name: string;
+  readonly paise: number;
+}
+
+/**
+ * One ledger line of a voucher, in plain accounting terms: a positive amount on
+ * the debit or credit side. The XML writer turns it into Tally's signed form.
+ */
+export interface TallyEntry {
+  readonly ledger: string;
+  readonly side: 'debit' | 'credit';
+  readonly paise: number;
+  /** Party entries on a bill-wise ledger; empty otherwise. */
+  readonly bills: readonly TallyBill[];
+  /** Sales entries: the HSN codes whose taxable value it carries. */
+  readonly hsnCodes: readonly string[];
+  /** Sales and tax entries: the rate it carries (the head's rate for tax), else null. */
+  readonly rateBasisPoints: number | null;
+}
+
+export type TallyVoucherKind = 'sales' | 'credit_note' | 'debit_note' | 'receipt';
+
+/** The Tally voucher type names to import into. */
+export type TallyVoucherTypes = Readonly<Record<TallySalesKind | 'receipt', string>>;
+
+/**
+ * TallyPrime's predefined voucher types. A bill of supply goes to Sales too;
+ * a business that keeps a separate voucher type (or class) for it overrides it.
+ */
+export const DEFAULT_TALLY_VOUCHER_TYPES: TallyVoucherTypes = {
+  tax_invoice: 'Sales',
+  bill_of_supply: 'Sales',
+  credit_note: 'Credit Note',
+  debit_note: 'Debit Note',
+  receipt: 'Receipt',
+};
+
+export interface TallyVoucherGst {
+  readonly supplierGstin: string;
+  readonly placeOfSupplyCode: string;
+}
+
+export interface TallyVoucher {
+  readonly kind: TallyVoucherKind;
+  /** Our document kind, `receipt` for money in. */
+  readonly source: TallySalesKind | 'receipt';
+  readonly documentId: string;
+  readonly voucherType: string;
+  readonly number: string;
+  readonly date: string;
+  readonly cancelled: boolean;
+  readonly partyLedger: string;
+  readonly party: TallyParty;
+  /** GST documents only: our GSTIN and the place of supply. Null on receipts. */
+  readonly gst: TallyVoucherGst | null;
+  /** Notes only: the invoices adjusted. */
+  readonly originals: readonly TallyDocumentRef[];
+  readonly narration: string;
+  /** Debits first in the order Tally shows them; empty for a cancelled voucher. */
+  readonly entries: readonly TallyEntry[];
+}
+
+export interface TallyExport {
+  readonly companyName: string;
+  readonly from: string;
+  readonly to: string;
+  /** In date order; on one date sales, then debit notes, credit notes, receipts. */
+  readonly vouchers: readonly TallyVoucher[];
+  /** Every ledger the vouchers use, by name. */
+  readonly ledgers: readonly TallyLedger[];
+}
+
+export interface TallyExportOptions {
+  readonly ledgerRules: readonly TallyLedgerRule[];
+  readonly voucherTypes: TallyVoucherTypes;
+}
+
+const DOCUMENT_LABEL: Record<TallySalesKind, string> = {
+  tax_invoice: 'Tax invoice',
+  bill_of_supply: 'Bill of supply',
+  credit_note: 'Credit note',
+  debit_note: 'Debit note',
+};
+
+const VOUCHER_KIND: Record<TallySalesKind, TallyVoucherKind> = {
+  tax_invoice: 'sales',
+  bill_of_supply: 'sales',
+  credit_note: 'credit_note',
+  debit_note: 'debit_note',
+};
+
+const ORDER: Record<TallyVoucherKind, number> = {
+  sales: 0,
+  debit_note: 1,
+  credit_note: 2,
+  receipt: 3,
+};
+
+/** `2026-09-05` → `05-09-2026`, the way Indian invoices print dates. */
+const indianDate = (iso: string) => iso.split('-').reverse().join('-');
+
+/** Our id in a fixed tag, so a later import can find vouchers it already brought in. */
+export const narrationTag = (documentId: string) => `[paint:${documentId}]`;
+
+/** A ledger line before its ledger name is resolved. */
+interface Pending {
+  readonly need: TallyLedgerNeed;
+  readonly side: 'debit' | 'credit';
+  readonly paise: number;
+  readonly bills: readonly TallyBill[];
+  readonly hsnCodes: readonly string[];
+  readonly rateBasisPoints: number | null;
+}
+
+function billsFor(
+  party: TallyParty,
+  total: number,
+  allocations: readonly TallyAllocation[],
+  rest: { readonly type: TallyBillType; readonly name: string },
+): TallyBill[] {
+  if (party.walkIn) return [];
+  const bills: TallyBill[] = allocations.map((allocation) => ({
+    type: 'Agst Ref',
+    name: allocation.documentNumber,
+    paise: allocation.amountPaise,
+  }));
+  const left = total - bills.reduce((sum, bill) => sum + bill.paise, 0);
+  if (left > 0) bills.push({ ...rest, paise: left });
+  return bills;
+}
+
+const ON_ACCOUNT = { type: 'On Account', name: '' } as const;
+
+function documentLines(doc: TallySalesDocument): Pending[] {
+  const sale = doc.kind !== 'credit_note';
+  const towardsParty = sale ? 'debit' : 'credit';
+  const away = sale ? 'credit' : 'debit';
+  const pending: Pending[] = [];
+  // A sale opens a bill under its own number; a credit note settles bills or sits on account.
+  const rest = sale ? { type: 'New Ref' as const, name: doc.number } : ON_ACCOUNT;
+  pending.push({
+    need: partyNeed(doc.party, doc.storeCode),
+    side: towardsParty,
+    paise: doc.totalPaise,
+    bills: billsFor(doc.party, doc.totalPaise, sale ? [] : doc.allocations, rest),
+    hsnCodes: [],
+    rateBasisPoints: null,
+  });
+  if (doc.roundOffPaise < 0) {
+    pending.push({
+      need: roundOffNeed(doc.storeCode),
+      side: towardsParty,
+      paise: -doc.roundOffPaise,
+      bills: [],
+      hsnCodes: [],
+      rateBasisPoints: null,
+    });
+  }
+  const label = stateTaxLabel(doc.supplierStateCode);
+  for (const line of doc.lines) {
+    pending.push({
+      need:
+        doc.kind === 'bill_of_supply'
+          ? compositionSalesNeed(doc.storeCode)
+          : salesNeed(line.nature, line.rateBasisPoints, doc.supplyType, doc.storeCode),
+      side: away,
+      paise: line.taxablePaise,
+      bills: [],
+      hsnCodes: [line.hsnCode],
+      rateBasisPoints: line.rateBasisPoints,
+    });
+  }
+  for (const line of doc.lines) {
+    const half = line.rateBasisPoints / 2;
+    const heads: readonly [TallyDutyHead, number, number][] = [
+      ['CGST', line.cgstPaise, half],
+      [label, line.sgstPaise, half],
+      ['IGST', line.igstPaise, line.rateBasisPoints],
+      ['Cess', line.cessPaise, line.cessBasisPoints],
+    ];
+    for (const [head, paise, rate] of heads) {
+      if (paise === 0) continue;
+      pending.push({
+        need: taxNeed(head, rate, doc.storeCode),
+        side: away,
+        paise,
+        bills: [],
+        hsnCodes: [],
+        rateBasisPoints: rate,
+      });
+    }
+  }
+  if (doc.roundOffPaise > 0) {
+    pending.push({
+      need: roundOffNeed(doc.storeCode),
+      side: away,
+      paise: doc.roundOffPaise,
+      bills: [],
+      hsnCodes: [],
+      rateBasisPoints: null,
+    });
+  }
+  return pending;
+}
+
+function receiptLines(receipt: TallyReceipt): Pending[] {
+  const rest = receipt.advance ? { type: 'Advance' as const, name: receipt.number } : ON_ACCOUNT;
+  return [
+    {
+      need: paymentModeNeed(receipt.mode, receipt.storeCode),
+      side: 'debit',
+      paise: receipt.amountPaise,
+      bills: [],
+      hsnCodes: [],
+      rateBasisPoints: null,
+    },
+    {
+      need: partyNeed(receipt.party, receipt.storeCode),
+      side: 'credit',
+      paise: receipt.amountPaise,
+      bills: billsFor(receipt.party, receipt.amountPaise, receipt.allocations, rest),
+      hsnCodes: [],
+      rateBasisPoints: null,
+    },
+  ];
+}
+
+interface Draft {
+  readonly kind: TallyVoucherKind;
+  readonly source: TallySalesKind | 'receipt';
+  readonly documentId: string;
+  readonly number: string;
+  readonly date: string;
+  readonly cancelled: boolean;
+  readonly party: TallyParty;
+  readonly partyNeed: TallyLedgerNeed;
+  readonly gst: TallyVoucherGst | null;
+  readonly originals: readonly TallyDocumentRef[];
+  readonly narration: string;
+  readonly lines: readonly Pending[];
+}
+
+function documentDraft(doc: TallySalesDocument): Draft {
+  const against = doc.originals.map((ref) => `${ref.number} dated ${indianDate(ref.issuedOn)}`);
+  const narration = [
+    `${DOCUMENT_LABEL[doc.kind]} ${doc.number}`,
+    ...(against.length > 0 ? [`against ${against.join(', ')}`] : []),
+    ...(doc.cancelled ? ['CANCELLED'] : []),
+    ...(doc.note === null ? [] : [doc.note]),
+    narrationTag(doc.id),
+  ].join('; ');
+  return {
+    kind: VOUCHER_KIND[doc.kind],
+    source: doc.kind,
+    documentId: doc.id,
+    number: doc.number,
+    date: doc.issuedOn,
+    cancelled: doc.cancelled,
+    party: doc.party,
+    partyNeed: partyNeed(doc.party, doc.storeCode),
+    gst: { supplierGstin: doc.supplierGstin, placeOfSupplyCode: doc.placeOfSupplyCode },
+    originals: doc.originals,
+    narration,
+    lines: doc.cancelled ? [] : documentLines(doc),
+  };
+}
+
+function receiptDraft(receipt: TallyReceipt): Draft {
+  const narration = [
+    `${receipt.advance ? 'Advance receipt' : 'Receipt'} ${receipt.number} by ${receipt.mode.name}`,
+    ...(receipt.reference === null ? [] : [`ref ${receipt.reference}`]),
+    ...(receipt.note === null ? [] : [receipt.note]),
+    narrationTag(receipt.id),
+  ].join('; ');
+  return {
+    kind: 'receipt',
+    source: 'receipt',
+    documentId: receipt.id,
+    number: receipt.number,
+    date: receipt.receivedOn,
+    cancelled: false,
+    party: receipt.party,
+    partyNeed: partyNeed(receipt.party, receipt.storeCode),
+    gst: null,
+    originals: [],
+    narration,
+    lines: receiptLines(receipt),
+  };
+}
+
+/** Adds up lines that land on the same ledger and side, keeping first-seen order. */
+function merge(lines: readonly (Pending & { readonly ledger: string })[]): TallyEntry[] {
+  const entries = new Map<string, TallyEntry>();
+  for (const line of lines) {
+    const key = `${line.side}|${line.ledger}`;
+    const before = entries.get(key);
+    entries.set(key, {
+      ledger: line.ledger,
+      side: line.side,
+      paise: (before?.paise ?? 0) + line.paise,
+      bills: [...(before?.bills ?? []), ...line.bills],
+      hsnCodes: [...new Set([...(before?.hsnCodes ?? []), ...line.hsnCodes])],
+      rateBasisPoints: line.rateBasisPoints,
+    });
+  }
+  const merged = [...entries.values()].filter((entry) => entry.paise !== 0);
+  return [
+    ...merged.filter((entry) => entry.side === 'debit'),
+    ...merged.filter((entry) => entry.side === 'credit'),
+  ];
+}
+
+function drafts(period: TallyPeriod): Draft[] {
+  return [...period.documents.map(documentDraft), ...period.receipts.map(receiptDraft)].sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      ORDER[a.kind] - ORDER[b.kind] ||
+      (a.number < b.number ? -1 : a.number > b.number ? 1 : 0),
+  );
+}
+
+/**
+ * Resolves every ledger the period needs into vouchers and ledger masters, and
+ * reports what cannot be resolved: needs with no mapping, blank names, and one
+ * name standing for two different things (two parties, or CGST and SGST).
+ * With problems, the vouchers hold blank names and must not be used.
+ */
+function resolveAll(
+  period: TallyPeriod,
+  options: TallyExportOptions,
+): { problems: TallyProblem[]; vouchers: TallyVoucher[]; ledgers: TallyLedger[] } {
+  const problems: TallyProblem[] = [];
+  const reported = new Set<string>();
+  const report = (problem: TallyProblem) => {
+    if (reported.has(problem.message)) return;
+    reported.add(problem.message);
+    problems.push(problem);
+  };
+  const masters = new Map<string, { ledger: TallyLedger; identity: string; description: string }>();
+  const nameOf = (need: TallyLedgerNeed): string => {
+    const { name, group } = resolveLedger(need, options.ledgerRules);
+    if (name === null) {
+      report({
+        code: 'unmapped_ledger',
+        document: null,
+        message: `No Tally ledger is mapped for ${need.description}; add a ${need.purpose} mapping`,
+      });
+      return '';
+    }
+    if (name.trim() === '' || name !== name.trim()) {
+      report({
+        code: 'invalid_ledger_name',
+        document: null,
+        message: `The ledger name "${name}" for ${need.description} is blank or has outer spaces`,
+      });
+      return '';
+    }
+    const ledger: TallyLedger = { name, ...need.master, group };
+    const existing = masters.get(name);
+    if (existing === undefined) {
+      masters.set(name, { ledger, identity: need.identity, description: need.description });
+    } else if (
+      existing.identity !== need.identity ||
+      JSON.stringify(existing.ledger) !== JSON.stringify(ledger)
+    ) {
+      report({
+        code: 'ledger_conflict',
+        document: null,
+        message: `The ledger "${name}" is mapped for both ${existing.description} and ${need.description}`,
+      });
+    }
+    return name;
+  };
+  const vouchers = drafts(period).map((draft): TallyVoucher => ({
+    kind: draft.kind,
+    source: draft.source,
+    documentId: draft.documentId,
+    voucherType: options.voucherTypes[draft.source],
+    number: draft.number,
+    date: draft.date,
+    cancelled: draft.cancelled,
+    partyLedger: nameOf(draft.partyNeed),
+    party: draft.party,
+    gst: draft.gst,
+    originals: draft.originals,
+    narration: draft.narration,
+    entries: merge(draft.lines.map((line) => ({ ...line, ledger: nameOf(line.need) }))),
+  }));
+  const ledgers = [...masters.values()]
+    .map((entry) => entry.ledger)
+    .sort((a, b) => (a.name < b.name ? -1 : 1));
+  return { problems, vouchers, ledgers };
+}
+
+/** Every problem that would stop `buildTallyExport`: bad input first, then ledger mapping. */
+export function checkTallyExport(period: TallyPeriod, options: TallyExportOptions): TallyProblem[] {
+  const problems = checkPeriod(period);
+  return problems.length > 0 ? problems : resolveAll(period, options).problems;
+}
+
+/**
+ * Maps a period's documents onto Tally vouchers (accounting-voucher mode, spec
+ * §6.1) and the ledgers they use. Throws a `TallyError` listing every problem
+ * when the input does not balance or a ledger is not mapped.
+ */
+export function buildTallyExport(period: TallyPeriod, options: TallyExportOptions): TallyExport {
+  const problems = checkTallyExport(period, options);
+  if (problems.length > 0) throw new TallyError(problems);
+  const { vouchers, ledgers } = resolveAll(period, options);
+  return { companyName: period.companyName, from: period.from, to: period.to, vouchers, ledgers };
+}

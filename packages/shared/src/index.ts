@@ -105,6 +105,7 @@ export {
 } from './csv.js';
 export { formatDocumentNumber } from './documents.js';
 export * from './gst/index.js';
+export * from './tally/index.js';
 export {
   assertPaise,
   formatINR,

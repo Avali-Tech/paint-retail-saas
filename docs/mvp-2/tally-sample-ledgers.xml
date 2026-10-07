@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ENVELOPE>
+ <HEADER>
+  <TALLYREQUEST>Import Data</TALLYREQUEST>
+ </HEADER>
+ <BODY>
+  <IMPORTDATA>
+   <REQUESTDESC>
+    <REPORTNAME>All Masters</REPORTNAME>
+    <STATICVARIABLES>
+     <SVCURRENTCOMPANY>Sharma Paints &amp; Hardware</SVCURRENTCOMPANY>
+    </STATICVARIABLES>
+   </REQUESTDESC>
+   <REQUESTDATA>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Cash" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Cash</NAME>
+      </NAME.LIST>
+      <PARENT>Cash-in-Hand</PARENT>
+      <ISBILLWISEON>No</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Cash - Kukatpally" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Cash - Kukatpally</NAME>
+      </NAME.LIST>
+      <PARENT>Cash-in-Hand</PARENT>
+      <ISBILLWISEON>No</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Cash Sales" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Cash Sales</NAME>
+      </NAME.LIST>
+      <PARENT>Sundry Debtors</PARENT>
+      <ISBILLWISEON>No</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Cheques in Hand" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Cheques in Hand</NAME>
+      </NAME.LIST>
+      <PARENT>Current Assets</PARENT>
+      <ISBILLWISEON>No</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="HDFC Bank" ACTION="Create">
+      <NAME.LIST>
+       <NAME>HDFC Bank</NAME>
+      </NAME.LIST>
+      <PARENT>Bank Accounts</PARENT>
+      <ISBILLWISEON>No</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Lakshmi Interiors" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Lakshmi Interiors</NAME>
+      </NAME.LIST>
+      <PARENT>Sundry Debtors</PARENT>
+      <ISBILLWISEON>Yes</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+      <GSTREGISTRATIONTYPE>Regular</GSTREGISTRATIONTYPE>
+      <PARTYGSTIN>36ABCPL5521Q1ZC</PARTYGSTIN>
+      <LEDSTATENAME>Telangana</LEDSTATENAME>
+      <COUNTRYNAME>India</COUNTRYNAME>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Output CGST 9%" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Output CGST 9%</NAME>
+      </NAME.LIST>
+      <PARENT>Duties &amp; Taxes</PARENT>
+      <ISBILLWISEON>No</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+      <TAXTYPE>GST</TAXTYPE>
+      <GSTDUTYHEAD>CGST</GSTDUTYHEAD>
+      <RATEOFTAXCALCULATION>9.00</RATEOFTAXCALCULATION>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Output IGST 18%" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Output IGST 18%</NAME>
+      </NAME.LIST>
+      <PARENT>Duties &amp; Taxes</PARENT>
+      <ISBILLWISEON>No</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+      <TAXTYPE>GST</TAXTYPE>
+      <GSTDUTYHEAD>IGST</GSTDUTYHEAD>
+      <RATEOFTAXCALCULATION>18.00</RATEOFTAXCALCULATION>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Output SGST 9%" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Output SGST 9%</NAME>
+      </NAME.LIST>
+      <PARENT>Duties &amp; Taxes</PARENT>
+      <ISBILLWISEON>No</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+      <TAXTYPE>GST</TAXTYPE>
+      <GSTDUTYHEAD>SGST/UTGST</GSTDUTYHEAD>
+      <RATEOFTAXCALCULATION>9.00</RATEOFTAXCALCULATION>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Ravi Kumar (Painter)" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Ravi Kumar (Painter)</NAME>
+      </NAME.LIST>
+      <PARENT>Sundry Debtors</PARENT>
+      <ISBILLWISEON>Yes</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+      <GSTREGISTRATIONTYPE>Unregistered/Consumer</GSTREGISTRATIONTYPE>
+      <LEDSTATENAME>Telangana</LEDSTATENAME>
+      <COUNTRYNAME>India</COUNTRYNAME>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Reddy &amp; Sons Contractors" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Reddy &amp; Sons Contractors</NAME>
+      </NAME.LIST>
+      <PARENT>Sundry Debtors</PARENT>
+      <ISBILLWISEON>Yes</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+      <GSTREGISTRATIONTYPE>Regular</GSTREGISTRATIONTYPE>
+      <PARTYGSTIN>36AAJFR2264P1ZM</PARTYGSTIN>
+      <LEDSTATENAME>Telangana</LEDSTATENAME>
+      <COUNTRYNAME>India</COUNTRYNAME>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Round Off" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Round Off</NAME>
+      </NAME.LIST>
+      <PARENT>Indirect Expenses</PARENT>
+      <ISBILLWISEON>No</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Sales Exempt Interstate" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Sales Exempt Interstate</NAME>
+      </NAME.LIST>
+      <PARENT>Sales Accounts</PARENT>
+      <ISBILLWISEON>No</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Sales Exempt Local" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Sales Exempt Local</NAME>
+      </NAME.LIST>
+      <PARENT>Sales Accounts</PARENT>
+      <ISBILLWISEON>No</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Sales GST 18% Interstate" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Sales GST 18% Interstate</NAME>
+      </NAME.LIST>
+      <PARENT>Sales Accounts</PARENT>
+      <ISBILLWISEON>No</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Sales GST 18% Local" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Sales GST 18% Local</NAME>
+      </NAME.LIST>
+      <PARENT>Sales Accounts</PARENT>
+      <ISBILLWISEON>No</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Sri Sai Constructions" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Sri Sai Constructions</NAME>
+      </NAME.LIST>
+      <PARENT>Sundry Debtors</PARENT>
+      <ISBILLWISEON>Yes</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+      <GSTREGISTRATIONTYPE>Regular</GSTREGISTRATIONTYPE>
+      <PARTYGSTIN>36AAMFS7310K1ZV</PARTYGSTIN>
+      <LEDSTATENAME>Telangana</LEDSTATENAME>
+      <COUNTRYNAME>India</COUNTRYNAME>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Srinivas Rao" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Srinivas Rao</NAME>
+      </NAME.LIST>
+      <PARENT>Sundry Debtors</PARENT>
+      <ISBILLWISEON>Yes</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+      <GSTREGISTRATIONTYPE>Unregistered/Consumer</GSTREGISTRATIONTYPE>
+      <LEDSTATENAME>Andhra Pradesh</LEDSTATENAME>
+      <COUNTRYNAME>India</COUNTRYNAME>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="UPI Clearing" ACTION="Create">
+      <NAME.LIST>
+       <NAME>UPI Clearing</NAME>
+      </NAME.LIST>
+      <PARENT>Current Assets</PARENT>
+      <ISBILLWISEON>No</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Vijayawada Builders Pvt Ltd" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Vijayawada Builders Pvt Ltd</NAME>
+      </NAME.LIST>
+      <PARENT>Sundry Debtors</PARENT>
+      <ISBILLWISEON>Yes</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+      <GSTREGISTRATIONTYPE>Regular</GSTREGISTRATIONTYPE>
+      <PARTYGSTIN>37AADCV8890H1ZP</PARTYGSTIN>
+      <LEDSTATENAME>Andhra Pradesh</LEDSTATENAME>
+      <COUNTRYNAME>India</COUNTRYNAME>
+     </LEDGER>
+    </TALLYMESSAGE>
+   </REQUESTDATA>
+  </IMPORTDATA>
+ </BODY>
+</ENVELOPE>
