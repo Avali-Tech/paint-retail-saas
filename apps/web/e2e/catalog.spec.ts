@@ -93,6 +93,10 @@ test('a category is deactivated, leaves the product form, and comes back', async
   await page.goto('/products/setup');
   const categories = page.getByRole('region', { name: 'Categories' });
   await categories.getByRole('button', { name: 'Deactivate Primers' }).click();
+  await page
+    .getByRole('dialog', { name: 'Deactivate Primers?' })
+    .getByRole('button', { name: 'Deactivate' })
+    .click();
   await expect(
     categories.getByRole('listitem').filter({ hasText: 'Primers' }).getByText('Inactive'),
   ).toBeVisible();

@@ -3,6 +3,8 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode, type ReactNode } from 'react';
 import { BrowserRouter } from 'react-router';
 import { I18nProvider, useI18n } from '../i18n/i18n.js';
+import { UpdateBanner } from '../pwa/UpdateBanner.js';
+import type { UpdateController } from '../pwa/updates.js';
 import { isSupportTab } from '../support-access/support-tab.js';
 import { BrandingProvider } from '../theme/BrandingProvider.js';
 import { AppRoutes } from './routes.js';
@@ -55,13 +57,20 @@ export function AppProviders({
   );
 }
 
-export function App({ services }: { readonly services: Services }) {
+export interface AppProps {
+  readonly services: Services;
+  /** Offers a newly deployed version (production builds, which have a service worker). */
+  readonly updates?: UpdateController | undefined;
+}
+
+export function App({ services, updates }: AppProps) {
   return (
     <StrictMode>
       <AppProviders services={services}>
         <BrowserRouter>
           <AppRoutes />
         </BrowserRouter>
+        {updates && <UpdateBanner updates={updates} />}
       </AppProviders>
     </StrictMode>
   );

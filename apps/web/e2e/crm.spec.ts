@@ -56,7 +56,7 @@ test('an owner takes a walk-in from lead to opportunity to project', async ({ pa
     .click();
   await expect(page.getByRole('heading', { name: 'Leads', level: 1 })).toBeVisible();
   await page.getByRole('link', { name: '+ Lead' }).click();
-  await page.getByRole('button', { name: 'New contact' }).click();
+  await page.getByRole('button', { name: 'Add a new contact' }).click();
   await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Meera Reddy');
   await page.getByRole('textbox', { name: 'Mobile number', exact: true }).fill(uniquePhone());
   await page.getByRole('textbox', { name: 'Title', exact: true }).fill('Villa interiors');
@@ -156,7 +156,7 @@ test('a salesperson without the team list hands a lead to a colleague', async ({
   await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
 
   await page.goto('/leads/new');
-  await page.getByRole('button', { name: 'New contact' }).click();
+  await page.getByRole('button', { name: 'Add a new contact' }).click();
   await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Meera Reddy');
   await page.getByRole('textbox', { name: 'Mobile number', exact: true }).fill(uniquePhone());
   await page.getByRole('textbox', { name: 'Title', exact: true }).fill('Villa interiors');
@@ -222,7 +222,7 @@ test('the CRM screens work on a phone @phone', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toContainText(lead.number);
   await expectUsable(page);
   await page.goto('/leads/new');
-  await page.getByRole('button', { name: 'New contact' }).click();
+  await page.getByRole('button', { name: 'Add a new contact' }).click();
   await expectUsable(page);
   await page.goto('/opportunities');
   await expect(page.getByText('No opportunities yet')).toBeVisible();

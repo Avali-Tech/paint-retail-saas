@@ -668,6 +668,18 @@
   font-weight: 400;
 }
 
+/* A row's buttons stay side by side (wrapping stacked them and clipped the last one);
+   on a phone the table scrolls sideways instead. */
+.ui-table td > .row {
+  flex-wrap: nowrap;
+}
+
+/* A table cell holding a sentence: it wraps instead of widening the table past the screen. */
+.ui-table .cell-wrap {
+  min-width: 12rem;
+  white-space: normal;
+}
+
 .table-check {
   width: 20px;
   height: 20px;
@@ -775,6 +787,11 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+}
+
+/* A row's buttons stay on the right, also when a long name pushes them onto their own line. */
+.record-list .record-list__row > .row:last-child {
+  margin-left: auto;
 }
 
 .record-list__title {
@@ -922,4 +939,41 @@
 :lang(hi) :is(h1, h2, h3, .ui-button, .shell__names),
 :lang(te) :is(h1, h2, h3, .ui-button, .shell__names) {
   line-height: 1.45;
+}
+
+/* "A new version is available": above the phone's bottom bar, never over a form's fields. */
+
+.update-banner-region {
+  position: fixed;
+  z-index: 70;
+  right: var(--space-4);
+  bottom: calc(var(--control-height) + var(--space-4) + env(safe-area-inset-bottom));
+  left: var(--space-4);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: min(100%, 32rem);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+  pointer-events: auto;
+}
+
+.update-banner__text {
+  flex: 1;
+  font-weight: 600;
+}
+
+@media (min-width: 900px) {
+  .update-banner-region {
+    bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
+  }
 }

@@ -70,7 +70,7 @@ export const creditEn = {
       why: 'Why',
       decidedBy: 'Decided by',
       decisionNote: 'Decision note',
-      detailTitle: 'Credit request {number}',
+      detailTitle: '{number} · Credit request',
       details: 'Details',
     },
   },

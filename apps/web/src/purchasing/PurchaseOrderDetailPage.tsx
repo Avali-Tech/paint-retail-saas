@@ -10,6 +10,7 @@ import { QueryState } from '../lib/QueryState.js';
 import { ReasonDialog } from '../lib/ReasonDialog.js';
 import { OrderStatusBadge } from './shared.js';
 import { refreshInventory } from '../lib/refresh.js';
+import { productTitle } from '../lib/product-title.js';
 
 export const purchaseOrderKey = (id: string) => ['purchase-order', id] as const;
 
@@ -139,7 +140,7 @@ function OrderView({ order }: { readonly order: PurchaseOrder }) {
               {order.lines.map((line) => (
                 <tr key={line.variantId}>
                   <th scope="row">
-                    {line.brandName} {line.productName}
+                    {productTitle(line.brandName, line.productName)}
                     <span className="cell-meta">
                       {line.sku} · {String(line.packSize)} {line.unit}
                     </span>

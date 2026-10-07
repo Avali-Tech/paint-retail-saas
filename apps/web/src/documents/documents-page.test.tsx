@@ -167,6 +167,12 @@ describe('DocumentsPage', { timeout: 30_000 }, () => {
       },
     });
     expect(await screen.findByText('No documents yet')).toBeVisible();
+    // A first-time user learns where documents come from.
+    expect(
+      screen.getByText(
+        'Files you upload on a customer, order, lead, project or contract page show up here.',
+      ),
+    ).toBeVisible();
     view.unmount();
     renderApp({
       path: '/documents',

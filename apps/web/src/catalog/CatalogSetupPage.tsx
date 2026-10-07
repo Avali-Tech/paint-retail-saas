@@ -106,6 +106,35 @@ function RenameDialog({
   );
 }
 
+/** Deactivating takes effect at once for everyone, so it is confirmed first. */
+function DeactivateDialog({
+  name,
+  description,
+  onDeactivate,
+  onClose,
+}: {
+  readonly name: string;
+  readonly description: string;
+  readonly onDeactivate: () => Promise<unknown>;
+  readonly onClose: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <FormDialog
+      open
+      onClose={onClose}
+      title={t('catalogSetup.deactivateTitle', { name })}
+      submitLabel={t('catalogSetup.deactivateConfirm')}
+      onSubmit={async () => {
+        await onDeactivate();
+        return undefined;
+      }}
+    >
+      <p>{description}</p>
+    </FormDialog>
+  );
+}
+
 function Brands({ brands, manage }: { readonly brands: Brand[]; readonly manage: boolean }) {
   const api = useApi();
   const { t } = useI18n();
@@ -113,11 +142,19 @@ function Brands({ brands, manage }: { readonly brands: Brand[]; readonly manage:
   const queryClient = useQueryClient();
   const [renaming, setRenaming] = useState<Brand | null>(null);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['brands'] });
+  const [deactivating, setDeactivating] = useState<Brand | null>(null);
+  const setActive = async (brand: Brand, isActive: boolean) => {
+    await api.catalog.updateBrand(brand.id, { isActive });
+    await refresh();
+    toast({ title: t('common.saved'), tone: 'success' });
+  };
   const toggle = async (brand: Brand) => {
+    if (brand.isActive) {
+      setDeactivating(brand);
+      return;
+    }
     try {
-      await api.catalog.updateBrand(brand.id, { isActive: !brand.isActive });
-      await refresh();
-      toast({ title: t('common.saved'), tone: 'success' });
+      await setActive(brand, true);
     } catch (error) {
       toast({ title: errorMessage(error), tone: 'danger' });
     }
@@ -192,6 +229,16 @@ function Brands({ brands, manage }: { readonly brands: Brand[]; readonly manage:
           }}
         />
       )}
+      {deactivating !== null && (
+        <DeactivateDialog
+          name={deactivating.name}
+          description={t('catalogSetup.deactivateBrand')}
+          onClose={() => {
+            setDeactivating(null);
+          }}
+          onDeactivate={() => setActive(deactivating, false)}
+        />
+      )}
     </Card>
   );
 }
@@ -213,11 +260,19 @@ function Categories({
   const topLevel = categories.filter((category) => category.parentId === null);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['categories'] });
   // Deactivated categories keep their products but take no new ones (nor do their subcategories).
+  const [deactivating, setDeactivating] = useState<Category | null>(null);
+  const setActive = async (category: Category, isActive: boolean) => {
+    await api.catalog.setCategoryActive(category.id, isActive);
+    await refresh();
+    toast({ title: t('common.saved'), tone: 'success' });
+  };
   const toggle = async (category: Category) => {
+    if (category.isActive) {
+      setDeactivating(category);
+      return;
+    }
     try {
-      await api.catalog.setCategoryActive(category.id, !category.isActive);
-      await refresh();
-      toast({ title: t('common.saved'), tone: 'success' });
+      await setActive(category, true);
     } catch (error) {
       toast({ title: errorMessage(error), tone: 'danger' });
     }
@@ -318,6 +373,16 @@ function Categories({
             await api.catalog.renameCategory(renaming.id, name);
             await refresh();
           }}
+        />
+      )}
+      {deactivating !== null && (
+        <DeactivateDialog
+          name={deactivating.name}
+          description={t('catalogSetup.deactivateCategory')}
+          onClose={() => {
+            setDeactivating(null);
+          }}
+          onDeactivate={() => setActive(deactivating, false)}
         />
       )}
     </Card>
