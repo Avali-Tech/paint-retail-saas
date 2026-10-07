@@ -16,7 +16,8 @@ export const DEMO_USAGE = `Local demo of Paint Retail with the Sharma Paints & H
 Environment (all optional): DEMO_API_PORT (3000), DEMO_WEB_PORT (5173),
 PAINT_POSTGRES_PORT (55432), PAINT_STORAGE_PORT (58333), PAINT_SMTP_PORT (51025),
 PAINT_MAIL_PORT (58025), PAINT_CLAMAV_PORT (53310), DEMO_COMPOSE_PROJECT (paint-demo),
-DEMO_SIZE (full or small).`;
+DEMO_SIZE (full or small; large adds a large shop's volume for performance testing,
+not for client demos).`;
 
 /**
  * Only for this local demo: the API seals authenticator secrets with it, and the
@@ -41,7 +42,7 @@ export interface DemoSettings {
   /** Re-create the demo data before starting. */
   readonly fresh: boolean;
   readonly clamav: boolean;
-  readonly size: 'full' | 'small';
+  readonly size: 'full' | 'small' | 'large';
   /** Docker Compose project name: keeps the demo's containers and volumes apart. */
   readonly project: string;
   readonly ports: DemoPorts;
@@ -80,8 +81,8 @@ export function demoSettings(args: readonly string[], env: Env, root: string): D
     throw new DemoUsageError(`Unknown option ${unknown.join(', ')}.\n\n${DEMO_USAGE}`);
   }
   const size = env.DEMO_SIZE ?? 'full';
-  if (size !== 'full' && size !== 'small') {
-    throw new DemoUsageError(`DEMO_SIZE must be full or small, not "${size}"`);
+  if (size !== 'full' && size !== 'small' && size !== 'large') {
+    throw new DemoUsageError(`DEMO_SIZE must be full, small or large, not "${size}"`);
   }
   return {
     command: command as DemoCommand,

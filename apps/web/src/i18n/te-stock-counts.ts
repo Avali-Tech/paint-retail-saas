@@ -65,6 +65,7 @@ export const stockCountsTe: Translation<typeof stockCountsEn> = {
       note: 'నోట్: {note}',
       closingReason: 'కారణం: {reason}',
       lines: 'ప్రోడక్ట్‌లు',
+      linePages: 'ప్రోడక్ట్ పేజీలు',
       noLines: 'ఇంకా ఇందులో ఏమీ లేదు. ప్రోడక్ట్‌లు కనిపించగానే స్కాన్ చేయండి.',
       product: 'ప్రోడక్ట్',
       books: 'లెక్కల్లో',

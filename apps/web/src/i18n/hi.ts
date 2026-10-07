@@ -1,6 +1,7 @@
 // Hindi messages (draft translations: see docs/translations/glossary.md). Same shape as
 // en.ts; each feature's messages are in hi-<feature>.ts, mirroring en-<feature>.ts.
 import type { Messages } from './en.js';
+import { brandingHi } from './hi-branding.js';
 import { catalogEnumsHi, catalogHi } from './hi-catalog.js';
 import { contractsHi } from './hi-contracts.js';
 import { creditEnumsHi, creditHi } from './hi-credit.js';
@@ -47,6 +48,12 @@ export const hi: Messages = {
     notFound: 'नहीं मिला।',
     tooMany: 'बहुत ज्यादा कोशिशें हो गईं। थोड़ा रुककर फिर से कोशिश करें।',
     generic: 'कुछ गलत हो गया। कृपया फिर से कोशिश करें।',
+  },
+  update: {
+    region: 'ऐप अपडेट',
+    available: 'ऐप का नया वर्जन उपलब्ध है।',
+    reload: 'रीलोड करें',
+    later: 'बाद में',
   },
   language: {
     label: 'भाषा',
@@ -220,7 +227,6 @@ export const hi: Messages = {
     purchaseOrders: 'परचेज ऑर्डर',
     openOrders: 'खुले',
     dueValue: 'बाकी रकम',
-    followUps: 'फॉलो-अप',
     openFollowUps: 'मेरे फॉलो-अप खोलें',
     overdue: 'समय निकल गया',
     today: 'आज के',
@@ -317,6 +323,7 @@ export const hi: Messages = {
   ...teamHi,
   ...platformHi,
   ...supportAccessHi,
+  ...brandingHi,
   enums: {
     quickActions: {
       new_customer: '+ ग्राहक',
@@ -348,8 +355,7 @@ export const hi: Messages = {
     ...reportEnumsHi,
   },
   pages: {
-    comingSoonTitle: 'जल्द आ रहा है',
-    comingSoon: 'यह स्क्रीन जल्द आ रही है। तब तक डैशबोर्ड और खोज का इस्तेमाल करें।',
+    notFound: 'इस पते पर कोई स्क्रीन नहीं है। लिंक जांचें, या मेन्यू या खोज का इस्तेमाल करें।',
     noAccessTitle: 'एक्सेस नहीं',
     noAccess: 'आपके रोल में यह स्क्रीन शामिल नहीं है। जरूरत हो तो अपने मालिक से पूछें।',
     notFoundTitle: 'पेज नहीं मिला',

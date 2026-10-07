@@ -138,7 +138,8 @@ and the sign-in sheet are in `.demo/`. Remove it all with `docker compose -p pai
 
 **Signing in.** Everyone signs in with their mobile number (or email) and the password
 `Demo@2026`, for example the owner **Rajesh Sharma, 9000000001**; `pnpm demo` prints the whole
-team with roles and stores. Counter staff (Ravi Teja 9000000041, Suresh Yadav 9000000042, Farhan
+team with roles and stores, and the business's branded sign-in page,
+**http://localhost:5173/sign-in?b=sharma-paints** (its name and colours before anyone signs in). Counter staff (Ravi Teja 9000000041, Suresh Yadav 9000000042, Farhan
 Ali 9000000043) have no password: choose **Mobile code**; with the local SMS provider the code is
 printed in the `pnpm demo` terminal (a line with `[SMS]`) and in `.demo/api.log`.
 
@@ -168,6 +169,19 @@ emails (follow-up reminders and anything you do during the demo) arrive in Mailp
 http://localhost:58025. Ports can be moved if something else uses them:
 `DEMO_API_PORT=3100 DEMO_WEB_PORT=5200 pnpm demo` (and `PAINT_POSTGRES_PORT`,
 `PAINT_STORAGE_PORT`, `PAINT_MAIL_PORT`, `PAINT_SMTP_PORT`, `PAINT_CLAMAV_PORT` for the services).
+
+**A large shop, for performance testing (not for client demos).** `DEMO_SIZE=large pnpm demo
+--fresh` (or `DEMO_SIZE=large pnpm demo:reset`) seeds the full demo, then adds a large dealer's
+volume: five more branches with a manager and a salesperson each (8 stores), about 5,000 more
+products in 10,000 pack sizes across 20 brands, 5,000 more parties, about 100,000 stock ledger
+entries (opening stock, receipts against 2,500 purchase orders, sales and write-offs over six
+months), 6,000 leads, 1,400 opportunities, 800 projects, 30,000 activities, 5,000 documents
+(metadata only, so downloading one fails), 15,000 notifications and 15,000 loyalty entries. It
+takes about half a minute. That bulk part (`apps/api/src/demo/seed-large.ts`) is the second
+exception to "only through the API": it writes in batches inside the business's tenant scope as
+the owner, so row-level security and the audit triggers apply, stock goes through
+`postStockMovementsInBulk` (balances always equal the ledger), and every document number series
+continues. Timings and how they were measured: [docs/performance.md](docs/performance.md).
 
 | Where                   | What                                                                                |
 | ----------------------- | ----------------------------------------------------------------------------------- |
@@ -310,11 +324,11 @@ Every route requires `Authorization: Bearer <token>` unless marked public.
 | PATCH              | `/parties/:id`                                                                                   | `parties:manage`                                                   | Update; `null` clears a field; replacing roles adds/removes customer details                                                                                                                                                                                                                                                          |
 | GET/POST/PATCH     | `/brands`, `/brands/:id`                                                                         | read: `catalog:read`, write: `catalog:manage`                      | Brands (unique ignoring case); `isActive: false` retires one (no new products under it); audited                                                                                                                                                                                                                                      |
 | GET/POST/PATCH     | `/categories`, `/categories/:id`                                                                 | same                                                               | Categories with one level of subcategories; rename or deactivate / reactivate (`isActive`); audited                                                                                                                                                                                                                                   |
-| GET                | `/products`                                                                                      | `catalog:read`                                                     | Product families with variants: search `q` (name, brand, SKU, barcode), `brandId`, `categoryId` (includes subcategories), `type`, paging                                                                                                                                                                                              |
+| GET                | `/products`                                                                                      | `catalog:read`                                                     | Product families with variants: search `q` (name, brand, SKU, variant label, barcode), `brandId`, `categoryId` (includes subcategories), `type`, paging                                                                                                                                                                               |
 | GET                | `/products/lookup?code=`                                                                         | `catalog:read`                                                     | Variant by scanned barcode or typed SKU (counter); discontinued packs and products only with `includeInactive=true`                                                                                                                                                                                                                   |
 | GET/POST/PATCH     | `/products`, `/products/:id`                                                                     | same                                                               | Product family: brand, category, type, HSN, GST rate, variants; refused under an inactive brand or category; status changes audited                                                                                                                                                                                                   |
-| POST               | `/products/:id/variants`                                                                         | `catalog:manage`                                                   | Add a pack size                                                                                                                                                                                                                                                                                                                       |
-| PATCH              | `/variants/:id`                                                                                  | `catalog:manage`                                                   | SKU, MRP, selling price (never above MRP), barcodes, status                                                                                                                                                                                                                                                                           |
+| POST               | `/products/:id/variants`                                                                         | `catalog:manage`                                                   | Add a size or pack: size, unit and an optional `label` (up to 40 characters)                                                                                                                                                                                                                                                          |
+| PATCH              | `/variants/:id`                                                                                  | `catalog:manage`                                                   | SKU, `label` (null or blank removes it), MRP, selling price (never above MRP), barcodes, status                                                                                                                                                                                                                                       |
 | POST               | `/stock/movements`                                                                               | `inventory:manage`                                                 | Opening stock (once per store and product), adjustments and write-offs (with a reason), several products at once, all or nothing                                                                                                                                                                                                      |
 | GET                | `/stock`                                                                                         | `inventory:read`                                                   | Stock by store: on hand, reserved, available, average cost, value; filters and paging                                                                                                                                                                                                                                                 |
 | GET                | `/stock/availability?variantId=`                                                                 | `inventory:read`                                                   | One product across the member's stores                                                                                                                                                                                                                                                                                                |
@@ -388,6 +402,11 @@ Every route requires `Authorization: Bearer <token>` unless marked public.
 | GET                | `/reports`, `/reports/:kind?format=csv`                                                          | the report's permission                                            | Stock by location, stock ledger, transfers, goods receipts, leads, projects; `GET /reports` describes each filter (`name`, `type`: store, date, enum with `values`, supplier or boolean with `default`) and each column (`key`, stable `id` `<kind>.<key>`, English `header`); JSON paging or CSV for Excel                           |
 | GET                | `/organization/features`                                                                         | signed in                                                          | The business's plan, its limits, usage, and which features are on                                                                                                                                                                                                                                                                     |
 | GET · PUT          | `/organization/branding`                                                                         | signed in to read; `organization:manage` to change                 | The business's look (app name, colours, mode, corners, density, font), checked with `validateBranding`; 404 until set. Saving answers the theme's readability adjustments                                                                                                                                                             |
+| GET                | `/organization/identity`                                                                         | signed in                                                          | The business's sign-in link name (`slug`) and logo (`url`, type, size), as `OrganizationIdentity`                                                                                                                                                                                                                                     |
+| PUT                | `/organization/slug`                                                                             | `organization:manage`                                              | Change the sign-in link name: 3–40 lower-case letters, digits and single hyphens, not a reserved name (`RESERVED_SLUGS`); 400 with `code` `length`, `format` or `reserved`, 409 `taken` when another business has it (ignoring case); the old link stops working; audited                                                             |
+| POST · DELETE      | `/organization/logo` (multipart: `file`)                                                         | `organization:manage`                                              | Upload (≤ 1 MB; PNG, JPEG or WebP, 16–2048 px a side, checked from the bytes; never SVG) after a virus scan, or remove it; answers the identity. A refusal has a `code`: the document ones plus `svg_not_allowed` and `dimensions`; audited                                                                                           |
+| GET                | `/public/branding/:slug`                                                                         | public                                                             | A business's branded sign-in page: `slug`, `branding` (app name and theme) and `logoUrl`, nothing else; the same 404 for unknown and suspended businesses                                                                                                                                                                             |
+| GET                | `/public/branding/:slug/logo/:version`                                                           | public                                                             | The logo, `inline`, `nosniff`, a CSP allowing nothing, cached for good (the address changes with every logo) with an `ETag` (304); never an S3 address                                                                                                                                                                                |
 | GET · POST         | `/support-requests`, `/:id/approve`, `/:id/decline`, `/:id/end`, `/:id/activity`                 | `organization:manage`                                              | Decide on platform support's requests for access, end access, and see every request support made                                                                                                                                                                                                                                      |
 | POST               | `/platform/bootstrap`, `/platform/login`, `/platform/logout`                                     | platform operators                                                 | The SaaS operator's own sign-in; the first operator is created once with `PLATFORM_BOOTSTRAP_TOKEN`                                                                                                                                                                                                                                   |
 | POST               | `/platform/login/2fa/setup`, `/platform/login/2fa`                                               | platform operators, with the `pendingToken` from `/platform/login` | Operators always use an authenticator app: add it at first sign-in, then a code each time                                                                                                                                                                                                                                             |
@@ -412,7 +431,13 @@ home store are visible to that store's staff; parties without one (suppliers, ar
 business-wide.
 
 **Catalogue** (roadmap §3.11): one product family (e.g. Apex Ultima) with a variant per pack
-size, each with its own SKU, MRP and selling price in paise, and barcodes. EAN/UPC barcodes are
+size, each with its own SKU, MRP and selling price in paise, and barcodes. Hardware sold by the
+piece is one product too: an optional variant `label` ("2 inch", "Grit 120", "48 mm", "Red")
+tells same-sized packs apart, so a product has one variant per size, unit and label (no label
+counts as one; case does not matter). Everywhere a variant is named (search, documents, exports,
+the app) it reads "10 l" without a label, just the label for a single piece ("Paint Brush 2
+inch"), and label then size otherwise ("Red · 1 l"); `variantName()` in `@paint/shared` is the
+one rule. Label changes are audited like renames. EAN/UPC barcodes are
 check-digit validated. The catalogue is shared by all stores; stock per store comes next.
 Brands, categories, products and pack sizes are deactivated rather than deleted, so history keeps
 pointing at them: an inactive brand or category (or a subcategory of an inactive one) takes no new
@@ -448,7 +473,10 @@ Each receipt records the supplier's latest cost for the next order.
 **Imports** (roadmap P1-M17): CSV as Excel or Google Sheets saves it, up to 5,000 rows. A preview
 saves nothing and lists every problem by row and column; committing saves all rows or none. Running
 the same file again updates instead of duplicating: products match by SKU, parties by GSTIN or
-mobile number, opening stock by store and SKU. Blank cells keep saved values. Opening stock is
+mobile number, opening stock by store and SKU. An optional `variant_label` column names hardware
+sizes: products are refused when they repeat a product's size, unit and label (in the file or
+against saved packs), and on opening stock it must match the SKU's label, catching a mistyped SKU
+among look-alike pieces. Blank cells keep saved values. Opening stock is
 refused once a product has other movements at that store; use a stock count instead.
 
 **Documents** (roadmap P1-M18): files attach to parties, products, stores, purchase orders, goods
@@ -573,6 +601,36 @@ merge; merges are audited. A guard test fails when a new table references partie
 dark / system mode, corner radius, density and font. The API validates and normalises it with
 `validateBranding` from `@paint/shared`, the same rules the web app uses, and answers which colours
 `deriveTheme` had to adjust to stay readable. Changes are in the audit log.
+
+**Logo and branded sign-in page** (white-label): owners and admins upload a logo under **Settings →
+Appearance** (PNG, JPEG or WebP up to 1 MB and 2048 px a side). Like documents, its type comes from its
+bytes and it is scanned by ClamAV before it is stored in S3 (`<organization>/branding/logo-<id>`;
+replaced and removed logos keep their file for the audit trail). **SVG is refused**: it is a document
+that can carry scripts, event handlers and links to other sites, and the logo is served from our own
+origin; a sanitiser robust enough to trust would mean a server-side DOM and an allowlist to maintain,
+for no gain over a PNG. The file is stored as uploaded, not re-encoded (no native image libraries); the
+API reads its size from the header and refuses sizes outside 16–2048 px. It is served only through
+`GET /public/branding/:slug/logo/:version` (`inline`, `nosniff`, `Content-Security-Policy:
+default-src 'none'; sandbox`, cached for a year under an address that changes with every logo, with an
+ETag), and shows in the header (on a light plate in dark mode), on the sign-in page and as the browser
+tab's and home-screen icon (the installed app's manifest icon stays the product's).
+
+Each business has a **slug**, its sign-in link name (`sharma-paints`): derived from its name when it is
+created (`generate_organization_slug()` in migration 0048, numbered `-2`, `-3`… when taken, never a
+reserved name), unique ignoring case, and changeable by its owners (audited). Its branded sign-in page
+is **`/sign-in?b=<slug>`**: a query parameter rather than `/<slug>/sign-in`, so slugs can never collide
+with the app's own routes (today's or future ones) and there is one sign-in route for the service
+worker and the redirects. A future `<slug>.<domain>` address maps onto the same thing: the web app
+reads the slug from the host name where it now reads `b` (the reserved names already cover `www`,
+`api`, `admin` and the like). The page calls `GET /public/branding/:slug`, which reads only the app
+name, theme and logo address, outside tenant scope like sign-in itself (row-level security is
+unchanged), with one query and the same 404 whether the business is unknown or suspended. The device
+remembers the business (`paint.sign-in-business`: the last link opened, or the business last signed in
+to), so the plain `/sign-in` shows its look too. Signing in never depends on the slug: someone in
+several businesses gets the usual chooser with the page's business first, and someone in one business
+signs in to their own. Support views, refused support links and the platform console keep the
+product's own look. The API has no rate limiter yet; the endpoint answers from one indexed query, and a
+limit belongs in the load balancer or CDN in front of it.
 
 **Shared response types:** the shapes the web app reads (`SessionGrant`, `AuthProfile`, `Dashboard`,
 `SearchResults`, `NotificationPage`, `BrandingView`, …) live in `packages/shared/src/api.ts`; the API

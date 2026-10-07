@@ -45,6 +45,14 @@ export const organizations = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull(),
+    /**
+     * The business's sign-in link name (`/sign-in?b=<slug>`): unique ignoring case,
+     * stored lower-case. Left out on insert, the organizations_slug trigger derives it
+     * from the name (generate_organization_slug, migration 0048); owners change it.
+     */
+    slug: text('slug')
+      .notNull()
+      .$defaultFn(() => sql`null`),
     /** Set by the platform (roadmap P1-M23); limits come from @paint/shared PLANS. */
     plan: plan('plan').notNull().default('trial'),
     /** Per-business overrides of the plan's features, e.g. {"loyalty": true}. */
@@ -61,6 +69,11 @@ export const organizations = pgTable(
       'organizations_suspend_reason',
       sql`(${table.suspendedAt} is null) = (${table.suspendReason} is null)`,
     ),
+    check(
+      'organizations_slug_format',
+      sql`${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length(${table.slug}) between 3 and 40`,
+    ),
+    uniqueIndex('organizations_slug_unique').on(sql`lower(${table.slug})`),
     // Tenants can read and update their own organisation, but never create or
     // delete organisations: that is done by the platform, outside tenant scope.
     pgPolicy('organizations_tenant_select', {
@@ -682,6 +695,11 @@ export const productVariants = pgTable(
     sku: text('sku').notNull(),
     packSize: numeric('pack_size', { precision: 12, scale: 3, mode: 'number' }).notNull(),
     unit: unitOfMeasure('unit').notNull(),
+    /**
+     * What tells same-sized packs apart, e.g. "2 inch", "Grit 120", "48 mm" or "Red";
+     * trimmed, 1 to 40 characters. Brushes and sandpaper are all "1 piece".
+     */
+    label: text('label'),
     /** Maximum retail price printed on the pack, in paise. */
     mrpPaise: bigint('mrp_paise', { mode: 'number' }),
     /** Default selling price, in paise. Never above the MRP. */
@@ -691,7 +709,13 @@ export const productVariants = pgTable(
   },
   (table) => [
     unique('product_variants_organization_sku_unique').on(table.organizationId, table.sku),
-    unique('product_variants_product_pack_unique').on(table.productId, table.packSize, table.unit),
+    // One variant per size and label; no label counts as one value, and case does not matter.
+    uniqueIndex('product_variants_product_pack_label_unique').on(
+      table.productId,
+      table.packSize,
+      table.unit,
+      sql`lower(coalesce(${table.label}, ''))`,
+    ),
     unique('product_variants_organization_id_id_unique').on(table.organizationId, table.id),
     foreignKey({
       name: 'product_variants_product_fk',
@@ -700,6 +724,10 @@ export const productVariants = pgTable(
     }).onDelete('cascade'),
     check('product_variants_sku_format', sql`${table.sku} ~ '^[A-Z0-9][A-Z0-9._/-]{1,39}$'`),
     check('product_variants_pack_size_positive', sql`${table.packSize} > 0`),
+    check(
+      'product_variants_label_format',
+      sql`${table.label} = btrim(${table.label}) and char_length(${table.label}) between 1 and 40`,
+    ),
     check(
       'product_variants_prices_not_negative',
       sql`${table.mrpPaise} >= 0 and ${table.sellingPricePaise} >= 0`,
@@ -787,6 +815,13 @@ export const stockLedger = pgTable(
       table.createdAt,
     ),
     index('stock_ledger_reference_idx').on(table.referenceType, table.referenceId),
+    // Newest movements first (stock ledger report and GET /stock/ledger); NULLS FIRST matches
+    // ORDER BY ... DESC, so no sort is needed. See docs/performance.md.
+    index('stock_ledger_organization_created_idx').on(
+      table.organizationId,
+      table.createdAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst(),
+    ),
     foreignKey({
       name: 'stock_ledger_store_fk',
       columns: [table.organizationId, table.storeId],
@@ -1500,9 +1535,9 @@ export const documents = pgTable(
     index('documents_record_idx')
       .on(table.organizationId, table.recordType, table.recordId)
       .where(sql`${table.deletedAt} is null`),
-    // Documents across records, newest first.
+    // Documents across records, newest first. NULLS FIRST matches ORDER BY ... DESC.
     index('documents_recent_idx')
-      .on(table.organizationId, table.createdAt.desc())
+      .on(table.organizationId, table.createdAt.desc().nullsFirst(), table.id.desc().nullsFirst())
       .where(sql`${table.deletedAt} is null`),
     foreignKey({
       name: 'documents_uploaded_by_fk',
@@ -2632,6 +2667,52 @@ export const organizationBranding = pgTable(
     }).onDelete('restrict'),
     check('organization_branding_object', sql`jsonb_typeof(${table.branding}) = 'object'`),
     pgPolicy('organization_branding_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * A business's logo (white-label): a PNG, JPEG or WebP checked from its bytes and
+ * scanned like documents, stored in S3 under `<organization>/branding/logo-<id>`.
+ * Served through the API, never from S3 directly. No row = no logo; replacing or
+ * removing it keeps the old file for the audit trail.
+ */
+export const organizationLogos = pgTable(
+  'organization_logos',
+  {
+    organizationId: uuid('organization_id')
+      .primaryKey()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    storageKey: text('storage_key').notNull(),
+    contentType: text('content_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    /** Also the logo's version in its address, so browsers can keep it for good. */
+    sha256: text('sha256').notNull(),
+    width: integer('width').notNull(),
+    height: integer('height').notNull(),
+    uploadedByMemberId: uuid('uploaded_by_member_id').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: 'organization_logos_uploaded_by_fk',
+      columns: [table.organizationId, table.uploadedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'organization_logos_content_type',
+      sql`${table.contentType} in ('image/png', 'image/jpeg', 'image/webp')`,
+    ),
+    check('organization_logos_sha256', sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'organization_logos_dimensions',
+      sql`${table.width} > 0 and ${table.height} > 0 and ${table.sizeBytes} > 0`,
+    ),
+    pgPolicy('organization_logos_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

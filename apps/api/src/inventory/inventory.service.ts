@@ -31,6 +31,7 @@ import {
 } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
+import { variantOrder } from '../catalog/variant-order.js';
 import { containsPattern } from '../parties/party-access.js';
 import type { CreateMovementInput, LedgerQuery, ListStockQuery } from './inventory.schemas.js';
 
@@ -52,6 +53,7 @@ export interface StockRow {
     readonly sku: string;
     readonly packSize: number;
     readonly unit: string;
+    readonly label: string | null;
   };
   readonly product: { readonly id: string; readonly name: string };
   readonly brand: { readonly id: string; readonly name: string };
@@ -168,6 +170,7 @@ export class InventoryService {
               ilike(products.name, containsPattern(query.q)),
               ilike(brands.name, containsPattern(query.q)),
               ilike(productVariants.sku, containsPattern(query.q)),
+              ilike(productVariants.label, containsPattern(query.q)),
             )
           : undefined,
       );
@@ -180,6 +183,7 @@ export class InventoryService {
           sku: productVariants.sku,
           packSize: productVariants.packSize,
           unit: productVariants.unit,
+          label: productVariants.label,
           productId: products.id,
           productName: products.name,
           brandId: brands.id,
@@ -202,8 +206,7 @@ export class InventoryService {
           asc(stores.code),
           sql`lower(${brands.name})`,
           sql`lower(${products.name})`,
-          asc(productVariants.unit),
-          asc(productVariants.packSize),
+          ...variantOrder(),
         )
         .limit(query.limit)
         .offset(query.offset);
@@ -217,7 +220,13 @@ export class InventoryService {
       return {
         items: rows.map((row) => ({
           store: { id: row.storeId, code: row.storeCode, name: row.storeName },
-          variant: { id: row.variantId, sku: row.sku, packSize: row.packSize, unit: row.unit },
+          variant: {
+            id: row.variantId,
+            sku: row.sku,
+            packSize: row.packSize,
+            unit: row.unit,
+            label: row.label,
+          },
           product: { id: row.productId, name: row.productName },
           brand: { id: row.brandId, name: row.brandName },
           onHand: row.onHand,

@@ -57,6 +57,9 @@ export interface CountLineView {
   readonly sku: string;
   readonly productName: string;
   readonly brandName: string;
+  readonly packSize: number;
+  readonly unit: string;
+  readonly label: string | null;
   readonly expectedQuantity: number;
   readonly countedQuantity: number | null;
   /** counted - expected; null until counted. */
@@ -547,6 +550,9 @@ export class StockCountsService {
         sku: productVariants.sku,
         productName: products.name,
         brandName: brands.name,
+        packSize: productVariants.packSize,
+        unit: productVariants.unit,
+        label: productVariants.label,
         avgCostPaise: stockBalances.avgCostPaise,
       })
       .from(stockCountLines)
@@ -563,7 +569,7 @@ export class StockCountsService {
       .where(eq(stockCountLines.countId, countId))
       .orderBy(productVariants.sku);
     const lines: CountLineView[] = rows.map(
-      ({ line, sku, productName, brandName, avgCostPaise }) => {
+      ({ line, sku, productName, brandName, packSize, unit, label, avgCostPaise }) => {
         const variance =
           line.countedQuantity === null
             ? null
@@ -573,6 +579,9 @@ export class StockCountsService {
           sku,
           productName,
           brandName,
+          packSize,
+          unit,
+          label,
           expectedQuantity: line.expectedQuantity,
           countedQuantity: line.countedQuantity,
           variance,

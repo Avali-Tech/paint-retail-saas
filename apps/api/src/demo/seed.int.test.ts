@@ -101,6 +101,14 @@ describe('the demo business', () => {
     expect(security.twoFactorRequired).toBe(false);
     const branding = await get<{ branding: { appName: string } }>('/organization/branding');
     expect(branding.branding.appName).toBe('Sharma Paints');
+    // Its branded sign-in page, printed on the sheet, shows the same look before sign-in.
+    const identity = await get<{ slug: string }>('/organization/identity');
+    expect(identity.slug).toBe('sharma-paints');
+    expect(readFileSync(credentialsFile, 'utf8')).toContain(
+      'http://localhost:4981/sign-in?b=sharma-paints',
+    );
+    const page = await t.app.inject({ method: 'GET', url: '/public/branding/sharma-paints' });
+    expect(page.json<{ branding: { appName: string } }>().branding.appName).toBe('Sharma Paints');
   });
 
   it('asks the demo admin for an authenticator code from the fixed secret', async () => {

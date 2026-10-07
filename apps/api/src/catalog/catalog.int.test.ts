@@ -8,6 +8,7 @@ interface Variant {
   sku: string;
   packSize: number;
   unit: string;
+  label: string | null;
   mrpPaise: number | null;
   sellingPricePaise: number | null;
   isActive: boolean;
@@ -783,6 +784,125 @@ describe('GET /products/lookup', () => {
   it('answers 404 for an unknown code and 400 without one', async () => {
     expect((await api(owner).get('/products/lookup?code=NOTHING-HERE')).statusCode).toBe(404);
     expect((await api(owner).get('/products/lookup')).statusCode).toBe(400);
+  });
+});
+
+describe('labelled variants', () => {
+  const piece = (sku: string, label?: string | null, barcodes: string[] = []) => ({
+    sku,
+    packSize: 1,
+    unit: 'piece',
+    ...(label === undefined ? {} : { label }),
+    barcodes,
+  });
+  const labels = (product: Product) => product.variants.map((variant) => variant.label);
+
+  it('sells same-sized pieces as one product, told apart by label and in number order', async () => {
+    const n = String(next());
+    const created = await product({
+      name: `Sandpaper ${n}`,
+      type: 'tool',
+      variants: [
+        piece(`SP${n}-G220`, 'Grit 220'),
+        piece(`SP${n}-G80`, '  Grit 80 '),
+        piece(`SP${n}-G120`, 'Grit 120'),
+        piece(`SP${n}-PLAIN`, '   '),
+      ],
+    });
+
+    // No label first, then by the number in the label (80 before 120), trimmed; blank is none.
+    expect(labels(created)).toEqual([null, 'Grit 80', 'Grit 120', 'Grit 220']);
+    expect(created.variants.map((variant) => variant.sku)).toEqual([
+      `SP${n}-PLAIN`,
+      `SP${n}-G80`,
+      `SP${n}-G120`,
+      `SP${n}-G220`,
+    ]);
+    // Search finds a product by a variant's label.
+    const found = (await api(storeEmployee).get(`/products?q=grit%20120`)).json<Page>();
+    expect(found.items.map((item) => item.id)).toContain(created.id);
+  });
+
+  it('refuses a second variant with the same size and label (in any case), or with neither', async () => {
+    const n = String(next());
+    const created = await product({
+      variants: [piece(`BR${n}-2`, '2 inch'), piece(`BR${n}-0`)],
+    });
+    const add = (variant: object) => api(owner).post(`/products/${created.id}/variants`, variant);
+
+    const sameLabel = await add(piece(`BR${n}-2B`, '2 INCH'));
+    expect(sameLabel.statusCode).toBe(409);
+    expect(sameLabel.json<{ message: string }>().message).toBe(
+      'This product already has a variant of this size and label',
+    );
+    expect((await add(piece(`BR${n}-0B`, null))).statusCode).toBe(409);
+    expect((await add(piece(`BR${n}-3`, '3 inch'))).statusCode).toBe(201);
+    expect((await add(piece(`BR${n}-L`, 'x'.repeat(41)))).statusCode).toBe(400);
+    // The same label on a different size is a different variant.
+    expect((await add({ ...piece(`BR${n}-2P`, '2 inch'), packSize: 6 })).statusCode).toBe(201);
+  });
+
+  it('renames, clears and refuses a clashing label on update', async () => {
+    const n = String(next());
+    const created = await product({
+      variants: [piece(`TP${n}-24`, '24 mm'), piece(`TP${n}-48`, '48 mm')],
+    });
+    const [first, second] = created.variants;
+    const patch = (id: string | undefined, body: object) =>
+      api(owner).patch(`/variants/${String(id)}`, body);
+
+    const renamed = (await patch(first?.id, { label: ' 18 mm ' })).json<Product>();
+    expect(labels(renamed)).toEqual(['18 mm', '48 mm']);
+    const clash = await patch(second?.id, { label: '18 MM' });
+    expect(clash.statusCode).toBe(409);
+    expect(labels((await patch(first?.id, { label: null })).json<Product>())).toEqual([
+      null,
+      '48 mm',
+    ]);
+    // Blank means no label, and one unlabelled 1 piece is already there.
+    expect((await patch(second?.id, { label: '' })).statusCode).toBe(409);
+  });
+
+  it('finds a labelled piece by its barcode, with its label', async () => {
+    const n = String(next());
+    const created = await product({
+      name: `Paint Brush ${n}`,
+      type: 'tool',
+      variants: [
+        piece(`PB${n}-1`, '1 inch', ['4006381333948']),
+        piece(`PB${n}-2`, '2 inch', ['4006381333955']),
+      ],
+    });
+
+    const found = (await api(storeEmployee).get('/products/lookup?code=4006381333955')).json<{
+      product: Product;
+      variant: Variant;
+    }>();
+
+    expect(found.product.id).toBe(created.id);
+    expect(found.variant).toMatchObject({ sku: `PB${n}-2`, label: '2 inch', unit: 'piece' });
+    // Another business may use the same labels; neither sees the other's.
+    const rival = await signup(`Rival Hardware ${n}`);
+    const rivalBrand = (await api(rival).post('/brands', { name: 'Asian Paints' })).json<{
+      id: string;
+    }>().id;
+    const theirs = await api(rival).post('/products', {
+      brandId: rivalBrand,
+      name: `Paint Brush ${n}`,
+      type: 'tool',
+      hsnCode: '9603',
+      gstRatePercent: 18,
+      variants: [piece(`PB${n}-2`, '2 inch', ['4006381333955'])],
+    });
+    expect(theirs.statusCode).toBe(201);
+    const mine = (await api(storeEmployee).get('/products/lookup?code=4006381333955')).json<{
+      variant: Variant;
+    }>();
+    expect(mine.variant.id).toBe(found.variant.id);
+    expect(
+      (await api(rival).get('/products/lookup?code=4006381333955')).json<{ variant: Variant }>()
+        .variant.id,
+    ).not.toBe(found.variant.id);
   });
 });
 

@@ -292,7 +292,7 @@ function ImportFlow({ kind }: { readonly kind: ImportKind }) {
                       {column.required ? t('imports.required') : t('imports.optional')}
                     </span>
                   </th>
-                  <td>{column.description}</td>
+                  <td className="cell-wrap">{column.description}</td>
                   <td>{column.example}</td>
                 </tr>
               ))}

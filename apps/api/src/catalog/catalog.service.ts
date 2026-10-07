@@ -28,6 +28,7 @@ import type {
   UpdateVariantInput,
   VariantInput,
 } from './catalog.schemas.js';
+import { variantOrder } from './variant-order.js';
 
 const { brands, categories, productBarcodes, productVariants, products } = schema;
 
@@ -37,7 +38,8 @@ const CONFLICTS: Record<string, string> = {
   categories_organization_parent_name_unique: 'A category with this name already exists here',
   products_organization_brand_name_unique: 'This brand already has a product with this name',
   product_variants_organization_sku_unique: 'This SKU is already used by another product',
-  product_variants_product_pack_unique: 'This product already has a variant of this pack size',
+  product_variants_product_pack_label_unique:
+    'This product already has a variant of this size and label',
   product_barcodes_organization_id_barcode_pk: 'This barcode is already used by another product',
 };
 
@@ -61,6 +63,8 @@ export interface VariantView {
   readonly sku: string;
   readonly packSize: number;
   readonly unit: VariantRow['unit'];
+  /** Tells same-sized packs apart, e.g. "2 inch"; null when there is one pack of a size. */
+  readonly label: string | null;
   readonly mrpPaise: number | null;
   readonly sellingPricePaise: number | null;
   readonly isActive: boolean;
@@ -106,6 +110,7 @@ const toVariant = (
   sku: variant.sku,
   packSize: variant.packSize,
   unit: variant.unit,
+  label: variant.label,
   mrpPaise: variant.mrpPaise,
   sellingPricePaise: variant.sellingPricePaise,
   isActive: variant.isActive,
@@ -406,7 +411,13 @@ export class CatalogService {
           .select({ id: productVariants.productId })
           .from(productVariants)
           .leftJoin(productBarcodes, eq(productBarcodes.variantId, productVariants.id))
-          .where(or(ilike(productVariants.sku, pattern), eq(productBarcodes.barcode, q))),
+          .where(
+            or(
+              ilike(productVariants.sku, pattern),
+              ilike(productVariants.label, pattern),
+              eq(productBarcodes.barcode, q),
+            ),
+          ),
       ),
     );
   }
@@ -484,7 +495,7 @@ export class CatalogService {
       .select()
       .from(productVariants)
       .where(inArray(productVariants.productId, ids))
-      .orderBy(productVariants.unit, productVariants.packSize);
+      .orderBy(...variantOrder());
     const barcodeRows = await tx
       .select()
       .from(productBarcodes)

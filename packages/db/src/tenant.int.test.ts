@@ -284,6 +284,11 @@ describe('organisation integrity', () => {
 });
 
 describe('createDatabase', () => {
+  it('turns JIT compilation off on every pooled connection', async () => {
+    const [row] = (await connection.db.execute<{ jit: string }>(sql`show jit`)).rows;
+    expect(row?.jit).toBe('off');
+  });
+
   it('survives the server dropping an idle pooled connection, and reconnects', async () => {
     const errors: Error[] = [];
     const resilient = createDatabase(database.connectionString, {

@@ -133,8 +133,10 @@ describe('SupplierDetailPage', () => {
     const rows = within(screen.getByRole('table', { name: 'Products supplied' })).getAllByRole(
       'row',
     );
-    expect(rows[1]).toHaveTextContent('APX-1LAsian Paints Apex UltimaSH-001₹400.0020 Sept 2026');
-    expect(rows[2]).toHaveTextContent('APX-4LAsian Paints Apex Ultima———');
+    expect(rows[1]).toHaveTextContent(
+      'APX-1LAsian Paints Apex Ultima 1 lSH-001₹400.0020 Sept 2026',
+    );
+    expect(rows[2]).toHaveTextContent('APX-4LAsian Paints Apex Ultima 4 l———');
     expect(screen.getByRole('link', { name: 'New purchase order' })).toHaveAttribute(
       'href',
       '/purchase-orders/new?supplier=sup-1',

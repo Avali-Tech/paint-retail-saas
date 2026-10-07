@@ -97,7 +97,7 @@ describe('CreditRequestPage', { timeout: 30_000 }, () => {
       },
     });
     expect(
-      await screen.findByRole('heading', { name: 'Credit request CR-000001', level: 1 }),
+      await screen.findByRole('heading', { name: 'CR-000001 · Credit request', level: 1 }),
     ).toBeVisible();
     expect(screen.getByRole('link', { name: 'Apex Builders' })).toHaveAttribute(
       'href',

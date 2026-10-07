@@ -73,7 +73,7 @@ export const creditHi: Translation<typeof creditEn> = {
       why: 'क्यों',
       decidedBy: 'किसने फैसला किया',
       decisionNote: 'फैसले का नोट',
-      detailTitle: 'क्रेडिट रिक्वेस्ट {number}',
+      detailTitle: '{number} · क्रेडिट रिक्वेस्ट',
       details: 'जानकारी',
     },
   },

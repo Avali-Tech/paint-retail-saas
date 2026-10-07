@@ -6,26 +6,22 @@ import { ApiError, errorMessage } from '../api/errors.js';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { useDebouncedValue } from './hooks.js';
+import { variantTitle } from './product-title.js';
 
 /** A pack size chosen to go on a document (a movement, transfer, order…). */
 export interface PickedVariant {
   readonly variantId: string;
   readonly sku: string;
-  /** e.g. "Asian Paints Apex Ultima 1 l" */
+  /** e.g. "Asian Paints Apex Ultima 1 l" or "Asian Paints Paint Brush 2 inch" */
   readonly name: string;
   readonly product: Product;
   readonly variant: Variant;
 }
 
-/** "Asian Paints Apex Ultima 1 l". */
-export function variantName(product: Product, variant: Variant): string {
-  return `${product.brand.name} ${product.name} ${String(variant.packSize)} ${variant.unit}`;
-}
-
 const picked = (product: Product, variant: Variant): PickedVariant => ({
   variantId: variant.id,
   sku: variant.sku,
-  name: variantName(product, variant),
+  name: variantTitle(product.brand.name, product.name, variant),
   product,
   variant,
 });

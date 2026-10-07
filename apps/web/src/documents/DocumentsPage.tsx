@@ -148,6 +148,7 @@ export function DocumentsPage() {
                 <EmptyState
                   icon={<Icon name="contracts" size={32} />}
                   title={t('documents.page.empty')}
+                  description={t('documents.page.emptyHint')}
                 />
               )
             ) : (

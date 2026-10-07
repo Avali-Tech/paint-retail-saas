@@ -13,6 +13,8 @@ import {
   lineCode,
   mrpPaise,
   packLabel,
+  subcategoryFor,
+  toolSizes,
   type ProductPlan,
 } from './catalogue.js';
 import { gstinFor, internalEan13, LOCALITIES, panFor, PhoneBook, TELANGANA } from './identity.js';
@@ -113,7 +115,11 @@ describe('catalogue', () => {
     expect(new Set(variants.map((variant) => variant.barcode)).size).toBe(variants.length);
     for (const product of products) {
       const spec = CATEGORIES[product.category];
-      expect(product.variants.map((variant) => variant.packSize)).toEqual(spec.packs);
+      // Tools come as single pieces in labelled sizes; paint in the category's packs.
+      const sized = product.category === 'tools';
+      expect(product.variants.map((variant) => variant.packSize)).toEqual(
+        sized ? product.variants.map(() => 1) : spec.packs,
+      );
       expect(product.type).toBe(spec.type);
       expect(product.gstRatePercent).toBe(18);
       for (const variant of product.variants) {
@@ -130,7 +136,7 @@ describe('catalogue', () => {
         expect(variant.costPaise).toBeGreaterThan(0);
       }
       // A bigger pack costs more in all, but less per litre or kg.
-      for (let index = 1; index < product.variants.length; index++) {
+      for (let index = 1; !sized && index < product.variants.length; index++) {
         const [smaller, bigger] = [product.variants[index - 1], product.variants[index]];
         if (!smaller || !bigger) continue;
         expect(bigger.mrpPaise).toBeGreaterThan(smaller.mrpPaise);
@@ -180,6 +186,39 @@ describe('catalogue', () => {
     expect(packLabel(0.5, 'l')).toBe('500ML');
     expect(packLabel(20, 'kg')).toBe('20KG');
     expect(packLabel(1, 'piece')).toBe('PC');
+  });
+
+  it('sells hardware as one product with a labelled single piece per size', () => {
+    const sizes = (name: string) =>
+      full.catalogue
+        .find((product) => product.name === name)
+        ?.variants.map(({ label, packSize, unit }) => [label, packSize, unit].join(' '));
+    expect(sizes('Flat Paint Brush')).toEqual([
+      '1 inch 1 piece',
+      '2 inch 1 piece',
+      '3 inch 1 piece',
+      '4 inch 1 piece',
+    ]);
+    expect(sizes('Paint Roller')).toEqual(['7 inch 1 piece', '9 inch 1 piece']);
+    expect(sizes('Sandpaper Sheet')).toEqual([
+      'Grit 80 1 piece',
+      'Grit 120 1 piece',
+      'Grit 180 1 piece',
+      'Grit 220 1 piece',
+    ]);
+    expect(sizes('Masking Tape')).toEqual(['24 mm 1 piece', '48 mm 1 piece']);
+    const tape = full.catalogue.find((product) => product.name === 'Masking Tape');
+    expect(tape?.subcategory).toBe('Tapes');
+    expect(tape?.variants.map((variant) => variant.sku)).toEqual(['BG-MT-24M', 'BG-MT-48M']);
+    expect(toolSizes('Exterior Emulsion')).toBeUndefined();
+    expect(subcategoryFor('interior', 'Royale Brush Finish')).toBeNull();
+    expect(subcategoryFor('tools', 'Sandpaper Sheet')).toBe('Sandpaper');
+    // Paint packs carry no label.
+    expect(
+      full.catalogue
+        .filter((product) => product.category !== 'tools')
+        .every((product) => product.variants.every((variant) => variant.label === null)),
+    ).toBe(true);
   });
 
   it('is the same every time', () => {

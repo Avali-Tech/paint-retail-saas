@@ -1,10 +1,10 @@
-import { renderHook, screen, waitFor } from '@testing-library/react';
+import { renderHook, screen } from '@testing-library/react';
 import { act } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { ApiError } from '../api/errors.js';
 import { SESSION_KEY } from '../auth/session-store.js';
-import { registerServiceWorker } from '../pwa/register-sw.js';
 import { GRANT, fakeFetch, json } from '../test-support/fake-api.js';
+import { FakeWorker, fakeServiceWorkers } from '../test-support/fake-service-worker.js';
 import { createServices, shouldRetry, useApi, useServices } from './services.js';
 import { apiBaseUrl, start } from './start.js';
 
@@ -63,8 +63,17 @@ describe('start', () => {
     });
   });
 
-  it('registers the service worker in production builds', async () => {
-    const register = vi.fn(() => Promise.resolve({}));
+  it('marks the page with its build', () => {
+    const container = document.createElement('div');
+    const root = start({ container, env: { PROD: false, VITE_BUILD_ID: 'abc123' } });
+    expect(document.documentElement.dataset.build).toBe('abc123');
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it('registers the service worker in production builds and offers a waiting version', async () => {
+    const workers = fakeServiceWorkers({ waiting: new FakeWorker('installed') });
     const win = {
       fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
       localStorage,
@@ -73,36 +82,19 @@ describe('start', () => {
       history: window.history,
       matchMedia: (query: string) => window.matchMedia(query),
       document,
-      navigator: { serviceWorker: { register } },
+      navigator: workers.navigator,
+      addEventListener: () => undefined,
+      setInterval: () => 0,
     } as unknown as Window;
     const container = document.createElement('div');
+    document.body.append(container);
     const root = start({ container, env: { PROD: true }, win });
-    expect(register).toHaveBeenCalledWith('/sw.js', { scope: '/' });
-    await waitFor(() => {
-      expect(container.textContent).not.toBe('');
-    });
+    expect(document.documentElement.dataset.build).toBe('dev');
+    expect(workers.container.register).toHaveBeenCalledWith('/sw.js', { scope: '/' });
+    expect(await screen.findByText('A new version of the app is available.')).toBeInTheDocument();
     act(() => {
       root.unmount();
     });
-  });
-});
-
-describe('registerServiceWorker', () => {
-  it('does nothing where service workers are unsupported', () => {
-    expect(() => {
-      registerServiceWorker({} as Navigator);
-    }).not.toThrow();
-  });
-
-  it('warns, without failing, when registration fails', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const failure = new Error('insecure');
-    registerServiceWorker({
-      serviceWorker: { register: () => Promise.reject(failure) },
-    } as unknown as Navigator);
-    await waitFor(() => {
-      expect(warn).toHaveBeenCalledWith('Offline support is not available:', failure);
-    });
-    warn.mockRestore();
+    container.remove();
   });
 });

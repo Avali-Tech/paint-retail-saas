@@ -14,6 +14,8 @@ export {
   InsufficientStockError,
   findStockMismatches,
   postStockMovements,
+  postStockMovementsInBulk,
+  type BulkStockMovement,
   type StockMismatch,
   type StockMovement,
   type StockMovementType,

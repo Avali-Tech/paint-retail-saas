@@ -12,6 +12,7 @@ import { optional } from '../lib/inputs.js';
 import { ProductPicker, type PickedVariant } from '../lib/ProductPicker.js';
 import { QueryState } from '../lib/QueryState.js';
 import { useDays, useSupplier } from './shared.js';
+import { variantTitle } from '../lib/product-title.js';
 
 /** "" -> null; "12" -> 12; anything else (or outside 0–365) -> undefined. */
 export function parseDays(text: string): number | null | undefined {
@@ -353,9 +354,7 @@ function SupplierView({ supplier }: { readonly supplier: Supplier }) {
                   {supplier.products.map((product) => (
                     <tr key={product.variantId}>
                       <th scope="row">{product.sku}</th>
-                      <td>
-                        {product.brandName} {product.productName}
-                      </td>
+                      <td>{variantTitle(product.brandName, product.productName, product)}</td>
                       <td>{product.supplierSku ?? t('common.none')}</td>
                       <td className="ui-num">
                         {product.lastCostPaise === null

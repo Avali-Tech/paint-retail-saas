@@ -34,6 +34,37 @@ interface CategorySpec {
   readonly subcategories?: readonly { readonly name: string; readonly keyword: string }[];
 }
 
+/** A hardware size sold by the piece: its label and MRP in rupees. */
+export type ToolSize = readonly [label: string, rupees: number];
+
+/**
+ * Hardware is one product with a variant per size, each a single piece told apart by its
+ * label: a 2 inch and a 3 inch brush, sandpaper grits, tape widths. Keyed by the keyword
+ * that also picks the subcategory.
+ */
+export const TOOL_SIZES: Readonly<Record<string, readonly ToolSize[]>> = {
+  Brush: [
+    ['1 inch', 60],
+    ['2 inch', 95],
+    ['3 inch', 130],
+    ['4 inch', 190],
+  ],
+  Roller: [
+    ['7 inch', 260],
+    ['9 inch', 340],
+  ],
+  Sandpaper: [
+    ['Grit 80', 15],
+    ['Grit 120', 15],
+    ['Grit 180', 15],
+    ['Grit 220', 20],
+  ],
+  Tape: [
+    ['24 mm', 45],
+    ['48 mm', 85],
+  ],
+};
+
 export const CATEGORIES = {
   interior: {
     name: 'Interior Emulsion',
@@ -75,6 +106,8 @@ export const CATEGORIES = {
     subcategories: [
       { name: 'Brushes', keyword: 'Brush' },
       { name: 'Rollers', keyword: 'Roller' },
+      { name: 'Sandpaper', keyword: 'Sandpaper' },
+      { name: 'Tapes', keyword: 'Tape' },
     ],
   },
 } as const satisfies Record<string, CategorySpec>;
@@ -130,12 +163,11 @@ export const LINES: readonly Line[] = [
     ['SmartCare Hydroloc', 360],
     ['SmartCare Crack Seal', 240],
   ]),
+  // Tools are priced per size (TOOL_SIZES), so their rupees per unit is unused.
   ...line('Asian Paints', 'tools', [
-    ['Flat Brush 1 inch', 60],
-    ['Flat Brush 2 inch', 95],
-    ['Flat Brush 4 inch', 190],
-    ['Roller 7 inch', 260],
-    ['Roller 9 inch', 340],
+    ['Flat Paint Brush', 0],
+    ['Paint Roller', 0],
+    ['Sandpaper Sheet', 0],
   ]),
   ...line('Berger', 'interior', [
     ['Silk Glamor', 610],
@@ -159,10 +191,7 @@ export const LINES: readonly Line[] = [
   ...line('Berger', 'putty', [['Berger Wall Putty', 30]]),
   ...line('Berger', 'wood', [['Imperia PU Wood Finish', 1050]]),
   ...line('Berger', 'waterproofing', [['Dampstop Advanced', 400]]),
-  ...line('Berger', 'tools', [
-    ['Paint Brush 3 inch', 130],
-    ['Paint Roller 9 inch', 320],
-  ]),
+  ...line('Berger', 'tools', [['Masking Tape', 0]]),
   ...line('Nerolac', 'interior', [
     ['Impressions HD', 640],
     ['Beauty Gold Washable', 360],
@@ -242,6 +271,8 @@ export interface VariantPlan {
   readonly sku: string;
   readonly packSize: number;
   readonly unit: Unit;
+  /** What tells same-sized packs apart, e.g. "2 inch"; null for paint packs. */
+  readonly label: string | null;
   readonly mrpPaise: number;
   readonly sellingPricePaise: number;
   /** What the dealer pays the distributor, per pack. */
@@ -269,6 +300,28 @@ export function lineCode(name: string): string {
     .join('')
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '');
+}
+
+/** The sizes a tool comes in, by the keyword in its name ("Flat Paint Brush" -> brush sizes). */
+export function toolSizes(name: string): readonly ToolSize[] | undefined {
+  return Object.entries(TOOL_SIZES).find(([keyword]) => name.includes(keyword))?.[1];
+}
+
+/** The subcategory a product belongs in, by the keyword in its name; null outside tools. */
+export function subcategoryFor(category: CategoryKey, name: string): string | null {
+  const spec: CategorySpec = CATEGORIES[category];
+  return spec.subcategories?.find((sub) => name.includes(sub.keyword))?.name ?? null;
+}
+
+/** Prices a pack as dealers do: 4–10 % under MRP to sell, 68–76 % of it to buy. */
+export function packPrices(
+  random: Random,
+  mrp: number,
+): { sellingPricePaise: number; costPaise: number } {
+  return {
+    sellingPricePaise: Math.round((mrp * random.int(90, 96)) / 10_000) * 100,
+    costPaise: Math.round((mrp * random.int(68, 76)) / 10_000) * 100,
+  };
 }
 
 /** "4" + "l" -> "4L"; 0.5 l -> "500ML". */
@@ -304,27 +357,38 @@ export function buildCatalogue(random: Random, every = 1): ProductPlan[] {
     let base = `${BRAND_CODES[entry.brand]}-${lineCode(entry.name)}`;
     while (usedSkus.has(base)) base = `${base}X`;
     usedSkus.add(base);
-    const variants = spec.packs.map((packSize): VariantPlan => {
-      const mrp = mrpPaise(entry.rupeesPerUnit, packSize, spec.unit);
-      // Dealers sell 4–10 % under MRP and buy at 68–76 % of it.
-      const sellingPricePaise = Math.round((mrp * random.int(90, 96)) / 10_000) * 100;
-      const costPaise = Math.round((mrp * random.int(68, 76)) / 10_000) * 100;
-      barcode += 1;
-      return {
-        sku: `${base}-${packLabel(packSize, spec.unit)}`,
-        packSize,
-        unit: spec.unit,
-        mrpPaise: mrp,
-        sellingPricePaise,
-        costPaise,
-        barcode: internalEan13(barcode),
-      };
-    });
+    const sizes = toolSizes(entry.name);
+    const variants = sizes
+      ? sizes.map(([label, rupees]): VariantPlan => {
+          const mrp = mrpPaise(rupees, 1, 'piece');
+          barcode += 1;
+          return {
+            sku: `${base}-${lineCode(label)}`,
+            packSize: 1,
+            unit: 'piece',
+            label,
+            mrpPaise: mrp,
+            ...packPrices(random, mrp),
+            barcode: internalEan13(barcode),
+          };
+        })
+      : spec.packs.map((packSize): VariantPlan => {
+          const mrp = mrpPaise(entry.rupeesPerUnit, packSize, spec.unit);
+          barcode += 1;
+          return {
+            sku: `${base}-${packLabel(packSize, spec.unit)}`,
+            packSize,
+            unit: spec.unit,
+            label: null,
+            mrpPaise: mrp,
+            ...packPrices(random, mrp),
+            barcode: internalEan13(barcode),
+          };
+        });
     return {
       brand: entry.brand,
       category: entry.category,
-      subcategory:
-        spec.subcategories?.find((sub) => entry.name.includes(sub.keyword))?.name ?? null,
+      subcategory: subcategoryFor(entry.category, entry.name),
       name: entry.name,
       type: spec.type,
       hsnCode: spec.hsnCode,

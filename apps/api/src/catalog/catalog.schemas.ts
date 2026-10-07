@@ -1,5 +1,10 @@
 import { schema } from '@paint/db';
-import { GST_RATES_PERCENT, isValidBarcode, isValidHsn } from '@paint/shared';
+import {
+  GST_RATES_PERCENT,
+  VARIANT_LABEL_MAX_LENGTH,
+  isValidBarcode,
+  isValidHsn,
+} from '@paint/shared';
 import { z } from 'zod';
 
 export const PRODUCT_TYPES = schema.productType.enumValues;
@@ -28,6 +33,12 @@ export const packSize = z
     (value) => Math.abs(Math.round(value * 1000) - value * 1000) < 1e-6,
     'Use at most 3 decimals',
   );
+/** What tells same-sized packs apart ("2 inch", "Grit 120"); blank means none. */
+export const variantLabel = z
+  .string()
+  .trim()
+  .max(VARIANT_LABEL_MAX_LENGTH)
+  .transform((value) => (value === '' ? null : value));
 export const hsnCode = z.string().trim().refine(isValidHsn, 'Enter a 4, 6 or 8-digit HSN code');
 export const gstRatePercent = z
   .number()
@@ -59,6 +70,7 @@ export const variantSchema = z
     sku,
     packSize,
     unit: z.enum(UNITS),
+    label: variantLabel.nullable().optional(),
     mrpPaise: paise.optional(),
     sellingPricePaise: paise.optional(),
     barcodes: barcodes.default([]),
@@ -69,6 +81,8 @@ export type VariantInput = z.output<typeof variantSchema>;
 export const updateVariantSchema = z
   .object({
     sku: sku.optional(),
+    /** Renames the variant; null or blank removes the label. */
+    label: variantLabel.nullable().optional(),
     mrpPaise: paise.nullable().optional(),
     sellingPricePaise: paise.nullable().optional(),
     isActive: z.boolean().optional(),

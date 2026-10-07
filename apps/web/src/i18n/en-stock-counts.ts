@@ -61,6 +61,7 @@ export const stockCountsEn = {
       note: 'Note: {note}',
       closingReason: 'Reason: {reason}',
       lines: 'Products',
+      linePages: 'Product pages',
       noLines: 'Nothing in scope yet. Scan products as you find them.',
       product: 'Product',
       books: 'Books',

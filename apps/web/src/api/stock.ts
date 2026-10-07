@@ -23,6 +23,7 @@ export interface StockRow {
     readonly sku: string;
     readonly packSize: number;
     readonly unit: string;
+    readonly label: string | null;
   };
   readonly product: { readonly id: string; readonly name: string };
   readonly brand: { readonly id: string; readonly name: string };
@@ -68,7 +69,13 @@ export interface LedgerEntry {
 /** A store and product, as reorder rules and low stock name them. */
 export interface ItemRef {
   readonly store: { readonly id: string; readonly code: string };
-  readonly variant: { readonly id: string; readonly sku: string };
+  readonly variant: {
+    readonly id: string;
+    readonly sku: string;
+    readonly packSize: number;
+    readonly unit: string;
+    readonly label: string | null;
+  };
   readonly product: { readonly name: string };
   readonly brand: { readonly name: string };
 }

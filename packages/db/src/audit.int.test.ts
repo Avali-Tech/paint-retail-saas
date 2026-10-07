@@ -157,6 +157,30 @@ describe('what is audited', () => {
     ]);
   });
 
+  it('records a variant being labelled, renamed or unlabelled, like a rename', async () => {
+    const label = (value: string | null) =>
+      asMember((tx) =>
+        tx.update(productVariants).set({ label: value }).where(eq(productVariants.id, variant)),
+      );
+    await label('Red');
+    await label('Deep Red');
+    await label(null);
+
+    const entry = (from: string | null, to: string | null) => ({
+      tableName: 'product_variants',
+      recordId: variant,
+      action: 'update',
+      actorMemberId: member,
+      oldValues: { label: from },
+      newValues: { label: to },
+    });
+    expect(await newEntries()).toEqual([
+      entry(null, 'Red'),
+      entry('Red', 'Deep Red'),
+      entry('Deep Red', null),
+    ]);
+  });
+
   it('records roles, their permissions, and members’ access and stores', async () => {
     const custom = id(
       await asMember((tx) =>

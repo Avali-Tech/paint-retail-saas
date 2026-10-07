@@ -31,6 +31,7 @@ import { useEffect, useState } from 'react';
 import { errorMessage } from '../api/errors.js';
 import { useI18n } from '../i18n/i18n.js';
 import { useBranding } from '../theme/BrandingProvider.js';
+import { IdentitySettings } from './IdentitySettings.js';
 
 type Draft = { -readonly [K in keyof Branding]: string };
 
@@ -247,6 +248,7 @@ function AppearanceEditor({
   return (
     <>
       <PageHeader title={t('appearance.title')} description={t('appearance.description')} />
+      <IdentitySettings />
       <div className="appearance">
         <Card>
           <form

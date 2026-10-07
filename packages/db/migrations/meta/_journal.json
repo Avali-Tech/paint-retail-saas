@@ -337,6 +337,27 @@
       "when": 1791281581869,
       "tag": "0047_list_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1791358205899,
+      "tag": "0048_organization_slug_and_logo",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1791367331700,
+      "tag": "0049_newest_first_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1791382189726,
+      "tag": "0050_variant_label",
+      "breakpoints": true
     }
   ]
 }

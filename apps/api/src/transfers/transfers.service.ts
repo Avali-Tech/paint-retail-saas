@@ -17,7 +17,7 @@ import {
   type StockMovement,
   type Transaction,
 } from '@paint/db';
-import { canAccessStore, formatDocumentNumber } from '@paint/shared';
+import { canAccessStore, formatDocumentNumber, variantTitle } from '@paint/shared';
 import { and, count, desc, eq, inArray, or, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import { alias, type PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
@@ -62,6 +62,7 @@ export interface TransferLineView {
   readonly brandName: string;
   readonly packSize: number;
   readonly unit: string;
+  readonly label: string | null;
   readonly hsnCode: string;
   readonly requestedQuantity: number;
   readonly approvedQuantity: number | null;
@@ -452,7 +453,7 @@ export class TransfersService {
           const quantity = Number(line.dispatchedQuantity);
           return {
             sku: line.sku,
-            description: `${line.brandName} ${line.productName} ${String(line.packSize)} ${line.unit}`,
+            description: variantTitle(line.brandName, line.productName, line),
             hsnCode: line.hsnCode,
             quantity,
             unitValuePaise: line.unitCostPaise,
@@ -623,6 +624,7 @@ export class TransfersService {
         sku: productVariants.sku,
         packSize: productVariants.packSize,
         unit: productVariants.unit,
+        label: productVariants.label,
         productName: products.name,
         hsnCode: products.hsnCode,
         brandName: brands.name,
@@ -658,6 +660,7 @@ export class TransfersService {
         brandName: product.brandName,
         packSize: product.packSize,
         unit: product.unit,
+        label: product.label,
         hsnCode: product.hsnCode,
         requestedQuantity: line.requestedQuantity,
         approvedQuantity: line.approvedQuantity,

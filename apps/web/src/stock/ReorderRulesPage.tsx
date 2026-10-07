@@ -24,6 +24,7 @@ import { QueryState } from '../lib/QueryState.js';
 import { SectionNav } from '../lib/SectionNav.js';
 import { STOCK_SECTIONS } from './sections.js';
 import { StoreSelect } from './StoreSelect.js';
+import { productTitle, variantName, variantTitle } from '../lib/product-title.js';
 
 export const PAGE_SIZE = 50;
 const FILTERS = ['store', 'q'] as const;
@@ -186,9 +187,7 @@ function RemoveDialog({
         return undefined;
       }}
     >
-      <p>
-        {rule.brand.name} {rule.product.name}
-      </p>
+      <p>{variantTitle(rule.brand.name, rule.product.name, rule.variant)}</p>
     </FormDialog>
   );
 }
@@ -302,8 +301,10 @@ export function ReorderRulesPage() {
                     {page.items.map((rule) => (
                       <tr key={`${rule.store.id}-${rule.variant.id}`}>
                         <th scope="row">
-                          {rule.brand.name} {rule.product.name}
-                          <span className="cell-meta">{rule.variant.sku}</span>
+                          {productTitle(rule.brand.name, rule.product.name)}
+                          <span className="cell-meta">
+                            {rule.variant.sku} · {variantName(rule.variant)}
+                          </span>
                         </th>
                         <td>{rule.store.code}</td>
                         <td className="ui-num">{number(rule.minQuantity)}</td>

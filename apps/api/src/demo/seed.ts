@@ -4,6 +4,7 @@ import { base32Decode, sealSecret, totp } from '../auth/totp.js';
 import { NotificationsWorker } from '../notifications/notifications-worker.js';
 import { DemoApi } from './api-client.js';
 import { HistoryClock } from './history-clock.js';
+import type { LargeScale } from './large-plan.js';
 import {
   buildPlan,
   DEMO_BUSINESS,
@@ -11,6 +12,7 @@ import {
   DEMO_OPERATOR_TOTP_SECRET,
   DEMO_PASSWORD,
   DEMO_SEED,
+  DEMO_SLUG,
   DEMO_TOTP_SECRET,
   type DemoSize,
   type TeamMemberPlan,
@@ -31,6 +33,7 @@ import {
   scheduleStockCounts,
   scheduleTransfers,
 } from './seed-inventory.js';
+import { onboardBusinesses, seedLargeShop } from './seed-large.js';
 import { setUpBusiness, setUpCatalogueAndParties, type ReadSmsCode } from './seed-setup.js';
 
 export interface SeedOptions {
@@ -42,6 +45,8 @@ export interface SeedOptions {
   /** The in-process API's PLATFORM_BOOTSTRAP_TOKEN, to create the demo's platform operator. */
   readonly platformBootstrapToken: string;
   readonly size: DemoSize;
+  /** The large shop added on top of the full demo (size `large`); null otherwise. */
+  readonly large: LargeScale | null;
   readonly readSmsCode: ReadSmsCode;
 }
 
@@ -56,6 +61,8 @@ export interface DemoPerson {
 
 export interface DemoCredentials {
   readonly business: string;
+  /** Its branded sign-in page is /sign-in?b=<slug>. */
+  readonly slug: string;
   readonly password: string;
   readonly people: readonly DemoPerson[];
   readonly twoFactor: {
@@ -96,7 +103,7 @@ const ROLE_NAMES: Record<TeamMemberPlan['roleKey'], string> = {
  * three-branch paint dealer in Hyderabad, ending today.
  */
 export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
-  const plan = buildPlan(options.size);
+  const plan = buildPlan(options.size === 'small' ? 'small' : 'full');
   const clock = new HistoryClock(options.databaseUrl);
   const context = new SeedContext(plan, new Random(DEMO_SEED + 1), new DemoApi(options.app), clock);
   try {
@@ -126,10 +133,17 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
     await clock.close();
   }
 
+  if (options.large !== null) {
+    await seedLargeShop(context, options.databaseUrl, options.large, new Date());
+  }
+
   // Today's reminders and alerts: stock at its reorder level, follow-ups due, renewals.
   await options.app.get(NotificationsWorker).runOnce();
   const twoFactor = await enrolAuthenticator(context, options);
-  const operator = await createOperator(options);
+  const { operator, token: operatorToken } = await createOperator(options);
+  if (options.large !== null) {
+    await onboardBusinesses(context, operatorToken, options.large.otherBusinesses);
+  }
 
   const owner = context.as('owner');
   const low = await owner.get<{ total: number }>('/stock/low?limit=1');
@@ -155,6 +169,7 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
   return {
     credentials: {
       business: DEMO_BUSINESS,
+      slug: DEMO_SLUG,
       password: DEMO_PASSWORD,
       people,
       twoFactor,
@@ -193,7 +208,9 @@ async function fixSecret(
  * (POST /platform/bootstrap), then signed in once to add an authenticator app
  * whose random secret is swapped for the fixed demo one before confirming.
  */
-async function createOperator(options: SeedOptions): Promise<DemoCredentials['operator']> {
+async function createOperator(
+  options: SeedOptions,
+): Promise<{ operator: DemoCredentials['operator']; token: string }> {
   const api = new DemoApi(options.app).public;
   await api.post('/platform/bootstrap', {
     token: options.platformBootstrapToken,
@@ -209,19 +226,25 @@ async function createOperator(options: SeedOptions): Promise<DemoCredentials['op
   });
   const secret = base32Decode(DEMO_OPERATOR_TOTP_SECRET);
   await fixSecret(options, secret, 'SELECT id FROM users WHERE email = $2', DEMO_OPERATOR.email);
-  const { recoveryCodes } = await api.post<{ recoveryCodes: string[] }>('/platform/login/2fa', {
-    pendingToken: twoFactor.pendingToken,
-    code: totp(secret, Date.now()),
-  });
+  const { recoveryCodes, token } = await api.post<{ recoveryCodes: string[]; token: string }>(
+    '/platform/login/2fa',
+    {
+      pendingToken: twoFactor.pendingToken,
+      code: totp(secret, Date.now()),
+    },
+  );
   return {
-    name: DEMO_OPERATOR.fullName,
-    email: DEMO_OPERATOR.email,
-    secret: DEMO_OPERATOR_TOTP_SECRET,
-    otpauthUri: enrolment.otpauthUri.replace(
-      /secret=[A-Z2-7]+/,
-      `secret=${DEMO_OPERATOR_TOTP_SECRET}`,
-    ),
-    recoveryCodes,
+    operator: {
+      name: DEMO_OPERATOR.fullName,
+      email: DEMO_OPERATOR.email,
+      secret: DEMO_OPERATOR_TOTP_SECRET,
+      otpauthUri: enrolment.otpauthUri.replace(
+        /secret=[A-Z2-7]+/,
+        `secret=${DEMO_OPERATOR_TOTP_SECRET}`,
+      ),
+      recoveryCodes,
+    },
+    token,
   };
 }
 

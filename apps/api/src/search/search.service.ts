@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { Inject, Injectable } from '@nestjs/common';
 import { schema, withTenant, type DatabaseConnection, type Transaction } from '@paint/db';
-import { quickActions } from '@paint/shared';
+import { quickActions, variantTitle } from '@paint/shared';
 import {
   and,
   asc,
@@ -158,6 +158,7 @@ export class SearchService {
         sku: productVariants.sku,
         packSize: productVariants.packSize,
         unit: productVariants.unit,
+        label: productVariants.label,
         productName: products.name,
         brandName: brands.name,
       })
@@ -168,7 +169,15 @@ export class SearchService {
         and(
           eq(productVariants.isActive, true),
           eq(products.isActive, true),
-          or(allWords(words, [productVariants.sku, products.name, brands.name]), barcode),
+          or(
+            allWords(words, [
+              productVariants.sku,
+              products.name,
+              brands.name,
+              productVariants.label,
+            ]),
+            barcode,
+          ),
         ),
       )
       .orderBy(
@@ -180,7 +189,7 @@ export class SearchService {
       .limit(limit);
     return rows.map((row) => ({
       id: row.variantId,
-      title: `${row.brandName} ${row.productName} ${String(row.packSize)} ${row.unit}`,
+      title: variantTitle(row.brandName, row.productName, row),
       subtitle: row.sku,
       path: `/products/${row.productId}`,
     }));

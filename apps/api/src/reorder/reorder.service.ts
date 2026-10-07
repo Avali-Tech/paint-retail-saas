@@ -31,7 +31,13 @@ const { brands, productVariants, products, reorderRules, stockBalances, stockLed
 
 export interface ItemRef {
   readonly store: { readonly id: string; readonly code: string };
-  readonly variant: { readonly id: string; readonly sku: string };
+  readonly variant: {
+    readonly id: string;
+    readonly sku: string;
+    readonly packSize: number;
+    readonly unit: string;
+    readonly label: string | null;
+  };
   readonly product: { readonly name: string };
   readonly brand: { readonly name: string };
 }
@@ -71,6 +77,9 @@ const itemColumns = {
   storeCode: stores.code,
   variantId: productVariants.id,
   sku: productVariants.sku,
+  packSize: productVariants.packSize,
+  unit: productVariants.unit,
+  label: productVariants.label,
   productName: products.name,
   brandName: brands.name,
 };
@@ -80,11 +89,20 @@ const itemRef = (row: {
   storeCode: string;
   variantId: string;
   sku: string;
+  packSize: number;
+  unit: string;
+  label: string | null;
   productName: string;
   brandName: string;
 }): ItemRef => ({
   store: { id: row.storeId, code: row.storeCode },
-  variant: { id: row.variantId, sku: row.sku },
+  variant: {
+    id: row.variantId,
+    sku: row.sku,
+    packSize: row.packSize,
+    unit: row.unit,
+    label: row.label,
+  },
   product: { name: row.productName },
   brand: { name: row.brandName },
 });
@@ -159,6 +177,7 @@ export class ReorderService {
               ilike(productVariants.sku, containsPattern(query.q)),
               ilike(products.name, containsPattern(query.q)),
               ilike(brands.name, containsPattern(query.q)),
+              ilike(productVariants.label, containsPattern(query.q)),
             )
           : undefined,
       );
@@ -235,19 +254,31 @@ export class ReorderService {
   slowMovers(auth: AuthContext, query: SlowMoversQuery): Promise<Page<SlowMover>> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
       this.assertStoreFilter(auth, query.storeId);
-      const lastDemand = sql<Date | null>`(
-        select max(${stockLedger.createdAt}) from ${stockLedger}
-        where ${stockLedger.storeId} = ${stockBalances.storeId}
-          and ${stockLedger.variantId} = ${stockBalances.variantId}
-          and ${stockLedger.movementType} in ('sale', 'transfer_out')
-      )`;
-      const firstIn = sql`(
-        select min(${stockLedger.createdAt}) from ${stockLedger}
-        where ${stockLedger.storeId} = ${stockBalances.storeId}
-          and ${stockLedger.variantId} = ${stockBalances.variantId}
-          and ${stockLedger.quantity} > 0
-      )`;
-      const daysIdle = sql<number>`floor(extract(epoch from now() - coalesce(${lastDemand}, ${firstIn})) / 86400)::int`;
+      // When each product last sold or left by transfer, and first arrived, at each store:
+      // one pass over the ledger instead of two look-ups per balance (per row and count).
+      const movement = tx
+        .select({
+          storeId: stockLedger.storeId,
+          variantId: stockLedger.variantId,
+          lastDemandAt:
+            sql<Date | null>`max(${stockLedger.createdAt}) filter (where ${stockLedger.movementType} in ('sale', 'transfer_out'))`.as(
+              'last_demand_at',
+            ),
+          firstInAt:
+            sql<Date | null>`min(${stockLedger.createdAt}) filter (where ${stockLedger.quantity} > 0)`.as(
+              'first_in_at',
+            ),
+        })
+        .from(stockLedger)
+        .where(this.storeScope(auth, stockLedger.storeId, query.storeId))
+        .groupBy(stockLedger.storeId, stockLedger.variantId)
+        .as('movement');
+      const lastDemand = movement.lastDemandAt;
+      const daysIdle = sql<number>`floor(extract(epoch from now() - coalesce(${movement.lastDemandAt}, ${movement.firstInAt})) / 86400)::int`;
+      const onMovement = and(
+        eq(movement.storeId, stockBalances.storeId),
+        eq(movement.variantId, stockBalances.variantId),
+      );
       const value = sql<
         string | null
       >`round(${stockBalances.onHand} * ${stockBalances.avgCostPaise})`;
@@ -269,13 +300,18 @@ export class ReorderService {
           .innerJoin(stores, eq(stores.id, stockBalances.storeId))
           .innerJoin(productVariants, eq(productVariants.id, stockBalances.variantId))
           .innerJoin(products, eq(products.id, productVariants.productId))
-          .innerJoin(brands, eq(brands.id, products.brandId));
+          .innerJoin(brands, eq(brands.id, products.brandId))
+          .leftJoin(movement, onMovement);
       const rows = await base()
         .where(where)
         .orderBy(sql`${value} desc nulls last`, desc(daysIdle), asc(productVariants.sku))
         .limit(query.limit)
         .offset(query.offset);
-      const [totals] = await tx.select({ total: count() }).from(stockBalances).where(where);
+      const [totals] = await tx
+        .select({ total: count() })
+        .from(stockBalances)
+        .leftJoin(movement, onMovement)
+        .where(where);
       return {
         items: rows.map((row) => ({
           ...itemRef(row),

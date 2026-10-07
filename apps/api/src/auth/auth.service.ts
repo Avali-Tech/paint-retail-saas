@@ -68,6 +68,8 @@ export type { SessionGrant };
 interface OrganizationChoice {
   readonly id: string;
   readonly name: string;
+  /** So a branded sign-in page (`/sign-in?b=<slug>`) can offer its own business first. */
+  readonly slug: string;
 }
 
 @Injectable()
@@ -415,6 +417,7 @@ export class AuthService {
         .select({
           id: organizations.id,
           name: organizations.name,
+          slug: organizations.slug,
           suspendedAt: organizations.suspendedAt,
         })
         .from(organizationMembers)
@@ -432,7 +435,7 @@ export class AuthService {
       throw new ConflictException({
         statusCode: 409,
         message: 'Choose which business to sign in to',
-        organizations: memberships.map(({ id, name }) => ({ id, name })),
+        organizations: memberships.map(({ id, name, slug }) => ({ id, name, slug })),
       });
     }
     if (!chosen) throw new UnauthorizedException(INVALID_CREDENTIALS);

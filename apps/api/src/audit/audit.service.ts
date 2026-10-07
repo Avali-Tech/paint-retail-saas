@@ -53,6 +53,7 @@ export interface AuditPage {
 const FIELD_LABELS: Record<string, string> = {
   mrp_paise: 'MRP',
   selling_price_paise: 'Selling price',
+  label: 'Label',
   key: 'Key',
   name: 'Name',
   permission: 'Permission',
@@ -99,26 +100,36 @@ const FIELD_LABELS: Record<string, string> = {
   parent_id: 'Parent category',
   brand_id: 'Brand',
   category_id: 'Category',
+  slug: 'Sign-in link',
+  sha256: 'Logo file (SHA-256)',
+  content_type: 'File type',
+  width: 'Width (px)',
+  height: 'Height (px)',
 };
 
+// Every named table's records are keyed by a uuid: comparing uuids (not id::text) lets each
+// lookup use the primary key instead of scanning the table, e.g. the whole stock ledger.
+const recordUuid = sql`${auditLog.recordId}::uuid`;
+
 const recordLabel = sql<string | null>`case ${auditLog.tableName}
-  when 'product_variants' then (select ${productVariants.sku} from ${productVariants} where ${productVariants.id}::text = ${auditLog.recordId})
-  when 'products' then (select ${products.name} from ${products} where ${products.id}::text = ${auditLog.recordId})
-  when 'brands' then (select ${brands.name} from ${brands} where ${brands.id}::text = ${auditLog.recordId})
-  when 'categories' then (select ${categories.name} from ${categories} where ${categories.id}::text = ${auditLog.recordId})
-  when 'stock_ledger' then (select ${productVariants.sku} from ${stockLedger} join ${productVariants} on ${productVariants.id} = ${stockLedger.variantId} where ${stockLedger.id}::text = ${auditLog.recordId})
-  when 'roles' then (select ${roles.name} from ${roles} where ${roles.id}::text = ${auditLog.recordId})
-  when 'role_permissions' then (select ${roles.name} from ${roles} where ${roles.id}::text = ${auditLog.recordId})
-  when 'organizations' then (select o.name from organizations o where o.id::text = ${auditLog.recordId})
-  when 'support_grants' then (select g.reason from support_grants g where g.id::text = ${auditLog.recordId})
-  when 'contracts' then (select c.number || ' · ' || c.title from contracts c where c.id::text = ${auditLog.recordId})
-  when 'credit_profiles' then (select p.display_name from credit_profiles cp join parties p on p.id = cp.party_id where cp.id::text = ${auditLog.recordId})
+  when 'product_variants' then (select ${productVariants.sku} from ${productVariants} where ${productVariants.id} = ${recordUuid})
+  when 'products' then (select ${products.name} from ${products} where ${products.id} = ${recordUuid})
+  when 'brands' then (select ${brands.name} from ${brands} where ${brands.id} = ${recordUuid})
+  when 'categories' then (select ${categories.name} from ${categories} where ${categories.id} = ${recordUuid})
+  when 'stock_ledger' then (select ${productVariants.sku} from ${stockLedger} join ${productVariants} on ${productVariants.id} = ${stockLedger.variantId} where ${stockLedger.id} = ${recordUuid})
+  when 'roles' then (select ${roles.name} from ${roles} where ${roles.id} = ${recordUuid})
+  when 'role_permissions' then (select ${roles.name} from ${roles} where ${roles.id} = ${recordUuid})
+  when 'organizations' then (select o.name from organizations o where o.id = ${recordUuid})
+  when 'support_grants' then (select g.reason from support_grants g where g.id = ${recordUuid})
+  when 'contracts' then (select c.number || ' · ' || c.title from contracts c where c.id = ${recordUuid})
+  when 'credit_profiles' then (select p.display_name from credit_profiles cp join parties p on p.id = cp.party_id where cp.id = ${recordUuid})
   when 'credit_rules' then 'Credit rules'
   when 'loyalty_settings' then 'Loyalty programme'
   when 'organization_branding' then 'Branding'
-  when 'parties' then (select p.display_name from parties p where p.id::text = ${auditLog.recordId})
-  when 'loyalty_accounts' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id::text = ${auditLog.recordId})
-  when 'loyalty_ledger' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id::text = ${auditLog.recordId})
+  when 'organization_logos' then 'Logo'
+  when 'parties' then (select p.display_name from parties p where p.id = ${recordUuid})
+  when 'loyalty_accounts' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id = ${recordUuid})
+  when 'loyalty_ledger' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id = ${recordUuid})
   else (select ${users.fullName} from ${organizationMembers} join ${users} on ${users.id} = ${organizationMembers.userId} where ${organizationMembers.id}::text = ${auditLog.recordId})
 end`;
 

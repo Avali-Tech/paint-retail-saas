@@ -8,6 +8,7 @@ import type { SmsSender } from '../auth/sms.js';
 import { loadConfig } from '../config.js';
 import { formatCredentials } from './credentials.js';
 import { indiaDate } from './history-clock.js';
+import { LARGE_SCALE, type LargeScale } from './large-plan.js';
 import { DEMO_BUSINESS, DEMO_SIZES, type DemoSize } from './plan.js';
 import { seedDemo, type SeedResult } from './seed.js';
 
@@ -22,7 +23,8 @@ Usage: seed.js <seed|reset|status>
   status   print "seeded YYYY-MM-DD" or "empty"
 
 Environment: DATABASE_URL, AUTH_SECRET (the API's, 32+ characters),
-DEMO_SIZE (full or small, default full), DEMO_CREDENTIALS_FILE, DEMO_WEB_URL.`;
+DEMO_SIZE (full, small or large, default full; large adds a large shop's volume for
+performance testing, not for client demos), DEMO_CREDENTIALS_FILE, DEMO_WEB_URL.`;
 
 /** Keeps the codes the API texts, so the seed can sign counter staff in with one. */
 export class CapturingSmsSender implements SmsSender {
@@ -56,7 +58,7 @@ function settingsFrom(env: Readonly<Record<string, string | undefined>>): Settin
   const authSecret = env.AUTH_SECRET ?? '';
   if (authSecret.length < 32) throw new Error('AUTH_SECRET must be at least 32 characters');
   const size = (env.DEMO_SIZE ?? 'full') as DemoSize;
-  if (!DEMO_SIZES.includes(size)) throw new Error('DEMO_SIZE must be full or small');
+  if (!DEMO_SIZES.includes(size)) throw new Error('DEMO_SIZE must be full, small or large');
   return {
     databaseUrl,
     authSecret,
@@ -131,7 +133,7 @@ async function hasBusinesses(databaseUrl: string): Promise<boolean> {
 }
 
 /** Seeds the demo through an in-process API and notes the date on the database. */
-async function seed(settings: Settings): Promise<SeedResult> {
+async function seed(settings: Settings, largeScale: LargeScale): Promise<SeedResult> {
   // Only this in-process API can create the demo's platform operator; the running demo API cannot.
   const platformBootstrapToken = randomBytes(32).toString('hex');
   const config = loadConfig({
@@ -154,6 +156,7 @@ async function seed(settings: Settings): Promise<SeedResult> {
       authSecret: settings.authSecret,
       platformBootstrapToken,
       size: settings.size,
+      large: settings.size === 'large' ? largeScale : null,
       readSmsCode: (phone) => sms.codeFor(phone),
     });
     await onServer(settings.databaseUrl, (client, name) =>
@@ -169,12 +172,13 @@ async function seed(settings: Settings): Promise<SeedResult> {
 
 /**
  * Runs `seed`, `reset` or `status` and answers the process exit code. Lines
- * for the person running it go to `print`.
+ * for the person running it go to `print`. Tests pass a smaller `largeScale`.
  */
 export async function runSeedCommand(
   command: string | undefined,
   env: Readonly<Record<string, string | undefined>>,
   print: (line: string) => void,
+  largeScale: LargeScale = LARGE_SCALE,
 ): Promise<number> {
   if (!SEED_COMMANDS.includes(command as SeedCommand)) {
     print(SEED_USAGE);
@@ -204,7 +208,7 @@ export async function runSeedCommand(
   }
   print(`Seeding ${DEMO_BUSINESS} (${settings.size}); this takes a minute…`);
   const started = Date.now();
-  const result = await seed(settings);
+  const result = await seed(settings, largeScale);
   const sheet = formatCredentials(result.credentials, settings.webUrl);
   if (settings.credentialsFile !== null) {
     mkdirSync(dirname(settings.credentialsFile), { recursive: true });

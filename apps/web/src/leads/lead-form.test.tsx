@@ -66,7 +66,7 @@ describe('NewLeadPage', () => {
   it('captures a lead from a new contact, assigned to whoever adds it', async () => {
     const member = profile(['stores:read', 'parties:read', 'leads:read', 'leads:manage']);
     const { user, requests } = renderNew(member);
-    await user.click(await screen.findByRole('button', { name: 'New contact' }));
+    await user.click(await screen.findByRole('button', { name: 'Add a new contact' }));
     // Without the team list, the salesperson picker still offers who may take leads.
     expect(
       within(await screen.findByRole('combobox', { name: /Assigned to/ }))
@@ -113,7 +113,8 @@ describe('NewLeadPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Choose No Phone' }));
     expect(screen.getByText('No mobile number on file')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Choose someone else' }));
-    expect(screen.getByRole('button', { name: 'New contact' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add a new contact' })).toBeInTheDocument();
+    expect(screen.getByText('Not on file yet?')).toBeInTheDocument();
   });
 
   it('shows the API’s refusal, and its field problems next to the field', async () => {
@@ -137,7 +138,7 @@ describe('NewLeadPage', () => {
         },
       },
     });
-    await user.click(await screen.findByRole('button', { name: 'New contact' }));
+    await user.click(await screen.findByRole('button', { name: 'Add a new contact' }));
     await user.type(screen.getByRole('textbox', { name: /Name/ }), 'Ravi');
     await user.type(screen.getByRole('textbox', { name: /Mobile number/ }), '9876511111');
     await user.type(screen.getByRole('textbox', { name: /Title/ }), 'Two rooms');

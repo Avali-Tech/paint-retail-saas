@@ -1,8 +1,8 @@
 import { postStockMovements, schema } from '@paint/db';
-import { canAccessStore } from '@paint/shared';
+import { VARIANT_LABEL_MAX_LENGTH, canAccessStore, variantName } from '@paint/shared';
 import { and, count, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { decimal, optional, required, rupees } from './import-cells.js';
+import { decimal, optional, required, rupees, text } from './import-cells.js';
 import { FirstSeen, unique, type Importer, type RowPlan } from './import-types.js';
 
 const { productVariants, stockLedger, stores } = schema;
@@ -12,6 +12,7 @@ const threeDecimals = (value: number) => Math.abs(Math.round(value * 1000) - val
 const row = z.object({
   store: required(z.string().toUpperCase()),
   sku: required(z.string().toUpperCase()),
+  variant_label: optional(text(1, VARIANT_LABEL_MAX_LENGTH)),
   quantity: required(
     decimal.pipe(
       z
@@ -38,6 +39,12 @@ export const openingStockImporter: Importer<StockRow> = {
       required: true,
       description: 'Product SKU, as in your product list',
       example: 'APX-ULT-1L',
+    },
+    {
+      name: 'variant_label',
+      required: false,
+      description: 'The pack’s label, such as 2 inch or Grit 120; checked against the SKU',
+      example: '',
     },
     { name: 'quantity', required: true, description: 'Quantity on hand today', example: '24' },
     {
@@ -68,10 +75,16 @@ export const openingStockImporter: Importer<StockRow> = {
     const variantsBySku = new Map(
       (
         await tx
-          .select({ id: productVariants.id, sku: productVariants.sku })
+          .select({
+            id: productVariants.id,
+            sku: productVariants.sku,
+            packSize: productVariants.packSize,
+            unit: productVariants.unit,
+            label: productVariants.label,
+          })
           .from(productVariants)
           .where(inArray(productVariants.sku, unique(values.map((v) => v.sku))))
-      ).map((variant) => [variant.sku, variant.id]),
+      ).map((variant) => [variant.sku, variant]),
     );
     // What each store already holds, and whether it came only from an earlier import.
     const history = new Map(
@@ -91,7 +104,10 @@ export const openingStockImporter: Importer<StockRow> = {
                 stockLedger.storeId,
                 [...storesByCode.values()].map((store) => store.id),
               ),
-              inArray(stockLedger.variantId, [...variantsBySku.values()]),
+              inArray(
+                stockLedger.variantId,
+                [...variantsBySku.values()].map((variant) => variant.id),
+              ),
             ),
           )
           .groupBy(stockLedger.storeId, stockLedger.variantId)
@@ -101,16 +117,25 @@ export const openingStockImporter: Importer<StockRow> = {
     const planned: (RowPlan & { storeId: string; variantId: string; value: StockRow })[] = [];
     for (const { row: rowNumber, value } of checked) {
       const store = storesByCode.get(value.store);
-      const variantId = variantsBySku.get(value.sku);
+      const variant = variantsBySku.get(value.sku);
       if (!store?.isActive || !canAccessStore(auth, store.id)) {
         fail(rowNumber, 'store', 'Unknown store code, or a store you cannot access');
         continue;
       }
-      if (!variantId) {
+      if (!variant) {
         fail(rowNumber, 'sku', 'Unknown SKU; import products first');
         continue;
       }
-      const label = `${value.store} · ${value.sku}`;
+      // A label guards against a mistyped SKU among look-alike packs (2 inch and 3 inch brushes).
+      if (
+        value.variant_label !== undefined &&
+        value.variant_label.toLowerCase() !== variant.label?.toLowerCase()
+      ) {
+        fail(rowNumber, 'variant_label', `Does not match ${value.sku} (${variantName(variant)})`);
+        continue;
+      }
+      const variantId = variant.id;
+      const label = `${value.store} · ${value.sku} · ${variantName(variant)}`;
       const before = history.get(`${store.id}|${variantId}`);
       if (!before) {
         planned.push({

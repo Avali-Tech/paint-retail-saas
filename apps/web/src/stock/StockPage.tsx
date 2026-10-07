@@ -20,6 +20,7 @@ import { QueryState } from '../lib/QueryState.js';
 import { SectionNav } from '../lib/SectionNav.js';
 import { STOCK_SECTIONS } from './sections.js';
 import { StoreSelect } from './StoreSelect.js';
+import { productTitle, variantName } from '../lib/product-title.js';
 
 export const PAGE_SIZE = 50;
 const FILTERS = ['store', 'q', 'inStock'] as const;
@@ -132,10 +133,10 @@ export function StockPage() {
                       <tr key={`${row.store.id}-${row.variant.id}`}>
                         <th scope="row">
                           <Link to={`/products/${row.product.id}`}>
-                            {row.brand.name} {row.product.name}
+                            {productTitle(row.brand.name, row.product.name)}
                           </Link>
                           <span className="cell-meta">
-                            {row.variant.sku} · {String(row.variant.packSize)} {row.variant.unit}
+                            {row.variant.sku} · {variantName(row.variant)}
                           </span>
                         </th>
                         <td>{row.store.code}</td>

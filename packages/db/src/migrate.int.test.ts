@@ -52,6 +52,7 @@ describe('migrateDatabase', () => {
       'notifications',
       'opportunities',
       'organization_branding',
+      'organization_logos',
       'organization_members',
       'organizations',
       'otp_challenges',
@@ -168,4 +169,38 @@ describe('migrateDatabase', () => {
       'user_totp',
     ]);
   });
+
+  it.each([
+    {
+      list: 'stock movements',
+      index: 'stock_ledger_organization_created_idx',
+      query: `SELECT id FROM stock_ledger
+              WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+              ORDER BY created_at DESC, id DESC LIMIT 50`,
+    },
+    {
+      list: 'documents',
+      index: 'documents_recent_idx',
+      query: `SELECT id FROM documents
+              WHERE organization_id = '00000000-0000-0000-0000-000000000001' AND deleted_at IS NULL
+              ORDER BY created_at DESC, id DESC LIMIT 50`,
+    },
+  ])(
+    'lists a business’s newest $list straight from $index, with no sort',
+    async ({ index, query }) => {
+      const url = await freshDatabase();
+      await migrateDatabase(url);
+
+      const plan = await withPgClient(url, async (client) => {
+        // An empty table would otherwise get a sequential or bitmap scan plus a sort.
+        await client.query('SET enable_seqscan = off');
+        await client.query('SET enable_bitmapscan = off');
+        const result = await client.query<{ 'QUERY PLAN': string }>(`EXPLAIN ${query}`);
+        return result.rows.map((row) => row['QUERY PLAN']).join('\n');
+      });
+
+      expect(plan).toContain(index);
+      expect(plan).not.toContain('Sort');
+    },
+  );
 });

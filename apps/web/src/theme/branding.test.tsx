@@ -135,8 +135,13 @@ describe('BrandingProvider', () => {
       </BrandingProvider>,
     );
     expect(await screen.findByText('Sri Balaji Paints / Sri Balaji Paints')).toBeInTheDocument();
-    expect(document.title).toBe('Sri Balaji Paints');
-    expect(document.documentElement.style.getPropertyValue('--color-primary')).toBe('#15803d');
+    // The title and colours are applied in an effect after that render; wait for them too.
+    await waitFor(() => {
+      expect(document.title).toBe('Sri Balaji Paints');
+    });
+    await waitFor(() => {
+      expect(document.documentElement.style.getPropertyValue('--color-primary')).toBe('#15803d');
+    });
   });
 
   it('keeps the cached branding when loading fails', async () => {

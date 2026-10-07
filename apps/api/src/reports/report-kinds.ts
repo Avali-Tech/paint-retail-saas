@@ -1,5 +1,5 @@
 import { schema, type Transaction } from '@paint/db';
-import { paiseToRupees, type Permission } from '@paint/shared';
+import { paiseToRupees, variantName, type Permission } from '@paint/shared';
 import { and, asc, desc, eq, or, sql, type AnyColumn } from 'drizzle-orm';
 import { alias, type PgSelect } from 'drizzle-orm/pg-core';
 import type { z } from 'zod';
@@ -68,6 +68,14 @@ const rupees = (paise: unknown) =>
 const quantity = (value: unknown) =>
   value === null ? null : Math.round(Number(value) * 1000) / 1000;
 const text = (value: unknown) => value as string | null;
+/** The pack as people say it, e.g. "10 l" or "2 inch" (see variantName). */
+const variant = (r: Record<string, unknown>) =>
+  variantName({ packSize: Number(r.packSize), unit: String(r.unit), label: text(r.label) });
+const variantColumns = {
+  packSize: productVariants.packSize,
+  unit: productVariants.unit,
+  label: productVariants.label,
+};
 
 const fromStores = alias(stores, 'from_store');
 const toStores = alias(stores, 'to_store');
@@ -85,6 +93,7 @@ const stockByLocation: ReportKind<{ storeId?: string; inStockOnly: boolean }> = 
     { key: 'sku', header: 'SKU' },
     { key: 'brand', header: 'Brand' },
     { key: 'product', header: 'Product' },
+    { key: 'variant', header: 'Size / pack' },
     { key: 'onHand', header: 'On hand' },
     { key: 'reserved', header: 'Reserved' },
     { key: 'available', header: 'Available' },
@@ -99,6 +108,7 @@ const stockByLocation: ReportKind<{ storeId?: string; inStockOnly: boolean }> = 
         sku: productVariants.sku,
         brand: brands.name,
         product: products.name,
+        ...variantColumns,
         onHand: stockBalances.onHand,
         reserved: stockBalances.reserved,
         averageCost: stockBalances.avgCostPaise,
@@ -122,6 +132,7 @@ const stockByLocation: ReportKind<{ storeId?: string; inStockOnly: boolean }> = 
     sku: text(r.sku),
     brand: text(r.brand),
     product: text(r.product),
+    variant: variant(r),
     onHand: quantity(r.onHand),
     reserved: quantity(r.reserved),
     available: quantity(Number(r.onHand) - Number(r.reserved)),
@@ -146,6 +157,7 @@ const ledger: ReportKind<{
     { key: 'store', header: 'Store' },
     { key: 'sku', header: 'SKU' },
     { key: 'product', header: 'Product' },
+    { key: 'variant', header: 'Size / pack' },
     { key: 'type', header: 'Movement' },
     { key: 'quantity', header: 'Quantity' },
     { key: 'unitCost', header: 'Unit cost (₹)' },
@@ -160,6 +172,7 @@ const ledger: ReportKind<{
         store: stores.code,
         sku: productVariants.sku,
         product: products.name,
+        ...variantColumns,
         type: stockLedger.movementType,
         quantity: stockLedger.quantity,
         unitCost: stockLedger.unitCostPaise,
@@ -186,6 +199,7 @@ const ledger: ReportKind<{
     store: text(r.store),
     sku: text(r.sku),
     product: text(r.product),
+    variant: variant(r),
     type: text(r.type),
     quantity: quantity(r.quantity),
     unitCost: rupees(r.unitCost),

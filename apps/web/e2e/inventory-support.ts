@@ -23,6 +23,8 @@ export async function createProduct(
     variants?: {
       sku: string;
       packSize: number;
+      unit?: string;
+      label?: string;
       mrpPaise?: number;
       sellingPricePaise?: number;
       barcodes?: string[];

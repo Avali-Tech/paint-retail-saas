@@ -5,6 +5,7 @@ import type { GoodsReceipt } from '../api/purchasing.js';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
+import { productTitle, variantName } from '../lib/product-title.js';
 
 function ReceiptView({ receipt }: { readonly receipt: GoodsReceipt }) {
   const { t, money, number, date, dateTime } = useI18n();
@@ -82,8 +83,10 @@ function ReceiptView({ receipt }: { readonly receipt: GoodsReceipt }) {
               {receipt.lines.map((line) => (
                 <tr key={line.variantId}>
                   <th scope="row">
-                    {line.brandName} {line.productName}
-                    <span className="cell-meta">{line.sku}</span>
+                    {productTitle(line.brandName, line.productName)}
+                    <span className="cell-meta">
+                      {line.sku} · {variantName(line)}
+                    </span>
                   </th>
                   <td className="ui-num">{number(line.quantity)}</td>
                   <td className="ui-num">{number(line.freeQuantity)}</td>
