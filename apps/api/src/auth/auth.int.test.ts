@@ -244,8 +244,17 @@ describe('POST /auth/login (password)', () => {
       const choice = await login({ identifier: first.phone, password: 'Rangoli@2026' });
       expect(choice.statusCode).toBe(409);
       expect(choice.json<{ organizations: { name: string }[] }>().organizations).toEqual([
-        { id: first.grant.organizationId, name: 'Alpha Paints' },
-        { id: second.grant.organizationId, name: 'Beta Paints' },
+        // The slug lets a branded sign-in page offer its own business first.
+        {
+          id: first.grant.organizationId,
+          name: 'Alpha Paints',
+          slug: expect.stringMatching(/^alpha-paints(-\d+)?$/) as unknown,
+        },
+        {
+          id: second.grant.organizationId,
+          name: 'Beta Paints',
+          slug: expect.stringMatching(/^beta-paints(-\d+)?$/) as unknown,
+        },
       ]);
 
       const chosen = await login({

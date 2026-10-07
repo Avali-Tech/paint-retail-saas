@@ -3,8 +3,9 @@ import { Module, type DynamicModule } from '@nestjs/common';
 import type { DocumentsConfig } from '../config.js';
 import { ClamavScanner } from './clamav.js';
 import { DocumentsController } from './documents.controller.js';
-import { DOCUMENT_SERVICES, DocumentsService, type DocumentServices } from './documents.service.js';
+import { DocumentsService } from './documents.service.js';
 import { ObjectStorage } from './object-storage.js';
+import { DOCUMENT_SERVICES, type DocumentServices } from './safe-upload.js';
 
 @Module({})
 export class DocumentsModule {
@@ -15,8 +16,11 @@ export class DocumentsModule {
     };
     return {
       module: DocumentsModule,
+      // Logos (BrandingModule) are scanned and stored by the same services.
+      global: true,
       controllers: [DocumentsController],
       providers: [DocumentsService, { provide: DOCUMENT_SERVICES, useValue: services }],
+      exports: [DOCUMENT_SERVICES],
     };
   }
 }

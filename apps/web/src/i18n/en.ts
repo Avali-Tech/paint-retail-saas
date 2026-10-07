@@ -1,3 +1,4 @@
+import { brandingEn } from './en-branding.js';
 import { catalogEn, catalogEnumsEn } from './en-catalog.js';
 import { contractsEn } from './en-contracts.js';
 import { creditEn, creditEnumsEn } from './en-credit.js';
@@ -324,6 +325,7 @@ export const en = {
   ...teamEn,
   ...platformEn,
   ...supportAccessEn,
+  ...brandingEn,
   /** Names of API values, for label(group, value). */
   enums: {
     /** Quick actions offered with search, by the API's key. */

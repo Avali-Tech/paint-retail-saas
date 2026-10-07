@@ -1,6 +1,6 @@
 import type { SessionGrant } from '@paint/shared';
 import { CATEGORIES, type CategoryKey } from './catalogue.js';
-import { DEMO_APP_NAME, DEMO_BUSINESS, DEMO_PASSWORD, type PartyPlan } from './plan.js';
+import { DEMO_APP_NAME, DEMO_BUSINESS, DEMO_PASSWORD, DEMO_SLUG, type PartyPlan } from './plan.js';
 import { must, type SeedContext, type SeededVariant } from './seed-context.js';
 
 /** Reads the sign-in code texted to a mobile number (the seed's own SMS sender). */
@@ -52,6 +52,8 @@ export async function setUpBusiness(context: SeedContext, readSmsCode: ReadSmsCo
   context.tokens.set(owner.key, await passwordSignIn(context, owner.phone));
   const o = context.as(owner.key);
   await o.put('/organization/branding', DEMO_BRANDING);
+  // Shorter than the one sign-up derives from the name (sharma-paints-hardware).
+  await o.put('/organization/slug', { slug: DEMO_SLUG });
 
   for (const store of plan.stores) {
     const created = await o.post('/stores', {

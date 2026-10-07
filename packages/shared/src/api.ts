@@ -191,6 +191,49 @@ export interface BrandingView {
   readonly updatedAt: string;
 }
 
+/**
+ * A business's logo. `url` is a path on the API (prefix the API's base URL) that
+ * changes whenever the logo does, so browsers may keep it for good.
+ */
+export interface LogoView {
+  readonly url: string;
+  readonly contentType: string;
+  readonly width: number;
+  readonly height: number;
+  readonly sizeBytes: number;
+  readonly updatedAt: string;
+}
+
+/** GET /organization/identity: the business's sign-in link name and logo, for any member. */
+export interface OrganizationIdentity {
+  /** Its branded sign-in page is `/sign-in?b=<slug>`. */
+  readonly slug: string;
+  readonly logo: LogoView | null;
+}
+
+/**
+ * GET /public/branding/:slug, before anyone signs in: only what the sign-in page shows
+ * (the app name and theme, and the logo's address), never ids, people or contact details.
+ */
+export interface PublicBranding {
+  readonly slug: string;
+  readonly branding: Branding;
+  readonly logoUrl: string | null;
+}
+
+/**
+ * Why POST /organization/logo refused a file: the document refusals, plus an SVG
+ * (never accepted: it can carry scripts) or a picture too small or too large.
+ */
+export type LogoUploadErrorCode = DocumentUploadErrorCode | 'svg_not_allowed' | 'dimensions';
+
+/** The body of a refused logo upload. */
+export interface LogoUploadError {
+  readonly statusCode: number;
+  readonly message: string;
+  readonly code: LogoUploadErrorCode;
+}
+
 /** PUT /organization/branding: what was saved, and how the theme had to adjust it to stay readable. */
 export interface BrandingSaved {
   readonly branding: Branding;

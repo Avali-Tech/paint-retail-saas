@@ -11,6 +11,7 @@ import {
   DEMO_OPERATOR_TOTP_SECRET,
   DEMO_PASSWORD,
   DEMO_SEED,
+  DEMO_SLUG,
   DEMO_TOTP_SECRET,
   type DemoSize,
   type TeamMemberPlan,
@@ -56,6 +57,8 @@ export interface DemoPerson {
 
 export interface DemoCredentials {
   readonly business: string;
+  /** Its branded sign-in page is /sign-in?b=<slug>. */
+  readonly slug: string;
   readonly password: string;
   readonly people: readonly DemoPerson[];
   readonly twoFactor: {
@@ -155,6 +158,7 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
   return {
     credentials: {
       business: DEMO_BUSINESS,
+      slug: DEMO_SLUG,
       password: DEMO_PASSWORD,
       people,
       twoFactor,

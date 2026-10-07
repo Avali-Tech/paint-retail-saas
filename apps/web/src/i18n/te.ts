@@ -1,6 +1,7 @@
 // Telugu messages (draft translations: see docs/translations/glossary.md). Same shape as
 // en.ts; each feature's messages are in te-<feature>.ts, mirroring en-<feature>.ts.
 import type { Messages } from './en.js';
+import { brandingTe } from './te-branding.js';
 import { catalogEnumsTe, catalogTe } from './te-catalog.js';
 import { contractsTe } from './te-contracts.js';
 import { creditEnumsTe, creditTe } from './te-credit.js';
@@ -329,6 +330,7 @@ export const te: Messages = {
   ...teamTe,
   ...platformTe,
   ...supportAccessTe,
+  ...brandingTe,
   enums: {
     quickActions: {
       new_customer: '+ కస్టమర్',

@@ -1,6 +1,7 @@
 // Hindi messages (draft translations: see docs/translations/glossary.md). Same shape as
 // en.ts; each feature's messages are in hi-<feature>.ts, mirroring en-<feature>.ts.
 import type { Messages } from './en.js';
+import { brandingHi } from './hi-branding.js';
 import { catalogEnumsHi, catalogHi } from './hi-catalog.js';
 import { contractsHi } from './hi-contracts.js';
 import { creditEnumsHi, creditHi } from './hi-credit.js';
@@ -322,6 +323,7 @@ export const hi: Messages = {
   ...teamHi,
   ...platformHi,
   ...supportAccessHi,
+  ...brandingHi,
   enums: {
     quickActions: {
       new_customer: '+ ग्राहक',

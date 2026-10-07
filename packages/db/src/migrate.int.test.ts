@@ -52,6 +52,7 @@ describe('migrateDatabase', () => {
       'notifications',
       'opportunities',
       'organization_branding',
+      'organization_logos',
       'organization_members',
       'organizations',
       'otp_challenges',
