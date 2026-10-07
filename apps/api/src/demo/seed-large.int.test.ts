@@ -67,7 +67,7 @@ describe('the large demo', () => {
     const stores = await get<unknown[]>('/stores');
     expect(stores).toHaveLength(3 + scale.extraStores);
     const products = await get<{ total: number }>('/products?limit=1');
-    expect(products.total).toBe(82 + scale.products);
+    expect(products.total).toBe(79 + scale.products);
     const parties = await get<{ total: number }>('/parties?limit=1');
     expect(parties.total).toBeGreaterThan(84 + scale.parties - 10);
     const leads = await get<{ total: number }>('/leads?limit=1');

@@ -40,6 +40,8 @@ export interface Variant {
   readonly sku: string;
   readonly packSize: number;
   readonly unit: Unit;
+  /** Tells same-sized packs apart, e.g. "2 inch" or "Grit 120"; null when not needed. */
+  readonly label: string | null;
   readonly mrpPaise: number | null;
   readonly sellingPricePaise: number | null;
   readonly isActive: boolean;
@@ -63,6 +65,7 @@ export interface VariantInput {
   readonly sku: string;
   readonly packSize: number;
   readonly unit: Unit;
+  readonly label?: string | null;
   readonly mrpPaise?: number;
   readonly sellingPricePaise?: number;
   readonly barcodes: string[];
@@ -70,6 +73,7 @@ export interface VariantInput {
 
 export interface VariantChanges {
   readonly sku?: string;
+  readonly label?: string | null;
   readonly mrpPaise?: number | null;
   readonly sellingPricePaise?: number | null;
   readonly isActive?: boolean;

@@ -695,6 +695,11 @@ export const productVariants = pgTable(
     sku: text('sku').notNull(),
     packSize: numeric('pack_size', { precision: 12, scale: 3, mode: 'number' }).notNull(),
     unit: unitOfMeasure('unit').notNull(),
+    /**
+     * What tells same-sized packs apart, e.g. "2 inch", "Grit 120", "48 mm" or "Red";
+     * trimmed, 1 to 40 characters. Brushes and sandpaper are all "1 piece".
+     */
+    label: text('label'),
     /** Maximum retail price printed on the pack, in paise. */
     mrpPaise: bigint('mrp_paise', { mode: 'number' }),
     /** Default selling price, in paise. Never above the MRP. */
@@ -704,7 +709,13 @@ export const productVariants = pgTable(
   },
   (table) => [
     unique('product_variants_organization_sku_unique').on(table.organizationId, table.sku),
-    unique('product_variants_product_pack_unique').on(table.productId, table.packSize, table.unit),
+    // One variant per size and label; no label counts as one value, and case does not matter.
+    uniqueIndex('product_variants_product_pack_label_unique').on(
+      table.productId,
+      table.packSize,
+      table.unit,
+      sql`lower(coalesce(${table.label}, ''))`,
+    ),
     unique('product_variants_organization_id_id_unique').on(table.organizationId, table.id),
     foreignKey({
       name: 'product_variants_product_fk',
@@ -713,6 +724,10 @@ export const productVariants = pgTable(
     }).onDelete('cascade'),
     check('product_variants_sku_format', sql`${table.sku} ~ '^[A-Z0-9][A-Z0-9._/-]{1,39}$'`),
     check('product_variants_pack_size_positive', sql`${table.packSize} > 0`),
+    check(
+      'product_variants_label_format',
+      sql`${table.label} = btrim(${table.label}) and char_length(${table.label}) between 1 and 40`,
+    ),
     check(
       'product_variants_prices_not_negative',
       sql`${table.mrpPaise} >= 0 and ${table.sellingPricePaise} >= 0`,

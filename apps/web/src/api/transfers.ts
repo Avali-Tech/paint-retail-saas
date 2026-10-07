@@ -27,6 +27,8 @@ export interface TransferLine {
   readonly brandName: string;
   readonly packSize: number;
   readonly unit: string;
+  /** Tells same-sized packs apart, e.g. "2 inch"; see variantName. */
+  readonly label: string | null;
   readonly hsnCode: string;
   readonly requestedQuantity: number;
   readonly approvedQuantity: number | null;

@@ -217,10 +217,13 @@ describe('IdentityProvider', () => {
       </IdentityProvider>,
     );
     expect(screen.getByText(`sharma-paints / /api${LOGO.url}`)).toBeInTheDocument();
-    expect(icons()).toEqual([
-      ['icon', `/api${LOGO.url}`],
-      ['apple-touch-icon', `/api${LOGO.url}`],
-    ]);
+    // The browser icons are set in an effect after each render; wait for them.
+    await waitFor(() => {
+      expect(icons()).toEqual([
+        ['icon', `/api${LOGO.url}`],
+        ['apple-touch-icon', `/api${LOGO.url}`],
+      ]);
+    });
 
     rerender(
       <IdentityProvider source={source} sessionKey="token">
@@ -229,7 +232,9 @@ describe('IdentityProvider', () => {
     );
     resolve({ slug: 'xyz-paints', logo: null });
     expect(await screen.findByText('xyz-paints / no logo')).toBeInTheDocument();
-    expect(icons()).toEqual([]);
+    await waitFor(() => {
+      expect(icons()).toEqual([]);
+    });
   });
 
   it('keeps the cached identity when loading fails, and lets a page preview another logo', async () => {

@@ -1,4 +1,13 @@
-import { CATEGORIES, mrpPaise, packLabel, type CategoryKey } from './catalogue.js';
+import {
+  CATEGORIES,
+  lineCode,
+  mrpPaise,
+  packLabel,
+  packPrices,
+  subcategoryFor,
+  toolSizes,
+  type CategoryKey,
+} from './catalogue.js';
 import {
   gstinFor,
   internalEan13,
@@ -136,7 +145,7 @@ const CATEGORY_WORDS: Readonly<Record<CategoryKey, readonly string[]>> = {
   putty: ['Wall Putty', 'Acrylic Putty'],
   wood: ['Melamine', 'PU Finish', 'Wood Stain'],
   waterproofing: ['Damp Proof', 'Roof Coat', 'Waterproof Coat'],
-  tools: ['Flat Brush', 'Paint Roller', 'Masking Tape'],
+  tools: ['Flat Brush', 'Paint Roller', 'Masking Tape', 'Sandpaper'],
 };
 
 /** Weights for each category: emulsions sell most. */
@@ -170,6 +179,7 @@ export interface LargeVariantPlan {
   readonly sku: string;
   readonly packSize: number;
   readonly unit: 'l' | 'kg' | 'piece';
+  readonly label: string | null;
   readonly mrpPaise: number;
   readonly sellingPricePaise: number;
   readonly costPaise: number;
@@ -203,31 +213,44 @@ export function buildLargeCatalogue(
     const spec = CATEGORIES[category];
     const word = random.pick(CATEGORY_WORDS[category]);
     const name = `${random.pick(SERIES)} ${word} ${String(1_000 + index)}`;
-    const packs = random
-      .sample(spec.packs, Math.min(spec.packs.length, random.int(1, 3)))
-      .sort((a, b) => a - b);
-    const rupeesPerUnit = spec.unit === 'piece' ? random.int(40, 600) : random.int(120, 900);
     const base = `L${code}${String(index).padStart(5, '0')}`;
+    const variant = (packSize: number, label: string | null, mrp: number): LargeVariantPlan => {
+      barcode += 1;
+      return {
+        sku: `${base}-${label === null ? packLabel(packSize, spec.unit) : lineCode(label)}`,
+        packSize,
+        unit: spec.unit,
+        label,
+        mrpPaise: mrp,
+        ...packPrices(random, mrp),
+        barcode: internalEan13(barcode),
+      };
+    };
+    // Tools come in labelled sizes (brush widths, grits); paint in pack sizes.
+    const sizes = toolSizes(word);
+    let variants: LargeVariantPlan[];
+    if (sizes) {
+      variants = random
+        .sample(sizes, Math.min(sizes.length, random.int(1, 3)))
+        .sort((a, b) => sizes.indexOf(a) - sizes.indexOf(b))
+        .map(([label, rupees]) => variant(1, label, mrpPaise(rupees, 1, 'piece')));
+    } else {
+      const packs = random
+        .sample(spec.packs, Math.min(spec.packs.length, random.int(1, 3)))
+        .sort((a, b) => a - b);
+      const rupeesPerUnit = random.int(120, 900);
+      variants = packs.map((packSize) =>
+        variant(packSize, null, mrpPaise(rupeesPerUnit, packSize, spec.unit)),
+      );
+    }
     return {
       brand,
       category,
-      subcategory: 'subcategories' in spec ? random.pick(spec.subcategories).name : null,
+      subcategory: subcategoryFor(category, word),
       name,
       type: spec.type,
       hsnCode: spec.hsnCode,
-      variants: packs.map((packSize): LargeVariantPlan => {
-        const mrp = mrpPaise(rupeesPerUnit, packSize, spec.unit);
-        barcode += 1;
-        return {
-          sku: `${base}-${packLabel(packSize, spec.unit)}`,
-          packSize,
-          unit: spec.unit,
-          mrpPaise: mrp,
-          sellingPricePaise: Math.round((mrp * random.int(90, 96)) / 10_000) * 100,
-          costPaise: Math.round((mrp * random.int(68, 76)) / 10_000) * 100,
-          barcode: internalEan13(barcode),
-        };
-      }),
+      variants,
     };
   });
 }

@@ -177,11 +177,11 @@ describe('low stock', () => {
       expect.objectContaining({
         event: 'low_stock',
         title: 'Low stock at Hyderabad: 1 product(s)',
-        body: `${dipping.sku} Paint ${String(seq)}: 4 left (reorder at 5)`,
+        body: `${dipping.sku} Paint ${String(seq)} 1 l: 4 left (reorder at 5)`,
         link: `/stock/low?storeId=${hyd}`,
       }),
       expect.objectContaining({
-        body: `${empty.sku} Paint ${String(seq - 1)}: 0 left (reorder at 5)`,
+        body: `${empty.sku} Paint ${String(seq - 1)} 1 l: 0 left (reorder at 5)`,
       }),
     ]);
     expect(notices.map((n) => n.body).join()).not.toContain(healthy.sku);
@@ -213,8 +213,8 @@ describe('low stock', () => {
     const [latest] = await lowNotices(manager);
     expect(latest?.title).toBe('Low stock at Hyderabad: 2 product(s)');
     expect(latest?.body.split('\n')).toEqual([
-      `${a.sku} Paint ${String(seq - 1)}: 2 left (reorder at 5)`,
-      `${b.sku} Paint ${String(seq)}: 3 left (reorder at 5)`,
+      `${a.sku} Paint ${String(seq - 1)} 1 l: 2 left (reorder at 5)`,
+      `${b.sku} Paint ${String(seq)} 1 l: 3 left (reorder at 5)`,
     ]);
   });
 

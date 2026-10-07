@@ -222,11 +222,12 @@ describe('the logo', () => {
       headers: { ...bearer(owner), 'content-type': 'application/json' },
       payload: '{}',
     });
+    const empty = multipartBody({ note: 'x' }, []);
     const noFile = await t.app.inject({
       method: 'POST',
       url: '/organization/logo',
-      headers: { ...bearer(owner), ...multipartBody({ note: 'x' }, []).headers },
-      payload: multipartBody({ note: 'x' }, []).payload,
+      headers: { ...bearer(owner), ...empty.headers },
+      payload: empty.payload,
     });
     const broken = await t.app.inject({
       method: 'POST',

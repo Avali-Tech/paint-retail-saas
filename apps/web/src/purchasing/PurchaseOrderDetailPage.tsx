@@ -10,7 +10,7 @@ import { QueryState } from '../lib/QueryState.js';
 import { ReasonDialog } from '../lib/ReasonDialog.js';
 import { OrderStatusBadge } from './shared.js';
 import { refreshInventory } from '../lib/refresh.js';
-import { productTitle } from '../lib/product-title.js';
+import { productTitle, variantName } from '../lib/product-title.js';
 
 export const purchaseOrderKey = (id: string) => ['purchase-order', id] as const;
 
@@ -142,7 +142,7 @@ function OrderView({ order }: { readonly order: PurchaseOrder }) {
                   <th scope="row">
                     {productTitle(line.brandName, line.productName)}
                     <span className="cell-meta">
-                      {line.sku} · {String(line.packSize)} {line.unit}
+                      {line.sku} · {variantName(line)}
                     </span>
                   </th>
                   <td className="ui-num">{number(line.orderedQuantity)}</td>
