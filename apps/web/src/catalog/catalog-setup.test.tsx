@@ -78,7 +78,26 @@ describe('CatalogSetupPage', () => {
       expect(screen.queryByRole('dialog')).toBeNull();
     });
 
+    // Deactivating is confirmed first; cancelling sends nothing.
     await user.click(within(panel).getByRole('button', { name: 'Deactivate Asian Paints' }));
+    const confirm = screen.getByRole('dialog', { name: 'Deactivate Asian Paints?' });
+    expect(
+      within(confirm).getByText(
+        'Its products stay as they are, but it is no longer offered for new products. You can activate it again at any time.',
+      ),
+    ).toBeVisible();
+    await user.click(within(confirm).getByRole('button', { name: 'Cancel' }));
+    expect(bodies).toHaveLength(2);
+    await user.click(within(panel).getByRole('button', { name: 'Deactivate Asian Paints' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Deactivate Asian Paints?' })).getByRole('button', {
+        name: 'Deactivate',
+      }),
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    // Activating again needs no confirmation.
     await user.click(within(panel).getByRole('button', { name: 'Activate Old Brand' }));
     await waitFor(() => {
       expect(bodies).toHaveLength(4);
@@ -101,6 +120,17 @@ describe('CatalogSetupPage', () => {
     await user.click(within(panel).getByRole('button', { name: 'Add brand' }));
     expect(await within(panel).findByText('Brand Asian Paints already exists')).toBeInTheDocument();
     await user.click(within(panel).getByRole('button', { name: 'Deactivate Asian Paints' }));
+    const confirm = screen.getByRole('dialog', { name: 'Deactivate Asian Paints?' });
+    await user.click(within(confirm).getByRole('button', { name: 'Deactivate' }));
+    expect(await within(confirm).findByText('Server error')).toBeInTheDocument();
+  });
+
+  it('shows why a brand could not be activated again', async () => {
+    const { user } = renderSetup({
+      'PATCH /brands/:id': () => json({ message: 'Server error' }, 500),
+    });
+    const panel = await screen.findByRole('region', { name: 'Brands' });
+    await user.click(within(panel).getByRole('button', { name: 'Activate Old Brand' }));
     expect(await screen.findByText('Server error')).toBeInTheDocument();
   });
 
@@ -178,6 +208,13 @@ describe('CatalogSetupPage', () => {
     ).toBeVisible();
 
     await user.click(within(panel).getByRole('button', { name: 'Deactivate Emulsions' }));
+    const confirm = screen.getByRole('dialog', { name: 'Deactivate Emulsions?' });
+    expect(
+      within(confirm).getByText(
+        'Its products stay as they are, but it and its subcategories take no new products. You can activate it again at any time.',
+      ),
+    ).toBeVisible();
+    await user.click(within(confirm).getByRole('button', { name: 'Deactivate' }));
     expect(await within(row('Emulsions')).findByText('Inactive')).toBeVisible();
     await user.click(within(panel).getByRole('button', { name: 'Activate Primers' }));
     await waitFor(() => {
@@ -190,6 +227,11 @@ describe('CatalogSetupPage', () => {
 
     fail = true;
     await user.click(within(panel).getByRole('button', { name: 'Deactivate Primers' }));
+    const failing = screen.getByRole('dialog', { name: 'Deactivate Primers?' });
+    await user.click(within(failing).getByRole('button', { name: 'Deactivate' }));
+    expect(await within(failing).findByText('Server error')).toBeInTheDocument();
+    await user.click(within(failing).getByRole('button', { name: 'Cancel' }));
+    await user.click(within(panel).getByRole('button', { name: 'Activate Emulsions' }));
     expect(await screen.findByText('Server error')).toBeInTheDocument();
   });
 

@@ -29,6 +29,7 @@ import { STOCK_SECTIONS } from './sections.js';
 import { StoreSelect } from './StoreSelect.js';
 import { useStores } from './stores.js';
 import { refreshInventory } from '../lib/refresh.js';
+import { productTitle } from '../lib/product-title.js';
 
 export const PAGE_SIZE = 100;
 
@@ -228,7 +229,7 @@ export function LowStockPage() {
                           </td>
                         )}
                         <th scope="row">
-                          {item.brand.name} {item.product.name}
+                          {productTitle(item.brand.name, item.product.name)}
                           <span className="cell-meta">{item.variant.sku}</span>
                         </th>
                         <td>{item.store.code}</td>

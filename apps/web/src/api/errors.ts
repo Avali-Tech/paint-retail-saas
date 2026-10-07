@@ -10,6 +10,8 @@ export interface FieldIssue {
 export interface BusinessChoice {
   readonly id: string;
   readonly name: string;
+  /** Its sign-in link name, so a branded sign-in page can offer its own business first. */
+  readonly slug?: string;
 }
 
 /** Any failed API call: the HTTP status (0 when the server could not be reached) and a message to show. */
@@ -82,7 +84,11 @@ export function toApiError(status: number, body: unknown): ApiError {
   );
   const organizations = listOf<BusinessChoice>(record.organizations, (item) =>
     typeof item.id === 'string' && typeof item.name === 'string'
-      ? { id: item.id, name: item.name }
+      ? {
+          id: item.id,
+          name: item.name,
+          ...(typeof item.slug === 'string' ? { slug: item.slug } : {}),
+        }
       : null,
   );
   const message = messageFrom(body);

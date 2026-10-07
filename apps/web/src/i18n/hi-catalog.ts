@@ -94,6 +94,12 @@ export const catalogHi: Translation<typeof catalogEn> = {
     rename: '{name} का नाम बदलें',
     deactivate: '{name} इनएक्टिव करें',
     activate: '{name} एक्टिव करें',
+    deactivateTitle: '{name} इनएक्टिव करें?',
+    deactivateBrand:
+      'इसके प्रोडक्ट जैसे हैं वैसे रहेंगे, पर नए प्रोडक्ट के लिए यह नहीं दिखेगा। आप इसे कभी भी फिर से एक्टिव कर सकते हैं।',
+    deactivateCategory:
+      'इसके प्रोडक्ट जैसे हैं वैसे रहेंगे, पर इसमें और इसकी सब-कैटेगरी में नए प्रोडक्ट नहीं जुड़ेंगे। आप इसे कभी भी फिर से एक्टिव कर सकते हैं।',
+    deactivateConfirm: 'इनएक्टिव करें',
     inactive: 'इनएक्टिव',
     parentInactive: 'नए प्रोडक्ट नहीं: इसकी कैटेगरी इनएक्टिव है',
     added: 'जुड़ गया',

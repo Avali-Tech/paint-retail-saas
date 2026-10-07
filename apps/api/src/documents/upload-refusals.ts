@@ -1,12 +1,12 @@
-import type { DocumentUploadError, DocumentUploadErrorCode } from '@paint/shared';
+import type { DocumentUploadErrorCode, LogoUploadErrorCode } from '@paint/shared';
 
 export type { DocumentUploadErrorCode };
 
-/** The body of a refused upload: the message for people and a `code` for the app. */
-export function uploadRefusal(
+/** The body of a refused upload (a document or a logo): the message for people and a `code` for the app. */
+export function uploadRefusal<Code extends LogoUploadErrorCode>(
   statusCode: number,
-  code: DocumentUploadErrorCode,
+  code: Code,
   message: string,
-): DocumentUploadError {
+): { readonly statusCode: number; readonly message: string; readonly code: Code } {
   return { statusCode, message, code };
 }

@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { useState, type ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { RequireAuth } from '../shell/guards.js';
 import { StoreSelect, storeLabel, useStoreAccess } from '../stock/StoreSelect.js';
 import { json, profile } from '../test-support/fake-api.js';
@@ -58,6 +58,31 @@ describe('SectionNav', () => {
         .getAllByRole('link')
         .map((link) => link.textContent),
     ).toEqual(['Balances']);
+  });
+
+  it('brings the current screen’s link into view (it can sit past a phone’s edge)', async () => {
+    const scroll = vi.spyOn(Element.prototype, 'scrollIntoView');
+    renderApp({
+      path: '/purchase-orders',
+      routes: { 'GET /auth/me': () => json(profile(['inventory:read', 'purchasing:read'])) },
+      element: (
+        <RequireAuth>
+          <SectionNav
+            label="stock.sections.label"
+            links={[
+              { to: '/stock', label: 'stock.sections.balances', permission: 'inventory:read' },
+              { to: '/purchase-orders', label: 'purchasing.orders', permission: 'purchasing:read' },
+            ]}
+          />
+        </RequireAuth>
+      ),
+    });
+    const current = await screen.findByRole('link', { current: 'page' });
+    await waitFor(() => {
+      expect(scroll.mock.contexts).toContain(current);
+    });
+    expect(scroll).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' });
+    scroll.mockRestore();
   });
 });
 

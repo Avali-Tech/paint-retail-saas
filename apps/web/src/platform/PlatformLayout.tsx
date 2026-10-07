@@ -4,6 +4,7 @@ import { Suspense, useLayoutEffect, type ReactNode } from 'react';
 import { Navigate, NavLink, Outlet, useLocation } from 'react-router';
 import { useI18n } from '../i18n/i18n.js';
 import { useBranding } from '../theme/BrandingProvider.js';
+import { useIdentity } from '../theme/IdentityProvider.js';
 import { PLATFORM_NAV_ITEMS } from './nav.js';
 import { usePlatformSession, usePlatformSignOut } from './session.js';
 
@@ -13,12 +14,16 @@ import { usePlatformSession, usePlatformSignOut } from './session.js';
  */
 export function useDefaultTheme(): void {
   const { preview } = useBranding();
+  const { previewLogo } = useIdentity();
   useLayoutEffect(() => {
     preview(DEFAULT_BRANDING);
+    // No business's logo either, not even as the browser tab's icon.
+    previewLogo(null);
     return () => {
       preview(null);
+      previewLogo(undefined);
     };
-  }, [preview]);
+  }, [preview, previewLogo]);
 }
 
 /** Console pages: operators who are not signed in go to the console's own sign-in. */

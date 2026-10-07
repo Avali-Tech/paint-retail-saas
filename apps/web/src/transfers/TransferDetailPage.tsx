@@ -13,6 +13,7 @@ import { ChallanCard } from './Challan.js';
 import { TRANSFER_TONE } from './quantity.js';
 import { QuantitiesDialog, ReceiveDialog } from './TransferDialogs.js';
 import { refreshInventory } from '../lib/refresh.js';
+import { productTitle } from '../lib/product-title.js';
 
 type Action = 'approve' | 'reject' | 'dispatch' | 'receive' | 'cancel';
 
@@ -165,7 +166,8 @@ function TransferView({ transfer }: { readonly transfer: Transfer }) {
                   <th scope="row">
                     {line.sku}
                     <span className="cell-meta">
-                      {line.brandName} {line.productName} · {String(line.packSize)} {line.unit}
+                      {productTitle(line.brandName, line.productName)} · {String(line.packSize)}{' '}
+                      {line.unit}
                     </span>
                   </th>
                   <td className="ui-num">{number(line.requestedQuantity)}</td>

@@ -45,6 +45,14 @@ export const organizations = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull(),
+    /**
+     * The business's sign-in link name (`/sign-in?b=<slug>`): unique ignoring case,
+     * stored lower-case. Left out on insert, the organizations_slug trigger derives it
+     * from the name (generate_organization_slug, migration 0048); owners change it.
+     */
+    slug: text('slug')
+      .notNull()
+      .$defaultFn(() => sql`null`),
     /** Set by the platform (roadmap P1-M23); limits come from @paint/shared PLANS. */
     plan: plan('plan').notNull().default('trial'),
     /** Per-business overrides of the plan's features, e.g. {"loyalty": true}. */
@@ -61,6 +69,11 @@ export const organizations = pgTable(
       'organizations_suspend_reason',
       sql`(${table.suspendedAt} is null) = (${table.suspendReason} is null)`,
     ),
+    check(
+      'organizations_slug_format',
+      sql`${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length(${table.slug}) between 3 and 40`,
+    ),
+    uniqueIndex('organizations_slug_unique').on(sql`lower(${table.slug})`),
     // Tenants can read and update their own organisation, but never create or
     // delete organisations: that is done by the platform, outside tenant scope.
     pgPolicy('organizations_tenant_select', {
@@ -2632,6 +2645,52 @@ export const organizationBranding = pgTable(
     }).onDelete('restrict'),
     check('organization_branding_object', sql`jsonb_typeof(${table.branding}) = 'object'`),
     pgPolicy('organization_branding_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * A business's logo (white-label): a PNG, JPEG or WebP checked from its bytes and
+ * scanned like documents, stored in S3 under `<organization>/branding/logo-<id>`.
+ * Served through the API, never from S3 directly. No row = no logo; replacing or
+ * removing it keeps the old file for the audit trail.
+ */
+export const organizationLogos = pgTable(
+  'organization_logos',
+  {
+    organizationId: uuid('organization_id')
+      .primaryKey()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    storageKey: text('storage_key').notNull(),
+    contentType: text('content_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    /** Also the logo's version in its address, so browsers can keep it for good. */
+    sha256: text('sha256').notNull(),
+    width: integer('width').notNull(),
+    height: integer('height').notNull(),
+    uploadedByMemberId: uuid('uploaded_by_member_id').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: 'organization_logos_uploaded_by_fk',
+      columns: [table.organizationId, table.uploadedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'organization_logos_content_type',
+      sql`${table.contentType} in ('image/png', 'image/jpeg', 'image/webp')`,
+    ),
+    check('organization_logos_sha256', sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'organization_logos_dimensions',
+      sql`${table.width} > 0 and ${table.height} > 0 and ${table.sizeBytes} > 0`,
+    ),
+    pgPolicy('organization_logos_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

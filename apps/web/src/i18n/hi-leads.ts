@@ -109,6 +109,8 @@ export const leadsHi: Translation<typeof leadsEn> = {
       editTitle: '{number} बदलें',
       chooseCustomer: 'ग्राहक खोजें',
       newContact: 'नया कॉन्टैक्ट',
+      notOnFile: 'अभी रिकॉर्ड में नहीं है?',
+      addNewContact: 'नया कॉन्टैक्ट जोड़ें',
       chooseSomeoneElse: 'किसी और को चुनें',
       contactName: 'नाम',
       contactPhone: 'मोबाइल नंबर',

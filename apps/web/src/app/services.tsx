@@ -10,12 +10,18 @@ import {
   type PlatformSessionStore,
 } from '../platform/platform-session-store.js';
 import { apiBrandingSource, type BrandingSource } from '../theme/branding-source.js';
+import { apiIdentitySource, type IdentitySource } from '../theme/identity-source.js';
+import { apiSignInBusinessSource, type SignInBusinessSource } from '../theme/sign-in-business.js';
 
 /** Everything the app talks to, created once at start-up (tests pass fakes). */
 export interface Services {
   readonly sessions: SessionStore;
   readonly api: Endpoints;
   readonly branding: BrandingSource;
+  /** The business's sign-in link name and logo. */
+  readonly identity: IdentitySource;
+  /** Which business's look the sign-in page wears before anyone signs in. */
+  readonly signInBusiness: SignInBusinessSource;
   readonly queryClient: QueryClient;
   /** The platform console's own session and API client, apart from the business's. */
   readonly platform: { readonly sessions: PlatformSessionStore; readonly api: PlatformEndpoints };
@@ -62,11 +68,14 @@ export function createServices(options: ServiceOptions): Services {
       platformSessions.end('expired');
     },
   });
+  const signInBusiness = apiSignInBusinessSource(client, options.storage);
   return {
     sessions,
     api: endpoints(client),
     platform: { sessions: platformSessions, api: platformEndpoints(platformClient) },
     branding: apiBrandingSource(client, options.storage),
+    identity: apiIdentitySource(client, options.storage, options.apiBaseUrl, signInBusiness),
+    signInBusiness,
     queryClient: createQueryClient(),
   };
 }

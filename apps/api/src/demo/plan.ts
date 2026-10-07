@@ -16,6 +16,8 @@ export const DEMO_SEED = 20_261_004;
 
 export const DEMO_BUSINESS = 'Sharma Paints & Hardware';
 export const DEMO_APP_NAME = 'Sharma Paints';
+/** The demo business's sign-in link name: its branded sign-in page is /sign-in?b=sharma-paints. */
+export const DEMO_SLUG = 'sharma-paints';
 /** Every demo account with a password uses this one. */
 export const DEMO_PASSWORD = 'Demo@2026';
 
