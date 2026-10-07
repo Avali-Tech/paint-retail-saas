@@ -9,6 +9,7 @@ import { leadEnumsEn, leadsEn } from './en-leads.js';
 import { loyaltyEn, loyaltyEnumsEn } from './en-loyalty.js';
 import { partiesEn, partyEnumsEn } from './en-parties.js';
 import { platformEn } from './en-platform.js';
+import { printEn } from './en-print.js';
 import { projectsEn } from './en-projects.js';
 import { purchasingEn, purchasingEnumsEn } from './en-purchasing.js';
 import { reportEnumsEn, reportsEn } from './en-reports.js';
@@ -324,6 +325,7 @@ export const en = {
   ...reportsEn,
   ...teamEn,
   ...platformEn,
+  ...printEn,
   ...supportAccessEn,
   ...brandingEn,
   /** Names of API values, for label(group, value). */
