@@ -31,6 +31,9 @@ export const PERMISSIONS = [
   'audit:read',
   'tax:read',
   'tax:manage',
+  'sales:read',
+  'billing:issue',
+  'billing:cancel',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -76,6 +79,9 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'credit:manage',
       'loyalty:read',
       'loyalty:manage',
+      'sales:read',
+      'billing:issue',
+      'billing:cancel',
     ],
     allStores: false,
   },
@@ -113,6 +119,8 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'credit:manage',
       'loyalty:read',
       'loyalty:manage',
+      'sales:read',
+      'billing:issue',
     ],
     allStores: false,
   },
@@ -140,7 +148,15 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
   {
     key: 'store_employee',
     name: 'Store Employee',
-    permissions: ['stores:read', 'parties:read', 'catalog:read', 'inventory:read', 'loyalty:read'],
+    permissions: [
+      'stores:read',
+      'parties:read',
+      'catalog:read',
+      'inventory:read',
+      'loyalty:read',
+      'sales:read',
+      'billing:issue',
+    ],
     allStores: false,
   },
 ];

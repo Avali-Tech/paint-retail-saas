@@ -34,6 +34,9 @@ export const PERMISSION_LABELS: Record<Permission, MessageKey> = {
   'audit:read': 'permissions.audit.read',
   'tax:read': 'permissions.tax.read',
   'tax:manage': 'permissions.tax.manage',
+  'sales:read': 'permissions.sales.read',
+  'billing:issue': 'permissions.billing.issue',
+  'billing:cancel': 'permissions.billing.cancel',
 };
 
 /** Names of the areas, in the order the checklist shows them. */
@@ -53,6 +56,8 @@ export const AREA_LABELS: Record<PermissionArea, MessageKey> = {
   loyalty: 'permissions.areas.loyalty',
   audit: 'permissions.areas.audit',
   tax: 'permissions.areas.tax',
+  sales: 'permissions.areas.sales',
+  billing: 'permissions.areas.billing',
 };
 
 export interface PermissionGroup {

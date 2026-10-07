@@ -25,6 +25,10 @@ export const AUDIT_AREAS = {
   tax_categories: 'Tax categories',
   tax_rates: 'Tax rates',
   stores: 'GST registrations',
+  gstin_profiles: 'GSTIN profiles',
+  sales_settings: 'Sales settings',
+  document_series: 'Document series',
+  tax_documents: 'Invoices',
 } as const;
 export type AuditTable = keyof typeof AUDIT_AREAS;
 

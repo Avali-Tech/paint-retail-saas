@@ -224,6 +224,8 @@ describe('merging a duplicate', () => {
       // The survivor already has a customer profile; the duplicate never had a supplier one.
       'customer_profiles.party_id': 0,
       'supplier_profiles.party_id': 0,
+      'tax_documents.influencer_party_id': 0,
+      'tax_documents.party_id': 0,
       'supplier_products.supplier_party_id': 1,
       // Already a contractor on the shared project: only the painter role moves.
       'project_parties.party_id': 1,

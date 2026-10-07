@@ -2985,3 +2985,764 @@ export const supportAccessLog = pgTable(
     }),
   ],
 ).enableRLS();
+
+// ---------------------------------------------------------------------------
+// Sales tax documents (MVP 2, Sell & Bill; spec docs/mvp-2/sell-and-bill.md §3).
+// ---------------------------------------------------------------------------
+
+/** Aggregate annual turnover band of a GSTIN: decides HSN digits (§2.7). */
+export const aatoBand = pgEnum('aato_band', ['up_to_5cr', 'above_5cr']);
+
+/**
+ * Per-GSTIN settings beyond the store registration: turnover band, the date
+ * e-invoicing (IRN) became mandatory, and the e-way bill threshold. No row = the
+ * defaults (up to ₹5 crore, no e-invoicing, ₹50,000).
+ */
+export const gstinProfiles = pgTable(
+  'gstin_profiles',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'restrict' }),
+    gstin: text('gstin').notNull(),
+    aatoBand: aatoBand('aato_band').notNull().default('up_to_5cr'),
+    /** From this India date, B2B documents need an IRN (Rule 48(4)). */
+    einvoiceRequiredFrom: date('einvoice_required_from', { mode: 'string' }),
+    ewayThresholdPaise: bigint('eway_threshold_paise', { mode: 'number' })
+      .notNull()
+      .default(5_000_000),
+    ...timestamps,
+  },
+  (table) => [
+    unique('gstin_profiles_organization_gstin_unique').on(table.organizationId, table.gstin),
+    check(
+      'gstin_profiles_gstin_format',
+      sql`${table.gstin} ~ '^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$'`,
+    ),
+    check('gstin_profiles_eway_threshold_positive', sql`${table.ewayThresholdPaise} > 0`),
+    pgPolicy('gstin_profiles_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** When stock leaves on an order invoice: at issue, or at dispatch (§4.2). */
+export const stockPostOn = pgEnum('stock_post_on', ['invoice', 'dispatch']);
+/** Whether unit prices include GST (counter prices) or have it added. */
+export const priceMode = pgEnum('price_mode', ['inclusive', 'exclusive']);
+
+/** A business's selling settings. No row = the defaults. */
+export const salesSettings = pgTable(
+  'sales_settings',
+  {
+    organizationId: uuid('organization_id')
+      .primaryKey()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    stockPostOn: stockPostOn('stock_post_on').notNull().default('invoice'),
+    /** The party walk-in sales are billed to; created on the first walk-in bill. */
+    walkInPartyId: uuid('walk_in_party_id'),
+    quoteValidityDays: integer('quote_validity_days').notNull().default(15),
+    partialMinAdvancePct: integer('partial_min_advance_pct').notNull().default(0),
+    defaultPriceMode: priceMode('default_price_mode').notNull().default('inclusive'),
+    /** The day the business started billing here (cut-over from MVP 1 figures, §4.7). */
+    billingLiveOn: date('billing_live_on', { mode: 'string' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: 'sales_settings_walk_in_party_fk',
+      columns: [table.organizationId, table.walkInPartyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    check('sales_settings_quote_validity', sql`${table.quoteValidityDays} between 1 and 365`),
+    check('sales_settings_advance_pct', sql`${table.partialMinAdvancePct} between 0 and 100`),
+    pgPolicy('sales_settings_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** The kinds of GST document; each is numbered in its own series. */
+export const taxDocumentKind = pgEnum('tax_document_kind', [
+  'invoice',
+  'bill_of_supply',
+  'credit_note',
+  'debit_note',
+  'receipt_voucher',
+  'refund_voucher',
+]);
+
+/**
+ * How a store numbers one kind of document: `PREFIX/26-27/000123`, at most 16
+ * characters (Rule 46(b)). One active series per store and kind.
+ */
+export const documentSeries = pgTable(
+  'document_series',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    storeId: uuid('store_id').notNull(),
+    kind: taxDocumentKind('kind').notNull(),
+    prefix: text('prefix').notNull(),
+    digits: integer('digits').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    unique('document_series_organization_id_id_unique').on(table.organizationId, table.id),
+    uniqueIndex('document_series_one_active')
+      .on(table.storeId, table.kind)
+      .where(sql`${table.isActive}`),
+    foreignKey({
+      name: 'document_series_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    check('document_series_prefix_format', sql`${table.prefix} ~ '^[A-Z0-9]+$'`),
+    check(
+      'document_series_length',
+      sql`${table.digits} >= 1 and char_length(${table.prefix}) + 7 + ${table.digits} <= 16`,
+    ),
+    pgPolicy('document_series_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const taxDocumentStatus = pgEnum('tax_document_status', ['draft', 'issued', 'cancelled']);
+export const supplyType = pgEnum('supply_type', ['intra_state', 'inter_state']);
+/** GSTR-1 table a sale is reported in (Rule 59(4)). */
+export const gstClass = pgEnum('gst_class', ['b2b', 'b2cl', 'b2cs']);
+export const stockPosting = pgEnum('stock_posting', ['on_issue', 'on_dispatch', 'none']);
+/** B2B credit notes after 1 Oct 2025: has the buyer reversed the input credit? (s.34(2)) */
+export const itcReversalStatus = pgEnum('itc_reversal_status', [
+  'unknown',
+  'reversed',
+  'not_reversed',
+]);
+
+/**
+ * A GST document: tax invoice, bill of supply, credit or debit note, receipt
+ * or refund voucher. Drafts change freely; once issued only the changes
+ * allowed by tax_documents_immutable (migration 0055) are possible.
+ */
+export const taxDocuments = pgTable(
+  'tax_documents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    kind: taxDocumentKind('kind').notNull(),
+    status: taxDocumentStatus('status').notNull().default('draft'),
+    storeId: uuid('store_id').notNull(),
+    seriesId: uuid('series_id'),
+    /** e.g. AMP/26-27/000123; null while a draft. */
+    number: text('number'),
+    /** Financial year, e.g. 2026-27. */
+    fy: text('fy'),
+    issuedOn: date('issued_on', { mode: 'string' }),
+    issuedAt: timestamp('issued_at', { withTimezone: true }),
+    // Supplier snapshot, taken at issue.
+    supplierGstin: text('supplier_gstin'),
+    supplierStateCode: text('supplier_state_code'),
+    supplierLegalName: text('supplier_legal_name'),
+    supplierTradeName: text('supplier_trade_name'),
+    supplierAddress: text('supplier_address'),
+    // Buyer: the party, plus details typed on the bill; completed from the party at issue.
+    partyId: uuid('party_id'),
+    buyerName: text('buyer_name'),
+    buyerGstin: text('buyer_gstin'),
+    buyerAddress: text('buyer_address'),
+    buyerStateCode: text('buyer_state_code'),
+    // Ship-to: set when we move the goods (delivery); its state is then the place of supply for B2C.
+    shipToName: text('ship_to_name'),
+    shipToAddress: text('ship_to_address'),
+    shipToStateCode: text('ship_to_state_code'),
+    placeOfSupplyCode: text('place_of_supply_code'),
+    supplyType: supplyType('supply_type'),
+    gstClass: gstClass('gst_class'),
+    priceMode: priceMode('price_mode').notNull().default('inclusive'),
+    reverseCharge: boolean('reverse_charge').notNull().default(false),
+    billDiscountBps: integer('bill_discount_bps'),
+    billDiscountPaise: bigint('bill_discount_paise', { mode: 'number' }),
+    taxablePaise: bigint('taxable_paise', { mode: 'number' }).notNull().default(0),
+    cgstPaise: bigint('cgst_paise', { mode: 'number' }).notNull().default(0),
+    sgstPaise: bigint('sgst_paise', { mode: 'number' }).notNull().default(0),
+    igstPaise: bigint('igst_paise', { mode: 'number' }).notNull().default(0),
+    cessPaise: bigint('cess_paise', { mode: 'number' }).notNull().default(0),
+    roundOffPaise: bigint('round_off_paise', { mode: 'number' }).notNull().default(0),
+    totalPaise: bigint('total_paise', { mode: 'number' }).notNull().default(0),
+    dueOn: date('due_on', { mode: 'string' }),
+    projectId: uuid('project_id'),
+    influencerPartyId: uuid('influencer_party_id'),
+    /** Why a note was raised; free text on an invoice. */
+    reason: text('reason'),
+    note: text('note'),
+    stockPosting: stockPosting('stock_posting').notNull().default('on_issue'),
+    itcReversalStatus: itcReversalStatus('itc_reversal_status'),
+    // E-invoice (Release 2.3; entered by hand from the government portal until then).
+    irn: text('irn'),
+    ackNo: text('ack_no'),
+    ackAt: timestamp('ack_at', { withTimezone: true }),
+    signedQr: text('signed_qr'),
+    cancelReason: text('cancel_reason'),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledByMemberId: uuid('cancelled_by_member_id'),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    issuedByMemberId: uuid('issued_by_member_id'),
+    ...timestamps,
+  },
+  (table) => [
+    unique('tax_documents_organization_id_id_unique').on(table.organizationId, table.id),
+    // Rule 46(b): unique per GSTIN and financial year (drafts have no number).
+    unique('tax_documents_number_unique').on(
+      table.organizationId,
+      table.supplierGstin,
+      table.fy,
+      table.kind,
+      table.number,
+    ),
+    index('tax_documents_store_issued_idx').on(
+      table.organizationId,
+      table.storeId,
+      table.issuedOn.desc().nullsFirst(),
+    ),
+    index('tax_documents_party_idx').on(table.organizationId, table.partyId),
+    // Newest first (GET /invoices); NULLS FIRST matches ORDER BY ... DESC.
+    index('tax_documents_organization_created_idx').on(
+      table.organizationId,
+      table.createdAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst(),
+    ),
+    foreignKey({
+      name: 'tax_documents_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'tax_documents_series_fk',
+      columns: [table.organizationId, table.seriesId],
+      foreignColumns: [documentSeries.organizationId, documentSeries.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'tax_documents_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'tax_documents_influencer_fk',
+      columns: [table.organizationId, table.influencerPartyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'tax_documents_project_fk',
+      columns: [table.organizationId, table.projectId],
+      foreignColumns: [projects.organizationId, projects.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'tax_documents_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'tax_documents_issued_by_fk',
+      columns: [table.organizationId, table.issuedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'tax_documents_cancelled_by_fk',
+      columns: [table.organizationId, table.cancelledByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    // Everything an issued document must carry, and nothing a draft may.
+    check(
+      'tax_documents_issued_complete',
+      sql`(${table.status} = 'draft') = (${table.number} is null)
+        and (${table.status} = 'draft') = (${table.fy} is null)
+        and (${table.status} = 'draft') = (${table.issuedOn} is null)
+        and (${table.status} = 'draft') = (${table.issuedAt} is null)
+        and (${table.status} = 'draft') = (${table.seriesId} is null)
+        and (${table.status} = 'draft') = (${table.supplierGstin} is null)
+        and (${table.status} = 'draft') = (${table.issuedByMemberId} is null)
+        and (${table.status} = 'draft') = (${table.supplyType} is null)
+        and (${table.status} = 'draft') = (${table.placeOfSupplyCode} is null)
+        and (${table.status} = 'draft') = (${table.gstClass} is null)`,
+    ),
+    check(
+      'tax_documents_number_format',
+      sql`${table.number} ~ '^[A-Z0-9/-]{1,16}$' and ${table.fy} ~ '^[0-9]{4}-[0-9]{2}$'`,
+    ),
+    check(
+      'tax_documents_cancelled',
+      sql`(${table.status} = 'cancelled') = (${table.cancelledAt} is not null)
+        and (${table.cancelledAt} is null) = (${table.cancelReason} is null)
+        and (${table.cancelledAt} is null) = (${table.cancelledByMemberId} is null)`,
+    ),
+    check(
+      'tax_documents_total',
+      sql`${table.totalPaise} = ${table.taxablePaise} + ${table.cgstPaise} + ${table.sgstPaise} + ${table.igstPaise} + ${table.cessPaise} + ${table.roundOffPaise}`,
+    ),
+    check(
+      'tax_documents_amounts_not_negative',
+      sql`${table.taxablePaise} >= 0 and ${table.cgstPaise} >= 0 and ${table.sgstPaise} >= 0 and ${table.igstPaise} >= 0 and ${table.cessPaise} >= 0 and ${table.totalPaise} >= 0`,
+    ),
+    check('tax_documents_round_off', sql`${table.roundOffPaise} between -50 and 50`),
+    check(
+      'tax_documents_tax_by_supply',
+      sql`case ${table.supplyType}
+        when 'intra_state' then ${table.igstPaise} = 0 and ${table.cgstPaise} = ${table.sgstPaise}
+        when 'inter_state' then ${table.cgstPaise} = 0 and ${table.sgstPaise} = 0
+        else true end`,
+    ),
+    check(
+      'tax_documents_bill_of_supply_untaxed',
+      sql`${table.kind} <> 'bill_of_supply' or ${table.cgstPaise} + ${table.sgstPaise} + ${table.igstPaise} + ${table.cessPaise} = 0`,
+    ),
+    check(
+      'tax_documents_one_bill_discount',
+      sql`${table.billDiscountBps} is null or ${table.billDiscountPaise} is null`,
+    ),
+    check(
+      'tax_documents_bill_discount_range',
+      sql`${table.billDiscountBps} between 0 and 10000 and ${table.billDiscountPaise} >= 0`,
+    ),
+    check('tax_documents_no_reverse_charge', sql`not ${table.reverseCharge}`),
+    check(
+      'tax_documents_state_codes',
+      sql`${table.buyerStateCode} ~ '^[0-9]{2}$' and ${table.shipToStateCode} ~ '^[0-9]{2}$' and ${table.placeOfSupplyCode} ~ '^[0-9]{2}$' and ${table.supplierStateCode} ~ '^[0-9]{2}$'`,
+    ),
+    check(
+      'tax_documents_buyer_gstin_format',
+      sql`${table.buyerGstin} ~ '^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$'`,
+    ),
+    check('tax_documents_irn_with_ack', sql`${table.irn} is null or ${table.ackNo} is not null`),
+    pgPolicy('tax_documents_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * A line of a tax document. Description, HSN, unit, rate and amounts are a
+ * snapshot taken at issue, so later product or rate changes never alter it.
+ */
+export const taxDocumentLines = pgTable(
+  'tax_document_lines',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    documentId: uuid('document_id').notNull(),
+    lineNo: integer('line_no').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    description: text('description'),
+    hsnCode: text('hsn_code'),
+    /** GSTN unit quantity code, e.g. LTR. */
+    uqc: text('uqc'),
+    quantity: numeric('quantity', { precision: 14, scale: 3, mode: 'number' }).notNull(),
+    unitPricePaise: bigint('unit_price_paise', { mode: 'number' }).notNull(),
+    discountBps: integer('discount_bps'),
+    discountPaise: bigint('discount_paise', { mode: 'number' }),
+    grossPaise: bigint('gross_paise', { mode: 'number' }).notNull().default(0),
+    taxablePaise: bigint('taxable_paise', { mode: 'number' }).notNull().default(0),
+    taxCategoryId: uuid('tax_category_id'),
+    /** Null on a bill of supply (no tax) and on drafts. */
+    rateBps: integer('rate_bps'),
+    cessBps: integer('cess_bps'),
+    cgstPaise: bigint('cgst_paise', { mode: 'number' }).notNull().default(0),
+    sgstPaise: bigint('sgst_paise', { mode: 'number' }).notNull().default(0),
+    igstPaise: bigint('igst_paise', { mode: 'number' }).notNull().default(0),
+    cessPaise: bigint('cess_paise', { mode: 'number' }).notNull().default(0),
+    totalPaise: bigint('total_paise', { mode: 'number' }).notNull().default(0),
+    /** On a note: the invoice line it corrects. */
+    sourceLineId: uuid('source_line_id'),
+  },
+  (table) => [
+    unique('tax_document_lines_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('tax_document_lines_document_line_unique').on(table.documentId, table.lineNo),
+    index('tax_document_lines_variant_idx').on(table.organizationId, table.variantId),
+    foreignKey({
+      name: 'tax_document_lines_document_fk',
+      columns: [table.organizationId, table.documentId],
+      foreignColumns: [taxDocuments.organizationId, taxDocuments.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'tax_document_lines_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'tax_document_lines_tax_category_fk',
+      columns: [table.organizationId, table.taxCategoryId],
+      foreignColumns: [taxCategories.organizationId, taxCategories.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'tax_document_lines_source_line_fk',
+      columns: [table.organizationId, table.sourceLineId],
+      foreignColumns: [table.organizationId, table.id],
+    }).onDelete('restrict'),
+    check('tax_document_lines_line_no_positive', sql`${table.lineNo} > 0`),
+    check('tax_document_lines_quantity_positive', sql`${table.quantity} > 0`),
+    check(
+      'tax_document_lines_amounts',
+      sql`${table.unitPricePaise} >= 0 and ${table.grossPaise} >= 0 and ${table.taxablePaise} >= 0
+        and ${table.cgstPaise} >= 0 and ${table.sgstPaise} >= 0 and ${table.igstPaise} >= 0 and ${table.cessPaise} >= 0
+        and ${table.totalPaise} = ${table.taxablePaise} + ${table.cgstPaise} + ${table.sgstPaise} + ${table.igstPaise} + ${table.cessPaise}`,
+    ),
+    check(
+      'tax_document_lines_one_discount',
+      sql`(${table.discountBps} is null or ${table.discountPaise} is null)
+        and ${table.discountBps} between 0 and 10000 and ${table.discountPaise} >= 0`,
+    ),
+    check('tax_document_lines_rate_range', sql`${table.rateBps} between 0 and 10000`),
+    check('tax_document_lines_hsn_format', sql`${table.hsnCode} ~ '^[0-9]{4}([0-9]{2}){0,2}$'`),
+    pgPolicy('tax_document_lines_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** Taxable value and tax per HSN code and rate, as printed; GSTR-1 and Tally read these. */
+export const taxDocumentTaxRows = pgTable(
+  'tax_document_tax_rows',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    documentId: uuid('document_id').notNull(),
+    hsnCode: text('hsn_code').notNull(),
+    rateBps: integer('rate_bps').notNull(),
+    cessBps: integer('cess_bps').notNull().default(0),
+    taxablePaise: bigint('taxable_paise', { mode: 'number' }).notNull(),
+    cgstPaise: bigint('cgst_paise', { mode: 'number' }).notNull(),
+    sgstPaise: bigint('sgst_paise', { mode: 'number' }).notNull(),
+    igstPaise: bigint('igst_paise', { mode: 'number' }).notNull(),
+    cessPaise: bigint('cess_paise', { mode: 'number' }).notNull(),
+  },
+  (table) => [
+    unique('tax_document_tax_rows_unique').on(
+      table.documentId,
+      table.hsnCode,
+      table.rateBps,
+      table.cessBps,
+    ),
+    foreignKey({
+      name: 'tax_document_tax_rows_document_fk',
+      columns: [table.organizationId, table.documentId],
+      foreignColumns: [taxDocuments.organizationId, taxDocuments.id],
+    }).onDelete('cascade'),
+    check(
+      'tax_document_tax_rows_amounts',
+      sql`${table.taxablePaise} >= 0 and ${table.cgstPaise} >= 0 and ${table.sgstPaise} >= 0 and ${table.igstPaise} >= 0 and ${table.cessPaise} >= 0`,
+    ),
+    pgPolicy('tax_document_tax_rows_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const taxDocumentLinkKind = pgEnum('tax_document_link_kind', [
+  'note_of',
+  'advance_adjusted_in',
+  'replaces',
+]);
+
+/** How documents relate: a note to its invoices, an advance to the invoice using it. */
+export const taxDocumentLinks = pgTable(
+  'tax_document_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    fromDocumentId: uuid('from_document_id').notNull(),
+    toDocumentId: uuid('to_document_id').notNull(),
+    kind: taxDocumentLinkKind('kind').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('tax_document_links_unique').on(table.fromDocumentId, table.toDocumentId, table.kind),
+    index('tax_document_links_to_idx').on(table.organizationId, table.toDocumentId),
+    foreignKey({
+      name: 'tax_document_links_from_fk',
+      columns: [table.organizationId, table.fromDocumentId],
+      foreignColumns: [taxDocuments.organizationId, taxDocuments.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'tax_document_links_to_fk',
+      columns: [table.organizationId, table.toDocumentId],
+      foreignColumns: [taxDocuments.organizationId, taxDocuments.id],
+    }).onDelete('restrict'),
+    check('tax_document_links_not_self', sql`${table.fromDocumentId} <> ${table.toDocumentId}`),
+    pgPolicy('tax_document_links_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const salesReturnStatus = pgEnum('sales_return_status', ['draft', 'completed']);
+export const returnDisposition = pgEnum('return_disposition', ['restock', 'damage']);
+
+/** Goods brought back against an invoice; completing it issues the credit note (Release 2.0 round 3). */
+export const salesReturns = pgTable(
+  'sales_returns',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** e.g. SR-000004; set on completion. */
+    number: text('number'),
+    invoiceId: uuid('invoice_id').notNull(),
+    storeId: uuid('store_id').notNull(),
+    status: salesReturnStatus('status').notNull().default('draft'),
+    creditNoteId: uuid('credit_note_id'),
+    note: text('note'),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    unique('sales_returns_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('sales_returns_organization_number_unique').on(table.organizationId, table.number),
+    index('sales_returns_invoice_idx').on(table.organizationId, table.invoiceId),
+    foreignKey({
+      name: 'sales_returns_invoice_fk',
+      columns: [table.organizationId, table.invoiceId],
+      foreignColumns: [taxDocuments.organizationId, taxDocuments.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'sales_returns_credit_note_fk',
+      columns: [table.organizationId, table.creditNoteId],
+      foreignColumns: [taxDocuments.organizationId, taxDocuments.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'sales_returns_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'sales_returns_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'sales_returns_completed',
+      sql`(${table.status} = 'completed') = (${table.completedAt} is not null)
+        and (${table.status} = 'completed') = (${table.creditNoteId} is not null)
+        and (${table.status} = 'completed') = (${table.number} is not null)`,
+    ),
+    pgPolicy('sales_returns_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const salesReturnLines = pgTable(
+  'sales_return_lines',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    returnId: uuid('return_id').notNull(),
+    invoiceLineId: uuid('invoice_line_id').notNull(),
+    quantity: numeric('quantity', { precision: 14, scale: 3, mode: 'number' }).notNull(),
+    disposition: returnDisposition('disposition').notNull(),
+    reason: text('reason'),
+  },
+  (table) => [
+    unique('sales_return_lines_return_line_unique').on(
+      table.returnId,
+      table.invoiceLineId,
+      table.disposition,
+    ),
+    index('sales_return_lines_invoice_line_idx').on(table.organizationId, table.invoiceLineId),
+    foreignKey({
+      name: 'sales_return_lines_return_fk',
+      columns: [table.organizationId, table.returnId],
+      foreignColumns: [salesReturns.organizationId, salesReturns.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'sales_return_lines_invoice_line_fk',
+      columns: [table.organizationId, table.invoiceLineId],
+      foreignColumns: [taxDocumentLines.organizationId, taxDocumentLines.id],
+    }).onDelete('restrict'),
+    check('sales_return_lines_quantity_positive', sql`${table.quantity} > 0`),
+    pgPolicy('sales_return_lines_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** Why a party's balance moved. `cancellation` reverses a same-day cancelled invoice. */
+export const partyLedgerEntryType = pgEnum('party_ledger_entry_type', [
+  'opening',
+  'invoice',
+  'debit_note',
+  'credit_note',
+  'payment_in',
+  'refund_out',
+  'cheque_bounce',
+  'adjustment',
+  'cancellation',
+]);
+
+/**
+ * What each party owes, forever. Append-only (a trigger refuses changes and
+ * deletes, migration 0055). Positive = the party owes more. Written only by
+ * postPartyLedger, which keeps party_balances in step.
+ */
+export const partyLedger = pgTable(
+  'party_ledger',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    partyId: uuid('party_id').notNull(),
+    storeId: uuid('store_id'),
+    /** India business date of the entry. */
+    entryOn: date('entry_on', { mode: 'string' }).notNull(),
+    entryType: partyLedgerEntryType('entry_type').notNull(),
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
+    referenceType: text('reference_type'),
+    referenceId: uuid('reference_id'),
+    note: text('note'),
+    createdByMemberId: uuid('created_by_member_id'),
+    /** Clock time, so entries written in one transaction keep their order. */
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (table) => [
+    index('party_ledger_party_idx').on(
+      table.organizationId,
+      table.partyId,
+      table.entryOn,
+      table.createdAt,
+    ),
+    // One entry of each type per document: a retried post can never count twice.
+    uniqueIndex('party_ledger_reference_unique')
+      .on(table.referenceType, table.referenceId, table.entryType)
+      .where(sql`${table.referenceId} is not null`),
+    foreignKey({
+      name: 'party_ledger_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'party_ledger_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'party_ledger_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'party_ledger_amount_sign',
+      sql`case
+        when ${table.entryType} in ('invoice', 'debit_note', 'refund_out', 'cheque_bounce') then ${table.amountPaise} > 0
+        when ${table.entryType} in ('credit_note', 'payment_in', 'cancellation') then ${table.amountPaise} < 0
+        else ${table.amountPaise} <> 0
+      end`,
+    ),
+    check(
+      'party_ledger_reference_pair',
+      sql`(${table.referenceType} is null) = (${table.referenceId} is null)`,
+    ),
+    pgPolicy('party_ledger_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** Each party's balance, kept equal to the sum of its ledger by postPartyLedger. */
+export const partyBalances = pgTable(
+  'party_balances',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    partyId: uuid('party_id').primaryKey(),
+    balancePaise: bigint('balance_paise', { mode: 'number' }).notNull().default(0),
+    /** Payments not yet allocated to a document (Release 2.0 round 3). */
+    advancePaise: bigint('advance_paise', { mode: 'number' }).notNull().default(0),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('party_balances_organization_idx').on(table.organizationId),
+    foreignKey({
+      name: 'party_balances_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    check('party_balances_advance_not_negative', sql`${table.advancePaise} >= 0`),
+    pgPolicy('party_balances_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * The first response to each `Idempotency-Key` a member sends, so a retried
+ * create or issue returns it instead of acting twice. Kept for 24 hours.
+ */
+export const idempotencyKeys = pgTable(
+  'idempotency_keys',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id').notNull(),
+    key: text('key').notNull(),
+    /** SHA-256 of the method, path and body: the same key with another request is refused. */
+    requestHash: text('request_hash').notNull(),
+    response: jsonb('response'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('idempotency_keys_member_key_unique').on(
+      table.organizationId,
+      table.memberId,
+      table.key,
+    ),
+    index('idempotency_keys_created_idx').on(table.createdAt),
+    foreignKey({
+      name: 'idempotency_keys_member_fk',
+      columns: [table.organizationId, table.memberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('cascade'),
+    check('idempotency_keys_key_length', sql`char_length(${table.key}) between 1 and 200`),
+    pgPolicy('idempotency_keys_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();

@@ -138,6 +138,8 @@ export const teamHi: Translation<typeof teamEn> = {
       loyalty: 'लॉयल्टी',
       audit: 'ऑडिट लॉग',
       tax: 'टैक्स और GST',
+      sales: 'बिक्री',
+      billing: 'बिलिंग',
     },
     organization: {
       manage: 'बिजनेस चलाएं: सेटिंग, दिखावट, लॉगिन नियम और सपोर्ट एक्सेस',
@@ -186,6 +188,11 @@ export const teamHi: Translation<typeof teamEn> = {
     tax: {
       read: 'GST रजिस्ट्रेशन और टैक्स रेट देखें',
       manage: 'GST रजिस्ट्रेशन, टैक्स कैटेगरी और रेट बदलें',
+    },
+    sales: { read: 'इनवॉइस और बिल देखें' },
+    billing: {
+      issue: 'इनवॉइस और बिल ऑफ सप्लाई बनाएं और जारी करें',
+      cancel: 'जारी करने के दिन ही इनवॉइस रद्द करें',
     },
   },
 };

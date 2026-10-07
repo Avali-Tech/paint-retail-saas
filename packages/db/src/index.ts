@@ -8,6 +8,13 @@ export {
 } from './client.js';
 export { isCheckViolation, isUniqueViolation, uniqueViolationConstraint } from './errors.js';
 export { MIGRATIONS_FOLDER, migrateDatabase } from './migrate.js';
+export {
+  findPartyBalanceMismatches,
+  postPartyLedger,
+  type PartyBalanceMismatch,
+  type PartyLedgerEntry,
+  type PartyLedgerEntryType,
+} from './party-ledger.js';
 export * as schema from './schema.js';
 export { nextDocumentNumber } from './sequences.js';
 export {

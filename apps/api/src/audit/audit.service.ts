@@ -120,6 +120,22 @@ const FIELD_LABELS: Record<string, string> = {
   address_line: 'Address',
   city: 'City',
   pincode: 'PIN code',
+  number: 'Number',
+  cancel_reason: 'Cancellation reason',
+  irn: 'IRN',
+  ack_no: 'Acknowledgement number',
+  aato_band: 'Turnover band',
+  einvoice_required_from: 'E-invoice from',
+  eway_threshold_paise: 'E-way bill threshold (paise)',
+  stock_post_on: 'Stock out on',
+  walk_in_party_id: 'Walk-in customer',
+  quote_validity_days: 'Quotation validity (days)',
+  partial_min_advance_pct: 'Minimum advance (%)',
+  default_price_mode: 'Prices',
+  billing_live_on: 'Billing from',
+  kind: 'Document',
+  prefix: 'Prefix',
+  digits: 'Digits',
 };
 
 // Every named table's records are keyed by a uuid: comparing uuids (not id::text) lets each
@@ -147,6 +163,10 @@ const recordLabel = sql<string | null>`case ${auditLog.tableName}
   when 'tax_categories' then (select tc.name from tax_categories tc where tc.id = ${recordUuid})
   when 'tax_rates' then (select tc.name from tax_rates tr join tax_categories tc on tc.id = tr.tax_category_id where tr.id = ${recordUuid})
   when 'stores' then (select s.code || ' · ' || s.name from stores s where s.id = ${recordUuid})
+  when 'gstin_profiles' then (select gp.gstin from gstin_profiles gp where gp.id = ${recordUuid})
+  when 'sales_settings' then 'Sales settings'
+  when 'document_series' then (select s.code || ' · ' || ds.prefix from document_series ds join stores s on s.id = ds.store_id where ds.id = ${recordUuid})
+  when 'tax_documents' then (select coalesce(td.number, 'Draft') from tax_documents td where td.id = ${recordUuid})
   when 'loyalty_ledger' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id = ${recordUuid})
   else (select ${users.fullName} from ${organizationMembers} join ${users} on ${users.id} = ${organizationMembers.userId} where ${organizationMembers.id}::text = ${auditLog.recordId})
 end`;
