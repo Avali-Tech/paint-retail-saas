@@ -1,0 +1,210 @@
+import type {
+  InvoiceAdjustments,
+  NoteSummary,
+  NoteView,
+  SalesReturnView,
+  TaxDocumentLineView,
+  TaxDocumentView,
+} from '@paint/shared';
+
+const line = (overrides: Partial<TaxDocumentLineView>): TaxDocumentLineView => ({
+  id: 'line-1',
+  lineNo: 1,
+  variantId: 'variant-1',
+  description: 'Apex Ultima 1 l',
+  hsnCode: '32091090',
+  uqc: 'LTR',
+  quantity: 3,
+  unitPricePaise: 11_800,
+  discountBps: null,
+  discountPaise: null,
+  grossPaise: 35_400,
+  taxablePaise: 30_000,
+  taxCategoryId: 'paints',
+  rateBps: 1800,
+  cgstPaise: 2_700,
+  sgstPaise: 2_700,
+  igstPaise: 0,
+  cessPaise: 0,
+  totalPaise: 35_400,
+  ...overrides,
+});
+
+/** An issued tax invoice: 3 × Apex at ₹118 and 2 rollers at ₹500, tax included. */
+export const INVOICE: TaxDocumentView = {
+  id: 'invoice-1',
+  kind: 'invoice',
+  status: 'issued',
+  storeId: 'store-1',
+  number: 'AMP/26-27/000001',
+  fy: '2026-27',
+  issuedOn: '2026-10-08',
+  issuedAt: '2026-10-08T05:00:00.000Z',
+  supplier: {
+    gstin: '36AABCS1429B1ZV',
+    stateCode: '36',
+    legalName: 'Varna Paints',
+    tradeName: null,
+    address: 'Hyderabad',
+  },
+  buyer: { partyId: 'party-1', name: 'Lakshmi', gstin: null, address: null, stateCode: '36' },
+  shipTo: { name: null, address: null, stateCode: null },
+  placeOfSupplyCode: '36',
+  supplyType: 'intra_state',
+  gstClass: 'b2cs',
+  priceMode: 'inclusive',
+  reverseCharge: false,
+  billDiscountBps: null,
+  billDiscountPaise: null,
+  taxablePaise: 1_14_746,
+  cgstPaise: 10_327,
+  sgstPaise: 10_327,
+  igstPaise: 0,
+  cessPaise: 0,
+  roundOffPaise: 0,
+  totalPaise: 1_35_400,
+  dueOn: '2026-10-08',
+  projectId: null,
+  influencerPartyId: null,
+  note: null,
+  irn: null,
+  ackNo: null,
+  cancelReason: null,
+  cancelledAt: null,
+  lines: [
+    line({}),
+    line({
+      id: 'line-2',
+      lineNo: 2,
+      variantId: 'variant-2',
+      description: 'Roller 9 inch',
+      hsnCode: '96034000',
+      uqc: 'PCS',
+      quantity: 2,
+      unitPricePaise: 50_000,
+      grossPaise: 1_00_000,
+      taxablePaise: 84_746,
+      cgstPaise: 7_627,
+      sgstPaise: 7_627,
+      totalPaise: 1_00_000,
+    }),
+  ],
+  taxRows: [],
+};
+
+/** A draft bill: no number, nothing snapshotted. */
+export const DRAFT: TaxDocumentView = {
+  ...INVOICE,
+  id: 'draft-1',
+  status: 'draft',
+  number: null,
+  fy: null,
+  issuedOn: null,
+  issuedAt: null,
+  buyer: { partyId: null, name: null, gstin: null, address: null, stateCode: null },
+  placeOfSupplyCode: null,
+  supplyType: null,
+  gstClass: null,
+  lines: [line({ description: null, hsnCode: null, rateBps: null })],
+};
+
+export const ADJUSTMENTS: InvoiceAdjustments = {
+  invoiceId: INVOICE.id,
+  creditNoteWindow: { deadline: '2027-11-30', status: 'open', daysLeft: 418 },
+  lines: [
+    {
+      invoiceLineId: 'line-1',
+      lineNo: 1,
+      soldQuantity: 3,
+      returnedQuantity: 1,
+      creditedTaxablePaise: 10_000,
+      debitedTaxablePaise: 0,
+    },
+    {
+      invoiceLineId: 'line-2',
+      lineNo: 2,
+      soldQuantity: 2,
+      returnedQuantity: 0,
+      creditedTaxablePaise: 0,
+      debitedTaxablePaise: 0,
+    },
+  ],
+  notes: [],
+};
+
+export const CREDIT_NOTE: NoteView = {
+  ...INVOICE,
+  id: 'note-1',
+  kind: 'credit_note',
+  number: 'AMPC/26-27/00001',
+  reason: 'return',
+  itcReversalStatus: null,
+  schemeReference: null,
+  invoice: { id: INVOICE.id, number: INVOICE.number, issuedOn: INVOICE.issuedOn },
+  salesReturnId: 'return-1',
+  taxablePaise: 10_000,
+  cgstPaise: 900,
+  sgstPaise: 900,
+  totalPaise: 11_800,
+  note: null,
+  lines: [
+    {
+      ...line({
+        quantity: 1,
+        taxablePaise: 10_000,
+        cgstPaise: 900,
+        sgstPaise: 900,
+        totalPaise: 11_800,
+      }),
+      sourceLineId: 'line-1',
+    },
+  ],
+};
+
+/** A B2B discount note: the dealer's input credit is not yet known to be reversed. */
+export const DISCOUNT_NOTE: NoteView = {
+  ...CREDIT_NOTE,
+  id: 'note-2',
+  number: 'AMPC/26-27/00002',
+  reason: 'discount',
+  itcReversalStatus: 'unknown',
+  salesReturnId: null,
+  buyer: { ...INVOICE.buyer, name: null, gstin: '36AAACT2727Q1ZS' },
+  schemeReference: 'Diwali',
+  note: 'Volume',
+};
+
+export const NOTE_SUMMARY: NoteSummary = {
+  id: CREDIT_NOTE.id,
+  kind: 'credit_note',
+  status: 'issued',
+  storeId: 'store-1',
+  number: CREDIT_NOTE.number,
+  issuedOn: '2026-10-08',
+  reason: 'return',
+  buyerName: 'Lakshmi',
+  totalPaise: 11_800,
+  itcReversalStatus: null,
+  invoice: { id: INVOICE.id, number: INVOICE.number },
+};
+
+export const DEBIT_SUMMARY: NoteSummary = {
+  ...NOTE_SUMMARY,
+  id: 'note-3',
+  kind: 'debit_note',
+  number: 'AMPD/26-27/00001',
+  reason: 'undercharge',
+  buyerName: null,
+  totalPaise: 1_00,
+};
+
+export const SALES_RETURN: SalesReturnView = {
+  id: 'return-1',
+  number: 'SR-000001',
+  invoiceId: INVOICE.id,
+  storeId: 'store-1',
+  completedAt: '2026-10-08T06:00:00.000Z',
+  note: null,
+  lines: [],
+  creditNote: CREDIT_NOTE,
+};

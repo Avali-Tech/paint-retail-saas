@@ -139,6 +139,9 @@ export class InvoiceIssueService {
       const { partyId } = await loadDocument(tx, auth, id);
       if (partyId !== null) await lockParty(tx, auth.organization.id, partyId);
       const document = await loadDocument(tx, auth, id, true);
+      if (document.kind === 'credit_note' || document.kind === 'debit_note') {
+        throw new ConflictException('A note is never cancelled: raise a note the other way');
+      }
       if (document.status !== 'issued') {
         throw new ConflictException('Only an issued invoice can be cancelled');
       }

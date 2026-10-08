@@ -15,7 +15,8 @@ const text = (max: number) => z.string().trim().min(1).max(max);
 const isoDate = z.iso.date('Use a date like 2026-04-01');
 const stateCode = z.string().trim().refine(isCurrentGstStateCode, 'Choose a state');
 const paise = z.number().int().min(0).max(1_000_000_000_000);
-const threeDecimals = (value: number) => Math.abs(Math.round(value * 1000) - value * 1000) < 1e-6;
+export const threeDecimals = (value: number) =>
+  Math.abs(Math.round(value * 1000) - value * 1000) < 1e-6;
 
 /** A discount: a percentage in basis points (1000 = 10%) or an amount in paise. */
 const discount = z.discriminatedUnion('kind', [
@@ -105,6 +106,12 @@ export const listInvoicesSchema = z.object({
   storeId: z.uuid().optional(),
   partyId: z.uuid().optional(),
   status: z.enum(TAX_DOCUMENT_STATUSES).optional(),
+  /** Kinds, comma-separated, e.g. "invoice,bill_of_supply" (every kind when left out). */
+  kinds: z
+    .string()
+    .transform((value) => value.split(','))
+    .pipe(z.array(z.enum(TAX_DOCUMENT_KINDS)))
+    .optional(),
   /** Issue dates, India time, both inclusive. */
   from: isoDate.optional(),
   to: isoDate.optional(),

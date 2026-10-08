@@ -19,6 +19,8 @@
  *   as its own line (−49 to +50 paise); it can be switched off.
  * - Returns reverse each amount in proportion to units returned, cumulatively, so
  *   a full return (in one note or several) reverses exactly the original tax.
+ * - Value notes (discount, overcharge, undercharge) tax the value at the original
+ *   line's rate and supply type, never today's.
  *
  * Assumptions a CA must confirm:
  * 1. Half-up rounding to the paisa per head, per line (not the s.170 rupee
@@ -46,6 +48,7 @@
  * 11. Partial credit notes, each rounded off to the rupee, may together differ
  *    from the invoice's own round-off by under a rupee; tax always reverses exactly.
  */
+export { computeAdjustment, type AdjustmentLineInput } from './adjustments.js';
 export { allocateProportionally } from './arith.js';
 export { GstError, type GstErrorCode } from './errors.js';
 export {
@@ -73,6 +76,7 @@ export {
   computeReturn,
   type CreditNote,
   type CreditNoteLine,
+  type NoteSource,
   type ReturnLineInput,
 } from './returns.js';
 export {

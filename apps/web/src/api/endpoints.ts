@@ -13,6 +13,7 @@ import { projectEndpoints } from './projects.js';
 import { purchasingEndpoints } from './purchasing.js';
 import { recordActivityEndpoints } from './record-activities.js';
 import { reportEndpoints } from './reports.js';
+import { salesEndpoints } from './sales.js';
 import { stockCountEndpoints } from './stock-counts.js';
 import { stockEndpoints } from './stock.js';
 import { supportRequestEndpoints } from '../support-access/grants.js';
@@ -88,6 +89,7 @@ export function endpoints(api: ApiClient) {
     credit: creditEndpoints(api),
     loyalty: loyaltyEndpoints(api),
     tax: taxEndpoints(api),
+    sales: salesEndpoints(api),
     catalog: catalogEndpoints(api),
     stock: stockEndpoints(api),
     transfers: transferEndpoints(api),

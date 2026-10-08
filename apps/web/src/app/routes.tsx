@@ -16,6 +16,7 @@ import { printRoutes } from '../print/routes.js';
 import { projectRoutes } from '../projects/routes.js';
 import { purchasingRoutes } from '../purchasing/routes.js';
 import { reportRoutes } from '../reports/routes.js';
+import { salesRoutes } from '../sales/routes.js';
 import { AppShell } from '../shell/AppShell.js';
 import { HomeRedirect, RequireAuth } from '../shell/guards.js';
 import { stockCountRoutes } from '../stock-counts/routes.js';
@@ -83,6 +84,7 @@ export function AppRoutes() {
         {projectRoutes()}
         {followUpRoutes()}
         {contractRoutes()}
+        {salesRoutes()}
         {documentRoutes()}
         {reportRoutes()}
         {teamRoutes()}

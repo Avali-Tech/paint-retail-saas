@@ -105,6 +105,7 @@ export class InvoicesService {
         query.storeId ? eq(taxDocuments.storeId, query.storeId) : undefined,
         query.partyId ? eq(taxDocuments.partyId, query.partyId) : undefined,
         query.status ? eq(taxDocuments.status, query.status) : undefined,
+        query.kinds ? inArray(taxDocuments.kind, query.kinds) : undefined,
         query.from ? sql`${taxDocuments.issuedOn} >= ${query.from}::date` : undefined,
         query.to ? sql`${taxDocuments.issuedOn} <= ${query.to}::date` : undefined,
         query.q
