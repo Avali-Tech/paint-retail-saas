@@ -7,6 +7,7 @@ import { IMPORT_NAV_ITEMS } from '../imports/nav.js';
 import { CRM_NAV_ITEMS } from '../leads/nav.js';
 import type { AnyOf } from '../lib/guard.js';
 import { CUSTOMER_NAV_ITEMS } from '../parties/nav.js';
+import { POS_NAV_ITEMS } from '../pos/nav.js';
 import { REPORT_NAV_ITEMS } from '../reports/nav.js';
 import { SALES_NAV_ITEMS } from '../sales/nav.js';
 import { SUPPORT_ACCESS_NAV_ITEMS } from '../support-access/nav.js';
@@ -30,6 +31,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: 'dashboard',
     permission: 'stores:read',
   },
+  ...POS_NAV_ITEMS,
   {
     key: 'customers',
     label: 'nav.customers',

@@ -14,6 +14,7 @@ import { partiesTe, partyEnumsTe } from './te-parties.js';
 import { platformTe } from './te-platform.js';
 import { printTe } from './te-print.js';
 import { projectsTe } from './te-projects.js';
+import { posTe } from './te-pos.js';
 import { purchasingEnumsTe, purchasingTe } from './te-purchasing.js';
 import { reportEnumsTe, reportsTe } from './te-reports.js';
 import { stockCountEnumsTe, stockCountsTe } from './te-stock-counts.js';
@@ -337,6 +338,7 @@ export const te: Messages = {
   ...brandingTe,
   ...taxTe,
   ...salesTe,
+  ...posTe,
   enums: {
     quickActions: {
       new_customer: '+ కస్టమర్',

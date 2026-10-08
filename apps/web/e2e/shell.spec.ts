@@ -89,9 +89,9 @@ test('phones get a bottom bar with the rest under "More" @phone', async ({ page 
   await expect(sidebar).toBeHidden();
   await expect(bottomBar.getByRole('link')).toHaveText([
     'Dashboard',
+    'Counter sale',
     'Customers',
     'Products',
-    'Stock',
   ]);
   await bottomBar.getByRole('button', { name: 'More' }).click();
   const more = page.getByRole('dialog', { name: 'More' });

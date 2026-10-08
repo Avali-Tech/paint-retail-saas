@@ -99,6 +99,7 @@ describe('navigation by role', () => {
         .map((link) => link.textContent),
     ).toEqual([
       'Dashboard',
+      'Counter sale',
       'Customers',
       'Products',
       'Stock',
@@ -191,6 +192,7 @@ describe('navigation by role', () => {
         .getAllByRole('link')
         .map((link) => link.textContent),
     ).toEqual([
+      'Stock',
       'Purchasing',
       'Leads',
       'Opportunities',

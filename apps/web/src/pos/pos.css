@@ -1,0 +1,347 @@
+/* Counter sale (POS). Only design tokens: branding restyles everything. */
+
+.pos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.pos__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.pos__title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+}
+
+.pos__store {
+  min-width: 12rem;
+}
+
+.pos__store-name,
+.pos__status {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.pos__status {
+  margin-left: auto;
+}
+
+.pos__grid {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.pos__main,
+.pos__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+@media (min-width: 64rem) {
+  .pos__grid {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+    align-items: start;
+  }
+}
+
+.pos__keys {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+/* Scan box: the input and a Find button for touch. */
+.pos-scan {
+  position: relative;
+}
+
+.pos-scan__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.pos-scan__row > .ui-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pos-scan__row > button {
+  margin-top: calc(var(--font-size-sm) * 1.5 + var(--space-1));
+}
+
+.pos-scan__input {
+  font-size: var(--font-size-lg);
+}
+
+.pos-scan__results {
+  margin: var(--space-1) 0 0;
+  padding: var(--space-1);
+  list-style: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-lg);
+}
+
+.pos-scan__option {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.pos-scan__option[aria-selected='true'],
+.pos-scan__option:hover {
+  background: var(--color-primary-subtle);
+  color: var(--color-primary-text);
+}
+
+/* Bill lines: a grid row on wide screens, a card on phones. */
+.pos-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pos-lines__empty {
+  margin: 0;
+  padding: var(--space-5) var(--space-3);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.pos-lines__head {
+  display: none;
+}
+
+.pos-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.pos-line[data-selected] {
+  border-color: var(--color-primary);
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
+.pos-line__item {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pos-line__name {
+  font-weight: 600;
+}
+
+.pos-line__meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.pos-line__quantity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.pos-line__number {
+  width: 4.5rem;
+  text-align: center;
+}
+
+.pos-line__discount {
+  width: 6.5rem;
+}
+
+.pos-line__amount {
+  font-weight: 600;
+}
+
+.pos-line__error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-danger-text);
+  font-size: var(--font-size-sm);
+}
+
+@media (min-width: 48rem) {
+  .pos-lines__head,
+  .pos-line {
+    grid-template-columns: minmax(0, 1fr) auto 6.5rem 7rem auto;
+  }
+
+  .pos-lines__head {
+    display: grid;
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  .pos-line__item {
+    grid-column: auto;
+  }
+}
+
+/* Customer and totals. */
+.pos-customer__find {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.pos-customer__find > .ui-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pos-customer__find > button {
+  margin-top: calc(var(--font-size-sm) * 1.5 + var(--space-1));
+}
+
+.pos-customer__who {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pos-customer__facts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.pos-totals__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.pos-totals__rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.pos-totals__rows dd {
+  margin: 0;
+}
+
+.pos-totals__grand {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+
+.pos-totals__note {
+  margin: 0;
+  color: var(--color-warning-text);
+}
+
+.pos-totals__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pos-totals__actions > button:last-child {
+  flex: 1 1 auto;
+}
+
+/* Payment. */
+.pos-pay__due {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+
+.pos-pay__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.pos-pay__modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pos-pay__mode {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-height);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.pos-pay__mode:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-subtle);
+  color: var(--color-primary-text);
+}
+
+.pos-pay__amount {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.pos-pay__amount > .ui-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pos-pay__summary {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pos-pay__change {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+
+/* Print: only the bill, and only while one is being printed. */
+@media screen {
+  .pos-print {
+    display: none;
+  }
+}
+
+@media print {
+  body:has(> .pos-print) > :not(.pos-print) {
+    display: none !important;
+  }
+}

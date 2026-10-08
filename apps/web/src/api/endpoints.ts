@@ -9,6 +9,7 @@ import { importEndpoints } from './imports.js';
 import { leadEndpoints, opportunityEndpoints } from './leads.js';
 import { loyaltyEndpoints } from './loyalty.js';
 import { partyEndpoints } from './parties.js';
+import { posEndpoints } from '../pos/pos-api.js';
 import { projectEndpoints } from './projects.js';
 import { purchasingEndpoints } from './purchasing.js';
 import { recordActivityEndpoints } from './record-activities.js';
@@ -105,6 +106,7 @@ export function endpoints(api: ApiClient) {
     documents: documentEndpoints(api),
     reports: reportEndpoints(api),
     supportRequests: supportRequestEndpoints(api),
+    pos: posEndpoints(api),
   };
 }
 
