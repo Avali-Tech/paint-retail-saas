@@ -294,6 +294,18 @@ describe('preferences', () => {
         inApp: true,
         email: true,
       },
+      {
+        event: 'cheque_bounced',
+        title: 'A cheque taken at your store bounces',
+        inApp: true,
+        email: true,
+      },
+      {
+        event: 'register_variance',
+        title: 'A register at your store closes with cash over or short',
+        inApp: true,
+        email: true,
+      },
     ]);
     expect(saved.statusCode).toBe(200);
     expect(
@@ -311,6 +323,8 @@ describe('preferences', () => {
       ['credit_request_awaiting_approval', true, true],
       ['credit_request_decided', true, true],
       ['loyalty_tier_reached', true, true],
+      ['cheque_bounced', true, true],
+      ['register_variance', true, true],
     ]);
     const duplicate = await api(hydManager).put('/notifications/preferences', {
       preferences: [

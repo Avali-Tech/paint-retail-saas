@@ -238,6 +238,10 @@ export interface SalesSettingsView {
   readonly partialMinAdvancePct: number;
   readonly defaultPriceMode: PriceMode;
   readonly billingLiveOn: string | null;
+  /** Cash is taken only into an open register session ([PO-11]). */
+  readonly cashNeedsRegister: boolean;
+  /** A register closing further off than this (paise) tells the branch managers. */
+  readonly registerVarianceAlertPaise: number;
 }
 
 export interface GstinProfileView {

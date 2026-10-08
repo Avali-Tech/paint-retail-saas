@@ -336,6 +336,8 @@ describe('sales settings', () => {
       partialMinAdvancePct: 0,
       defaultPriceMode: 'inclusive',
       billingLiveOn: null,
+      cashNeedsRegister: true,
+      registerVarianceAlertPaise: 0,
     });
     const saved = ok(
       await o.put('/sales/settings', {

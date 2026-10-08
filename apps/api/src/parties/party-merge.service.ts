@@ -41,6 +41,7 @@ const MOVED: readonly (readonly [string, string])[] = [
   ['purchase_orders', 'supplier_party_id'],
   ['goods_receipts', 'supplier_party_id'],
   ['credit_requests', 'party_id'],
+  ['ledger_mappings', 'party_id'],
 ];
 
 /**
@@ -66,6 +67,9 @@ export const MERGE_HANDLED: readonly string[] = [
   'party_ledger.party_id',
   'party_balances.party_id',
   'sales_settings.walk_in_party_id',
+  // Every payment has a party ledger entry, so billing() refuses these too.
+  'payments.party_id',
+  'allocations.party_id',
 ];
 
 export interface MergeResult {

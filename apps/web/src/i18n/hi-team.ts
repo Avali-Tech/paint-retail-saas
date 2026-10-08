@@ -140,6 +140,9 @@ export const teamHi: Translation<typeof teamEn> = {
       tax: 'टैक्स और GST',
       sales: 'बिक्री',
       billing: 'बिलिंग',
+      payments: 'भुगतान',
+      register: 'कैश रजिस्टर',
+      accounting: 'लेखा',
     },
     organization: {
       manage: 'बिजनेस चलाएं: सेटिंग, दिखावट, लॉगिन नियम और सपोर्ट एक्सेस',
@@ -193,6 +196,12 @@ export const teamHi: Translation<typeof teamEn> = {
     billing: {
       issue: 'इनवॉइस और बिल ऑफ सप्लाई बनाएं और जारी करें',
       cancel: 'जारी करने के दिन ही इनवॉइस रद्द करें',
+      notes: 'क्रेडिट और डेबिट नोट बनाएं और माल वापसी लें',
     },
+    payments: {
+      manage: 'भुगतान दर्ज करें, बिलों में लगाएं, चेक क्लियर या बाउंस करें और रिफंड दें',
+    },
+    register: { manage: 'कैश रजिस्टर खोलें और बंद करें, नकद जमा और निकासी करें' },
+    accounting: { export: 'Tally लेजर तय करें और खाते एक्सपोर्ट करें' },
   },
 };

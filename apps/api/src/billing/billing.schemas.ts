@@ -9,6 +9,7 @@ import {
   isValidSeriesPrefix,
 } from '@paint/shared';
 import { z } from 'zod';
+import { issuePaymentSchema } from '../payments/payments.schemas.js';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 const isoDate = z.iso.date('Use a date like 2026-04-01');
@@ -90,6 +91,10 @@ export const issueInvoiceSchema = z.object({
         .optional(),
     })
     .optional(),
+  /** Taken with the issue, in the same transaction (the POS; spec §4.4). */
+  payments: z.array(issuePaymentSchema).max(10).optional(),
+  /** Use the customer's unallocated payments (oldest first) before the new ones. */
+  allocateAdvances: z.boolean().default(false),
 });
 export type IssueInvoiceInput = z.output<typeof issueInvoiceSchema>;
 
@@ -120,6 +125,8 @@ export const salesSettingsSchema = z.object({
   partialMinAdvancePct: z.number().int().min(0).max(100).optional(),
   defaultPriceMode: z.enum(PRICE_MODES).optional(),
   billingLiveOn: isoDate.nullable().optional(),
+  cashNeedsRegister: z.boolean().optional(),
+  registerVarianceAlertPaise: z.number().int().min(0).max(100_000_000).optional(),
 });
 export type SalesSettingsInput = z.output<typeof salesSettingsSchema>;
 

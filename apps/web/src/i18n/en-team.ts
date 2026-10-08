@@ -137,6 +137,9 @@ export const teamEn = {
       tax: 'Tax & GST',
       sales: 'Sales',
       billing: 'Billing',
+      payments: 'Payments',
+      register: 'Cash register',
+      accounting: 'Accounting',
     },
     organization: {
       manage: 'Run the business: settings, appearance, sign-in rules and support access',
@@ -184,6 +187,12 @@ export const teamEn = {
     billing: {
       issue: 'Make and issue invoices and bills of supply',
       cancel: 'Cancel an invoice on the day it was issued',
+      notes: 'Raise credit and debit notes and take returns',
     },
+    payments: {
+      manage: 'Record payments, allocate them to bills, clear or bounce cheques and refund',
+    },
+    register: { manage: 'Open and close cash registers, pay cash in and out' },
+    accounting: { export: 'Set Tally ledgers and export the books' },
   },
 };

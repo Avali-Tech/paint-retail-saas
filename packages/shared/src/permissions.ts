@@ -34,6 +34,10 @@ export const PERMISSIONS = [
   'sales:read',
   'billing:issue',
   'billing:cancel',
+  'billing:notes',
+  'payments:manage',
+  'register:manage',
+  'accounting:export',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -82,6 +86,9 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'sales:read',
       'billing:issue',
       'billing:cancel',
+      'billing:notes',
+      'payments:manage',
+      'register:manage',
     ],
     allStores: false,
   },
@@ -121,6 +128,7 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'loyalty:manage',
       'sales:read',
       'billing:issue',
+      'payments:manage',
     ],
     allStores: false,
   },
@@ -156,6 +164,7 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'loyalty:read',
       'sales:read',
       'billing:issue',
+      'register:manage',
     ],
     allStores: false,
   },

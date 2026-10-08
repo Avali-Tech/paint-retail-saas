@@ -32,6 +32,8 @@ const DEFAULT_SETTINGS: SalesSettingsView = {
   partialMinAdvancePct: 0,
   defaultPriceMode: 'inclusive',
   billingLiveOn: null,
+  cashNeedsRegister: true,
+  registerVarianceAlertPaise: 0,
 };
 
 const settingsFields = {
@@ -41,6 +43,8 @@ const settingsFields = {
   partialMinAdvancePct: salesSettings.partialMinAdvancePct,
   defaultPriceMode: salesSettings.defaultPriceMode,
   billingLiveOn: salesSettings.billingLiveOn,
+  cashNeedsRegister: salesSettings.cashNeedsRegister,
+  registerVarianceAlertPaise: salesSettings.registerVarianceAlertPaise,
 };
 
 const seriesFields = {

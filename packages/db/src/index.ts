@@ -9,8 +9,11 @@ export {
 export { isCheckViolation, isUniqueViolation, uniqueViolationConstraint } from './errors.js';
 export { MIGRATIONS_FOLDER, migrateDatabase } from './migrate.js';
 export {
+  adjustPartyAdvance,
+  findAllocationMismatches,
   findPartyBalanceMismatches,
   postPartyLedger,
+  type AllocationMismatch,
   type PartyBalanceMismatch,
   type PartyLedgerEntry,
   type PartyLedgerEntryType,
