@@ -6,6 +6,8 @@ export interface RequestOptions {
   readonly query?: Readonly<Record<string, QueryValue>>;
   readonly body?: unknown;
   readonly signal?: AbortSignal;
+  /** Extra request headers, e.g. an `Idempotency-Key` so a retried POST is done once. */
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 /** A file the API sent back, with the name its Content-Disposition gave (null without one). */
@@ -82,6 +84,7 @@ interface Outgoing {
   readonly body?: BodyInit;
   readonly contentType?: string;
   readonly accept: string;
+  readonly headers?: Readonly<Record<string, string>> | undefined;
 }
 
 /** A small fetch wrapper: JSON in and out, bearer token, errors as ApiError. */
@@ -89,7 +92,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
   /** Sends the request and answers the response when it is OK; anything else becomes an ApiError. */
   async function send(method: string, path: string, init: Outgoing): Promise<Response> {
     const token = options.getToken();
-    const headers: Record<string, string> = { accept: init.accept };
+    const headers: Record<string, string> = { ...init.headers, accept: init.accept };
     if (init.contentType !== undefined) headers['content-type'] = init.contentType;
     if (token !== null) headers.authorization = `Bearer ${token}`;
 
@@ -116,6 +119,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     const response = await send(method, path, {
       query: init.query,
       signal: init.signal,
+      headers: init.headers,
       accept: 'application/json',
       ...(init.body === undefined
         ? {}

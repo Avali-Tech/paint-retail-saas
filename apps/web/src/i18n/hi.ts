@@ -14,6 +14,7 @@ import { partiesHi, partyEnumsHi } from './hi-parties.js';
 import { platformHi } from './hi-platform.js';
 import { printHi } from './hi-print.js';
 import { projectsHi } from './hi-projects.js';
+import { posHi } from './hi-pos.js';
 import { purchasingEnumsHi, purchasingHi } from './hi-purchasing.js';
 import { reportEnumsHi, reportsHi } from './hi-reports.js';
 import { stockCountEnumsHi, stockCountsHi } from './hi-stock-counts.js';
@@ -330,6 +331,7 @@ export const hi: Messages = {
   ...brandingHi,
   ...taxHi,
   ...salesHi,
+  ...posHi,
   enums: {
     quickActions: {
       new_customer: '+ ग्राहक',

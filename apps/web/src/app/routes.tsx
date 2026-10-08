@@ -12,6 +12,7 @@ import { leadRoutes } from '../leads/routes.js';
 import { opportunityRoutes } from '../opportunities/routes.js';
 import { partyRoutes } from '../parties/routes.js';
 import { platformRoutes } from '../platform/routes.js';
+import { posRoutes } from '../pos/routes.js';
 import { printRoutes } from '../print/routes.js';
 import { projectRoutes } from '../projects/routes.js';
 import { purchasingRoutes } from '../purchasing/routes.js';
@@ -72,6 +73,7 @@ export function AppRoutes() {
       >
         <Route index element={<HomeRedirect />} />
         <Route path="dashboard" element={guarded('stores:read', DashboardPage)} />
+        {posRoutes()}
         {partyRoutes()}
         {catalogRoutes()}
         {stockRoutes()}

@@ -11,6 +11,7 @@ import { partiesEn, partyEnumsEn } from './en-parties.js';
 import { platformEn } from './en-platform.js';
 import { printEn } from './en-print.js';
 import { projectsEn } from './en-projects.js';
+import { posEn } from './en-pos.js';
 import { purchasingEn, purchasingEnumsEn } from './en-purchasing.js';
 import { reportEnumsEn, reportsEn } from './en-reports.js';
 import { stockCountEnumsEn, stockCountsEn } from './en-stock-counts.js';
@@ -332,6 +333,7 @@ export const en = {
   ...brandingEn,
   ...taxEn,
   ...salesEn,
+  ...posEn,
   /** Names of API values, for label(group, value). */
   enums: {
     /** Quick actions offered with search, by the API's key. */

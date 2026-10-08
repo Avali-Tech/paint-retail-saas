@@ -54,6 +54,15 @@ describe('createApiClient', () => {
     });
   });
 
+  it('sends extra headers such as an idempotency key', async () => {
+    const { api, requests } = client({ 'POST /things': () => json({ id: 'x' }, 201) });
+    await api.post('/things', { name: 'Apex' }, { headers: { 'Idempotency-Key': 'bill-1' } });
+    expect(requests[0]?.headers).toMatchObject({
+      'Idempotency-Key': 'bill-1',
+      accept: 'application/json',
+    });
+  });
+
   it('sends an empty JSON object for a POST without a body, and nothing for a GET', async () => {
     const { api, requests } = client({
       'POST /auth/logout': () => ({ status: 204 }),
