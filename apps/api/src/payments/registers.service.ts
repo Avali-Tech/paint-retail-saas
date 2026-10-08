@@ -26,7 +26,15 @@ import type {
 } from './payments.schemas.js';
 import { paymentStore } from './posting.js';
 
-const { paymentModes, payments, registerCashMovements, registerSessions, salesSettings } = schema;
+const {
+  organizationMembers,
+  paymentModes,
+  payments,
+  registerCashMovements,
+  registerSessions,
+  salesSettings,
+  users,
+} = schema;
 
 type SessionRow = typeof registerSessions.$inferSelect;
 
@@ -226,6 +234,17 @@ export class RegistersService {
 
   private async view(tx: Transaction, session: SessionRow): Promise<RegisterSessionView> {
     const totals = await this.cashTotals(tx, session.id);
+    const names = await tx
+      .select({ id: organizationMembers.id, name: users.fullName })
+      .from(organizationMembers)
+      .innerJoin(users, eq(users.id, organizationMembers.userId))
+      .where(
+        inArray(
+          organizationMembers.id,
+          [session.openedByMemberId, session.closedByMemberId].filter((id) => id !== null),
+        ),
+      );
+    const nameOf = (id: string | null) => names.find((row) => row.id === id)?.name ?? null;
     const movements = await tx
       .select()
       .from(registerCashMovements)
@@ -257,6 +276,7 @@ export class RegistersService {
       registerCode: session.registerCode,
       status: session.status,
       openedByMemberId: session.openedByMemberId,
+      openedBy: String(nameOf(session.openedByMemberId)),
       openedAt: session.openedAt.toISOString(),
       openingFloatPaise: session.openingFloatPaise,
       openingNote: session.openingNote,
@@ -265,6 +285,7 @@ export class RegistersService {
       variancePaise: session.variancePaise,
       denominations: session.denominations,
       closedByMemberId: session.closedByMemberId,
+      closedBy: nameOf(session.closedByMemberId),
       closedAt: iso(session.closedAt),
       closingNote: session.closingNote,
       cashInPaise: totals.inPaise,

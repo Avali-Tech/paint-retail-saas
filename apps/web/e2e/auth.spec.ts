@@ -87,6 +87,8 @@ test('counter staff sign in with a code texted to their mobile', async ({ page }
     'Sales orders',
     'Invoices',
     'Credit & debit notes',
+    'Day end',
+    'Payments',
     'Follow-ups',
     'Documents',
     'Reports',

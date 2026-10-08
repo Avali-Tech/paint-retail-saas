@@ -54,6 +54,24 @@ describe('createApiClient', () => {
     });
   });
 
+  it('posts a JSON body for a file that is made on request, such as an export', async () => {
+    const { api, requests } = client({
+      'POST /exports': () => ({
+        status: 200,
+        raw: 'PK',
+        headers: { 'content-disposition': 'attachment; filename="tally.zip"' },
+      }),
+    });
+    const file = await api.download('/exports', { body: { format: 'xlsx' } });
+    expect(file.fileName).toBe('tally.zip');
+    expect(await file.blob.text()).toBe('PK');
+    expect(requests[0]).toMatchObject({
+      method: 'POST',
+      body: { format: 'xlsx' },
+      headers: { accept: '*/*', 'content-type': 'application/json' },
+    });
+  });
+
   it('sends extra headers such as an idempotency key', async () => {
     const { api, requests } = client({ 'POST /things': () => json({ id: 'x' }, 201) });
     await api.post('/things', { name: 'Apex' }, { headers: { 'Idempotency-Key': 'bill-1' } });
