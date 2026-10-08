@@ -4,6 +4,7 @@ import type { DatabaseConnection } from '@paint/db';
 import { ActivitiesModule } from './activities/activities.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { BillingModule } from './billing/billing.module.js';
 import { BrandingModule } from './branding/branding.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
 import { ContractsModule } from './contracts/contracts.module.js';
@@ -52,6 +53,7 @@ export class AppModule {
         ObservabilityModule.forRoot(),
         ActivitiesModule,
         AuditModule,
+        BillingModule,
         BrandingModule,
         DashboardModule,
         AuthModule.forRoot({

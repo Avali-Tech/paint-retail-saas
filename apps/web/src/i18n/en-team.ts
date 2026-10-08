@@ -135,6 +135,8 @@ export const teamEn = {
       loyalty: 'Loyalty',
       audit: 'Audit log',
       tax: 'Tax & GST',
+      sales: 'Sales',
+      billing: 'Billing',
     },
     organization: {
       manage: 'Run the business: settings, appearance, sign-in rules and support access',
@@ -177,6 +179,11 @@ export const teamEn = {
     tax: {
       read: 'See GST registrations and tax rates',
       manage: 'Change GST registrations, tax categories and rates',
+    },
+    sales: { read: 'See invoices and bills' },
+    billing: {
+      issue: 'Make and issue invoices and bills of supply',
+      cancel: 'Cancel an invoice on the day it was issued',
     },
   },
 };

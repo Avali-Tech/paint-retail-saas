@@ -25,7 +25,10 @@ const {
   loyaltyAccounts,
   loyaltyLedger,
   parties,
+  partyLedger,
+  salesSettings,
   supplierProfiles,
+  taxDocuments,
 } = schema;
 
 /** Records that simply move to the surviving party: table and column. */
@@ -57,6 +60,12 @@ export const MERGE_HANDLED: readonly string[] = [
   // See creditProfile() and loyalty() below.
   'credit_profiles.party_id',
   'loyalty_accounts.party_id',
+  // Billing history is permanent: see billing() below. Drafts move.
+  'tax_documents.party_id',
+  'tax_documents.influencer_party_id',
+  'party_ledger.party_id',
+  'party_balances.party_id',
+  'sales_settings.walk_in_party_id',
 ];
 
 export interface MergeResult {
@@ -103,6 +112,7 @@ export class PartyMergeService {
       if (!survivor.isActive) throw new BadRequestException('Merge into an active party');
 
       const counts: Record<string, number> = {};
+      await this.billing(tx, duplicateId, survivorId, counts);
       await this.creditProfile(tx, duplicateId, survivorId, counts);
       for (const [table, column] of MOVED) {
         const moved = await tx.execute(
@@ -174,6 +184,41 @@ export class PartyMergeService {
   }
 
   // Helpers -----------------------------------------------------------------
+
+  /**
+   * Billing: issued invoices and the party ledger are permanent records of the
+   * party they name, so a duplicate with any (or the walk-in party) is refused;
+   * merge the other way. Draft bills move to the survivor.
+   */
+  private async billing(
+    tx: Transaction,
+    duplicateId: string,
+    survivorId: string,
+    counts: Record<string, number>,
+  ): Promise<void> {
+    const history = await tx.execute(sql`
+      select 1 from ${partyLedger} where ${partyLedger.partyId} = ${duplicateId}
+      union all
+      select 1 from ${taxDocuments} where ${taxDocuments.status} <> 'draft'
+        and ${duplicateId} in (${taxDocuments.partyId}, ${taxDocuments.influencerPartyId})
+      union all
+      select 1 from ${salesSettings} where ${salesSettings.walkInPartyId} = ${duplicateId}
+      limit 1`);
+    if (history.rows.length > 0) {
+      throw new ConflictException(
+        'This party has invoices or is the walk-in customer; merge the other way',
+      );
+    }
+    for (const column of [taxDocuments.partyId, taxDocuments.influencerPartyId]) {
+      counts[`tax_documents.${column.name}`] = (
+        await tx
+          .update(taxDocuments)
+          .set({ [column.name === 'party_id' ? 'partyId' : 'influencerPartyId']: survivorId })
+          .where(eq(column, duplicateId))
+          .returning({ id: taxDocuments.id })
+      ).length;
+    }
+  }
 
   /**
    * Credit: refused when both parties have a request waiting, or both have a

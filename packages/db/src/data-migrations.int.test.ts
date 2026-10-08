@@ -99,6 +99,8 @@ describe.each([
   ['0034_grant_credit_permissions', '0033_credit', 'credit:'],
   ['0037_grant_loyalty_permissions', '0036_loyalty', 'loyalty:'],
   ['0053_grant_tax_permissions', '0052_gst_master_rules', 'tax:'],
+  ['0056_grant_billing_permissions', '0055_tax_document_rules', 'sales:'],
+  ['0056_grant_billing_permissions', '0055_tax_document_rules', 'billing:'],
 ])('%s', (_migration, before, prefix) => {
   it("gives existing organisations' standard roles exactly the permissions new ones get", async () => {
     const permissions = await permissionsAfterBackfill(before, prefix);
