@@ -126,6 +126,8 @@ describe('a party without credit', () => {
       creditDays: 0,
       risk: 'low',
       manualExposurePaise: 0,
+      exposurePaise: 0,
+      exposureSource: 'manual',
       overdueDays: 0,
       check: {
         decision: 'blocked',

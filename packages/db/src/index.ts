@@ -22,13 +22,19 @@ export * as schema from './schema.js';
 export { nextDocumentNumber } from './sequences.js';
 export {
   InsufficientStockError,
+  findReservationMismatches,
   findStockMismatches,
   postStockMovements,
   postStockMovementsInBulk,
+  releaseStock,
+  reserveStock,
   type BulkStockMovement,
+  type ReservationMismatch,
   type StockMismatch,
   type StockMovement,
   type StockMovementType,
+  type StockReservationRelease,
+  type StockReservationRequest,
 } from './stock.js';
 export {
   assertOrganizationId,

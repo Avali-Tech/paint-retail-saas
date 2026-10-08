@@ -12,7 +12,7 @@ import { pointsForPurchase, tierFor } from '@paint/shared';
 import { and, count, desc, eq, ilike, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { addDays, todayInIndia } from '../contracts/contract-dates.js';
-import { visibleParties } from '../credit/credit-lookups.js';
+import { billingLiveOn, visibleParties } from '../credit/credit-lookups.js';
 import { DATABASE } from '../database/database.module.js';
 import { requireSalesperson } from '../leads/crm-lookups.js';
 import { Notifier } from '../notifications/notifier.js';
@@ -127,10 +127,13 @@ export class LoyaltyService {
 
   /** Points for a purchase entered by hand, at the programme's earn rate. */
   recordPurchase(auth: AuthContext, partyId: string, input: PurchaseInput): Promise<LoyaltyView> {
-    return this.post(auth, partyId, (_account, settings) => {
+    return this.post(auth, partyId, async (_account, settings, tx) => {
+      if ((await billingLiveOn(tx)) !== null) {
+        throw new ConflictException('Billing is live: invoices earn points now (spec §4.7)');
+      }
       const points = pointsForPurchase(input.manualPurchasePaise, settings);
       if (points === 0) throw new BadRequestException('This purchase is too small to earn points');
-      return Promise.resolve({ kind: 'purchase', points, ...input });
+      return { kind: 'purchase', points, ...input };
     });
   }
 

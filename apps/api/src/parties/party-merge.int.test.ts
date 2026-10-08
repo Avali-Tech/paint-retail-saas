@@ -227,6 +227,10 @@ describe('merging a duplicate', () => {
       'supplier_profiles.party_id': 0,
       'tax_documents.influencer_party_id': 0,
       'tax_documents.party_id': 0,
+      'quotations.bill_to_party_id': 0,
+      'quotations.influencer_party_id': 0,
+      'sales_orders.bill_to_party_id': 0,
+      'sales_orders.influencer_party_id': 0,
       'supplier_products.supplier_party_id': 1,
       // Already a contractor on the shared project: only the painter role moves.
       'project_parties.party_id': 1,

@@ -35,6 +35,7 @@ export const PERMISSION_LABELS: Record<Permission, MessageKey> = {
   'tax:read': 'permissions.tax.read',
   'tax:manage': 'permissions.tax.manage',
   'sales:read': 'permissions.sales.read',
+  'sales:manage': 'permissions.sales.manage',
   'billing:issue': 'permissions.billing.issue',
   'billing:cancel': 'permissions.billing.cancel',
   'billing:notes': 'permissions.billing.notes',

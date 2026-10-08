@@ -28,6 +28,8 @@ const {
   partyLedger,
   salesSettings,
   supplierProfiles,
+  quotations,
+  salesOrders,
   taxDocuments,
 } = schema;
 
@@ -64,6 +66,11 @@ export const MERGE_HANDLED: readonly string[] = [
   // Billing history is permanent: see billing() below. Drafts move.
   'tax_documents.party_id',
   'tax_documents.influencer_party_id',
+  // Sent quotations and confirmed orders are records too; drafts move.
+  'quotations.bill_to_party_id',
+  'quotations.influencer_party_id',
+  'sales_orders.bill_to_party_id',
+  'sales_orders.influencer_party_id',
   'party_ledger.party_id',
   'party_balances.party_id',
   'sales_settings.walk_in_party_id',
@@ -206,12 +213,32 @@ export class PartyMergeService {
       select 1 from ${taxDocuments} where ${taxDocuments.status} <> 'draft'
         and ${duplicateId} in (${taxDocuments.partyId}, ${taxDocuments.influencerPartyId})
       union all
+      select 1 from ${quotations} where ${quotations.status} <> 'draft'
+        and ${duplicateId} in (${quotations.billToPartyId}, ${quotations.influencerPartyId})
+      union all
+      select 1 from ${salesOrders} where ${salesOrders.status} <> 'draft'
+        and ${duplicateId} in (${salesOrders.billToPartyId}, ${salesOrders.influencerPartyId})
+      union all
       select 1 from ${salesSettings} where ${salesSettings.walkInPartyId} = ${duplicateId}
       limit 1`);
     if (history.rows.length > 0) {
       throw new ConflictException(
-        'This party has invoices or is the walk-in customer; merge the other way',
+        'This party has invoices, sent quotations or orders, or is the walk-in customer; merge the other way',
       );
+    }
+    for (const [name, table] of [
+      ['quotations', quotations],
+      ['sales_orders', salesOrders],
+    ] as const) {
+      for (const field of ['billToPartyId', 'influencerPartyId'] as const) {
+        counts[`${name}.${table[field].name}`] = (
+          await tx
+            .update(table)
+            .set({ [field]: survivorId })
+            .where(eq(table[field], duplicateId))
+            .returning({ id: table.id })
+        ).length;
+      }
     }
     for (const column of [taxDocuments.partyId, taxDocuments.influencerPartyId]) {
       counts[`tax_documents.${column.name}`] = (

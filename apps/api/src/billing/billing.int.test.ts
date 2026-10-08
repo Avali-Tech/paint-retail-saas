@@ -343,16 +343,17 @@ describe('sales settings', () => {
       await o.put('/sales/settings', {
         quoteValidityDays: 30,
         defaultPriceMode: 'exclusive',
-        billingLiveOn: '2026-10-01',
         walkInPartyId: fresh.parties.tsWalkIn,
       }),
     ).json<SalesSettingsView>();
     expect(saved).toMatchObject({
       quoteValidityDays: 30,
       defaultPriceMode: 'exclusive',
-      billingLiveOn: '2026-10-01',
+      billingLiveOn: null,
       walkInPartyId: fresh.parties.tsWalkIn,
     });
+    // Billing goes live through POST /sales/go-live, with its opening balances (round 4a).
+    expect((await o.put('/sales/settings', { billingLiveOn: '2026-10-01' })).statusCode).toBe(400);
     expect(
       ok(await o.put('/sales/settings', { partialMinAdvancePct: 25 })).json<SalesSettingsView>(),
     ).toMatchObject({

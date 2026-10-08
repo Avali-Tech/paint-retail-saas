@@ -2,27 +2,16 @@ import 'reflect-metadata';
 import { ConflictException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { schema, withTenant, type DatabaseConnection, type Transaction } from '@paint/db';
 import { canAccessStore, type TaxDocumentPage, type TaxDocumentView } from '@paint/shared';
-import { and, count, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { fieldError } from '../tax/tax-lookups.js';
 import type { DiscountInput, DraftInvoiceInput, ListInvoicesQuery } from './billing.schemas.js';
 import { idempotent } from './idempotency.js';
+import { INFLUENCER_ROLES, requireSaleParty, requireSaleSite } from './sale-parties.js';
 import { documentView, loadDocument, type TaxDocumentRow } from './invoice-view.js';
 
-const {
-  parties,
-  partyRoles,
-  productVariants,
-  projects,
-  salesSettings,
-  stores,
-  taxDocumentLines,
-  taxDocuments,
-} = schema;
-
-/** Roles an influencer holds (spec §6.4). */
-const INFLUENCER_ROLES = ['painter', 'contractor', 'architect'] as const;
+const { productVariants, salesSettings, stores, taxDocumentLines, taxDocuments } = schema;
 
 const percentOf = (discount: DiscountInput | undefined) =>
   discount?.kind === 'percent' ? discount.basisPoints : null;
@@ -68,6 +57,11 @@ export class InvoicesService {
       const document = await loadDocument(tx, auth, id, true);
       if (document.status !== 'draft') {
         throw new ConflictException('An issued invoice cannot be changed');
+      }
+      if (document.salesOrderId !== null) {
+        throw new ConflictException(
+          'This bill comes from a sales order: discard it and bill the order again',
+        );
       }
       const header = await this.header(tx, auth, input);
       const [updated] = (await tx
@@ -148,17 +142,11 @@ export class InvoicesService {
     if (!canAccessStore(auth, input.storeId)) {
       throw new ForbiddenException('You can bill only at a store you work at');
     }
-    if (input.partyId !== undefined) await this.assertParty(tx, input.partyId, 'partyId', null);
+    if (input.partyId !== undefined) await requireSaleParty(tx, input.partyId, 'partyId');
     if (input.influencerPartyId !== undefined) {
-      await this.assertParty(tx, input.influencerPartyId, 'influencerPartyId', INFLUENCER_ROLES);
+      await requireSaleParty(tx, input.influencerPartyId, 'influencerPartyId', INFLUENCER_ROLES);
     }
-    if (input.projectId !== undefined) {
-      const [project] = await tx
-        .select({ id: projects.id })
-        .from(projects)
-        .where(eq(projects.id, input.projectId));
-      if (!project) throw fieldError('projectId', 'Unknown site');
-    }
+    if (input.projectId !== undefined) await requireSaleSite(tx, input.projectId);
     const [settings] = await tx
       .select({ priceMode: salesSettings.defaultPriceMode })
       .from(salesSettings);
@@ -184,33 +172,6 @@ export class InvoicesService {
       dueOn: input.dueOn ?? null,
       note: input.note ?? null,
     };
-  }
-
-  private async assertParty(
-    tx: Transaction,
-    partyId: string,
-    path: string,
-    roles: readonly (typeof INFLUENCER_ROLES)[number][] | null,
-  ): Promise<void> {
-    const [party] = await tx
-      .select({ id: parties.id })
-      .from(parties)
-      .where(
-        and(
-          eq(parties.id, partyId),
-          eq(parties.isActive, true),
-          isNull(parties.mergedIntoId),
-          roles === null
-            ? undefined
-            : sql`exists (select 1 from ${partyRoles} r where r.party_id = ${sql.raw('"parties"."id"')} and r.role::text = any(${`{${roles.join(',')}}`}::text[]))`,
-        ),
-      );
-    if (!party) {
-      throw fieldError(
-        path,
-        roles === null ? 'Unknown customer' : 'Choose a painter, contractor or architect',
-      );
-    }
   }
 
   private async writeLines(
