@@ -14,6 +14,7 @@ import { partiesTe, partyEnumsTe } from './te-parties.js';
 import { platformTe } from './te-platform.js';
 import { printTe } from './te-print.js';
 import { projectsTe } from './te-projects.js';
+import { ordersTe, ordersEnumsTe } from './te-orders.js';
 import { posTe } from './te-pos.js';
 import { purchasingEnumsTe, purchasingTe } from './te-purchasing.js';
 import { reportEnumsTe, reportsTe } from './te-reports.js';
@@ -339,6 +340,7 @@ export const te: Messages = {
   ...taxTe,
   ...salesTe,
   ...posTe,
+  ...ordersTe,
   enums: {
     quickActions: {
       new_customer: '+ కస్టమర్',
@@ -370,6 +372,7 @@ export const te: Messages = {
     ...reportEnumsTe,
     ...taxEnumsTe,
     ...salesEnumsTe,
+    ...ordersEnumsTe,
   },
   pages: {
     notFound: 'ఈ చిరునామాలో ఏ స్క్రీన్ లేదు. లింక్‌ను చూడండి, లేదా మెనూ లేదా వెతకడం ఉపయోగించండి.',

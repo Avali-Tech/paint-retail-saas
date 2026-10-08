@@ -2,8 +2,24 @@ import { Table } from '@paint/ui';
 import type { TaxDocumentLineView } from '@paint/shared';
 import { useI18n } from '../i18n/i18n.js';
 
-/** The lines of an invoice or a note: item, HSN, quantity, rate and amounts. */
-export function LinesTable({ lines }: { readonly lines: readonly TaxDocumentLineView[] }) {
+/** What the table shows of a line (an invoice's, a note's, a quotation's or an order's). */
+export type LinesTableLine = Pick<
+  TaxDocumentLineView,
+  | 'id'
+  | 'description'
+  | 'hsnCode'
+  | 'quantity'
+  | 'rateBps'
+  | 'taxablePaise'
+  | 'cgstPaise'
+  | 'sgstPaise'
+  | 'igstPaise'
+  | 'cessPaise'
+  | 'totalPaise'
+>;
+
+/** The lines of an invoice, a note, a quotation or an order: item, HSN, quantity, rate and amounts. */
+export function LinesTable({ lines }: { readonly lines: readonly LinesTableLine[] }) {
   const { t, money, number } = useI18n();
   return (
     <Table label={t('sales.lines.title')}>
