@@ -12,7 +12,7 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import type { TaxDocumentPage, TaxDocumentView } from '@paint/shared';
+import type { IssuedInvoiceView, TaxDocumentPage, TaxDocumentView } from '@paint/shared';
 import type { AuthContext } from '../auth/auth-context.js';
 import { CurrentAuth, RequirePermissions } from '../auth/decorators.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
@@ -33,7 +33,7 @@ import { InvoicesService } from './invoices.service.js';
 
 const id = () => new ParseUUIDPipe();
 
-/** Tax invoices and bills of supply: drafts (held bills), issue and same-day cancel. */
+/** Tax invoices and bills of supply: drafts (held bills), issue (with payments) and same-day cancel. */
 @Controller('invoices')
 export class InvoicesController {
   constructor(
@@ -94,7 +94,7 @@ export class InvoicesController {
     @Param('id', id()) invoiceId: string,
     @Body(new ZodValidationPipe(issueInvoiceSchema)) body: IssueInvoiceInput,
     @IdempotencyKey(new ZodValidationPipe(idempotencyKeySchema)) key: string | undefined,
-  ): Promise<TaxDocumentView> {
+  ): Promise<IssuedInvoiceView> {
     return this.issuing.issue(auth, invoiceId, body, key);
   }
 

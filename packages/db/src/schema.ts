@@ -1616,6 +1616,10 @@ export const documentRecordType = pgEnum('document_record_type', [
   'opportunity',
   'project',
   'contract',
+  'tax_document',
+  'payment',
+  'register_session',
+  'accounting_export',
 ]);
 
 export const documentCategory = pgEnum('document_category', [
@@ -1631,6 +1635,8 @@ export const documentCategory = pgEnum('document_category', [
   'other',
   'before_photo',
   'after_photo',
+  'receipt',
+  'accounting_export',
 ]);
 
 /**
@@ -1662,6 +1668,7 @@ export const documents = pgTable(
   },
   (table) => [
     unique('documents_storage_key_unique').on(table.storageKey),
+    unique('documents_organization_id_id_unique').on(table.organizationId, table.id),
     index('documents_record_idx')
       .on(table.organizationId, table.recordType, table.recordId)
       .where(sql`${table.deletedAt} is null`),
@@ -1706,6 +1713,8 @@ export const notificationEvent = pgEnum('notification_event', [
   'credit_request_awaiting_approval',
   'credit_request_decided',
   'loyalty_tier_reached',
+  'cheque_bounced',
+  'register_variance',
 ]);
 
 /** An in-app notification for one member. */
@@ -3050,6 +3059,12 @@ export const salesSettings = pgTable(
     defaultPriceMode: priceMode('default_price_mode').notNull().default('inclusive'),
     /** The day the business started billing here (cut-over from MVP 1 figures, §4.7). */
     billingLiveOn: date('billing_live_on', { mode: 'string' }),
+    /** Cash is taken only into an open register session ([PO-11]: yes for cash). */
+    cashNeedsRegister: boolean('cash_needs_register').notNull().default(true),
+    /** A register closing further off than this tells the branch managers (spec §5.5). */
+    registerVarianceAlertPaise: bigint('register_variance_alert_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -3060,6 +3075,7 @@ export const salesSettings = pgTable(
     }).onDelete('restrict'),
     check('sales_settings_quote_validity', sql`${table.quoteValidityDays} between 1 and 365`),
     check('sales_settings_advance_pct', sql`${table.partialMinAdvancePct} between 0 and 100`),
+    check('sales_settings_variance_alert', sql`${table.registerVarianceAlertPaise} >= 0`),
     pgPolicy('sales_settings_tenant_isolation', {
       for: 'all',
       to: tenantRole,
@@ -3187,6 +3203,8 @@ export const taxDocuments = pgTable(
     /** Why a note was raised; free text on an invoice. */
     reason: text('reason'),
     note: text('note'),
+    /** A discount credit note's scheme (the brand's or ours), e.g. "Diwali 2026" (round 3c). */
+    schemeReference: text('scheme_reference'),
     stockPosting: stockPosting('stock_posting').notNull().default('on_issue'),
     itcReversalStatus: itcReversalStatus('itc_reversal_status'),
     // E-invoice (Release 2.3; entered by hand from the government portal until then).
@@ -3203,6 +3221,12 @@ export const taxDocuments = pgTable(
   },
   (table) => [
     unique('tax_documents_organization_id_id_unique').on(table.organizationId, table.id),
+    // Lets an allocation point at a document of its own party only (round 3a).
+    unique('tax_documents_organization_id_party_unique').on(
+      table.organizationId,
+      table.id,
+      table.partyId,
+    ),
     // Rule 46(b): unique per GSTIN and financial year (drafts have no number).
     unique('tax_documents_number_unique').on(
       table.organizationId,
@@ -3633,6 +3657,12 @@ export const partyLedger = pgTable(
       .default(sql`clock_timestamp()`),
   },
   (table) => [
+    // Lets an allocation point at an opening balance or charge of its own party only.
+    unique('party_ledger_organization_id_party_unique').on(
+      table.organizationId,
+      table.id,
+      table.partyId,
+    ),
     index('party_ledger_party_idx').on(
       table.organizationId,
       table.partyId,
@@ -3739,6 +3769,587 @@ export const idempotencyKeys = pgTable(
     }).onDelete('cascade'),
     check('idempotency_keys_key_length', sql`char_length(${table.key}) between 1 and 200`),
     pgPolicy('idempotency_keys_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+// Payments, allocations and the cash register (Release 2.0 round 3a) --------
+
+export const paymentModeKind = pgEnum('payment_mode_kind', [
+  'cash',
+  'upi',
+  'card',
+  'bank_transfer',
+  'cheque',
+  'other',
+]);
+
+/** How a business takes money: the five base modes, plus its own (a finance company, a wallet). */
+export const paymentModes = pgTable(
+  'payment_modes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    kind: paymentModeKind('kind').notNull(),
+    name: text('name').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    unique('payment_modes_organization_id_id_unique').on(table.organizationId, table.id),
+    // A payment snapshots its mode's kind; this key keeps the two equal.
+    unique('payment_modes_organization_id_kind_unique').on(
+      table.organizationId,
+      table.id,
+      table.kind,
+    ),
+    uniqueIndex('payment_modes_name_unique').on(table.organizationId, sql`lower(${table.name})`),
+    foreignKey({
+      name: 'payment_modes_organization_fk',
+      columns: [table.organizationId],
+      foreignColumns: [organizations.id],
+    }).onDelete('cascade'),
+    check('payment_modes_name_length', sql`char_length(${table.name}) between 1 and 60`),
+    pgPolicy('payment_modes_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const registerSessionStatus = pgEnum('register_session_status', ['open', 'closed']);
+
+/**
+ * One cashier's shift at a counter (spec §5.5): opened with a float, closed
+ * with the cash counted. One open session per register; immutable once closed
+ * (trigger, migration 0058).
+ */
+export const registerSessions = pgTable(
+  'register_sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    storeId: uuid('store_id').notNull(),
+    /** The counter, e.g. COUNTER1. */
+    registerCode: text('register_code').notNull(),
+    status: registerSessionStatus('status').notNull().default('open'),
+    openedByMemberId: uuid('opened_by_member_id').notNull(),
+    openedAt: timestamp('opened_at', { withTimezone: true }).notNull().defaultNow(),
+    openingFloatPaise: bigint('opening_float_paise', { mode: 'number' }).notNull(),
+    openingNote: text('opening_note'),
+    closedByMemberId: uuid('closed_by_member_id'),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    /** Float + cash in − cash out ± movements, fixed at close. */
+    expectedCashPaise: bigint('expected_cash_paise', { mode: 'number' }),
+    countedCashPaise: bigint('counted_cash_paise', { mode: 'number' }),
+    /** Counted − expected: negative when cash is short. */
+    variancePaise: bigint('variance_paise', { mode: 'number' }),
+    /** How many of each note and coin were counted, keyed by its paise value. */
+    denominations: jsonb('denominations').$type<Record<string, number>>(),
+    closingNote: text('closing_note'),
+    ...timestamps,
+  },
+  (table) => [
+    unique('register_sessions_organization_id_id_unique').on(table.organizationId, table.id),
+    // A payment's session must be at the payment's store.
+    unique('register_sessions_organization_id_store_unique').on(
+      table.organizationId,
+      table.id,
+      table.storeId,
+    ),
+    uniqueIndex('register_sessions_one_open')
+      .on(table.organizationId, table.storeId, table.registerCode)
+      .where(sql`${table.status} = 'open'`),
+    index('register_sessions_store_opened_idx').on(
+      table.organizationId,
+      table.storeId,
+      table.openedAt.desc().nullsFirst(),
+    ),
+    foreignKey({
+      name: 'register_sessions_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'register_sessions_opened_by_fk',
+      columns: [table.organizationId, table.openedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'register_sessions_closed_by_fk',
+      columns: [table.organizationId, table.closedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('register_sessions_code_format', sql`${table.registerCode} ~ '^[A-Z0-9-]{1,20}$'`),
+    check('register_sessions_float', sql`${table.openingFloatPaise} >= 0`),
+    check(
+      'register_sessions_closed',
+      sql`(${table.status} = 'closed') = (${table.closedAt} is not null)
+        and (${table.status} = 'closed') = (${table.closedByMemberId} is not null)
+        and (${table.status} = 'closed') = (${table.expectedCashPaise} is not null)
+        and (${table.status} = 'closed') = (${table.countedCashPaise} is not null)
+        and (${table.status} = 'closed') = (${table.variancePaise} is not null)`,
+    ),
+    check(
+      'register_sessions_variance',
+      sql`${table.countedCashPaise} >= 0
+        and ${table.variancePaise} = ${table.countedCashPaise} - ${table.expectedCashPaise}`,
+    ),
+    pgPolicy('register_sessions_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const registerMovementKind = pgEnum('register_movement_kind', [
+  'pay_in',
+  'pay_out',
+  'bank_deposit',
+]);
+
+/** Cash into or out of the drawer other than sales and refunds. Insert only, while open. */
+export const registerCashMovements = pgTable(
+  'register_cash_movements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    sessionId: uuid('session_id').notNull(),
+    kind: registerMovementKind('kind').notNull(),
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
+    reason: text('reason').notNull(),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (table) => [
+    index('register_cash_movements_session_idx').on(table.organizationId, table.sessionId),
+    foreignKey({
+      name: 'register_cash_movements_session_fk',
+      columns: [table.organizationId, table.sessionId],
+      foreignColumns: [registerSessions.organizationId, registerSessions.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'register_cash_movements_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('register_cash_movements_amount_positive', sql`${table.amountPaise} > 0`),
+    check(
+      'register_cash_movements_reason_length',
+      sql`char_length(${table.reason}) between 1 and 200`,
+    ),
+    pgPolicy('register_cash_movements_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const paymentDirection = pgEnum('payment_direction', ['in', 'out']);
+export const chequeStatus = pgEnum('cheque_status', ['pending', 'cleared', 'bounced']);
+
+/**
+ * Money received from a party (`in`) or refunded to one (`out`), spec §3.3.
+ * Never edited or deleted: the only change is a cheque's status, once, from
+ * pending to cleared or bounced (trigger, migration 0058). What it pays is in
+ * `allocations`; its ledger entry is written in the same transaction.
+ */
+export const payments = pgTable(
+  'payments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    storeId: uuid('store_id').notNull(),
+    /** RC-000123 (money in) or RF-000012 (refund), gap-free per organisation. */
+    number: text('number').notNull(),
+    direction: paymentDirection('direction').notNull(),
+    partyId: uuid('party_id').notNull(),
+    modeId: uuid('mode_id').notNull(),
+    /** The mode's kind when paid (kept equal by the foreign key). */
+    modeKind: paymentModeKind('mode_kind').notNull(),
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
+    /** Cash in: what was handed over; the change went back. */
+    tenderedPaise: bigint('tendered_paise', { mode: 'number' }),
+    /** India business date the money moved. */
+    receivedOn: date('received_on', { mode: 'string' }).notNull(),
+    /** UTR, card slip or cheque number. */
+    reference: text('reference'),
+    chequeDate: date('cheque_date', { mode: 'string' }),
+    chequeStatus: chequeStatus('cheque_status'),
+    chequeClearedOn: date('cheque_cleared_on', { mode: 'string' }),
+    chequeBouncedOn: date('cheque_bounced_on', { mode: 'string' }),
+    bounceReason: text('bounce_reason'),
+    registerSessionId: uuid('register_session_id'),
+    /** A payment gateway's id, for matching (2.1). */
+    gatewayReference: text('gateway_reference'),
+    note: text('note'),
+    /**
+     * The GST receipt voucher (an advance, Rule 50) or refund voucher (Rule
+     * 51) number, from the store's series, and the registration that issued it.
+     */
+    voucherNumber: text('voucher_number'),
+    voucherFy: text('voucher_fy'),
+    voucherSeriesId: uuid('voucher_series_id'),
+    supplierGstin: text('supplier_gstin'),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (table) => [
+    unique('payments_organization_id_id_unique').on(table.organizationId, table.id),
+    // Allocations name their party; these keys keep it the payment's party.
+    unique('payments_organization_id_party_unique').on(
+      table.organizationId,
+      table.id,
+      table.partyId,
+    ),
+    unique('payments_organization_number_unique').on(table.organizationId, table.number),
+    unique('payments_voucher_unique').on(
+      table.organizationId,
+      table.supplierGstin,
+      table.voucherFy,
+      table.voucherNumber,
+    ),
+    index('payments_party_idx').on(table.organizationId, table.partyId, table.receivedOn),
+    index('payments_store_received_idx').on(
+      table.organizationId,
+      table.storeId,
+      table.receivedOn.desc().nullsFirst(),
+    ),
+    index('payments_organization_created_idx').on(
+      table.organizationId,
+      table.createdAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst(),
+    ),
+    index('payments_register_session_idx')
+      .on(table.registerSessionId)
+      .where(sql`${table.registerSessionId} is not null`),
+    foreignKey({
+      name: 'payments_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'payments_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'payments_mode_fk',
+      columns: [table.organizationId, table.modeId, table.modeKind],
+      foreignColumns: [paymentModes.organizationId, paymentModes.id, paymentModes.kind],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'payments_register_session_fk',
+      columns: [table.organizationId, table.registerSessionId, table.storeId],
+      foreignColumns: [
+        registerSessions.organizationId,
+        registerSessions.id,
+        registerSessions.storeId,
+      ],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'payments_voucher_series_fk',
+      columns: [table.organizationId, table.voucherSeriesId],
+      foreignColumns: [documentSeries.organizationId, documentSeries.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'payments_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('payments_amount_positive', sql`${table.amountPaise} > 0`),
+    check('payments_number_format', sql`${table.number} ~ '^R[CF]-[0-9]{6,}$'`),
+    check(
+      'payments_tendered',
+      sql`${table.tenderedPaise} is null or (${table.modeKind} = 'cash' and ${table.direction} = 'in'
+        and ${table.tenderedPaise} >= ${table.amountPaise})`,
+    ),
+    check(
+      'payments_cheque',
+      sql`(${table.modeKind} = 'cheque' and ${table.direction} = 'in') = (${table.chequeStatus} is not null)
+        and (${table.chequeStatus} is not null) = (${table.chequeDate} is not null)
+        and (${table.chequeStatus} is not distinct from 'cleared') = (${table.chequeClearedOn} is not null)
+        and (${table.chequeStatus} is not distinct from 'bounced') = (${table.chequeBouncedOn} is not null)
+        and (${table.chequeStatus} is not distinct from 'bounced') = (${table.bounceReason} is not null)`,
+    ),
+    check(
+      'payments_voucher',
+      sql`(${table.voucherNumber} is null) = (${table.voucherFy} is null)
+        and (${table.voucherNumber} is null) = (${table.voucherSeriesId} is null)
+        and (${table.voucherNumber} is null) = (${table.supplierGstin} is null)
+        and ${table.voucherNumber} ~ '^[A-Z0-9/-]{1,16}$'
+        and ${table.voucherFy} ~ '^[0-9]{4}-[0-9]{2}$'`,
+    ),
+    check(
+      'payments_text_lengths',
+      sql`char_length(${table.reference}) <= 100 and char_length(${table.note}) <= 500
+        and char_length(${table.gatewayReference}) <= 200 and char_length(${table.bounceReason}) <= 500`,
+    ),
+    pgPolicy('payments_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * What a payment or credit note pays (spec §3.3, §4.6): an invoice, bill of
+ * supply or debit note, an opening balance or charge in the party ledger, or
+ * a refund. Append-only; a negative row undoes an earlier one. A trigger
+ * (migration 0058) keeps every source and target within its amount.
+ */
+export const allocations = pgTable(
+  'allocations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** Source and target always belong to this party (composite keys). */
+    partyId: uuid('party_id').notNull(),
+    paymentId: uuid('payment_id'),
+    creditNoteId: uuid('credit_note_id'),
+    documentId: uuid('document_id'),
+    partyLedgerId: uuid('party_ledger_id'),
+    refundPaymentId: uuid('refund_payment_id'),
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
+    reversesAllocationId: uuid('reverses_allocation_id'),
+    createdByMemberId: uuid('created_by_member_id'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (table) => [
+    unique('allocations_organization_id_id_unique').on(table.organizationId, table.id),
+    // One reversal per row.
+    unique('allocations_reverses_unique').on(table.reversesAllocationId),
+    index('allocations_payment_idx')
+      .on(table.paymentId)
+      .where(sql`${table.paymentId} is not null`),
+    index('allocations_credit_note_idx')
+      .on(table.creditNoteId)
+      .where(sql`${table.creditNoteId} is not null`),
+    index('allocations_document_idx')
+      .on(table.documentId)
+      .where(sql`${table.documentId} is not null`),
+    index('allocations_party_ledger_idx')
+      .on(table.partyLedgerId)
+      .where(sql`${table.partyLedgerId} is not null`),
+    index('allocations_refund_idx')
+      .on(table.refundPaymentId)
+      .where(sql`${table.refundPaymentId} is not null`),
+    index('allocations_party_idx').on(table.organizationId, table.partyId),
+    foreignKey({
+      name: 'allocations_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'allocations_payment_fk',
+      columns: [table.organizationId, table.paymentId, table.partyId],
+      foreignColumns: [payments.organizationId, payments.id, payments.partyId],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'allocations_credit_note_fk',
+      columns: [table.organizationId, table.creditNoteId, table.partyId],
+      foreignColumns: [taxDocuments.organizationId, taxDocuments.id, taxDocuments.partyId],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'allocations_document_fk',
+      columns: [table.organizationId, table.documentId, table.partyId],
+      foreignColumns: [taxDocuments.organizationId, taxDocuments.id, taxDocuments.partyId],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'allocations_party_ledger_fk',
+      columns: [table.organizationId, table.partyLedgerId, table.partyId],
+      foreignColumns: [partyLedger.organizationId, partyLedger.id, partyLedger.partyId],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'allocations_refund_fk',
+      columns: [table.organizationId, table.refundPaymentId, table.partyId],
+      foreignColumns: [payments.organizationId, payments.id, payments.partyId],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'allocations_reverses_fk',
+      columns: [table.organizationId, table.reversesAllocationId],
+      foreignColumns: [table.organizationId, table.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'allocations_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'allocations_one_source',
+      sql`num_nonnulls(${table.paymentId}, ${table.creditNoteId}) = 1`,
+    ),
+    check(
+      'allocations_one_target',
+      sql`num_nonnulls(${table.documentId}, ${table.partyLedgerId}, ${table.refundPaymentId}) = 1`,
+    ),
+    check(
+      'allocations_amount_sign',
+      sql`${table.amountPaise} <> 0
+        and (${table.reversesAllocationId} is null) = (${table.amountPaise} > 0)`,
+    ),
+    check('allocations_not_self', sql`${table.paymentId} <> ${table.refundPaymentId}`),
+    pgPolicy('allocations_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** What a Tally ledger mapping is for (spec §6.1; the Tally mapper's `TallyLedgerPurpose`). */
+export const tallyLedgerPurpose = pgEnum('tally_ledger_purpose', [
+  'sales',
+  'composition_sales',
+  'output_cgst',
+  'output_sgst',
+  'output_igst',
+  'output_cess',
+  'round_off',
+  'party',
+  'walk_in',
+  'payment_mode',
+]);
+export const taxNature = pgEnum('tax_nature', ['taxable', 'nil_rated', 'exempt', 'non_gst']);
+
+/**
+ * A business's override of a default Tally ledger name (spec §6.1): applies to
+ * an amount of its purpose when every match column it sets agrees; the rule
+ * setting most columns wins, the lower position a tie. Settings, audited.
+ */
+export const ledgerMappings = pgTable(
+  'ledger_mappings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    purpose: tallyLedgerPurpose('purpose').notNull(),
+    // Match: null means any.
+    rateBps: integer('rate_bps'),
+    nature: taxNature('nature'),
+    supplyType: supplyType('supply_type'),
+    storeId: uuid('store_id'),
+    modeKind: paymentModeKind('mode_kind'),
+    modeId: uuid('mode_id'),
+    partyId: uuid('party_id'),
+    tallyLedgerName: text('tally_ledger_name').notNull(),
+    /** The Tally group to create the ledger under, when not the purpose's usual one. */
+    tallyGroup: text('tally_group'),
+    position: integer('position').notNull().default(0),
+    ...timestamps,
+  },
+  (table) => [
+    unique('ledger_mappings_organization_id_id_unique').on(table.organizationId, table.id),
+    index('ledger_mappings_purpose_idx').on(table.organizationId, table.purpose, table.position),
+    foreignKey({
+      name: 'ledger_mappings_organization_fk',
+      columns: [table.organizationId],
+      foreignColumns: [organizations.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'ledger_mappings_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'ledger_mappings_mode_fk',
+      columns: [table.organizationId, table.modeId],
+      foreignColumns: [paymentModes.organizationId, paymentModes.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'ledger_mappings_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('cascade'),
+    check(
+      'ledger_mappings_name_length',
+      sql`char_length(${table.tallyLedgerName}) between 1 and 200`,
+    ),
+    check('ledger_mappings_rate_range', sql`${table.rateBps} between 0 and 10000`),
+    check(
+      'ledger_mappings_group',
+      sql`${table.tallyGroup} in ('Sales Accounts', 'Duties & Taxes', 'Indirect Expenses',
+        'Sundry Debtors', 'Cash-in-Hand', 'Bank Accounts', 'Current Assets')`,
+    ),
+    check(
+      'ledger_mappings_match_fits_purpose',
+      sql`case
+        when ${table.purpose} in ('party', 'walk_in') then num_nonnulls(${table.rateBps}, ${table.nature}, ${table.supplyType}, ${table.modeKind}, ${table.modeId}) = 0
+        when ${table.purpose} = 'payment_mode' then num_nonnulls(${table.rateBps}, ${table.nature}, ${table.supplyType}, ${table.partyId}) = 0
+        else num_nonnulls(${table.modeKind}, ${table.modeId}, ${table.partyId}) = 0
+      end`,
+    ),
+    pgPolicy('ledger_mappings_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const accountingExportFormat = pgEnum('accounting_export_format', ['tally_xml', 'xlsx']);
+
+/** One row per accounting export, for audit (spec §6.1): never changed except filing its file once. */
+export const accountingExports = pgTable(
+  'accounting_exports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** Issue and receipt dates covered, India time, both inclusive. */
+    periodFrom: date('period_from', { mode: 'string' }).notNull(),
+    periodTo: date('period_to', { mode: 'string' }).notNull(),
+    /** Voucher kinds included: sales, credit_note, debit_note, receipt. */
+    kinds: text('kinds').array().notNull(),
+    format: accountingExportFormat('format').notNull(),
+    /** The stored XML or workbook (documents), once written. */
+    documentId: uuid('document_id'),
+    voucherCount: integer('voucher_count').notNull().default(0),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('accounting_exports_organization_id_id_unique').on(table.organizationId, table.id),
+    index('accounting_exports_created_idx').on(
+      table.organizationId,
+      table.createdAt.desc().nullsFirst(),
+    ),
+    foreignKey({
+      name: 'accounting_exports_document_fk',
+      columns: [table.organizationId, table.documentId],
+      foreignColumns: [documents.organizationId, documents.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'accounting_exports_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('accounting_exports_period', sql`${table.periodFrom} <= ${table.periodTo}`),
+    check(
+      'accounting_exports_kinds',
+      sql`cardinality(${table.kinds}) between 1 and 4
+        and ${table.kinds} <@ array['sales', 'credit_note', 'debit_note', 'receipt']::text[]`,
+    ),
+    check('accounting_exports_voucher_count', sql`${table.voucherCount} >= 0`),
+    pgPolicy('accounting_exports_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

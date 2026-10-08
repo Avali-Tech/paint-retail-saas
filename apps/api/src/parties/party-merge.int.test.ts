@@ -213,6 +213,7 @@ describe('merging a duplicate', () => {
     expect(result.moved).toEqual({
       'leads.party_id': 1,
       'leads.referred_by_party_id': 1,
+      'ledger_mappings.party_id': 0,
       'opportunities.party_id': 1,
       'projects.customer_party_id': 1,
       'contracts.party_id': 1,

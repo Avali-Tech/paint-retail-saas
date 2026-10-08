@@ -28,7 +28,9 @@ describe('migrateDatabase', () => {
       return result.rows.map((row) => row.table_name);
     });
     expect(tables).toEqual([
+      'accounting_exports',
       'activities',
+      'allocations',
       'audit_log',
       'brands',
       'categories',
@@ -46,6 +48,7 @@ describe('migrateDatabase', () => {
       'gstin_profiles',
       'idempotency_keys',
       'leads',
+      'ledger_mappings',
       'low_stock_alerts',
       'loyalty_accounts',
       'loyalty_ledger',
@@ -63,6 +66,8 @@ describe('migrateDatabase', () => {
       'party_balances',
       'party_ledger',
       'party_roles',
+      'payment_modes',
+      'payments',
       'platform_admins',
       'platform_sessions',
       'product_barcodes',
@@ -72,6 +77,8 @@ describe('migrateDatabase', () => {
       'projects',
       'purchase_order_lines',
       'purchase_orders',
+      'register_cash_movements',
+      'register_sessions',
       'reorder_rules',
       'role_permissions',
       'roles',

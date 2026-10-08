@@ -1,13 +1,12 @@
 import 'reflect-metadata';
 import {
-  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import {
-  nextDocumentNumber,
+  adjustPartyAdvance,
   postPartyLedger,
   postStockMovements,
   schema,
@@ -19,9 +18,7 @@ import {
   BUYER_DETAILS_THRESHOLD_PAISE,
   DEFAULT_GST_OPTIONS,
   computeInvoice,
-  defaultSeries,
-  financialYear,
-  formatTaxDocumentNumber,
+  formatINR,
   gstClassFor,
   hsnMeetsRequirement,
   requiredHsnDigits,
@@ -31,6 +28,7 @@ import {
   type GstError,
   type GstRate,
   type Invoice,
+  type IssuedInvoiceView,
   type TaxDocumentView,
 } from '@paint/shared';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
@@ -38,16 +36,28 @@ import { alias } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
 import type { CancelInvoiceInput, IssueInvoiceInput } from './billing.schemas.js';
+import { paymentView } from '../payments/payment-view.js';
+import {
+  activeMode,
+  checkDetails,
+  insertAllocations,
+  lockParty,
+  paymentStore,
+  receivePayment,
+  registerSessionFor,
+  type PaymentRow,
+} from '../payments/posting.js';
 import { idempotent } from './idempotency.js';
 import { documentView, indiaToday, loadDocument, type TaxDocumentRow } from './invoice-view.js';
+import { takeDocumentNumber } from './series.js';
+import { walkInParty } from './walk-in.js';
 
 const {
-  documentSeries,
+  allocations,
   gstinProfiles,
-  parties,
+  payments,
   productVariants,
   products,
-  salesSettings,
   stockBalances,
   stores,
   taxCategories,
@@ -115,7 +125,7 @@ export class InvoiceIssueService {
     id: string,
     input: IssueInvoiceInput,
     idempotencyKey?: string,
-  ): Promise<TaxDocumentView> {
+  ): Promise<IssuedInvoiceView> {
     const request = { method: 'POST', path: `/invoices/${id}/issue`, body: input };
     return withTenant(this.connection.db, auth.organization.id, (tx) =>
       idempotent(tx, auth, idempotencyKey, request, () => this.issueIn(tx, auth, id, input)),
@@ -125,6 +135,9 @@ export class InvoiceIssueService {
   /** Same-day cancellation of a counter mistake (spec §3.6, [CA-9]); otherwise a credit note. */
   cancel(auth: AuthContext, id: string, input: CancelInvoiceInput): Promise<TaxDocumentView> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      // The party first, then the document: the order every payment flow locks in.
+      const { partyId } = await loadDocument(tx, auth, id);
+      if (partyId !== null) await lockParty(tx, auth.organization.id, partyId);
       const document = await loadDocument(tx, auth, id, true);
       if (document.status !== 'issued') {
         throw new ConflictException('Only an issued invoice can be cancelled');
@@ -143,6 +156,17 @@ export class InvoiceIssueService {
       if (linked) {
         throw new ConflictException(
           'A note or advance refers to this invoice; it cannot be cancelled',
+        );
+      }
+      const [paid] = (await tx
+        .select({
+          total: sql<number>`coalesce(sum(${allocations.amountPaise}), 0)`.mapWith(Number),
+        })
+        .from(allocations)
+        .where(eq(allocations.documentId, id))) as [{ total: number }];
+      if (paid.total !== 0) {
+        throw new ConflictException(
+          'Payments are allocated to this invoice: undo them first, or raise a credit note',
         );
       }
       const [cancelled] = (await tx
@@ -200,7 +224,7 @@ export class InvoiceIssueService {
     auth: AuthContext,
     id: string,
     input: IssueInvoiceInput,
-  ): Promise<TaxDocumentView> {
+  ): Promise<IssuedInvoiceView> {
     const organizationId = auth.organization.id;
     const document = await loadDocument(tx, auth, id, true);
     if (document.status !== 'draft') {
@@ -382,14 +406,13 @@ export class InvoiceIssueService {
     if (problems.length > 0) throw unprocessable(problems);
 
     // The number, gap-free per GSTIN, financial year, kind and prefix.
-    const series = await this.series(tx, organizationId, document.storeId, store.code, kind);
-    const fy = financialYear(today);
-    const serial = await nextDocumentNumber(
+    const { seriesId, number, fy } = await takeDocumentNumber(
       tx,
       organizationId,
-      `tax:${kind}:${store.gstin}:${fy}:${series.prefix}`,
+      { id: document.storeId, code: store.code, gstin: store.gstin },
+      kind,
+      today,
     );
-    const number = formatTaxDocumentNumber(series.prefix, fy, serial, series.digits);
 
     // Lines and tax rows are written while the document is still a draft.
     for (const [index, line] of lines.entries()) {
@@ -415,14 +438,14 @@ export class InvoiceIssueService {
     }
     await this.writeTaxRows(tx, organizationId, id, lines, invoice);
 
-    const partyId = document.partyId ?? (await this.walkInParty(tx, organizationId));
+    const partyId = document.partyId ?? (await walkInParty(tx, organizationId));
     const totals = invoice.totals;
     const [issued] = (await tx
       .update(taxDocuments)
       .set({
         kind,
         status: 'issued',
-        seriesId: series.id,
+        seriesId,
         number,
         fy,
         issuedOn: today,
@@ -493,7 +516,104 @@ export class InvoiceIssueService {
         },
       ]);
     }
-    return documentView(tx, issued);
+    return this.takePayments(tx, auth, issued, partyId, document.partyId === null, input);
+  }
+
+  /**
+   * The payments taken with the issue (spec §4.4, POS walk-in): the party's
+   * advances first when asked, then each new payment, all allocated to this
+   * invoice in the same transaction. A walk-in bill paid at the counter is
+   * paid in full; nothing may be paid beyond the bill (cash change goes back).
+   */
+  private async takePayments(
+    tx: Transaction,
+    auth: AuthContext,
+    invoice: TaxDocumentRow,
+    partyId: string,
+    walkIn: boolean,
+    input: IssueInvoiceInput,
+  ): Promise<IssuedInvoiceView> {
+    let outstanding = invoice.totalPaise;
+    const target = { documentId: invoice.id, partyLedgerId: null };
+    if (input.allocateAdvances && !walkIn) {
+      const advances = await tx
+        .select({
+          id: payments.id,
+          left: sql<number>`${payments.amountPaise} - coalesce((select sum(a.amount_paise) from ${allocations} a where a.payment_id = ${sql.raw('"payments"."id"')}), 0)`.mapWith(
+            Number,
+          ),
+        })
+        .from(payments)
+        .where(
+          and(
+            eq(payments.partyId, partyId),
+            eq(payments.direction, 'in'),
+            sql`${payments.chequeStatus} is distinct from 'bounced'`,
+            sql`${payments.amountPaise} > coalesce((select sum(a.amount_paise) from ${allocations} a where a.payment_id = ${sql.raw('"payments"."id"')}), 0)`,
+          ),
+        )
+        .orderBy(asc(payments.createdAt), asc(payments.id));
+      for (const advance of advances) {
+        if (outstanding === 0) break;
+        const amountPaise = Math.min(advance.left, outstanding);
+        await insertAllocations(tx, auth, partyId, advance.id, [{ ...target, amountPaise }]);
+        await adjustPartyAdvance(tx, partyId, -amountPaise);
+        outstanding -= amountPaise;
+      }
+    }
+    const requested = input.payments ?? [];
+    const paying = requested.reduce((sum, item) => sum + item.amountPaise, 0);
+    if (walkIn && input.payments !== undefined && paying !== outstanding) {
+      throw unprocessable([
+        { path: 'payments', message: `A walk-in bill is paid in full: ${formatINR(outstanding)}` },
+      ]);
+    }
+    if (paying > outstanding) {
+      throw unprocessable([
+        { path: 'payments', message: `Only ${formatINR(outstanding)} is due on this bill` },
+      ]);
+    }
+    const taken: PaymentRow[] = [];
+    if (requested.length > 0) {
+      const store = await paymentStore(tx, auth, invoice.storeId, 'storeId');
+      for (const [index, item] of requested.entries()) {
+        const at = `payments.${String(index)}.`;
+        const mode = await activeMode(tx, item.modeId, `${at}modeId`);
+        checkDetails(mode, item, at);
+        const registerSessionId = await registerSessionFor(
+          tx,
+          store.id,
+          mode.kind,
+          item.registerSessionId,
+          `${at}registerSessionId`,
+        );
+        taken.push(
+          await receivePayment(
+            tx,
+            auth,
+            {
+              store,
+              partyId,
+              mode,
+              details: item,
+              receivedOn: String(invoice.issuedOn),
+              registerSessionId,
+            },
+            [{ ...target, amountPaise: item.amountPaise }],
+          ),
+        );
+      }
+    }
+    const views = [];
+    for (const payment of taken) views.push(await paymentView(tx, payment));
+    const paidPaise = invoice.totalPaise - outstanding + paying;
+    return {
+      ...(await documentView(tx, invoice)),
+      payments: views,
+      paidPaise,
+      outstandingPaise: invoice.totalPaise - paidPaise,
+      changePaise: views.reduce((sum, view) => sum + (view.changePaise ?? 0), 0),
+    };
   }
 
   /**
@@ -569,64 +689,5 @@ export class InvoiceIssueService {
       });
     });
     if (rows.size > 0) await tx.insert(taxDocumentTaxRows).values([...rows.values()]);
-  }
-
-  /** The store's active series for `kind`, set up with the default prefix when it has none. */
-  private async series(
-    tx: Transaction,
-    organizationId: string,
-    storeId: string,
-    storeCode: string,
-    kind: 'invoice' | 'bill_of_supply',
-  ): Promise<{ id: string; prefix: string; digits: number }> {
-    const active = () =>
-      tx
-        .select({
-          id: documentSeries.id,
-          prefix: documentSeries.prefix,
-          digits: documentSeries.digits,
-        })
-        .from(documentSeries)
-        .where(
-          and(
-            eq(documentSeries.storeId, storeId),
-            eq(documentSeries.kind, kind),
-            eq(documentSeries.isActive, true),
-          ),
-        );
-    const [existing] = await active();
-    if (existing) return existing;
-    const fallback = defaultSeries(storeCode, kind);
-    if (fallback === null) {
-      throw new BadRequestException(
-        `Set up a document series for this store: its code is too long to number ${kind.replaceAll('_', ' ')}s`,
-      );
-    }
-    // Concurrent first bills at a store race to create it; the losers use the winner's.
-    await tx
-      .insert(documentSeries)
-      .values({ organizationId, storeId, kind, ...fallback })
-      .onConflictDoNothing();
-    const [created] = (await active()) as [{ id: string; prefix: string; digits: number }];
-    return created;
-  }
-
-  /** The party walk-in sales are billed to, created with the first one (spec §4.6). */
-  private async walkInParty(tx: Transaction, organizationId: string): Promise<string> {
-    await tx.insert(salesSettings).values({ organizationId }).onConflictDoNothing();
-    const [settings] = (await tx
-      .select({ walkInPartyId: salesSettings.walkInPartyId })
-      .from(salesSettings)
-      .for('update')) as [{ walkInPartyId: string | null }];
-    if (settings.walkInPartyId !== null) return settings.walkInPartyId;
-    const [party] = (await tx
-      .insert(parties)
-      .values({ organizationId, displayName: 'Walk-in customer', kind: 'person' })
-      .returning({ id: parties.id })) as [{ id: string }];
-    await tx
-      .update(salesSettings)
-      .set({ walkInPartyId: party.id, updatedAt: sql`now()` })
-      .where(eq(salesSettings.organizationId, organizationId));
-    return party.id;
   }
 }

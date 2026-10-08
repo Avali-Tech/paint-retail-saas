@@ -29,6 +29,11 @@ export const AUDIT_AREAS = {
   sales_settings: 'Sales settings',
   document_series: 'Document series',
   tax_documents: 'Invoices',
+  payment_modes: 'Payment modes',
+  ledger_mappings: 'Tally ledger mappings',
+  register_sessions: 'Cash registers',
+  payments: 'Cheques',
+  accounting_exports: 'Accounting exports',
 } as const;
 export type AuditTable = keyof typeof AUDIT_AREAS;
 
