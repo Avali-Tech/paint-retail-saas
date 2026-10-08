@@ -12,6 +12,7 @@ export type GstErrorCode =
   | 'invalid_gstin'
   | 'composition_inter_state'
   | 'invalid_return'
+  | 'invalid_adjustment'
   | 'unsupported_rounding';
 
 /** Thrown for input the engine will not tax; `code` is stable for callers to branch on. */

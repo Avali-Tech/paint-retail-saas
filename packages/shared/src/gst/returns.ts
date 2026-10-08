@@ -1,6 +1,6 @@
 import { quantityToMilli, roundDiv, toPaise } from './arith.js';
 import { GstError } from './errors.js';
-import type { Invoice } from './invoice.js';
+import type { Invoice, InvoiceLine } from './invoice.js';
 import {
   documentTotals,
   summarize,
@@ -19,6 +19,29 @@ export interface ReturnLineInput {
   readonly quantity: number;
   /** Units of this line already returned on earlier credit notes (0 when none). */
   readonly previouslyReturnedQuantity: number;
+}
+
+/**
+ * What a note needs of the original invoice: its supply, place of supply and,
+ * per line, the units sold and the amounts charged at the rate applied. An
+ * engine `Invoice` is one; so is an issued invoice read back from storage.
+ */
+export interface NoteSource extends Pick<
+  Invoice,
+  'supplyType' | 'placeOfSupply' | 'stateTaxLabel'
+> {
+  readonly lines: readonly Pick<
+    InvoiceLine,
+    | 'index'
+    | 'categoryCode'
+    | 'quantityMilli'
+    | 'rate'
+    | 'taxablePaise'
+    | 'cgstPaise'
+    | 'sgstPaise'
+    | 'igstPaise'
+    | 'cessPaise'
+  >[];
 }
 
 export interface CreditNoteLine extends TaxedLine {
@@ -51,7 +74,7 @@ export interface CreditNote {
  * can differ from the invoice's round-off by under a rupee in all.
  */
 export function computeReturn(
-  invoice: Invoice,
+  invoice: NoteSource,
   returned: readonly ReturnLineInput[],
   roundOff: boolean,
 ): CreditNote {

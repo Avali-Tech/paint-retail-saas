@@ -186,6 +186,38 @@ export {
   type TaxDocumentTaxRowView,
   type TaxDocumentView,
 } from './tax-documents.js';
+export {
+  CREDIT_NOTE_REASONS,
+  CREDIT_NOTE_WARNING_DAYS,
+  DEBIT_NOTE_REASONS,
+  ITC_REVERSAL_STATUSES,
+  NOTES_PERMISSION,
+  RETURN_DISPOSITIONS,
+  VALUE_CREDIT_NOTE_REASONS,
+  creditNoteDeadline,
+  creditNoteWindow,
+  loyaltyPointsToReverse,
+  noteSourceOf,
+  type CreditNoteReason,
+  type CreditNoteWindow,
+  type CreditNoteWindowStatus,
+  type DebitNoteReason,
+  type InvoiceAdjustmentLine,
+  type InvoiceAdjustments,
+  type ItcReversalStatus,
+  type NoteKind,
+  type NoteLineView,
+  type NotePage,
+  type NoteReason,
+  type NoteSummary,
+  type NoteView,
+  type ReturnDisposition,
+  type SalesReturnLineView,
+  type SalesReturnView,
+  type StoredInvoice,
+  type StoredInvoiceLine,
+  type ValueCreditNoteReason,
+} from './sales-notes.js';
 export * from './gst/index.js';
 export * from './invoice-print/index.js';
 export * from './tally/index.js';

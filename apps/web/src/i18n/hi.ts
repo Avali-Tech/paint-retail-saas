@@ -21,6 +21,7 @@ import { stockEnumsHi, stockHi } from './hi-stock.js';
 import { supportAccessHi } from './hi-support-access.js';
 import { taxHi, taxEnumsHi } from './hi-tax.js';
 import { teamHi } from './hi-team.js';
+import { salesEnumsHi, salesHi } from './hi-sales.js';
 import { transferEnumsHi, transfersHi } from './hi-transfers.js';
 import { workflowHi } from './hi-workflow.js';
 
@@ -328,6 +329,7 @@ export const hi: Messages = {
   ...supportAccessHi,
   ...brandingHi,
   ...taxHi,
+  ...salesHi,
   enums: {
     quickActions: {
       new_customer: '+ ग्राहक',
@@ -358,6 +360,7 @@ export const hi: Messages = {
     ...followUpEnumsHi,
     ...reportEnumsHi,
     ...taxEnumsHi,
+    ...salesEnumsHi,
   },
   pages: {
     notFound: 'इस पते पर कोई स्क्रीन नहीं है। लिंक जांचें, या मेन्यू या खोज का इस्तेमाल करें।',
