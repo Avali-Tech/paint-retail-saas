@@ -12,6 +12,7 @@ import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
 import { STATUS_TONE } from './InvoicesPage.js';
+import { DispatchPanel } from '../orders/DispatchPanel.js';
 import { LinesTable } from './LinesTable.js';
 import { NoteDialog } from './NoteDialog.js';
 import { NotesTable } from './NotesTable.js';
@@ -124,6 +125,7 @@ function InvoiceDetail({ invoice }: { readonly invoice: TaxDocumentView }) {
       <QueryState query={adjustments} error="sales.adjust.error">
         {(data) => <Adjustments invoice={invoice} adjustments={data} />}
       </QueryState>
+      {invoice.status === 'issued' && <DispatchPanel invoice={invoice} />}
     </>
   );
 }

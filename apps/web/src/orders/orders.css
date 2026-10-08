@@ -1,0 +1,30 @@
+/* Quotations, sales orders and dispatch (round 4b). Tokens only (theme-guard.test.ts). */
+
+.orders-party {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.orders-editor__total {
+  font-weight: 600;
+  text-align: end;
+}
+
+.orders-stores {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The quotation's print layer: only on paper. */
+@media screen {
+  .orders-print {
+    display: none;
+  }
+}
+
+@media print {
+  body:has(> .orders-print) > :not(.orders-print) {
+    display: none !important;
+  }
+}

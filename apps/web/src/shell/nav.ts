@@ -6,6 +6,7 @@ import { FOLLOW_UP_NAV_ITEMS } from '../followups/nav.js';
 import { IMPORT_NAV_ITEMS } from '../imports/nav.js';
 import { CRM_NAV_ITEMS } from '../leads/nav.js';
 import type { AnyOf } from '../lib/guard.js';
+import { ORDER_NAV_ITEMS } from '../orders/nav.js';
 import { CUSTOMER_NAV_ITEMS } from '../parties/nav.js';
 import { POS_NAV_ITEMS } from '../pos/nav.js';
 import { REPORT_NAV_ITEMS } from '../reports/nav.js';
@@ -71,6 +72,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: 'contracts:read',
   },
   // Each feature keeps its own entries in its own file.
+  ...ORDER_NAV_ITEMS,
   ...SALES_NAV_ITEMS,
   ...FOLLOW_UP_NAV_ITEMS,
   ...DOCUMENT_NAV_ITEMS,
