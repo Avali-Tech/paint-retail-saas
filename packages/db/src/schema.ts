@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { sql, type AnyColumn } from 'drizzle-orm';
 import {
   bigint,
   boolean,
@@ -13,6 +13,7 @@ import {
   pgPolicy,
   pgRole,
   pgTable,
+  type PgTableExtraConfigValue,
   text,
   primaryKey,
   timestamp,
@@ -2444,6 +2445,11 @@ export const creditProfiles = pgTable(
     overdueDays: integer('overdue_days').notNull().default(0),
     exposureUpdatedAt: timestamp('exposure_updated_at', { withTimezone: true }),
     exposureUpdatedByMemberId: uuid('exposure_updated_by_member_id'),
+    /**
+     * Set at go-live (spec §4.7) from the hand-entered overdue days: the opening
+     * balance counts as overdue since this India date until it is paid.
+     */
+    openingOverdueSince: date('opening_overdue_since', { mode: 'string' }),
     holdReason: text('hold_reason'),
     heldAt: timestamp('held_at', { withTimezone: true }),
     heldByMemberId: uuid('held_by_member_id'),
@@ -2722,6 +2728,11 @@ export const loyaltyLedger = pgTable(
     points: integer('points').notNull(),
     /** The purchase the points were earned on, entered by hand until billing exists. */
     manualPurchasePaise: bigint('manual_purchase_paise', { mode: 'number' }),
+    /**
+     * After go-live (spec §4.7): the invoice a purchase was earned on, or the
+     * credit note or cancelled invoice an adjustment takes points back for.
+     */
+    taxDocumentId: uuid('tax_document_id'),
     /** Bill number for a purchase, campaign name for a campaign award. */
     reference: text('reference'),
     /** What it was for; the reason, for an adjustment. */
@@ -2759,8 +2770,22 @@ export const loyaltyLedger = pgTable(
     ),
     check(
       'loyalty_ledger_purchase',
-      sql`(${table.kind} = 'purchase') = (${table.manualPurchasePaise} is not null) and (${table.manualPurchasePaise} is null or ${table.manualPurchasePaise} > 0)`,
+      sql`(${table.kind} <> 'purchase' or num_nonnulls(${table.manualPurchasePaise}, ${table.taxDocumentId}) = 1)
+        and (${table.manualPurchasePaise} is null or (${table.kind} = 'purchase' and ${table.manualPurchasePaise} > 0))
+        and (${table.taxDocumentId} is null or ${table.kind} in ('purchase', 'adjust'))`,
     ),
+    // One purchase entry per invoice: issuing never earns twice.
+    uniqueIndex('loyalty_ledger_invoice_purchase_unique')
+      .on(table.taxDocumentId)
+      .where(sql`${table.kind} = 'purchase' and ${table.taxDocumentId} is not null`),
+    index('loyalty_ledger_tax_document_idx')
+      .on(table.organizationId, table.taxDocumentId)
+      .where(sql`${table.taxDocumentId} is not null`),
+    foreignKey({
+      name: 'loyalty_ledger_tax_document_fk',
+      columns: [table.organizationId, table.taxDocumentId],
+      foreignColumns: [taxDocuments.organizationId, taxDocuments.id],
+    }).onDelete('restrict'),
     check(
       'loyalty_ledger_reference',
       sql`${table.kind} not in ('purchase', 'campaign') or ${table.reference} is not null`,
@@ -3205,6 +3230,8 @@ export const taxDocuments = pgTable(
     note: text('note'),
     /** A discount credit note's scheme (the brand's or ours), e.g. "Diwali 2026" (round 3c). */
     schemeReference: text('scheme_reference'),
+    /** The sales order an invoice bills (round 4a); its lines carry the order lines. */
+    salesOrderId: uuid('sales_order_id'),
     stockPosting: stockPosting('stock_posting').notNull().default('on_issue'),
     itcReversalStatus: itcReversalStatus('itc_reversal_status'),
     // E-invoice (Release 2.3; entered by hand from the government portal until then).
@@ -3281,6 +3308,14 @@ export const taxDocuments = pgTable(
       name: 'tax_documents_issued_by_fk',
       columns: [table.organizationId, table.issuedByMemberId],
       foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    index('tax_documents_sales_order_idx')
+      .on(table.organizationId, table.salesOrderId)
+      .where(sql`${table.salesOrderId} is not null`),
+    foreignKey({
+      name: 'tax_documents_sales_order_fk',
+      columns: [table.organizationId, table.salesOrderId],
+      foreignColumns: [salesOrders.organizationId, salesOrders.id],
     }).onDelete('restrict'),
     foreignKey({
       name: 'tax_documents_cancelled_by_fk',
@@ -3391,6 +3426,8 @@ export const taxDocumentLines = pgTable(
     totalPaise: bigint('total_paise', { mode: 'number' }).notNull().default(0),
     /** On a note: the invoice line it corrects. */
     sourceLineId: uuid('source_line_id'),
+    /** On an invoice from an order: the order line it bills. */
+    orderLineId: uuid('order_line_id'),
   },
   (table) => [
     unique('tax_document_lines_organization_id_id_unique').on(table.organizationId, table.id),
@@ -3410,6 +3447,14 @@ export const taxDocumentLines = pgTable(
       name: 'tax_document_lines_tax_category_fk',
       columns: [table.organizationId, table.taxCategoryId],
       foreignColumns: [taxCategories.organizationId, taxCategories.id],
+    }).onDelete('restrict'),
+    index('tax_document_lines_order_line_idx')
+      .on(table.organizationId, table.orderLineId)
+      .where(sql`${table.orderLineId} is not null`),
+    foreignKey({
+      name: 'tax_document_lines_order_line_fk',
+      columns: [table.organizationId, table.orderLineId],
+      foreignColumns: [salesOrderLines.organizationId, salesOrderLines.id],
     }).onDelete('restrict'),
     foreignKey({
       name: 'tax_document_lines_source_line_fk',
@@ -4350,6 +4395,668 @@ export const accountingExports = pgTable(
     ),
     check('accounting_exports_voucher_count', sql`${table.voucherCount} >= 0`),
     pgPolicy('accounting_exports_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+// ---------------------------------------------------------------------------
+// Quotations, sales orders, reservations and dispatches (MVP 2, Sell & Bill,
+// round 4a; spec §3.3, §4.1–4.4)
+// ---------------------------------------------------------------------------
+
+/** A quotation version's life; `expired` is read from `valid_until` (no job writes it in 2.0). */
+export const quotationStatus = pgEnum('quotation_status', [
+  'draft',
+  'sent',
+  'accepted',
+  'expired',
+  'superseded',
+  'converted',
+]);
+
+/** A sales order's life (spec §4.1). */
+export const salesOrderStatus = pgEnum('sales_order_status', [
+  'draft',
+  'confirmed',
+  'partly_fulfilled',
+  'fulfilled',
+  'cancelled',
+  'closed',
+]);
+
+/** How an order is paid (spec §4.4). */
+export const paymentTerms = pgEnum('payment_terms', ['prepaid', 'partial', 'postpaid']);
+
+/** `open` reservations make up `stock_balances.reserved`. */
+export const stockReservationStatus = pgEnum('stock_reservation_status', [
+  'open',
+  'consumed',
+  'released',
+]);
+
+/** Header columns quotations and orders share: who, where, and the engine's totals. */
+const salesHeaderColumns = () => ({
+  storeId: uuid('store_id').notNull(),
+  /** Who pays and owes (spec §6.4). */
+  billToPartyId: uuid('bill_to_party_id').notNull(),
+  /** Painter, contractor or architect who brought the sale. */
+  influencerPartyId: uuid('influencer_party_id'),
+  /** The site. */
+  projectId: uuid('project_id'),
+  shipToName: text('ship_to_name'),
+  shipToAddress: text('ship_to_address'),
+  shipToStateCode: text('ship_to_state_code'),
+  priceMode: priceMode('price_mode').notNull(),
+  billDiscountBps: integer('bill_discount_bps'),
+  billDiscountPaise: bigint('bill_discount_paise', { mode: 'number' }),
+  /** The India date the engine priced it on (rates in force that day). */
+  pricedOn: date('priced_on', { mode: 'string' }).notNull(),
+  placeOfSupplyCode: text('place_of_supply_code').notNull(),
+  supplyType: supplyType('supply_type').notNull(),
+  taxablePaise: bigint('taxable_paise', { mode: 'number' }).notNull(),
+  cgstPaise: bigint('cgst_paise', { mode: 'number' }).notNull(),
+  sgstPaise: bigint('sgst_paise', { mode: 'number' }).notNull(),
+  igstPaise: bigint('igst_paise', { mode: 'number' }).notNull(),
+  cessPaise: bigint('cess_paise', { mode: 'number' }).notNull(),
+  roundOffPaise: bigint('round_off_paise', { mode: 'number' }).notNull(),
+  totalPaise: bigint('total_paise', { mode: 'number' }).notNull(),
+  note: text('note'),
+  createdByMemberId: uuid('created_by_member_id').notNull(),
+  ...timestamps,
+});
+
+/** Line columns quotations and orders share: the variant, price, and the engine's figures. */
+const salesLineColumns = () => ({
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull(),
+  lineNo: integer('line_no').notNull(),
+  variantId: uuid('variant_id').notNull(),
+  description: text('description').notNull(),
+  hsnCode: text('hsn_code'),
+  quantity: numeric('quantity', { precision: 14, scale: 3, mode: 'number' }).notNull(),
+  unitPricePaise: bigint('unit_price_paise', { mode: 'number' }).notNull(),
+  discountBps: integer('discount_bps'),
+  discountPaise: bigint('discount_paise', { mode: 'number' }),
+  taxCategoryId: uuid('tax_category_id'),
+  /** Null on a composition store's (untaxed) document. */
+  rateBps: integer('rate_bps'),
+  taxablePaise: bigint('taxable_paise', { mode: 'number' }).notNull(),
+  cgstPaise: bigint('cgst_paise', { mode: 'number' }).notNull(),
+  sgstPaise: bigint('sgst_paise', { mode: 'number' }).notNull(),
+  igstPaise: bigint('igst_paise', { mode: 'number' }).notNull(),
+  cessPaise: bigint('cess_paise', { mode: 'number' }).notNull(),
+  totalPaise: bigint('total_paise', { mode: 'number' }).notNull(),
+});
+
+/**
+ * A quotation version (P2-M03). Versions of one quote share its number; a
+ * revision is a new row with `version + 1` pointing at the first version, and
+ * the version it replaces becomes `superseded`. Editable only while a draft
+ * (trigger quotations_draft_only, migration 0061).
+ */
+export const quotations = pgTable(
+  'quotations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** e.g. QT-000042, shared by every version. */
+    number: text('number').notNull(),
+    version: integer('version').notNull().default(1),
+    /** The first version; null on the first version itself. */
+    rootQuotationId: uuid('root_quotation_id'),
+    status: quotationStatus('status').notNull().default('draft'),
+    validUntil: date('valid_until', { mode: 'string' }).notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    /** The order it became (status converted). */
+    salesOrderId: uuid('sales_order_id'),
+    ...salesHeaderColumns(),
+  },
+  (table): PgTableExtraConfigValue[] => [
+    unique('quotations_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('quotations_number_version_unique').on(
+      table.organizationId,
+      table.number,
+      table.version,
+    ),
+    // One live version per quote: every other is superseded.
+    uniqueIndex('quotations_one_live_version')
+      .on(table.organizationId, table.number)
+      .where(sql`${table.status} <> 'superseded'`),
+    uniqueIndex('quotations_sales_order_unique')
+      .on(table.salesOrderId)
+      .where(sql`${table.salesOrderId} is not null`),
+    // Newest first (GET /quotations); NULLS FIRST matches ORDER BY ... DESC.
+    index('quotations_organization_created_idx').on(
+      table.organizationId,
+      table.createdAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst(),
+    ),
+    index('quotations_bill_to_idx').on(table.organizationId, table.billToPartyId),
+    foreignKey({
+      name: 'quotations_root_fk',
+      columns: [table.organizationId, table.rootQuotationId],
+      foreignColumns: [table.organizationId, table.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'quotations_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'quotations_bill_to_fk',
+      columns: [table.organizationId, table.billToPartyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'quotations_influencer_fk',
+      columns: [table.organizationId, table.influencerPartyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'quotations_project_fk',
+      columns: [table.organizationId, table.projectId],
+      foreignColumns: [projects.organizationId, projects.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'quotations_sales_order_fk',
+      columns: [table.organizationId, table.salesOrderId],
+      foreignColumns: [salesOrders.organizationId, salesOrders.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'quotations_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('quotations_number_format', sql`${table.number} ~ '^QT-[0-9]{6,}$'`),
+    check(
+      'quotations_version_root',
+      sql`${table.version} >= 1 and (${table.version} = 1) = (${table.rootQuotationId} is null)`,
+    ),
+    check(
+      'quotations_sent',
+      sql`(${table.status} in ('sent', 'accepted', 'converted')) <= (${table.sentAt} is not null)
+        and (${table.status} = 'accepted') <= (${table.acceptedAt} is not null)
+        and (${table.status} = 'converted') = (${table.salesOrderId} is not null)`,
+    ),
+    ...salesHeaderChecks('quotations', table),
+    pgPolicy('quotations_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** The checks every priced quotation or order header keeps. */
+function salesHeaderChecks(
+  name: string,
+  table: {
+    shipToStateCode: AnyColumn;
+    placeOfSupplyCode: AnyColumn;
+    billDiscountBps: AnyColumn;
+    billDiscountPaise: AnyColumn;
+    supplyType: AnyColumn;
+    taxablePaise: AnyColumn;
+    cgstPaise: AnyColumn;
+    sgstPaise: AnyColumn;
+    igstPaise: AnyColumn;
+    cessPaise: AnyColumn;
+    roundOffPaise: AnyColumn;
+    totalPaise: AnyColumn;
+    note: AnyColumn;
+  },
+) {
+  return [
+    check(
+      `${name}_state_codes`,
+      sql`${table.shipToStateCode} ~ '^[0-9]{2}$' and ${table.placeOfSupplyCode} ~ '^[0-9]{2}$'`,
+    ),
+    check(
+      `${name}_bill_discount`,
+      sql`(${table.billDiscountBps} is null or ${table.billDiscountPaise} is null)
+        and ${table.billDiscountBps} between 0 and 10000 and ${table.billDiscountPaise} >= 0`,
+    ),
+    check(
+      `${name}_amounts`,
+      sql`${table.taxablePaise} >= 0 and ${table.cgstPaise} >= 0 and ${table.sgstPaise} >= 0
+        and ${table.igstPaise} >= 0 and ${table.cessPaise} >= 0 and ${table.totalPaise} >= 0
+        and ${table.roundOffPaise} between -50 and 50
+        and ${table.totalPaise} = ${table.taxablePaise} + ${table.cgstPaise} + ${table.sgstPaise} + ${table.igstPaise} + ${table.cessPaise} + ${table.roundOffPaise}`,
+    ),
+    check(
+      `${name}_tax_by_supply`,
+      sql`case ${table.supplyType}
+        when 'intra_state' then ${table.igstPaise} = 0 and ${table.cgstPaise} = ${table.sgstPaise}
+        else ${table.cgstPaise} = 0 and ${table.sgstPaise} = 0 end`,
+    ),
+    check(`${name}_note_length`, sql`char_length(${table.note}) <= 500`),
+  ];
+}
+
+/** The checks every priced quotation or order line keeps. */
+function salesLineChecks(
+  name: string,
+  table: {
+    lineNo: AnyColumn;
+    quantity: AnyColumn;
+    unitPricePaise: AnyColumn;
+    discountBps: AnyColumn;
+    discountPaise: AnyColumn;
+    rateBps: AnyColumn;
+    hsnCode: AnyColumn;
+    taxablePaise: AnyColumn;
+    cgstPaise: AnyColumn;
+    sgstPaise: AnyColumn;
+    igstPaise: AnyColumn;
+    cessPaise: AnyColumn;
+    totalPaise: AnyColumn;
+  },
+) {
+  return [
+    check(`${name}_line_no_positive`, sql`${table.lineNo} > 0`),
+    check(`${name}_quantity_positive`, sql`${table.quantity} > 0`),
+    check(
+      `${name}_amounts`,
+      sql`${table.unitPricePaise} >= 0 and ${table.taxablePaise} >= 0
+        and ${table.cgstPaise} >= 0 and ${table.sgstPaise} >= 0 and ${table.igstPaise} >= 0 and ${table.cessPaise} >= 0
+        and ${table.totalPaise} = ${table.taxablePaise} + ${table.cgstPaise} + ${table.sgstPaise} + ${table.igstPaise} + ${table.cessPaise}`,
+    ),
+    check(
+      `${name}_one_discount`,
+      sql`(${table.discountBps} is null or ${table.discountPaise} is null)
+        and ${table.discountBps} between 0 and 10000 and ${table.discountPaise} >= 0`,
+    ),
+    check(`${name}_rate_range`, sql`${table.rateBps} between 0 and 10000`),
+    check(`${name}_hsn_format`, sql`${table.hsnCode} ~ '^[0-9]{4}([0-9]{2}){0,2}$'`),
+  ];
+}
+
+/** A line of a quotation version, priced by the engine on the quote's `priced_on`. */
+export const quotationLines = pgTable(
+  'quotation_lines',
+  {
+    ...salesLineColumns(),
+    quotationId: uuid('quotation_id').notNull(),
+  },
+  (table) => [
+    unique('quotation_lines_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('quotation_lines_quotation_line_unique').on(table.quotationId, table.lineNo),
+    foreignKey({
+      name: 'quotation_lines_quotation_fk',
+      columns: [table.organizationId, table.quotationId],
+      foreignColumns: [quotations.organizationId, quotations.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'quotation_lines_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'quotation_lines_tax_category_fk',
+      columns: [table.organizationId, table.taxCategoryId],
+      foreignColumns: [taxCategories.organizationId, taxCategories.id],
+    }).onDelete('restrict'),
+    ...salesLineChecks('quotation_lines', table),
+    pgPolicy('quotation_lines_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * A sales order (P2-M04), from a quotation or direct. Confirming it runs the
+ * credit check (postpaid) and reserves every line; invoices bill its lines in
+ * part or in full. Every status change and credit override is audited.
+ */
+export const salesOrders = pgTable(
+  'sales_orders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** e.g. SO-000017. */
+    number: text('number').notNull(),
+    status: salesOrderStatus('status').notNull().default('draft'),
+    paymentTerms: paymentTerms('payment_terms').notNull(),
+    /** A partial order's minimum advance, fixed at confirm. */
+    advanceRequiredPaise: bigint('advance_required_paise', { mode: 'number' }),
+    quotationId: uuid('quotation_id'),
+    /** checkCredit's figures at confirm (postpaid), with the position they came from. */
+    creditCheck: jsonb('credit_check').$type<Record<string, unknown>>(),
+    creditOverrideApproval: text('credit_override_approval'),
+    creditOverrideByMemberId: uuid('credit_override_by_member_id'),
+    creditOverrideReason: text('credit_override_reason'),
+    creditOverriddenAt: timestamp('credit_overridden_at', { withTimezone: true }),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    confirmedByMemberId: uuid('confirmed_by_member_id'),
+    cancelReason: text('cancel_reason'),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledByMemberId: uuid('cancelled_by_member_id'),
+    ...salesHeaderColumns(),
+  },
+  (table): PgTableExtraConfigValue[] => [
+    unique('sales_orders_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('sales_orders_organization_number_unique').on(table.organizationId, table.number),
+    uniqueIndex('sales_orders_quotation_unique')
+      .on(table.quotationId)
+      .where(sql`${table.quotationId} is not null`),
+    index('sales_orders_organization_created_idx').on(
+      table.organizationId,
+      table.createdAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst(),
+    ),
+    // Exposure: a party's open postpaid orders (spec §4.7).
+    index('sales_orders_bill_to_status_idx').on(
+      table.organizationId,
+      table.billToPartyId,
+      table.status,
+    ),
+    foreignKey({
+      name: 'sales_orders_quotation_fk',
+      columns: [table.organizationId, table.quotationId],
+      foreignColumns: [quotations.organizationId, quotations.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'sales_orders_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'sales_orders_bill_to_fk',
+      columns: [table.organizationId, table.billToPartyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'sales_orders_influencer_fk',
+      columns: [table.organizationId, table.influencerPartyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'sales_orders_project_fk',
+      columns: [table.organizationId, table.projectId],
+      foreignColumns: [projects.organizationId, projects.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'sales_orders_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'sales_orders_confirmed_by_fk',
+      columns: [table.organizationId, table.confirmedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'sales_orders_credit_override_by_fk',
+      columns: [table.organizationId, table.creditOverrideByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'sales_orders_cancelled_by_fk',
+      columns: [table.organizationId, table.cancelledByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('sales_orders_number_format', sql`${table.number} ~ '^SO-[0-9]{6,}$'`),
+    check(
+      'sales_orders_confirmed',
+      sql`(${table.status} = 'draft') = (${table.confirmedAt} is null)
+        and (${table.confirmedAt} is null) = (${table.confirmedByMemberId} is null)`,
+    ),
+    check(
+      'sales_orders_cancelled',
+      sql`(${table.status} in ('cancelled', 'closed')) = (${table.cancelledAt} is not null)
+        and (${table.cancelledAt} is null) = (${table.cancelReason} is null)
+        and (${table.cancelledAt} is null) = (${table.cancelledByMemberId} is null)`,
+    ),
+    check(
+      'sales_orders_credit_override',
+      sql`(${table.creditOverrideApproval} is null) = (${table.creditOverrideByMemberId} is null)
+        and (${table.creditOverrideApproval} is null) = (${table.creditOverrideReason} is null)
+        and (${table.creditOverrideApproval} is null) = (${table.creditOverriddenAt} is null)
+        and ${table.creditOverrideApproval} in ('manager', 'owner')
+        and (${table.creditOverrideApproval} is null or ${table.creditCheck} is not null)`,
+    ),
+    check(
+      'sales_orders_credit_check_postpaid',
+      sql`${table.creditCheck} is null or (${table.paymentTerms} = 'postpaid' and ${table.status} <> 'draft')`,
+    ),
+    check(
+      'sales_orders_advance',
+      sql`${table.advanceRequiredPaise} is null or (${table.advanceRequiredPaise} >= 0 and ${table.paymentTerms} = 'partial')`,
+    ),
+    ...salesHeaderChecks('sales_orders', table),
+    pgPolicy('sales_orders_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** A line of a sales order: what is billed or cancelled of it never exceeds its quantity. */
+export const salesOrderLines = pgTable(
+  'sales_order_lines',
+  {
+    ...salesLineColumns(),
+    orderId: uuid('order_id').notNull(),
+    /** The store the goods come from and are reserved at. */
+    fulfilStoreId: uuid('fulfil_store_id').notNull(),
+    quantityInvoiced: numeric('quantity_invoiced', { precision: 14, scale: 3, mode: 'number' })
+      .notNull()
+      .default(0),
+    quantityCancelled: numeric('quantity_cancelled', { precision: 14, scale: 3, mode: 'number' })
+      .notNull()
+      .default(0),
+  },
+  (table) => [
+    unique('sales_order_lines_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('sales_order_lines_order_line_unique').on(table.orderId, table.lineNo),
+    foreignKey({
+      name: 'sales_order_lines_order_fk',
+      columns: [table.organizationId, table.orderId],
+      foreignColumns: [salesOrders.organizationId, salesOrders.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'sales_order_lines_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'sales_order_lines_fulfil_store_fk',
+      columns: [table.organizationId, table.fulfilStoreId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'sales_order_lines_tax_category_fk',
+      columns: [table.organizationId, table.taxCategoryId],
+      foreignColumns: [taxCategories.organizationId, taxCategories.id],
+    }).onDelete('restrict'),
+    check(
+      'sales_order_lines_fulfilment',
+      sql`${table.quantityInvoiced} >= 0 and ${table.quantityCancelled} >= 0
+        and ${table.quantityInvoiced} + ${table.quantityCancelled} <= ${table.quantity}`,
+    ),
+    ...salesLineChecks('sales_order_lines', table),
+    pgPolicy('sales_order_lines_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * Stock held for an order line at a store (spec §4.3). The open rows of a
+ * store and variant add up to `stock_balances.reserved`, kept so by
+ * reserveStock / releaseStock in the same transaction (findReservationMismatches
+ * checks it). One open reservation per order line.
+ */
+export const stockReservations = pgTable(
+  'stock_reservations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    storeId: uuid('store_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    orderLineId: uuid('order_line_id').notNull(),
+    quantity: numeric('quantity', { precision: 14, scale: 3, mode: 'number' }).notNull(),
+    status: stockReservationStatus('status').notNull().default('open'),
+    /** What consumed it: an invoice (stock out on issue) or a dispatch (stock out on dispatch). */
+    consumedByType: text('consumed_by_type'),
+    consumedById: uuid('consumed_by_id'),
+    createdByMemberId: uuid('created_by_member_id'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+  },
+  (table) => [
+    unique('stock_reservations_organization_id_id_unique').on(table.organizationId, table.id),
+    uniqueIndex('stock_reservations_one_open_per_line')
+      .on(table.orderLineId)
+      .where(sql`${table.status} = 'open'`),
+    index('stock_reservations_open_idx')
+      .on(table.organizationId, table.storeId, table.variantId)
+      .where(sql`${table.status} = 'open'`),
+    index('stock_reservations_order_line_idx').on(table.organizationId, table.orderLineId),
+    foreignKey({
+      name: 'stock_reservations_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'stock_reservations_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'stock_reservations_order_line_fk',
+      columns: [table.organizationId, table.orderLineId],
+      foreignColumns: [salesOrderLines.organizationId, salesOrderLines.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'stock_reservations_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('stock_reservations_quantity_positive', sql`${table.quantity} > 0`),
+    check(
+      'stock_reservations_closed',
+      sql`(${table.status} = 'open') = (${table.closedAt} is null)
+        and (${table.status} = 'consumed') = (${table.consumedById} is not null)
+        and (${table.consumedById} is null) = (${table.consumedByType} is null)
+        and ${table.consumedByType} in ('tax_document', 'dispatch')`,
+    ),
+    pgPolicy('stock_reservations_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * Goods leaving for an issued invoice (spec §4.2, §2.10): with
+ * `stock_post_on = dispatch` this is when the stock goes out. Append-only.
+ */
+export const dispatches = pgTable(
+  'dispatches',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** e.g. DS-000003. */
+    number: text('number').notNull(),
+    invoiceId: uuid('invoice_id').notNull(),
+    storeId: uuid('store_id').notNull(),
+    dispatchedAt: timestamp('dispatched_at', { withTimezone: true }).notNull().defaultNow(),
+    vehicleNo: text('vehicle_no'),
+    ewayBillNo: text('eway_bill_no'),
+    ewayValidUntil: date('eway_valid_until', { mode: 'string' }),
+    /** Consignment value with tax (spec §2.10). */
+    valuePaise: bigint('value_paise', { mode: 'number' }).notNull(),
+    /** True when this dispatch took the stock out (the invoice posts on dispatch). */
+    stockPosted: boolean('stock_posted').notNull(),
+    note: text('note'),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('dispatches_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('dispatches_organization_number_unique').on(table.organizationId, table.number),
+    index('dispatches_invoice_idx').on(table.organizationId, table.invoiceId),
+    foreignKey({
+      name: 'dispatches_invoice_fk',
+      columns: [table.organizationId, table.invoiceId],
+      foreignColumns: [taxDocuments.organizationId, taxDocuments.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'dispatches_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'dispatches_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('dispatches_number_format', sql`${table.number} ~ '^DS-[0-9]{6,}$'`),
+    check('dispatches_value_not_negative', sql`${table.valuePaise} >= 0`),
+    check('dispatches_eway_bill_no', sql`${table.ewayBillNo} ~ '^[0-9]{12}$'`),
+    check(
+      'dispatches_eway_valid_with_number',
+      sql`${table.ewayValidUntil} is null or ${table.ewayBillNo} is not null`,
+    ),
+    check(
+      'dispatches_text_lengths',
+      sql`char_length(${table.vehicleNo}) <= 20 and char_length(${table.note}) <= 500`,
+    ),
+    pgPolicy('dispatches_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** What one dispatch took of an invoice line. */
+export const dispatchLines = pgTable(
+  'dispatch_lines',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    dispatchId: uuid('dispatch_id').notNull(),
+    invoiceLineId: uuid('invoice_line_id').notNull(),
+    quantity: numeric('quantity', { precision: 14, scale: 3, mode: 'number' }).notNull(),
+    valuePaise: bigint('value_paise', { mode: 'number' }).notNull(),
+  },
+  (table) => [
+    unique('dispatch_lines_dispatch_line_unique').on(table.dispatchId, table.invoiceLineId),
+    index('dispatch_lines_invoice_line_idx').on(table.organizationId, table.invoiceLineId),
+    foreignKey({
+      name: 'dispatch_lines_dispatch_fk',
+      columns: [table.organizationId, table.dispatchId],
+      foreignColumns: [dispatches.organizationId, dispatches.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'dispatch_lines_invoice_line_fk',
+      columns: [table.organizationId, table.invoiceLineId],
+      foreignColumns: [taxDocumentLines.organizationId, taxDocumentLines.id],
+    }).onDelete('restrict'),
+    check('dispatch_lines_quantity_positive', sql`${table.quantity} > 0`),
+    check('dispatch_lines_value_not_negative', sql`${table.valuePaise} >= 0`),
+    pgPolicy('dispatch_lines_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

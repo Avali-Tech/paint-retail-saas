@@ -67,6 +67,12 @@ export class BillingSettingsService {
   }
 
   updateSettings(auth: AuthContext, input: SalesSettingsInput): Promise<SalesSettingsView> {
+    if (input.billingLiveOn !== undefined) {
+      throw fieldError(
+        'billingLiveOn',
+        'Billing goes live once, with its opening balances: POST /sales/go-live',
+      );
+    }
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
       if (input.walkInPartyId) {
         const [party] = await tx

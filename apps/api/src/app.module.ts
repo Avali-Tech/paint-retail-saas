@@ -24,6 +24,7 @@ import { MembersModule } from './members/members.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { ObservabilityModule } from './observability/index.js';
 import { OnboardingModule } from './onboarding/onboarding.module.js';
+import { OrdersModule } from './orders/orders.module.js';
 import { PartiesModule } from './parties/parties.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
 import { PlatformModule } from './platform/platform.module.js';
@@ -77,6 +78,7 @@ export class AppModule {
           workerIntervalSeconds: config.workerIntervalSeconds,
         }),
         OnboardingModule,
+        OrdersModule,
         PartiesModule,
         PaymentsModule,
         PlatformModule.forRoot({ bootstrapToken: config.platformBootstrapToken }),

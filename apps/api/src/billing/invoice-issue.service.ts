@@ -26,7 +26,6 @@ import {
   variantName,
   type Discount,
   type GstError,
-  type GstRate,
   type Invoice,
   type IssuedInvoiceView,
   type TaxDocumentView,
@@ -47,6 +46,14 @@ import {
   registerSessionFor,
   type PaymentRow,
 } from '../payments/posting.js';
+import {
+  cancelAgainstOrder,
+  hasDispatches,
+  issueAgainstOrder,
+  type OrderIssue,
+} from '../orders/order-invoicing.js';
+import { gstRatesFor } from './gst-rates.js';
+import { earnLoyaltyForInvoice, reverseLoyaltyForCancel } from './loyalty-reversal.js';
 import { idempotent } from './idempotency.js';
 import { documentView, indiaToday, loadDocument, type TaxDocumentRow } from './invoice-view.js';
 import { takeDocumentNumber } from './series.js';
@@ -60,12 +67,10 @@ const {
   products,
   stockBalances,
   stores,
-  taxCategories,
   taxDocumentLines,
   taxDocumentLinks,
   taxDocumentTaxRows,
   taxDocuments,
-  taxRates,
 } = schema;
 
 /** A turnover just above ₹5 crore, to read the HSN rule for the `above_5cr` band. */
@@ -161,6 +166,11 @@ export class InvoiceIssueService {
           'A note or advance refers to this invoice; it cannot be cancelled',
         );
       }
+      if (await hasDispatches(tx, id)) {
+        throw new ConflictException(
+          'Goods have left on a dispatch of this invoice; raise a credit note instead',
+        );
+      }
       const [paid] = (await tx
         .select({
           total: sql<number>`coalesce(sum(${allocations.amountPaise}), 0)`.mapWith(Number),
@@ -187,9 +197,11 @@ export class InvoiceIssueService {
         .select({ variantId: taxDocumentLines.variantId, quantity: taxDocumentLines.quantity })
         .from(taxDocumentLines)
         .where(eq(taxDocumentLines.documentId, id));
+      // Goods billed for dispatch never left: nothing comes back (spec §4.2).
+      const returning = document.stockPosting === 'on_issue' ? lines : [];
       await postStockMovements(
         tx,
-        lines.map((line) => ({
+        returning.map((line) => ({
           organizationId: auth.organization.id,
           storeId: document.storeId,
           variantId: line.variantId,
@@ -218,6 +230,13 @@ export class InvoiceIssueService {
           },
         ]);
       }
+      if (document.salesOrderId !== null) await cancelAgainstOrder(tx, document);
+      await reverseLoyaltyForCancel(tx, {
+        organizationId: auth.organization.id,
+        invoiceId: id,
+        invoiceNumber: String(document.number),
+        memberId: auth.memberId,
+      });
       return documentView(tx, cancelled);
     });
   }
@@ -315,24 +334,7 @@ export class InvoiceIssueService {
       ]);
     }
     const categoryIds = [...new Set(lines.map((line) => String(line.taxCategoryId)))];
-    const rates: GstRate[] = (
-      await tx
-        .select({
-          categoryCode: taxRates.taxCategoryId,
-          key: taxCategories.key,
-          rateBasisPoints: taxRates.rateBps,
-          effectiveFrom: taxRates.effectiveFrom,
-          effectiveTo: taxRates.effectiveTo,
-        })
-        .from(taxRates)
-        .innerJoin(taxCategories, eq(taxCategories.id, taxRates.taxCategoryId))
-        .where(inArray(taxRates.taxCategoryId, categoryIds))
-    ).map(({ key, ...rate }) => ({
-      ...rate,
-      // A 0% category is exempt when it is the Exempt default, nil-rated otherwise.
-      nature: rate.rateBasisPoints > 0 ? 'taxable' : key === 'exempt' ? 'exempt' : 'nil_rated',
-      cessBasisPoints: 0,
-    }));
+    const rates = await gstRatesFor(tx, categoryIds);
 
     let invoice: Invoice;
     try {
@@ -408,6 +410,10 @@ export class InvoiceIssueService {
     }
     if (problems.length > 0) throw unprocessable(problems);
 
+    // A bill from a sales order bills its lines (and consumes or keeps their reservations).
+    const order: OrderIssue | null =
+      document.salesOrderId === null ? null : await issueAgainstOrder(tx, auth, document, today);
+
     // The number, gap-free per GSTIN, financial year, kind and prefix.
     const { seriesId, number, fy } = await takeDocumentNumber(
       tx,
@@ -478,8 +484,8 @@ export class InvoiceIssueService {
         cessPaise: totals.cessPaise,
         roundOffPaise: totals.roundOffPaise,
         totalPaise: totals.payablePaise,
-        dueOn: sql`coalesce(${taxDocuments.dueOn}, ${today}::date)`,
-        stockPosting: 'on_issue',
+        dueOn: order?.dueOn ?? sql`coalesce(${taxDocuments.dueOn}, ${today}::date)`,
+        stockPosting: order?.postStock === false ? 'on_dispatch' : 'on_issue',
         irn: input.einvoice?.irn,
         ackNo: input.einvoice?.ackNo,
         ackAt: input.einvoice?.ackAt,
@@ -488,11 +494,12 @@ export class InvoiceIssueService {
       .where(eq(taxDocuments.id, id))
       .returning()) as [TaxDocumentRow];
 
-    // Counter goods leave now, in either stock_post_on mode (spec §4.2).
-    await this.assertInStock(tx, document.storeId, lines);
+    // Counter goods leave now, in either stock_post_on mode; an order's wait for dispatch (§4.2).
+    const leaving = order?.postStock === false ? [] : lines;
+    await this.assertInStock(tx, document.storeId, leaving);
     await postStockMovements(
       tx,
-      lines.map((line) => ({
+      leaving.map((line) => ({
         organizationId,
         storeId: document.storeId,
         variantId: line.variantId,
@@ -519,7 +526,29 @@ export class InvoiceIssueService {
         },
       ]);
     }
-    return this.takePayments(tx, auth, issued, partyId, document.partyId === null, input);
+    await earnLoyaltyForInvoice(tx, {
+      organizationId,
+      invoiceId: id,
+      invoiceNumber: number,
+      partyId,
+      taxablePaise: totals.taxablePaise,
+      issuedOn: today,
+      memberId: auth.memberId,
+    });
+    const view = await this.takePayments(
+      tx,
+      auth,
+      issued,
+      partyId,
+      document.partyId === null,
+      input,
+    );
+    if (order?.prepaid && view.outstandingPaise > 0) {
+      throw new ConflictException(
+        `This order is prepaid: take the full ${formatINR(view.totalPaise)} with the bill (or use advances)`,
+      );
+    }
+    return view;
   }
 
   /**

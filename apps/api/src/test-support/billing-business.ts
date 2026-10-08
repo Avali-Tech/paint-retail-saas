@@ -8,6 +8,7 @@ import {
 } from '@paint/shared';
 import { sql } from 'drizzle-orm';
 import { bearer, uniquePhone, type TestApp } from './test-app.js';
+import { finishSignIn } from './two-factor.js';
 
 /**
  * A business ready to bill and take payments, for the integration tests of
@@ -28,6 +29,7 @@ export function api(t: TestApp, token: string, headers: Record<string, string> =
     post: (url: string, payload: object = {}) => call('POST', url, payload),
     put: (url: string, payload: object) => call('PUT', url, payload),
     patch: (url: string, payload: object) => call('PATCH', url, payload),
+    delete: (url: string) => call('DELETE', url),
   };
 }
 
@@ -190,7 +192,8 @@ export async function billingBusiness(t: TestApp): Promise<BillingBusiness> {
         url: '/auth/login',
         payload: { identifier: phone, password: 'Staff@2026' },
       });
-      return login.json<{ token: string }>().token;
+      // Owners and admins finish with a second factor (two-factor sign-in).
+      return (await finishSignIn<{ token: string }>(t, login, phone)).token;
     },
   };
 }

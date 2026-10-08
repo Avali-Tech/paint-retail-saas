@@ -183,7 +183,10 @@ export const teamEn = {
       read: 'See GST registrations and tax rates',
       manage: 'Change GST registrations, tax categories and rates',
     },
-    sales: { read: 'See invoices and bills' },
+    sales: {
+      read: 'See invoices and bills',
+      manage: 'Make quotations and sales orders, reserve stock for them',
+    },
     billing: {
       issue: 'Make and issue invoices and bills of supply',
       cancel: 'Cancel an invoice on the day it was issued',

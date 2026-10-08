@@ -34,6 +34,7 @@ import { lockParty } from '../payments/posting.js';
 import { fieldError } from '../tax/tax-lookups.js';
 import { idempotent } from './idempotency.js';
 import { indiaToday, loadDocument, type TaxDocumentRow } from './invoice-view.js';
+import { dispatchedByLine } from '../orders/dispatched.js';
 import { reverseLoyaltyForNote } from './loyalty-reversal.js';
 import { takeDocumentNumber } from './series.js';
 import type { CreditNoteInput, DebitNoteInput, SalesReturnInput } from './notes.schemas.js';
@@ -140,20 +141,25 @@ export class NoteIssueService {
       wanted.set(line.invoiceLineId, (wanted.get(line.invoiceLineId) ?? 0) + milli(line.quantity));
     });
     const sofar = await adjustedSoFar(tx, invoice.id);
+    // Goods billed now and handed over later come back only once they have left (spec §4.2).
+    const dispatched =
+      invoice.stockPosting === 'on_dispatch' ? await dispatchedByLine(tx, invoice.id) : null;
+    const returnable = (line: InvoiceLineRow) =>
+      dispatched === null ? line.quantity : dispatched(line.id);
     const returning = sourceLines.filter((line) => wanted.has(line.id));
     const over = input.lines
       .map((line, index) => ({ line, index }))
       .filter(({ line }) => {
         const source = lineOf(line.invoiceLineId, '');
         const before = milli(sofar(source.id).returnedQuantity);
-        return before + Number(wanted.get(source.id)) > milli(source.quantity);
+        return before + Number(wanted.get(source.id)) > milli(returnable(source));
       });
     if (over.length > 0) {
       throw unprocessable(
         'More would come back than was sold',
         over.map(({ line, index }) => {
           const source = lineOf(line.invoiceLineId, '');
-          const left = source.quantity - sofar(source.id).returnedQuantity;
+          const left = returnable(source) - sofar(source.id).returnedQuantity;
           return {
             path: `lines.${String(index)}.quantity`,
             message: `At most ${String(Math.max(0, Math.round(left * 1000) / 1000))} of line ${String(source.lineNo)} can come back`,
@@ -586,6 +592,7 @@ export class NoteIssueService {
         noteId: issued.id,
         noteNumber: number,
         creditedTaxablePaise: totals.taxablePaise,
+        memberId: auth.memberId,
       });
     }
     return issued;
