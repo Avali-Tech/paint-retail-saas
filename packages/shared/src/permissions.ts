@@ -39,6 +39,7 @@ export const PERMISSIONS = [
   'payments:manage',
   'register:manage',
   'accounting:export',
+  'accounting:reconcile',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

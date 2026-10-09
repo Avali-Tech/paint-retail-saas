@@ -463,3 +463,16 @@ export {
   type Theme,
   type ThemeAdjustment,
 } from './theme.js';
+export {
+  RECONCILE_PERMISSION,
+  RECONCILIATION_KINDS,
+  RECONCILIATION_TRIGGERS,
+  isStockFinding,
+  type LatestReconciliation,
+  type ReconciliationFindingView,
+  type ReconciliationKind,
+  type ReconciliationRunPage,
+  type ReconciliationRunSummary,
+  type ReconciliationRunView,
+  type ReconciliationTrigger,
+} from './reconciliation-api.js';

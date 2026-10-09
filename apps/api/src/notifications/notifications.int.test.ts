@@ -306,6 +306,12 @@ describe('preferences', () => {
         inApp: true,
         email: true,
       },
+      {
+        event: 'reconciliation_mismatch',
+        title: 'The nightly check finds the books out of balance',
+        inApp: true,
+        email: true,
+      },
     ]);
     expect(saved.statusCode).toBe(200);
     expect(
@@ -325,6 +331,7 @@ describe('preferences', () => {
       ['loyalty_tier_reached', true, true],
       ['cheque_bounced', true, true],
       ['register_variance', true, true],
+      ['reconciliation_mismatch', true, true],
     ]);
     const duplicate = await api(hydManager).put('/notifications/preferences', {
       preferences: [

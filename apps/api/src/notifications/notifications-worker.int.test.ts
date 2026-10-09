@@ -159,6 +159,8 @@ describe('low stock', () => {
       followUps: 0,
       contractRenewals: 0,
       loyaltyExpiries: 0,
+      // Every business in the test database, reconciled once today.
+      reconciliations: expect.any(Number),
       emailsSent: 1,
       emailsFailed: 0,
     });
@@ -167,6 +169,7 @@ describe('low stock', () => {
       followUps: 0,
       contractRenewals: 0,
       loyaltyExpiries: 0,
+      reconciliations: 0,
       emailsSent: 0,
       emailsFailed: 0,
     });

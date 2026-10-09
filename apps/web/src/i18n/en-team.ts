@@ -196,6 +196,9 @@ export const teamEn = {
       manage: 'Record payments, allocate them to bills, clear or bounce cheques and refund',
     },
     register: { manage: 'Open and close cash registers, pay cash in and out' },
-    accounting: { export: 'Set Tally ledgers and export the books' },
+    accounting: {
+      export: 'Set Tally ledgers and export the books',
+      reconcile: 'See the nightly reconciliation of the books and run it now',
+    },
   },
 };

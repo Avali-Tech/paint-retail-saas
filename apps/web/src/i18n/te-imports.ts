@@ -17,6 +17,7 @@ export const importsTe: Translation<typeof importsEn> = {
       products: 'ప్రోడక్ట్‌లు, ప్యాక్ సైజ్‌లు',
       parties: 'కస్టమర్లు, సప్లయర్లు, ఇతర పార్టీలు',
       'opening-stock': 'ప్రతి స్టోర్ ఓపెనింగ్ స్టాక్',
+      'opening-balances': 'బిల్లింగ్ ప్రారంభంలో ఓపెనింగ్ బ్యాలెన్స్‌లు',
     },
     columns: 'కాలమ్‌లు',
     columnsList: '{kind} కాలమ్‌లు',

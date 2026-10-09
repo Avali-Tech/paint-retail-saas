@@ -18,6 +18,9 @@ const AccountingExportPage = lazy(() =>
 const LedgerMappingsPage = lazy(() =>
   import('./LedgerMappingsPage.js').then((module) => ({ default: module.LedgerMappingsPage })),
 );
+const ReconciliationPage = lazy(() =>
+  import('./ReconciliationPage.js').then((module) => ({ default: module.ReconciliationPage })),
+);
 
 /** The books screens, inside the signed-in shell. */
 export function booksRoutes() {
@@ -32,6 +35,10 @@ export function booksRoutes() {
         element={guarded('accounting:export', AccountingExportPage)}
       />
       <Route path="accounting/ledgers" element={guarded('accounting:export', LedgerMappingsPage)} />
+      <Route
+        path="accounting/reconciliation"
+        element={guarded('accounting:reconcile', ReconciliationPage)}
+      />
     </>
   );
 }
