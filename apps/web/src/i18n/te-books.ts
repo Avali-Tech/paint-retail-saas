@@ -102,6 +102,35 @@ export const booksTe: Translation<typeof booksEn> = {
       sections: 'టాలీ ఎగుమతి స్క్రీన్‌లు',
       export: 'ఎగుమతి',
       ledgers: 'లెడ్జర్ మ్యాపింగ్',
+      reconciliation: 'సరిపోల్చడం',
+    },
+    reconciliation: {
+      title: 'సరిపోల్చడం',
+      description:
+        'ప్రతి రాత్రి స్టాక్, పార్టీ బ్యాలెన్స్‌లు, చెల్లింపులు వాటి ఎంట్రీలతో సరిపోల్చబడతాయి',
+      run: 'ఇప్పుడే తనిఖీ చేయండి',
+      done: 'ఖాతాలు తనిఖీ అయ్యాయి',
+      latest: 'చివరి తనిఖీ',
+      about: 'ఈ తనిఖీ గురించి',
+      error: 'చివరి తనిఖీని లోడ్ చేయలేకపోయాము',
+      never: 'ఇంకా తనిఖీ కాలేదు. ఖాతాలు ప్రతి రాత్రి తనిఖీ అవుతాయి, లేదా ఇప్పుడే తనిఖీ చేయండి.',
+      ranAt: 'తనిఖీ సమయం',
+      trigger: 'ప్రారంభించింది',
+      requestedBy: '{name}, చేతితో',
+      findingCount: 'తేడాలు',
+      balanced:
+        'అన్నీ సరిపోయాయి: స్టాక్, పార్టీ బ్యాలెన్స్‌లు, చెల్లింపులు వాటి ఎంట్రీలతో సరిపోతున్నాయి.',
+      unbalanced: {
+        one: '{count} అంకె దాని ఎంట్రీలతో సరిపోలడం లేదు. మీ సాఫ్ట్‌వేర్ ప్రొవైడర్‌కు చెప్పండి.',
+        other: '{count} అంకెలు వాటి ఎంట్రీలతో సరిపోలడం లేదు. మీ సాఫ్ట్‌వేర్ ప్రొవైడర్‌కు చెప్పండి.',
+      },
+      findings: 'కనిపించిన తేడాలు',
+      kind: 'తనిఖీ',
+      subject: 'దేనిది',
+      recorded: 'చూపించింది',
+      expected: 'ఎంట్రీల మొత్తం',
+      difference: 'తేడా',
+      advance: 'ఉంచిన అడ్వాన్స్ {advance}, కేటాయించనిది {unallocated}',
     },
     ledgers: {
       title: 'లెడ్జర్ మ్యాపింగ్',
@@ -214,4 +243,11 @@ export const booksEnumsTe: Translation<typeof booksEnumsEn> = {
     receipt: 'రసీదులు',
   },
   exportFormats: { tally_xml: 'టాలీ XML (జిప్)', xlsx: 'ఎక్సెల్ (.xlsx)' },
+  reconciliationKinds: {
+    stock_on_hand: 'చేతిలో స్టాక్',
+    stock_reserved: 'రిజర్వ్ చేసిన స్టాక్',
+    party_balance: 'పార్టీ బ్యాలెన్స్',
+    allocation: 'కేటాయించిన చెల్లింపులు',
+  },
+  reconciliationTriggers: { scheduled: 'రాత్రి తనిఖీ', manual: 'చేతితో' },
 };

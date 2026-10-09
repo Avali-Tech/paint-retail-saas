@@ -110,6 +110,7 @@ describe('before go-live', () => {
           overdueDays: 10,
           amountPaise: 1_800_000,
           overdueSince: await dbToday(t, -10),
+          source: 'manual',
         },
       ],
       loyaltyAccounts: 1,

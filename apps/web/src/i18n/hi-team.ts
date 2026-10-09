@@ -205,6 +205,9 @@ export const teamHi: Translation<typeof teamEn> = {
       manage: 'भुगतान दर्ज करें, बिलों में लगाएं, चेक क्लियर या बाउंस करें और रिफंड दें',
     },
     register: { manage: 'कैश रजिस्टर खोलें और बंद करें, नकद जमा और निकासी करें' },
-    accounting: { export: 'Tally लेजर तय करें और खाते एक्सपोर्ट करें' },
+    accounting: {
+      export: 'Tally लेजर तय करें और खाते एक्सपोर्ट करें',
+      reconcile: 'खातों का रात का मिलान देखें और अभी चलाएँ',
+    },
   },
 };

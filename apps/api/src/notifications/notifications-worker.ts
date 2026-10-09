@@ -14,6 +14,7 @@ import { todayInIndia } from '../contracts/contract-dates.js';
 import { todayIst } from '../contracts/contract-sql.js';
 import { DATABASE } from '../database/database.module.js';
 import { expireAccount } from '../loyalty/loyalty-lookups.js';
+import { reconcileDueBusinesses } from '../reconciliation/reconciler.js';
 import type { EmailSender } from './email-sender.js';
 import { Notifier } from './notifier.js';
 
@@ -55,14 +56,18 @@ export interface WorkerRun {
   readonly contractRenewals: number;
   /** Loyalty accounts whose unused points expired. */
   readonly loyaltyExpiries: number;
+  /** Businesses whose books were reconciled for the day. */
+  readonly reconciliations: number;
   readonly emailsSent: number;
   readonly emailsFailed: number;
 }
 
 /**
  * Background work for notifications, across every business: announces stock
- * that has fallen to its reorder level, and sends queued emails with retries.
- * Safe to run on several servers at once.
+ * that has fallen to its reorder level, reminds people of what is due,
+ * expires loyalty points, reconciles each business's books once a day (the
+ * nightly reconciliation) and sends queued emails with retries. Safe to run on
+ * several servers at once.
  */
 @Injectable()
 export class NotificationsWorker implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -106,6 +111,11 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
       () => this.expireLoyaltyPoints(),
       0,
     );
+    const reconciliations = await this.attempt(
+      'Nightly reconciliation',
+      () => reconcileDueBusinesses(this.connection.db, this.notifier),
+      0,
+    );
     const { sent, failed } = await this.attempt('Sending email', () => this.sendDueEmails(), {
       sent: 0,
       failed: 0,
@@ -115,6 +125,7 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
       followUps,
       contractRenewals,
       loyaltyExpiries,
+      reconciliations,
       emailsSent: sent,
       emailsFailed: failed,
     };

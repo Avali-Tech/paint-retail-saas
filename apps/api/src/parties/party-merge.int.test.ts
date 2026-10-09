@@ -398,6 +398,37 @@ describe('merge rules', () => {
     expect((await api().get(`/parties/${a}`)).json<PartyView>().isActive).toBe(true);
   });
 
+  it('refuses a duplicate whose opening balance was imported for the go-live', async () => {
+    const a = await party('Opening A');
+    const b = await party('Opening B');
+    const [owned] = await t.connection.db
+      .select({
+        organizationId: schema.parties.organizationId,
+        memberId: schema.organizationMembers.id,
+      })
+      .from(schema.parties)
+      .innerJoin(
+        schema.organizationMembers,
+        eq(schema.organizationMembers.organizationId, schema.parties.organizationId),
+      )
+      .where(eq(schema.parties.id, a))
+      .limit(1);
+    await t.connection.db.insert(schema.goLiveOpenings).values({
+      organizationId: String(owned?.organizationId),
+      partyId: a,
+      amountPaise: 5_000,
+      importedByMemberId: String(owned?.memberId),
+    });
+
+    const refused = await merge(a, b);
+
+    expect([refused.statusCode, message(refused)]).toEqual([
+      409,
+      'This party has an imported opening balance; merge the other way, or import it for the other party',
+    ]);
+    expect((await merge(b, a)).statusCode).toBe(200);
+  });
+
   it('merges parties with nothing but their roles', async () => {
     const duplicate = await party('Plain One', ['architect']);
     const survivor = await party('Plain Two', ['architect']);

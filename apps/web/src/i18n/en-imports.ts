@@ -13,6 +13,7 @@ export const importsEn = {
       products: 'Products and pack sizes',
       parties: 'Customers, suppliers and other parties',
       'opening-stock': 'Opening stock per store',
+      'opening-balances': 'Opening balances for the billing go-live',
     },
     columns: 'Columns',
     columnsList: 'Columns for {kind}',

@@ -707,6 +707,11 @@ export interface GoLiveOpeningView {
   readonly amountPaise: number;
   /** liveOn − overdueDays when overdue; overdue days are counted from it after go-live. */
   readonly overdueSince: string | null;
+  /**
+   * Where the amount comes from ([PO-5]): an imported opening balance
+   * (POST /imports/opening-balances), else the hand-entered exposure.
+   */
+  readonly source: 'import' | 'manual';
 }
 
 /** GET /sales/go-live: the cut-over preview, or what it did. */
@@ -714,7 +719,7 @@ export interface GoLivePreview {
   readonly billingLiveOn: string | null;
   readonly live: boolean;
   readonly stockPostOn: StockPostOn;
-  /** Parties with a hand-entered exposure (empty once live). */
+  /** Parties with an imported opening balance or a hand-entered exposure (empty once live). */
   readonly openings: readonly GoLiveOpeningView[];
   /** Loyalty accounts whose manual purchase entry switches off. */
   readonly loyaltyAccounts: number;

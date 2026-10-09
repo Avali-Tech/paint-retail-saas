@@ -8,13 +8,14 @@ import {
   type Transaction,
 } from '@paint/db';
 import type { GoLiveOpeningView, GoLivePreview, GoLiveResult } from '@paint/shared';
-import { asc, count, eq, gt, or, sql } from 'drizzle-orm';
+import { count, eq, gt, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { idempotent } from '../billing/idempotency.js';
 import { indiaToday } from '../billing/invoice-view.js';
 import { requireSaleParty } from '../billing/sale-parties.js';
 import { addDays } from '../contracts/contract-dates.js';
 import { DATABASE } from '../database/database.module.js';
+import { importedOpenings } from '../imports/opening-balances.importer.js';
 import { fieldError } from '../tax/tax-lookups.js';
 import type { GoLiveInput } from './orders.schemas.js';
 
@@ -83,6 +84,7 @@ export class GoLiveService {
             overdueDays: known?.overdueDays ?? 0,
             amountPaise: given.amountPaise,
             overdueSince: given.overdueSince ?? known?.overdueSince ?? null,
+            source: known?.source ?? 'manual',
           });
         }
 
@@ -142,7 +144,11 @@ export class GoLiveService {
     return row ?? { billingLiveOn: null, stockPostOn: 'invoice' as const };
   }
 
-  /** Every party with a hand-entered exposure or overdue days, as its opening balance on `liveOn`. */
+  /**
+   * Every party's opening balance on `liveOn` ([PO-5]): its imported balance,
+   * else its hand-entered exposure and overdue days. An imported balance with
+   * no overdue date keeps the hand-entered overdue days.
+   */
   private async openings(tx: Transaction, liveOn: string): Promise<GoLiveOpeningView[]> {
     const rows = await tx
       .select({
@@ -153,13 +159,33 @@ export class GoLiveService {
       })
       .from(creditProfiles)
       .innerJoin(parties, eq(parties.id, creditProfiles.partyId))
-      .where(or(gt(creditProfiles.manualExposurePaise, 0), gt(creditProfiles.overdueDays, 0)))
-      .orderBy(asc(parties.displayName));
-    return rows.map((row) => ({
-      ...row,
-      amountPaise: row.manualExposurePaise,
-      overdueSince: row.overdueDays > 0 ? addDays(liveOn, -row.overdueDays) : null,
-    }));
+      .where(or(gt(creditProfiles.manualExposurePaise, 0), gt(creditProfiles.overdueDays, 0)));
+    const manual = new Map(rows.map((row) => [row.partyId, row]));
+    const imported = await importedOpenings(tx);
+    const manualOverdue = (overdueDays: number) =>
+      overdueDays > 0 ? addDays(liveOn, -overdueDays) : null;
+    const openings: GoLiveOpeningView[] = rows
+      .filter((row) => !imported.has(row.partyId))
+      .map((row) => ({
+        ...row,
+        amountPaise: row.manualExposurePaise,
+        overdueSince: manualOverdue(row.overdueDays),
+        source: 'manual',
+      }));
+    for (const [partyId, opening] of imported) {
+      const known = manual.get(partyId);
+      openings.push({
+        partyId,
+        partyName: opening.partyName,
+        manualExposurePaise: known?.manualExposurePaise ?? 0,
+        overdueDays: known?.overdueDays ?? 0,
+        amountPaise: opening.amountPaise,
+        overdueSince: opening.overdueSince ?? manualOverdue(known?.overdueDays ?? 0),
+        source: 'import',
+      });
+    }
+    const key = (opening: GoLiveOpeningView) => `${opening.partyName}\u0000${opening.partyId}`;
+    return openings.sort((a, b) => key(a).localeCompare(key(b)));
   }
 
   private async loyaltyAccounts(tx: Transaction): Promise<number> {

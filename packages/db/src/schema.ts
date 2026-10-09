@@ -1731,6 +1731,7 @@ export const notificationEvent = pgEnum('notification_event', [
   'loyalty_tier_reached',
   'cheque_bounced',
   'register_variance',
+  'reconciliation_mismatch',
 ]);
 
 /** An in-app notification for one member. */
@@ -3283,6 +3284,13 @@ export const taxDocuments = pgTable(
       table.issuedOn.desc().nullsFirst(),
     ),
     index('tax_documents_party_idx').on(table.organizationId, table.partyId),
+    // Newest first at one store (GET /invoices?storeId=, a branch manager's list).
+    index('tax_documents_store_created_idx').on(
+      table.organizationId,
+      table.storeId,
+      table.createdAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst(),
+    ),
     // Newest first (GET /invoices); NULLS FIRST matches ORDER BY ... DESC.
     index('tax_documents_organization_created_idx').on(
       table.organizationId,
@@ -3930,6 +3938,12 @@ export const registerSessions = pgTable(
       table.organizationId,
       table.storeId,
       table.openedAt.desc().nullsFirst(),
+    ),
+    // Newest first across every store (GET /register-sessions without a store).
+    index('register_sessions_organization_opened_idx').on(
+      table.organizationId,
+      table.openedAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst(),
     ),
     foreignKey({
       name: 'register_sessions_store_fk',
@@ -5472,6 +5486,187 @@ export const estimateOptions = pgTable(
         and jsonb_typeof(${table.lines}) = 'array'`,
     ),
     pgPolicy('estimate_options_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+// Opening balances and reconciliation (MVP 2 round 6a; spec §4.6, §4.7, [PO-5]) --
+
+/**
+ * Opening balances imported from the old books (spec §4.7, [PO-5]), waiting
+ * for the billing go-live, where each becomes its party's `opening` ledger
+ * entry in place of the hand-entered exposure. Kept afterwards as the record
+ * of what was imported; one row per party, replaced by a later import.
+ */
+export const goLiveOpenings = pgTable(
+  'go_live_openings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    partyId: uuid('party_id').notNull(),
+    /** What the party owes at go-live; 0 = no opening entry. */
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
+    /** Since when part of it is overdue; overdue days are counted from it after go-live. */
+    overdueSince: date('overdue_since', { mode: 'string' }),
+    importedByMemberId: uuid('imported_by_member_id').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique('go_live_openings_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('go_live_openings_party_unique').on(table.organizationId, table.partyId),
+    foreignKey({
+      name: 'go_live_openings_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'go_live_openings_imported_by_fk',
+      columns: [table.organizationId, table.importedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('go_live_openings_amount_not_negative', sql`${table.amountPaise} >= 0`),
+    check(
+      'go_live_openings_overdue_needs_amount',
+      sql`${table.overdueSince} is null or ${table.amountPaise} > 0`,
+    ),
+    pgPolicy('go_live_openings_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** What started a reconciliation: the nightly job, or someone asking for it. */
+export const reconciliationTrigger = pgEnum('reconciliation_trigger', ['scheduled', 'manual']);
+
+/**
+ * What a finding is about: stock on hand or reserved against its rows, a
+ * party's balance against its ledger, or its allocations against its balance.
+ */
+export const reconciliationKind = pgEnum('reconciliation_kind', [
+  'stock_on_hand',
+  'stock_reserved',
+  'party_balance',
+  'allocation',
+]);
+
+/**
+ * One reconciliation of a business's books (spec §3.3, §4.6): cached totals
+ * checked against the rows they sum. At most one scheduled run per India day.
+ * Append-only.
+ */
+export const reconciliationRuns = pgTable(
+  'reconciliation_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    trigger: reconciliationTrigger('trigger').notNull(),
+    /** The India date of the run, from the database clock. */
+    runOn: date('run_on', { mode: 'string' })
+      .notNull()
+      .default(sql`(now() at time zone 'Asia/Kolkata')::date`),
+    ranAt: timestamp('ran_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Who asked for a manual run; null for the nightly one. */
+    requestedByMemberId: uuid('requested_by_member_id'),
+    findingCount: integer('finding_count').notNull(),
+  },
+  (table) => [
+    unique('reconciliation_runs_organization_id_id_unique').on(table.organizationId, table.id),
+    // Several servers may run the nightly job: only one run a day is recorded.
+    uniqueIndex('reconciliation_runs_scheduled_unique')
+      .on(table.organizationId, table.runOn)
+      .where(sql`${table.trigger} = 'scheduled'`),
+    // Latest first; NULLS FIRST matches ORDER BY ... DESC.
+    index('reconciliation_runs_latest_idx').on(
+      table.organizationId,
+      table.ranAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst(),
+    ),
+    foreignKey({
+      name: 'reconciliation_runs_requested_by_fk',
+      columns: [table.organizationId, table.requestedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'reconciliation_runs_requested_by',
+      sql`(${table.trigger} = 'manual') = (${table.requestedByMemberId} is not null)`,
+    ),
+    check('reconciliation_runs_finding_count', sql`${table.findingCount} >= 0`),
+    pgPolicy('reconciliation_runs_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * One disagreement a run found: what the cached figure says against what its
+ * rows add up to. Stock findings name a store and variant (quantities); party
+ * findings a party (paise), allocation findings also the advance held and the
+ * money not allocated. Append-only.
+ */
+export const reconciliationFindings = pgTable(
+  'reconciliation_findings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    runId: uuid('run_id').notNull(),
+    kind: reconciliationKind('kind').notNull(),
+    storeId: uuid('store_id'),
+    variantId: uuid('variant_id'),
+    partyId: uuid('party_id'),
+    /** The cached figure: stock on hand or reserved, or the party's balance. */
+    recorded: numeric('recorded', { precision: 20, scale: 3, mode: 'number' }).notNull(),
+    /** What its rows add up to (for allocations: outstanding less unallocated). */
+    expected: numeric('expected', { precision: 20, scale: 3, mode: 'number' }).notNull(),
+    advancePaise: bigint('advance_paise', { mode: 'number' }),
+    unallocatedPaise: bigint('unallocated_paise', { mode: 'number' }),
+  },
+  (table) => [
+    unique('reconciliation_findings_organization_id_id_unique').on(table.organizationId, table.id),
+    index('reconciliation_findings_run_idx').on(table.organizationId, table.runId),
+    foreignKey({
+      name: 'reconciliation_findings_run_fk',
+      columns: [table.organizationId, table.runId],
+      foreignColumns: [reconciliationRuns.organizationId, reconciliationRuns.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'reconciliation_findings_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'reconciliation_findings_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'reconciliation_findings_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    check(
+      'reconciliation_findings_subject',
+      sql`case
+        when ${table.kind} in ('stock_on_hand', 'stock_reserved')
+          then ${table.storeId} is not null and ${table.variantId} is not null and ${table.partyId} is null
+        else ${table.partyId} is not null and ${table.storeId} is null and ${table.variantId} is null
+      end`,
+    ),
+    check(
+      'reconciliation_findings_allocation_figures',
+      sql`(${table.kind} = 'allocation') = (${table.advancePaise} is not null)
+        and (${table.advancePaise} is null) = (${table.unallocatedPaise} is null)`,
+    ),
+    pgPolicy('reconciliation_findings_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

@@ -213,3 +213,21 @@ test('a receipt prints as a PDF, and the month goes to Tally once its bank is ma
     'Sales, Credit notes, Debit notes, Receipts4',
   );
 });
+
+test('the books are reconciled by hand from the accounting screens', async ({ page }) => {
+  const books = await shop('Balanced Paints');
+  await bill(books, 2, { payments: [{ modeId: books.modes.upi, amountPaise: 23_600 }] });
+
+  await signInWithPassword(page, books.business.ownerPhone);
+  await expect(page.locator('.shell__header')).toBeVisible();
+  await page.getByRole('link', { name: 'Tally export' }).first().click();
+  await page.getByRole('link', { name: 'Reconciliation' }).click();
+  await expect(page.getByRole('heading', { name: 'Reconciliation', level: 1 })).toBeVisible();
+  await expect(page.getByText(/^Not checked yet/)).toBeVisible();
+  await page.getByRole('button', { name: 'Run now' }).click();
+  await expect(
+    page.getByText('Everything agrees: stock, party balances and payments match their entries.'),
+  ).toBeVisible();
+  await expect(page.getByLabel('About this check')).toContainText('by hand');
+  await expectUsable(page);
+});

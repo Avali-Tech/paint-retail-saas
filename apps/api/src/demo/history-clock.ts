@@ -23,6 +23,36 @@ export const UNSHIFTED_COLUMNS: ReadonlySet<string> = new Set([
   'next_attempt_at',
 ]);
 
+/**
+ * Business dates the API takes from the database's today (an invoice's issue
+ * date, a payment's receipt date…), by table, with the timestamp telling when
+ * the row was written: each moves by as many days as that timestamp does.
+ * Dates the seed chose itself (the go-live date and the opening balances
+ * dated on it, overdue-since dates, contract ends) stay put.
+ */
+export const SHIFTED_DATES: readonly {
+  readonly table: string;
+  readonly writtenAt: string;
+  readonly columns: readonly string[];
+  /** Rows to leave alone, as a condition on the table `t`. */
+  readonly except?: string;
+}[] = [
+  { table: 'tax_documents', writtenAt: 'created_at', columns: ['issued_on', 'due_on'] },
+  {
+    table: 'party_ledger',
+    writtenAt: 'created_at',
+    columns: ['entry_on'],
+    except: "t.entry_type = 'opening'",
+  },
+  {
+    table: 'payments',
+    writtenAt: 'created_at',
+    columns: ['received_on', 'cheque_date', 'cheque_cleared_on', 'cheque_bounced_on'],
+  },
+  { table: 'quotations', writtenAt: 'created_at', columns: ['valid_until', 'priced_on'] },
+  { table: 'sales_orders', writtenAt: 'created_at', columns: ['priced_on'] },
+];
+
 /** Business hours of a simulated day, in India time. */
 const DAY_OPENS = '10:00';
 const DAY_HOURS = 9;
@@ -100,6 +130,16 @@ export class HistoryClock {
           ORDER BY c.table_name, c.column_name`,
       );
       let moved = 0;
+      // Dates first, while each row's timestamp still says when it was really written.
+      for (const { table, writtenAt, columns: dates, except = 'false' } of SHIFTED_DATES) {
+        const days = `((w.sim_start AT TIME ZONE 'Asia/Kolkata')::date - (t."${writtenAt}" AT TIME ZONE 'Asia/Kolkata')::date)`;
+        const result = await client.query(
+          `UPDATE "${table}" t SET ${dates.map((date) => `"${date}" = t."${date}" + ${days}`).join(', ')}
+             FROM demo_windows w
+            WHERE t."${writtenAt}" BETWEEN w.real_start AND w.real_end AND NOT (${except})`,
+        );
+        moved += Number(result.rowCount);
+      }
       for (const { table_name: table, column_name: column } of columns.rows) {
         if (UNSHIFTED_COLUMNS.has(column)) continue;
         const shifted = `w.sim_start + (t."${column}" - w.real_start) * w.speed`;
@@ -120,6 +160,15 @@ export class HistoryClock {
       // Never reused: if anything failed, closing the connection rolls the change back.
       client.release(true);
     }
+  }
+
+  /** The India date `daysAhead` days from today, by the database clock (as the API dates things). */
+  async today(daysAhead = 0): Promise<string> {
+    const result = await this.pool.query<{ day: string }>(
+      "SELECT ((now() AT TIME ZONE 'Asia/Kolkata')::date + $1::int)::text AS day",
+      [daysAhead],
+    );
+    return (result.rows[0] as { day: string }).day;
   }
 
   async close(): Promise<void> {

@@ -5,6 +5,7 @@ import type {
   AccountingExportRequest,
   CashMovementRequest,
   CloseRegisterRequest,
+  LatestReconciliation,
   LedgerMappingRequest,
   LedgerMappingView,
   OpenRegisterRequest,
@@ -13,12 +14,14 @@ import type {
   PaymentPage,
   RegisterSessionStatus,
   RegisterSessionSummary,
+  ReconciliationRunView,
   RegisterSessionView,
 } from '@paint/shared';
 import type { ApiClient } from '../api/client.js';
 
 // The day end and the books: register sessions and payments (apps/api/src/payments),
-// ledger mappings and the Tally export (apps/api/src/accounting). Shapes come from
+// ledger mappings and the Tally export (apps/api/src/accounting), and the nightly
+// reconciliation (apps/api/src/reconciliation). Shapes come from
 // @paint/shared (billing-api.ts, accounting-api.ts).
 
 export interface RegisterQuery {
@@ -76,6 +79,11 @@ export function booksEndpoints(api: ApiClient) {
     /** Records the export and answers its file. */
     exportFile: (input: AccountingExportRequest) =>
       api.download('/accounting-exports', { body: input }),
+    /** The newest reconciliation of the books, with what it found (null before the first). */
+    latestReconciliation: (signal?: AbortSignal) =>
+      api.get<LatestReconciliation>('/reconciliation/latest', { signal }),
+    /** Reconciles the books now and answers what it found. */
+    runReconciliation: () => api.post<ReconciliationRunView>('/reconciliation/runs', {}),
   };
 }
 

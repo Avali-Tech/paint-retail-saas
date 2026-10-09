@@ -1,62 +1,78 @@
 import type { PartyPlan, StoreKey } from './plan.js';
+import { basket, sell } from './seed-billing.js';
 import { createParty } from './seed-setup.js';
 import { must, type SeedContext, type SeededParty, type Timeline } from './seed-context.js';
 
 const storeOf = (party: PartyPlan): StoreKey => must(party.homeStore, `home store of ${party.key}`);
 
-interface CreditStory {
+export interface CreditStory {
   readonly party: SeededParty;
   readonly limitRupees: number;
   readonly days: number;
-  /** Share of the limit owed today. */
+  /** Share of the limit owed when billing went live. */
   readonly used: number;
   readonly overdueDays: number;
   readonly risk: 'low' | 'medium' | 'high';
+  /** The first contractor: owes close to its limit, so the shop stops crediting it. */
+  readonly nearLimit: boolean;
+  /** The first builder: well overdue, its credit on hold. */
+  readonly onHold: boolean;
+}
+
+const storiesOf = new WeakMap<SeedContext, CreditStory[]>();
+
+/** The credit accounts, decided when the story is scheduled. */
+export function creditStories(context: SeedContext): readonly CreditStory[] {
+  return must(storiesOf.get(context), 'credit stories');
 }
 
 /**
  * Credit accounts for contractors, builders and dealers: limits approved by
- * the owner or admin, balances entered by hand (one close to its limit, one
- * well overdue and on hold), one request rejected and two still waiting.
+ * the owner or admin, balances from the old books at go-live (one close to
+ * its limit, one well overdue and on hold), one request rejected and two
+ * still waiting.
  */
 export function scheduleCredit(context: SeedContext, timeline: Timeline): void {
   const { random } = context;
-  const stories: CreditStory[] = [];
+  const contractors = context.partiesOf('contractor');
+  const builders = context.partiesOf('builder');
+  // The first dealer's request is turned down; it asks again (see below).
+  const dealers = context.partiesOf('dealer');
+  const stories: CreditStory[] = [
+    ...contractors.map((party, index) => ({
+      party,
+      limitRupees: random.pick([300_000, 500_000, 750_000]),
+      days: random.pick([30, 45]),
+      used: random.int(15, 65) / 100,
+      overdueDays: random.pick([0, 0, 5, 12]),
+      risk: 'low' as const,
+      nearLimit: index === 0,
+      onHold: false,
+    })),
+    ...builders.map((party, index) => ({
+      party,
+      limitRupees: random.pick([1_000_000, 1_500_000, 2_500_000]),
+      days: random.pick([45, 60]),
+      used: random.int(20, 70) / 100,
+      overdueDays: random.pick([0, 8]),
+      risk: 'medium' as const,
+      nearLimit: false,
+      onHold: index === 0,
+    })),
+    ...dealers.slice(1).map((party) => ({
+      party,
+      limitRupees: random.pick([200_000, 300_000, 500_000]),
+      days: 30,
+      used: random.int(10, 50) / 100,
+      overdueDays: 0,
+      risk: 'low' as const,
+      nearLimit: false,
+      onHold: false,
+    })),
+  ];
+  storiesOf.set(context, stories);
+
   timeline.at(context.daysAgo(0.92), async () => {
-    const contractors = context.partiesOf('contractor');
-    const builders = context.partiesOf('builder');
-    const dealers = context.partiesOf('dealer');
-    for (const party of contractors) {
-      stories.push({
-        party,
-        limitRupees: random.pick([300_000, 500_000, 750_000]),
-        days: random.pick([30, 45]),
-        used: random.int(15, 65) / 100,
-        overdueDays: random.pick([0, 0, 5, 12]),
-        risk: 'low',
-      });
-    }
-    for (const party of builders) {
-      stories.push({
-        party,
-        limitRupees: random.pick([1_000_000, 1_500_000, 2_500_000]),
-        days: random.pick([45, 60]),
-        used: random.int(20, 70) / 100,
-        overdueDays: random.pick([0, 8]),
-        risk: 'medium',
-      });
-    }
-    // The first dealer's request is turned down; it asks again (see below).
-    for (const party of dealers.slice(1)) {
-      stories.push({
-        party,
-        limitRupees: random.pick([200_000, 300_000, 500_000]),
-        days: 30,
-        used: random.int(10, 50) / 100,
-        overdueDays: 0,
-        risk: 'low',
-      });
-    }
     for (const story of stories) {
       await context.as(context.managerOf(storeOf(story.party))).post('/credit-requests', {
         partyId: story.party.id,
@@ -96,19 +112,15 @@ export function scheduleCredit(context: SeedContext, timeline: Timeline): void {
     }
   });
 
+  // What each owes and how late comes from its ledger now; the manager sets the risk.
   timeline.at(context.daysAgo(0.3), async () => {
-    for (const [index, story] of stories.entries()) {
-      // The first contractor is close to its limit; the first builder is on hold.
-      const nearLimit = index === 0;
-      const onHold = story.party === context.partiesOf('builder')[0];
+    for (const story of stories) {
       const manager = context.as(context.managerOf(storeOf(story.party)));
       await manager.patch(`/parties/${story.party.id}/credit`, {
-        manualExposurePaise: Math.round(story.limitRupees * (nearLimit ? 0.94 : story.used)) * 100,
-        overdueDays: onHold ? 75 : story.overdueDays,
-        risk: onHold ? 'high' : nearLimit ? 'medium' : story.risk,
-        notes: onHold ? 'Cheque returned unpaid twice' : 'Pays within terms',
+        risk: story.onHold ? 'high' : story.nearLimit ? 'medium' : story.risk,
+        notes: story.onHold ? 'Cheque returned unpaid twice' : 'Pays within terms',
       });
-      if (onHold) {
+      if (story.onHold) {
         await manager.post(`/parties/${story.party.id}/credit/hold`, {
           reason: 'Cheque of ₹1,85,000 returned unpaid',
         });
@@ -138,8 +150,8 @@ export function scheduleCredit(context: SeedContext, timeline: Timeline): void {
 
 /**
  * Painters (and two contractors) in the loyalty programme, earning points on
- * hand-entered bills, a painter-meet campaign, a referral award, redemptions
- * and one correction. The two busiest painters reach Gold and Platinum.
+ * their invoices, a painter-meet campaign, a referral award, redemptions
+ * and one correction. The two busiest painters reach a higher tier.
  */
 export function scheduleLoyalty(context: SeedContext, timeline: Timeline): void {
   const { random, plan } = context;
@@ -157,22 +169,22 @@ export function scheduleLoyalty(context: SeedContext, timeline: Timeline): void 
       });
       context.count('loyalty members');
     });
-    // The two busiest painters buy for big sites; others for homes.
+    // The two busiest painters buy for big sites; others for homes. Each bill is an
+    // invoice paid by UPI, which earns the points (billing is live, spec §4.7).
     const big = index < 2;
     const bills = random.int(big ? 6 : 2, big ? 9 : 6);
     for (let bill = 0; bill < bills; bill++) {
       const day = Math.max(1, enrolled - 1 - Math.floor(((enrolled - 2) * bill) / bills));
-      const rupees = big ? random.int(60, 180) * 1000 : random.int(4, 45) * 1000;
-      const reference = `${storeOf(member)}/26-27/${String(random.int(1000, 9999))}`;
+      const rupees = big ? random.int(45, 70) * 1000 : random.int(4, 25) * 1000;
       timeline.at(day, async () => {
         const party = context.party(member.key);
-        // Entered by the branch manager, so the salesperson hears when a tier is reached.
-        await context
-          .as(context.managerOf(storeOf(party)))
-          .post(`/parties/${party.id}/loyalty/purchases`, {
-            manualPurchasePaise: rupees * 100,
-            reference,
-          });
+        const store = storeOf(party);
+        // Billed by the branch manager, so the salesperson hears when a tier is reached.
+        await sell(context, store, {
+          party,
+          payBy: 'upi',
+          lines: basket(context, store, rupees * 100),
+        });
         context.count('loyalty purchases');
       });
     }
@@ -219,11 +231,11 @@ export function scheduleDuplicates(context: SeedContext, timeline: Timeline): vo
       const id = await createParty(context, duplicate);
       const store = storeOf(context.party(duplicate.key));
       if (duplicate.segment === 'painter') {
-        const sales = context.as(context.salesOf(store));
-        await sales.post(`/parties/${id}/loyalty`, {});
-        await sales.post(`/parties/${id}/loyalty/purchases`, {
-          manualPurchasePaise: 18_000_00,
-          reference: `${store}/26-27/0420`,
+        await context.as(context.salesOf(store)).post(`/parties/${id}/loyalty`, {});
+        await sell(context, store, {
+          party: context.party(duplicate.key),
+          payBy: 'upi',
+          lines: basket(context, store, 18_000_00),
         });
       } else {
         await context.as('crm').post('/leads', {

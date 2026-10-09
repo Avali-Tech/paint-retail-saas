@@ -42,6 +42,7 @@ export const PERMISSION_LABELS: Record<Permission, MessageKey> = {
   'payments:manage': 'permissions.payments.manage',
   'register:manage': 'permissions.register.manage',
   'accounting:export': 'permissions.accounting.export',
+  'accounting:reconcile': 'permissions.accounting.reconcile',
 };
 
 /** Names of the areas, in the order the checklist shows them. */

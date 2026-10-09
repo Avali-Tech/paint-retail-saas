@@ -187,6 +187,7 @@ describe('import kinds and templates', () => {
       ['products', 'catalog:manage'],
       ['parties', 'parties:manage'],
       ['opening-stock', 'inventory:manage'],
+      ['opening-balances', 'organization:manage'],
     ]);
     expect(kinds[0]?.columns.slice(0, 2)).toEqual([
       expect.objectContaining({ name: 'brand', required: true }),

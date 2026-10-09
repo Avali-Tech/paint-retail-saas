@@ -23,6 +23,7 @@ const {
   customerProfiles,
   documents,
   estimates,
+  goLiveOpenings,
   loyaltyAccounts,
   loyaltyLedger,
   parties,
@@ -82,6 +83,10 @@ export const MERGE_HANDLED: readonly string[] = [
   'estimates.party_id',
   // Shade history is never rewritten: the search by party follows merges instead.
   'tint_records.party_id',
+  // An imported opening balance belongs to the party it was imported for: billing() refuses.
+  'go_live_openings.party_id',
+  // What a reconciliation found is a record of that day, never rewritten.
+  'reconciliation_findings.party_id',
 ];
 
 export interface MergeResult {
@@ -236,6 +241,15 @@ export class PartyMergeService {
     if (history.rows.length > 0) {
       throw new ConflictException(
         'This party has invoices, sent quotations or orders, or is the walk-in customer; merge the other way',
+      );
+    }
+    const [imported] = await tx
+      .select({ id: goLiveOpenings.id })
+      .from(goLiveOpenings)
+      .where(eq(goLiveOpenings.partyId, duplicateId));
+    if (imported) {
+      throw new ConflictException(
+        'This party has an imported opening balance; merge the other way, or import it for the other party',
       );
     }
     for (const [name, table] of [
