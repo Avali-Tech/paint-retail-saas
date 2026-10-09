@@ -3,6 +3,7 @@ import { schema, type Transaction } from '@paint/db';
 import { canAccessStore, type TaxDocumentLineView, type TaxDocumentView } from '@paint/shared';
 import { asc, eq, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
+import { lineTints, withTint } from '../paint/line-tints.js';
 
 const { taxDocumentLines, taxDocumentTaxRows, taxDocuments } = schema;
 
@@ -47,6 +48,11 @@ export async function documentView(
     .from(taxDocumentLines)
     .where(eq(taxDocumentLines.documentId, id))
     .orderBy(asc(taxDocumentLines.lineNo));
+  const tints = await lineTints(
+    tx,
+    'invoice_line',
+    lines.map((line) => line.id),
+  );
   const taxRows = await tx
     .select()
     .from(taxDocumentTaxRows)
@@ -102,27 +108,32 @@ export async function documentView(
     ackNo: document.ackNo,
     cancelReason: document.cancelReason,
     cancelledAt: iso(document.cancelledAt),
-    lines: lines.map((line): TaxDocumentLineView => ({
-      id: line.id,
-      lineNo: line.lineNo,
-      variantId: line.variantId,
-      description: line.description,
-      hsnCode: line.hsnCode,
-      uqc: line.uqc,
-      quantity: line.quantity,
-      unitPricePaise: line.unitPricePaise,
-      discountBps: line.discountBps,
-      discountPaise: line.discountPaise,
-      grossPaise: line.grossPaise,
-      taxablePaise: line.taxablePaise,
-      taxCategoryId: line.taxCategoryId,
-      rateBps: line.rateBps,
-      cgstPaise: line.cgstPaise,
-      sgstPaise: line.sgstPaise,
-      igstPaise: line.igstPaise,
-      cessPaise: line.cessPaise,
-      totalPaise: line.totalPaise,
-    })),
+    lines: lines.map((line): TaxDocumentLineView =>
+      withTint(
+        {
+          id: line.id,
+          lineNo: line.lineNo,
+          variantId: line.variantId,
+          description: line.description,
+          hsnCode: line.hsnCode,
+          uqc: line.uqc,
+          quantity: line.quantity,
+          unitPricePaise: line.unitPricePaise,
+          discountBps: line.discountBps,
+          discountPaise: line.discountPaise,
+          grossPaise: line.grossPaise,
+          taxablePaise: line.taxablePaise,
+          taxCategoryId: line.taxCategoryId,
+          rateBps: line.rateBps,
+          cgstPaise: line.cgstPaise,
+          sgstPaise: line.sgstPaise,
+          igstPaise: line.igstPaise,
+          cessPaise: line.cessPaise,
+          totalPaise: line.totalPaise,
+        },
+        tints,
+      ),
+    ),
     taxRows: taxRows.map((row) => ({
       hsnCode: row.hsnCode,
       rateBps: row.rateBps,

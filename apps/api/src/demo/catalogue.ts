@@ -1,3 +1,4 @@
+import type { ProductPaintFields } from '@paint/shared';
 import { internalEan13 } from './identity.js';
 import type { Random } from './random.js';
 
@@ -143,6 +144,27 @@ export const CATEGORIES = {
   },
 } as const satisfies Record<string, CategorySpec>;
 export type CategoryKey = keyof typeof CATEGORIES;
+
+const HARDWARE: ProductPaintFields = {
+  coverageSqftPerLitre: null,
+  defaultCoats: null,
+  isTintable: false,
+};
+
+/**
+ * Coverage per coat (sq ft per litre, from typical data sheets), default coats and
+ * whether bases are tinted at the counter; putty (by the kg) and tools have none.
+ */
+export const PAINT_FIELDS: Readonly<Record<CategoryKey, ProductPaintFields>> = {
+  interior: { coverageSqftPerLitre: 120, defaultCoats: 2, isTintable: true },
+  exterior: { coverageSqftPerLitre: 100, defaultCoats: 2, isTintable: true },
+  enamel: { coverageSqftPerLitre: 130, defaultCoats: 2, isTintable: true },
+  primer: { coverageSqftPerLitre: 140, defaultCoats: 1, isTintable: false },
+  putty: HARDWARE,
+  wood: { coverageSqftPerLitre: 120, defaultCoats: 2, isTintable: false },
+  waterproofing: { coverageSqftPerLitre: 60, defaultCoats: 2, isTintable: false },
+  tools: HARDWARE,
+};
 
 /** A product family as sold in Indian paint shops, with its MRP per litre / kg / piece in rupees. */
 interface Line {
@@ -320,6 +342,7 @@ export interface ProductPlan {
   readonly type: ProductType;
   readonly hsnCode: string;
   readonly taxCategory: DemoTaxCategory;
+  readonly paint: ProductPaintFields;
   readonly variants: readonly VariantPlan[];
 }
 
@@ -424,6 +447,7 @@ export function buildCatalogue(random: Random, every = 1): ProductPlan[] {
       type: spec.type,
       hsnCode: spec.hsnCode,
       taxCategory: spec.taxCategory,
+      paint: PAINT_FIELDS[entry.category],
       variants,
     };
   });

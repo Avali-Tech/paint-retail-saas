@@ -1,3 +1,4 @@
+import type { ProductPaintChanges, ProductPaintFields } from '@paint/shared';
 import type { ApiClient } from './client.js';
 import type { Page } from './page.js';
 
@@ -48,7 +49,8 @@ export interface Variant {
   readonly barcodes: string[];
 }
 
-export interface Product {
+/** Paint fields (coverage, coats, tintable) are null / false for hardware. */
+export interface Product extends ProductPaintFields {
   readonly id: string;
   readonly name: string;
   readonly type: ProductType;
@@ -83,7 +85,7 @@ export interface VariantChanges {
 }
 
 /** POST /products: a new product family with its first pack sizes. */
-export interface NewProduct {
+export interface NewProduct extends ProductPaintChanges {
   readonly brandId: string;
   readonly categoryId?: string;
   readonly name: string;
@@ -95,8 +97,8 @@ export interface NewProduct {
   readonly variants: VariantInput[];
 }
 
-/** PATCH /products/:id: only what changes; null clears the category or description. */
-export interface ProductChanges {
+/** PATCH /products/:id: only what changes; null clears the category, description or a paint number. */
+export interface ProductChanges extends ProductPaintChanges {
   readonly brandId?: string;
   readonly categoryId?: string | null;
   readonly name?: string;

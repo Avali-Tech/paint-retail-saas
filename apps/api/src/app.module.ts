@@ -26,6 +26,7 @@ import { NotificationsModule } from './notifications/notifications.module.js';
 import { ObservabilityModule } from './observability/index.js';
 import { OnboardingModule } from './onboarding/onboarding.module.js';
 import { OrdersModule } from './orders/orders.module.js';
+import { PaintModule } from './paint/paint.module.js';
 import { PartiesModule } from './parties/parties.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
 import { PlatformModule } from './platform/platform.module.js';
@@ -81,6 +82,7 @@ export class AppModule {
         }),
         OnboardingModule,
         OrdersModule,
+        PaintModule,
         PartiesModule,
         PaymentsModule,
         PlatformModule.forRoot({ bootstrapToken: config.platformBootstrapToken }),

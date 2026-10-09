@@ -159,6 +159,7 @@ export async function setUpCatalogueAndParties(context: SeedContext): Promise<vo
       hsnCode: product.hsnCode,
       taxCategoryId: context.taxCategoryId(product.taxCategory),
       description: `${product.brand} ${product.name}`,
+      ...product.paint,
       variants: product.variants.map((variant) => ({
         sku: variant.sku,
         packSize: variant.packSize,

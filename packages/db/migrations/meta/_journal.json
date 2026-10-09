@@ -442,6 +442,20 @@
       "when": 1791465823247,
       "tag": "0062_grant_order_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1791482769986,
+      "tag": "0063_paint_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1791482776128,
+      "tag": "0064_paint_data_rules",
+      "breakpoints": true
     }
   ]
 }

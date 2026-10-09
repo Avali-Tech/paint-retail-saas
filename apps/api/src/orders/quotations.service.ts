@@ -24,9 +24,12 @@ import { indiaToday } from '../billing/invoice-view.js';
 import { addDays } from '../contracts/contract-dates.js';
 import { DATABASE } from '../database/database.module.js';
 import { fieldError } from '../tax/tax-lookups.js';
+import { tintsOf, writeLineTints } from '../paint/line-tints.js';
+import { carriesByLineNo, carryTints } from '../paint/tint-lines.js';
 import {
   loadQuotation,
   newestFirst,
+  orderLines,
   quotationView,
   salesOrderView,
   type QuotationRow,
@@ -75,7 +78,13 @@ export class QuotationsService {
             createdByMemberId: auth.memberId,
           })
           .returning()) as [QuotationRow];
-        await this.writeLines(tx, auth, row.id, values.lines);
+        await this.writeTints(
+          tx,
+          auth,
+          row,
+          input,
+          await this.writeLines(tx, auth, row.id, values.lines),
+        );
         return quotationView(tx, row, today);
       }),
     );
@@ -94,7 +103,13 @@ export class QuotationsService {
         .where(eq(quotations.id, id))
         .returning()) as [QuotationRow];
       await tx.delete(quotationLines).where(eq(quotationLines.quotationId, id));
-      await this.writeLines(tx, auth, id, values.lines);
+      await this.writeTints(
+        tx,
+        auth,
+        row,
+        input,
+        await this.writeLines(tx, auth, id, values.lines),
+      );
       return quotationView(tx, row, today);
     });
   }
@@ -253,7 +268,18 @@ export class QuotationsService {
           createdByMemberId: auth.memberId,
         })
         .returning()) as [QuotationRow];
-      await this.writeLines(tx, auth, row.id, priced.lines);
+      const created = await this.writeLines(tx, auth, row.id, priced.lines);
+      await carryTints(
+        tx,
+        auth.memberId,
+        'quotation_line',
+        'quotation_line',
+        { partyId: row.billToPartyId, projectId: row.projectId },
+        carriesByLineNo(
+          lines,
+          created.map((line) => ({ ...line, storeId: row.storeId })),
+        ),
+      );
       return quotationView(tx, row, today);
     });
   }
@@ -317,6 +343,22 @@ export class QuotationsService {
           today,
           current.id,
         );
+        await carryTints(
+          tx,
+          auth.memberId,
+          'quotation_line',
+          'sales_order_line',
+          { partyId: order.billToPartyId, projectId: order.projectId },
+          carriesByLineNo(
+            lines,
+            (await orderLines(tx, order.id)).map((line) => ({
+              id: line.id,
+              lineNo: line.lineNo,
+              quantity: line.quantity,
+              storeId: line.fulfilStoreId,
+            })),
+          ),
+        );
         await tx
           .update(quotations)
           .set({ status: 'converted', salesOrderId: order.id, updatedAt: sql`now()` })
@@ -373,16 +415,36 @@ export class QuotationsService {
     return quotationView(tx, row, today);
   }
 
-  private async writeLines(
+  /** The tints sent with the lines (round 5a), in the saving transaction. */
+  private async writeTints(
+    tx: Transaction,
+    auth: AuthContext,
+    row: QuotationRow,
+    input: QuotationInput,
+    lines: readonly { id: string; lineNo: number; quantity: number }[],
+  ): Promise<void> {
+    await writeLineTints(
+      tx,
+      auth,
+      'quotation_line',
+      { partyId: row.billToPartyId, projectId: row.projectId },
+      tintsOf(input.lines, lines, () => row.storeId),
+    );
+  }
+
+  private writeLines(
     tx: Transaction,
     auth: AuthContext,
     quotationId: string,
     lines: Awaited<ReturnType<typeof priceHeader>>['lines'],
-  ): Promise<void> {
-    await tx
+  ) {
+    return tx
       .insert(quotationLines)
-      .values(
-        lines.map((line) => ({ ...line, organizationId: auth.organization.id, quotationId })),
-      );
+      .values(lines.map((line) => ({ ...line, organizationId: auth.organization.id, quotationId })))
+      .returning({
+        id: quotationLines.id,
+        lineNo: quotationLines.lineNo,
+        quantity: quotationLines.quantity,
+      });
   }
 }

@@ -22,6 +22,7 @@ const {
   creditRequests,
   customerProfiles,
   documents,
+  estimates,
   loyaltyAccounts,
   loyaltyLedger,
   parties,
@@ -77,6 +78,10 @@ export const MERGE_HANDLED: readonly string[] = [
   // Every payment has a party ledger entry, so billing() refuses these too.
   'payments.party_id',
   'allocations.party_id',
+  // Draft estimates move; a converted one is final (its quotation is the record).
+  'estimates.party_id',
+  // Shade history is never rewritten: the search by party follows merges instead.
+  'tint_records.party_id',
 ];
 
 export interface MergeResult {
@@ -163,6 +168,13 @@ export class PartyMergeService {
         'project_id, role',
       );
       counts['loyalty_accounts.party_id'] = await this.loyalty(tx, auth, duplicateId, survivorId);
+      counts['estimates.party_id'] = (
+        await tx
+          .update(estimates)
+          .set({ partyId: survivorId, updatedAt: sql`now()` })
+          .where(and(eq(estimates.partyId, duplicateId), eq(estimates.status, 'draft')))
+          .returning({ id: estimates.id })
+      ).length;
       // Activities and documents about the party itself.
       counts.activities = (
         await tx

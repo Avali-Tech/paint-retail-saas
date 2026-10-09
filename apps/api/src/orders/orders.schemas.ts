@@ -26,6 +26,7 @@ import {
   type SalesOrderRequest,
 } from '@paint/shared';
 import { z } from 'zod';
+import { lineTintSchema } from '../paint/paint.schemas.js';
 
 // The request shapes are the contract's (@paint/shared orders-api); each schema
 // below is checked against it with `satisfies`, so the two cannot drift apart.
@@ -57,6 +58,7 @@ const saleLine = {
   quantity,
   unitPricePaise: paise.optional(),
   discount: discount.optional(),
+  tint: lineTintSchema.optional(),
 };
 
 const saleHeader = {

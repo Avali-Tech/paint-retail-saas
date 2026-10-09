@@ -11,6 +11,7 @@
  */
 import type { CreditCheck, CreditDecision, CreditStatus } from './credit.js';
 import type { Discount } from './gst/types.js';
+import type { LineTintRequest, LineTintView } from './paint-api.js';
 import type { Permission } from './permissions.js';
 import type { PriceMode, StockPostOn, TaxDocumentStatus } from './tax-documents.js';
 
@@ -195,6 +196,8 @@ export interface SalesLineRequest {
   /** Defaults to the variant's selling price. */
   readonly unitPricePaise?: number;
   readonly discount?: Discount;
+  /** The shade it is tinted to, written with the line (round 5a); left out = untinted. */
+  readonly tint?: LineTintRequest;
 }
 
 /** A party, site or store by id and name. */
@@ -236,6 +239,8 @@ export interface SalesLineView {
   readonly igstPaise: number;
   readonly cessPaise: number;
   readonly totalPaise: number;
+  /** Its tint (round 5a); absent when untinted. */
+  readonly tint?: LineTintView;
 }
 
 /** The header figures of a priced quotation or order. */

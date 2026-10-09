@@ -7,8 +7,10 @@ import {
   isCurrentGstStateCode,
   isValidGstin,
   isValidSeriesPrefix,
+  type DraftInvoiceLineRequest,
 } from '@paint/shared';
 import { z } from 'zod';
+import { lineTintSchema } from '../paint/paint.schemas.js';
 import { issuePaymentSchema } from '../payments/payments.schemas.js';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -67,7 +69,9 @@ export const draftInvoiceSchema = z.object({
         /** Defaults to the variant's selling price. */
         unitPricePaise: paise.optional(),
         discount: discount.optional(),
-      }),
+        /** The shade it is tinted to (round 5a), written with the line. */
+        tint: lineTintSchema.optional(),
+      }) satisfies z.ZodType<DraftInvoiceLineRequest>,
     )
     .min(1)
     .max(200),

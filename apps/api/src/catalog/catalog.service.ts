@@ -15,7 +15,7 @@ import {
   type DatabaseConnection,
   type Transaction,
 } from '@paint/db';
-import { basisPointsToPercent } from '@paint/shared';
+import { basisPointsToPercent, type ProductPaintFields } from '@paint/shared';
 import { and, count, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
@@ -71,7 +71,7 @@ export interface VariantView {
   readonly isActive: boolean;
   readonly barcodes: string[];
 }
-export interface ProductView {
+export interface ProductView extends ProductPaintFields {
   readonly id: string;
   readonly name: string;
   readonly type: (typeof products.$inferSelect)['type'];
@@ -526,6 +526,9 @@ export class CatalogService {
         type: product.type,
         description: product.description,
         hsnCode: product.hsnCode,
+        coverageSqftPerLitre: product.coverageSqftPerLitre,
+        defaultCoats: product.defaultCoats,
+        isTintable: product.isTintable,
         gstRatePercent: basisPointsToPercent(rateBps),
         taxCategory:
           product.taxCategoryId === null

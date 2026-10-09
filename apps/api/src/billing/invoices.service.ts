@@ -10,6 +10,7 @@ import type { DiscountInput, DraftInvoiceInput, ListInvoicesQuery } from './bill
 import { idempotent } from './idempotency.js';
 import { INFLUENCER_ROLES, requireSaleParty, requireSaleSite } from './sale-parties.js';
 import { documentView, loadDocument, type TaxDocumentRow } from './invoice-view.js';
+import { tintsOf, writeLineTints } from '../paint/line-tints.js';
 
 const { productVariants, salesSettings, stores, taxDocumentLines, taxDocuments } = schema;
 
@@ -206,6 +207,18 @@ export class InvoicesService {
         discountPaise: amountOf(line.discount),
       };
     });
-    await tx.insert(taxDocumentLines).values(values);
+    const saved = await tx.insert(taxDocumentLines).values(values).returning({
+      id: taxDocumentLines.id,
+      lineNo: taxDocumentLines.lineNo,
+      quantity: taxDocumentLines.quantity,
+    });
+    // The shades sent with the lines (round 5a), in the same transaction.
+    await writeLineTints(
+      tx,
+      auth,
+      'invoice_line',
+      { partyId: input.partyId ?? null, projectId: input.projectId ?? null },
+      tintsOf(input.lines, saved, () => input.storeId),
+    );
   }
 }

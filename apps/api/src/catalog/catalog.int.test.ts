@@ -20,6 +20,9 @@ interface Product {
   type: string;
   hsnCode: string;
   gstRatePercent: number;
+  coverageSqftPerLitre: number | null;
+  defaultCoats: number | null;
+  isTintable: boolean;
   isActive: boolean;
   description: string | null;
   brand: { id: string; name: string };
@@ -626,6 +629,71 @@ describe('PATCH /products/:id', () => {
       (await api(owner).patch('/products/00000000-0000-4000-8000-000000000000', { name: 'Ghost' }))
         .statusCode,
     ).toBe(404);
+  });
+});
+
+describe('paint fields (spec §3.5)', () => {
+  it('leaves them out for hardware, and keeps them for paint', async () => {
+    const hinge = await product({ type: 'tool', hsnCode: '8302' });
+    expect(hinge).toMatchObject({
+      coverageSqftPerLitre: null,
+      defaultCoats: null,
+      isTintable: false,
+    });
+
+    const paint = await product({
+      coverageSqftPerLitre: 129.17,
+      defaultCoats: 2,
+      isTintable: true,
+    });
+    expect(paint).toMatchObject({
+      coverageSqftPerLitre: 129.17,
+      defaultCoats: 2,
+      isTintable: true,
+    });
+    const listed = (
+      await api(owner).get(`/products?q=${encodeURIComponent(paint.name)}`)
+    ).json<Page>();
+    expect(listed.items[0]).toMatchObject({ coverageSqftPerLitre: 129.17, isTintable: true });
+  });
+
+  it('edits them, null clearing a number', async () => {
+    const paint = await product({ coverageSqftPerLitre: 120 });
+    const edited = (
+      await api(owner).patch(`/products/${paint.id}`, { defaultCoats: 3, isTintable: true })
+    ).json<Product>();
+    expect(edited).toMatchObject({ coverageSqftPerLitre: 120, defaultCoats: 3, isTintable: true });
+    const cleared = (
+      await api(owner).patch(`/products/${paint.id}`, {
+        coverageSqftPerLitre: null,
+        defaultCoats: null,
+        isTintable: false,
+      })
+    ).json<Product>();
+    expect(cleared).toMatchObject({
+      coverageSqftPerLitre: null,
+      defaultCoats: null,
+      isTintable: false,
+    });
+  });
+
+  it('refuses coverage that is not positive or too precise, and coats out of range', async () => {
+    const paint = await product();
+    const issues = async (changes: object) => {
+      const response = await api(owner).patch(`/products/${paint.id}`, changes);
+      expect(response.statusCode).toBe(400);
+      return response.json<{ issues: { path: string }[] }>().issues.map((issue) => issue.path);
+    };
+    expect(await issues({ coverageSqftPerLitre: 0 })).toEqual(['coverageSqftPerLitre']);
+    expect(await issues({ coverageSqftPerLitre: 10_000 })).toEqual(['coverageSqftPerLitre']);
+    expect(await issues({ coverageSqftPerLitre: 120.125 })).toEqual(['coverageSqftPerLitre']);
+    expect(await issues({ defaultCoats: 0 })).toEqual(['defaultCoats']);
+    expect(await issues({ defaultCoats: 2.5 })).toEqual(['defaultCoats']);
+    expect(await issues({ isTintable: 'yes' })).toEqual(['isTintable']);
+    // Store staff read the catalogue but do not edit it.
+    expect(
+      (await api(storeEmployee).patch(`/products/${paint.id}`, { isTintable: true })).statusCode,
+    ).toBe(403);
   });
 });
 
