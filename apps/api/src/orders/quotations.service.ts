@@ -61,33 +61,40 @@ export class QuotationsService {
   ): Promise<QuotationView> {
     const request = { method: 'POST', path: '/quotations', body: input };
     return withTenant(this.connection.db, auth.organization.id, (tx) =>
-      idempotent(tx, auth, idempotencyKey, request, async () => {
-        const today = await indiaToday(tx);
-        const values = await this.priced(tx, auth, input, today);
-        const number = formatDocumentNumber(
-          QUOTATION_NUMBER_PREFIX,
-          await nextDocumentNumber(tx, auth.organization.id, 'quotation'),
-        );
-        const [row] = (await tx
-          .insert(quotations)
-          .values({
-            ...values.header,
-            organizationId: auth.organization.id,
-            number,
-            validUntil: values.validUntil,
-            createdByMemberId: auth.memberId,
-          })
-          .returning()) as [QuotationRow];
-        await this.writeTints(
-          tx,
-          auth,
-          row,
-          input,
-          await this.writeLines(tx, auth, row.id, values.lines),
-        );
-        return quotationView(tx, row, today);
-      }),
+      idempotent(tx, auth, idempotencyKey, request, () => this.createIn(tx, auth, input)),
     );
+  }
+
+  /** A new draft quotation, in the caller's transaction (also an estimate's convert, round 5b). */
+  async createIn(
+    tx: Transaction,
+    auth: AuthContext,
+    input: QuotationInput,
+  ): Promise<QuotationView> {
+    const today = await indiaToday(tx);
+    const values = await this.priced(tx, auth, input, today);
+    const number = formatDocumentNumber(
+      QUOTATION_NUMBER_PREFIX,
+      await nextDocumentNumber(tx, auth.organization.id, 'quotation'),
+    );
+    const [row] = (await tx
+      .insert(quotations)
+      .values({
+        ...values.header,
+        organizationId: auth.organization.id,
+        number,
+        validUntil: values.validUntil,
+        createdByMemberId: auth.memberId,
+      })
+      .returning()) as [QuotationRow];
+    await this.writeTints(
+      tx,
+      auth,
+      row,
+      input,
+      await this.writeLines(tx, auth, row.id, values.lines),
+    );
+    return quotationView(tx, row, today);
   }
 
   /** Changes a draft version: the header and every line are replaced and priced again. */

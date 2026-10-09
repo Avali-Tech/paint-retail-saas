@@ -1,0 +1,78 @@
+/* The paint estimator (round 5b). Tokens only (theme-guard.test.ts). */
+
+.estimator-room {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.estimator-room legend {
+  padding: 0 var(--space-1);
+  font-weight: 600;
+}
+
+.estimator-room__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: var(--space-2);
+}
+
+.estimator-room__foot {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.estimator-room__problem,
+.estimator-tier__problem {
+  color: var(--color-danger-text);
+}
+
+.estimator-room__area,
+.estimator-total {
+  font-weight: 600;
+}
+
+.estimator-product {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* Good, better, best side by side; stacked on a phone. */
+.estimator-tiers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--space-3);
+}
+
+.estimator-tier {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.estimator-tier h3 {
+  margin: 0;
+}
+
+.estimator-tier__needs,
+.estimator-tier__lines {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.estimator-tier__lines li,
+.estimator-tier__total {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0;
+}

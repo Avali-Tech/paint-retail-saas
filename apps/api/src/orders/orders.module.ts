@@ -25,5 +25,7 @@ import { SalesOrdersService } from './sales-orders.service.js';
     GoLiveController,
   ],
   providers: [QuotationsService, SalesOrdersService, DispatchesService, GoLiveService],
+  // An estimate becomes a quotation through the same service (round 5b).
+  exports: [QuotationsService],
 })
 export class OrdersModule {}
