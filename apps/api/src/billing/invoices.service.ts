@@ -2,9 +2,18 @@ import 'reflect-metadata';
 import { ConflictException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { schema, withTenant, type DatabaseConnection, type Transaction } from '@paint/db';
 import { canAccessStore, type TaxDocumentPage, type TaxDocumentView } from '@paint/shared';
-import { and, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
+import {
+  afterKey,
+  cappedTotal,
+  cursorTime,
+  keysetSlice,
+  NEWEST_FIRST,
+  pageOffset,
+} from '../common/keyset.js';
 import { DATABASE } from '../database/database.module.js';
+import { containsPattern } from '../parties/party-access.js';
 import { fieldError } from '../tax/tax-lookups.js';
 import type { DiscountInput, DraftInvoiceInput, ListInvoicesQuery } from './billing.schemas.js';
 import { idempotent } from './idempotency.js';
@@ -95,6 +104,7 @@ export class InvoicesService {
 
   list(auth: AuthContext, query: ListInvoicesQuery): Promise<TaxDocumentPage> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      const pattern = query.q === undefined ? null : containsPattern(query.q);
       const where = and(
         auth.allStores ? undefined : inArray(taxDocuments.storeId, [...auth.storeIds]),
         query.storeId ? eq(taxDocuments.storeId, query.storeId) : undefined,
@@ -103,14 +113,11 @@ export class InvoicesService {
         query.kinds ? inArray(taxDocuments.kind, query.kinds) : undefined,
         query.from ? sql`${taxDocuments.issuedOn} >= ${query.from}::date` : undefined,
         query.to ? sql`${taxDocuments.issuedOn} <= ${query.to}::date` : undefined,
-        query.q
-          ? or(
-              ilike(taxDocuments.number, `%${query.q}%`),
-              ilike(taxDocuments.buyerName, `%${query.q}%`),
-            )
-          : undefined,
+        pattern === null
+          ? undefined
+          : or(ilike(taxDocuments.number, pattern), ilike(taxDocuments.buyerName, pattern)),
       );
-      const items = await tx
+      const rows = await tx
         .select({
           id: taxDocuments.id,
           kind: taxDocuments.kind,
@@ -120,14 +127,27 @@ export class InvoicesService {
           issuedOn: taxDocuments.issuedOn,
           buyerName: taxDocuments.buyerName,
           totalPaise: taxDocuments.totalPaise,
+          cursorAt: cursorTime(taxDocuments.createdAt),
         })
         .from(taxDocuments)
-        .where(where)
+        .where(
+          and(
+            where,
+            afterKey(NEWEST_FIRST, [taxDocuments.createdAt, taxDocuments.id], query.cursor),
+          ),
+        )
         .orderBy(desc(taxDocuments.createdAt), desc(taxDocuments.id))
-        .limit(query.limit)
-        .offset(query.offset);
-      const [total] = await tx.select({ value: count() }).from(taxDocuments).where(where);
-      return { items, total: Number(total?.value) };
+        .limit(query.limit + 1)
+        .offset(pageOffset(query));
+      const page = keysetSlice(rows, query.limit, (row) => [row.cursorAt, row.id]);
+      return {
+        items: page.rows.map(({ cursorAt, ...item }) => item),
+        nextCursor: page.nextCursor,
+        ...(await cappedTotal(
+          tx,
+          tx.select({ id: taxDocuments.id }).from(taxDocuments).where(where).$dynamic(),
+        )),
+      };
     });
   }
 

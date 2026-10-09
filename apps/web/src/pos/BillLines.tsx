@@ -1,6 +1,13 @@
 import { Button, Icon, Input } from '@paint/ui';
 import { priceLine } from '@paint/shared';
-import { useState, type Dispatch, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type KeyboardEvent,
+  type RefObject,
+} from 'react';
 import { useI18n } from '../i18n/i18n.js';
 import { parsePositiveQuantity } from '../lib/quantity.js';
 import { TintControl } from '../tint/TintPanel.js';
@@ -146,6 +153,7 @@ function LineRow({
         variant="ghost"
         size="sm"
         aria-label={t('pos.lines.remove', { name })}
+        data-line-remove=""
         onClick={() => {
           dispatch({ type: 'remove', index });
         }}
@@ -171,6 +179,7 @@ export function BillLines({
   selected,
   partyId = null,
   dispatch,
+  focusWhenEmpty,
 }: {
   readonly lines: readonly BillLine[];
   /** Each line's amount as the preview worked it out. */
@@ -179,8 +188,25 @@ export function BillLines({
   /** The bill-to, whose past shades the tint panel offers. */
   readonly partyId?: string | null;
   readonly dispatch: Dispatch<BillAction>;
+  /** Where the focus goes when the last line is removed (the scan box). */
+  readonly focusWhenEmpty: RefObject<HTMLElement | null>;
 }) {
   const { t } = useI18n();
+  const list = useRef<HTMLOListElement>(null);
+  // A line removed with its own button takes that button with it: the focus moves to
+  // the line now in its place (or the last one), or to `focusWhenEmpty`, not the page.
+  const removed = useRef<number | null>(null);
+  useEffect(() => {
+    const at = removed.current;
+    if (at === null) return;
+    removed.current = null;
+    const buttons = list.current?.querySelectorAll<HTMLElement>('[data-line-remove]') ?? [];
+    (buttons[Math.min(at, buttons.length - 1)] ?? focusWhenEmpty.current)?.focus();
+  }, [lines, focusWhenEmpty]);
+  const lineDispatch: Dispatch<BillAction> = (action) => {
+    if (action.type === 'remove') removed.current = action.index;
+    dispatch(action);
+  };
   if (lines.length === 0) return <p className="pos-lines__empty muted">{t('pos.lines.empty')}</p>;
   return (
     <>
@@ -191,7 +217,7 @@ export function BillLines({
         <span>{t('pos.lines.discount')}</span>
         <span className="numeric">{t('pos.lines.amount')}</span>
       </div>
-      <ol className="pos-lines" aria-label={t('pos.lines.label')}>
+      <ol ref={list} className="pos-lines" aria-label={t('pos.lines.label')}>
         {lines.map((line, index) => (
           <LineRow
             // A tinted base can be on the bill twice, in two shades.
@@ -201,7 +227,7 @@ export function BillLines({
             amountPaise={Number(amounts[index])}
             selected={index === selected}
             partyId={partyId}
-            dispatch={dispatch}
+            dispatch={lineDispatch}
           />
         ))}
       </ol>

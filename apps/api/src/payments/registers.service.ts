@@ -11,11 +11,19 @@ import {
   canAccessStore,
   countedCash,
   formatINR,
-  type RegisterSessionSummary,
+  type RegisterSessionPage,
   type RegisterSessionView,
 } from '@paint/shared';
 import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
+import {
+  afterKey,
+  cappedTotal,
+  cursorTime,
+  keysetSlice,
+  NEWEST_FIRST,
+  pageOffset,
+} from '../common/keyset.js';
 import { DATABASE } from '../database/database.module.js';
 import { Notifier } from '../notifications/notifier.js';
 import type {
@@ -72,13 +80,7 @@ export class RegistersService {
     });
   }
 
-  list(
-    auth: AuthContext,
-    query: ListRegisterSessionsQuery,
-  ): Promise<{
-    items: RegisterSessionSummary[];
-    total: number;
-  }> {
+  list(auth: AuthContext, query: ListRegisterSessionsQuery): Promise<RegisterSessionPage> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
       const where = and(
         auth.allStores ? undefined : inArray(registerSessions.storeId, [...auth.storeIds]),
@@ -95,20 +97,30 @@ export class RegistersService {
           closedAt: registerSessions.closedAt,
           openingFloatPaise: registerSessions.openingFloatPaise,
           variancePaise: registerSessions.variancePaise,
+          cursorAt: cursorTime(registerSessions.openedAt),
         })
         .from(registerSessions)
-        .where(where)
+        .where(
+          and(
+            where,
+            afterKey(NEWEST_FIRST, [registerSessions.openedAt, registerSessions.id], query.cursor),
+          ),
+        )
         .orderBy(desc(registerSessions.openedAt), desc(registerSessions.id))
-        .limit(query.limit)
-        .offset(query.offset);
-      const [total] = await tx.select({ value: count() }).from(registerSessions).where(where);
+        .limit(query.limit + 1)
+        .offset(pageOffset(query));
+      const page = keysetSlice(rows, query.limit, (row) => [row.cursorAt, row.id]);
       return {
-        items: rows.map((row) => ({
+        items: page.rows.map(({ cursorAt, ...row }) => ({
           ...row,
           openedAt: row.openedAt.toISOString(),
           closedAt: iso(row.closedAt),
         })),
-        total: Number(total?.value),
+        nextCursor: page.nextCursor,
+        ...(await cappedTotal(
+          tx,
+          tx.select({ id: registerSessions.id }).from(registerSessions).where(where).$dynamic(),
+        )),
       };
     });
   }

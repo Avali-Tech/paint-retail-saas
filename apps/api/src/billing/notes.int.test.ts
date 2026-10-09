@@ -1042,7 +1042,7 @@ describe('access', () => {
     expect((await api(elsewhere).get(`/notes/${mine.creditNote.id}`)).statusCode).toBe(404);
     expect((await api(elsewhere).get(`/sales-returns/${mine.id}`)).statusCode).toBe(404);
     expect(ok(await api(elsewhere).get(`/notes?invoiceId=${invoice.id}`)).json<NotePage>()).toEqual(
-      { items: [], total: 0 },
+      { items: [], total: 0, totalCapped: false, nextCursor: null },
     );
 
     const other = await business();
@@ -1116,10 +1116,21 @@ describe('reading', () => {
         expect.objectContaining({ id: credit.id, itcReversalStatus: 'unknown', reason: 'return' }),
       ],
       total: 2,
+      totalCapped: false,
+      nextCursor: null,
     });
     expect((await page(`invoiceId=${invoice.id}&kind=credit_note`)).items.map((n) => n.id)).toEqual(
       [credit.id],
     );
+    // Round 6c: by number or buyer, and by issue date; LIKE's wildcards are plain text.
+    const ids = async (query: string) =>
+      (await page(`invoiceId=${invoice.id}&${query}`)).items.map((n) => n.id);
+    expect(await ids(`q=${encodeURIComponent(String(debit.number))}`)).toEqual([debit.id]);
+    expect(await ids('q=deccan')).toEqual([debit.id, credit.id]);
+    expect(await ids('q=%25')).toEqual([]);
+    expect(await ids(`from=${today}&to=${today}`)).toEqual([debit.id, credit.id]);
+    expect(await ids('from=2099-01-01')).toEqual([]);
+    expect(await ids('to=2000-01-01')).toEqual([]);
     expect(
       (await page(`storeId=${b.stores.kkp}&partyId=${b.parties.dealer}&limit=1&offset=1`)).items,
     ).toHaveLength(1);

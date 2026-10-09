@@ -5,11 +5,13 @@ import { Link, useParams } from 'react-router';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
+import { usePageLanding } from './focus-landing.js';
 import { LinesTable } from './LinesTable.js';
 import { TaxTotals } from './TaxTotals.js';
 
 function NoteDetail({ note }: { readonly note: NoteView }) {
   const { t, label, date } = useI18n();
+  usePageLanding(true, note);
   const facts: [string, string][] = [
     [t('sales.note.reason'), label('noteReasons', note.reason)],
     [t('sales.note.issuedOn'), date(String(note.issuedOn))],

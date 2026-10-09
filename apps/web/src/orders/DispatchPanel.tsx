@@ -14,6 +14,7 @@ import { useI18n } from '../i18n/i18n.js';
 import { FormDialog } from '../lib/FormDialog.js';
 import { QueryState } from '../lib/QueryState.js';
 import { parsePositiveQuantity } from '../lib/quantity.js';
+import { usePageLanding } from '../sales/focus-landing.js';
 
 /** The consignment value with tax of `quantity` of an invoice line, pro rata. */
 export function dispatchValuePaise(
@@ -174,6 +175,8 @@ function Dispatches({
   const can = usePermissions();
   const [open, setOpen] = useState(false);
   const waiting = view.lines.some((line) => line.pendingQuantity > 0);
+  // Once everything has gone, the "Dispatch" button goes with it.
+  usePageLanding(!open, view);
   return (
     <Card
       title={t('orders.dispatch.card')}

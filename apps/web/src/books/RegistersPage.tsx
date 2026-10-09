@@ -11,7 +11,8 @@ import {
   Select,
   Table,
 } from '@paint/ui';
-import { useQuery } from '@tanstack/react-query';
+import { REGISTER_SESSION_STATUSES, type RegisterSessionStatus } from '@paint/shared';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState, type SyntheticEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import type { Store } from '../api/stock.js';
@@ -19,6 +20,7 @@ import { errorMessage } from '../api/errors.js';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { parseRupees } from '../lib/inputs.js';
+import { ListPager, ListRefreshing } from '../lib/ListPager.js';
 import { QueryState } from '../lib/QueryState.js';
 import { storeLabel, useStoreAccess } from '../stock/StoreSelect.js';
 import { useStores } from '../stock/stores.js';
@@ -119,60 +121,107 @@ function OpenRegister({ store }: { readonly store: Store }) {
   );
 }
 
-/** The store's sessions, newest first. */
+/** The store's sessions, newest first, a page at a time (a year is hundreds of them). */
 function Sessions({ store }: { readonly store: Store }) {
   const api = useApi();
   const { t, label, money, dateTime } = useI18n();
-  const sessions = useQuery({
-    queryKey: ['register-sessions', store.id],
-    queryFn: ({ signal }) =>
-      api.books.registers({ storeId: store.id, limit: SESSIONS_SHOWN, offset: 0 }, signal),
+  const [status, setStatus] = useState<RegisterSessionStatus | undefined>();
+  const [position, setPosition] = useState<{ offset: number; cursor?: string | undefined }>({
+    offset: 0,
   });
+  const sessions = useQuery({
+    queryKey: ['register-sessions', store.id, { status, ...position }],
+    queryFn: ({ signal }) =>
+      api.books.registers(
+        {
+          storeId: store.id,
+          status,
+          limit: SESSIONS_SHOWN,
+          offset: position.offset,
+          cursor: position.cursor,
+        },
+        signal,
+      ),
+    placeholderData: keepPreviousData,
+  });
+  const paging = {
+    offset: position.offset,
+    setOffset: (offset: number, cursor?: string | null) => {
+      setPosition({ offset, cursor: cursor ?? undefined });
+    },
+  };
   return (
     <Card title={t('books.registers.sessions')}>
+      <div className="filters">
+        <Field label={t('books.registers.status')}>
+          <Select
+            value={status ?? ''}
+            onChange={(event) => {
+              setStatus(REGISTER_SESSION_STATUSES.find((value) => value === event.target.value));
+              setPosition({ offset: 0 });
+            }}
+          >
+            <option value="">{t('books.registers.allSessions')}</option>
+            {REGISTER_SESSION_STATUSES.map((value) => (
+              <option key={value} value={value}>
+                {label('registerStatuses', value)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <ListRefreshing query={sessions} />
+      </div>
       <QueryState query={sessions} error="books.registers.error">
         {(page) =>
           page.items.length === 0 ? (
             <p className="muted">{t('books.registers.empty')}</p>
           ) : (
-            <Table label={t('books.registers.sessions')}>
-              <thead>
-                <tr>
-                  <th scope="col">{t('books.registers.code')}</th>
-                  <th scope="col">{t('books.registers.status')}</th>
-                  <th scope="col">{t('books.registers.openedAt')}</th>
-                  <th scope="col">{t('books.registers.closedAt')}</th>
-                  <th scope="col">{t('books.registers.variance')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {page.items.map((session) => (
-                  <tr key={session.id}>
-                    <th scope="row">
-                      <Link to={`/registers/${session.id}`}>{session.registerCode}</Link>
-                    </th>
-                    <td>
-                      <Badge tone={session.status === 'open' ? 'success' : 'neutral'}>
-                        {label('registerStatuses', session.status)}
-                      </Badge>
-                    </td>
-                    <td>{dateTime(session.openedAt)}</td>
-                    <td>
-                      {session.closedAt === null ? t('common.none') : dateTime(session.closedAt)}
-                    </td>
-                    <td>
-                      {session.variancePaise === null ? (
-                        t('common.none')
-                      ) : (
-                        <Badge tone={VARIANCE_TONE[varianceKind(session.variancePaise)]}>
-                          {money(session.variancePaise)}
-                        </Badge>
-                      )}
-                    </td>
+            <>
+              <Table label={t('books.registers.sessions')}>
+                <thead>
+                  <tr>
+                    <th scope="col">{t('books.registers.code')}</th>
+                    <th scope="col">{t('books.registers.status')}</th>
+                    <th scope="col">{t('books.registers.openedAt')}</th>
+                    <th scope="col">{t('books.registers.closedAt')}</th>
+                    <th scope="col">{t('books.registers.variance')}</th>
                   </tr>
-                ))}
-              </tbody>
-            </Table>
+                </thead>
+                <tbody>
+                  {page.items.map((session) => (
+                    <tr key={session.id}>
+                      <th scope="row">
+                        <Link to={`/registers/${session.id}`}>{session.registerCode}</Link>
+                      </th>
+                      <td>
+                        <Badge tone={session.status === 'open' ? 'success' : 'neutral'}>
+                          {label('registerStatuses', session.status)}
+                        </Badge>
+                      </td>
+                      <td>{dateTime(session.openedAt)}</td>
+                      <td>
+                        {session.closedAt === null ? t('common.none') : dateTime(session.closedAt)}
+                      </td>
+                      <td>
+                        {session.variancePaise === null ? (
+                          t('common.none')
+                        ) : (
+                          <Badge tone={VARIANCE_TONE[varianceKind(session.variancePaise)]}>
+                            {money(session.variancePaise)}
+                          </Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+              <ListPager
+                filters={paging}
+                page={page}
+                limit={SESSIONS_SHOWN}
+                label={t('books.registers.pages')}
+              />
+            </>
           )
         }
       </QueryState>
@@ -226,7 +275,7 @@ export function RegistersPage() {
                 </Field>
               )}
               <OpenRegister key={`open-${store.id}`} store={store} />
-              <Sessions store={store} />
+              <Sessions key={store.id} store={store} />
             </div>
           );
         }}

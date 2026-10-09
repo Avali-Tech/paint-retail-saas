@@ -13,6 +13,7 @@ import { useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
 import { STATUS_TONE } from './InvoicesPage.js';
 import { DispatchPanel } from '../orders/DispatchPanel.js';
+import { usePageLanding } from './focus-landing.js';
 import { LinesTable } from './LinesTable.js';
 import { NoteDialog } from './NoteDialog.js';
 import { NotesTable } from './NotesTable.js';
@@ -73,6 +74,7 @@ function InvoiceDetail({ invoice }: { readonly invoice: TaxDocumentView }) {
     queryKey: ['invoices', invoice.id, 'adjustments'],
     queryFn: ({ signal }) => api.sales.adjustments(invoice.id, signal),
   });
+  usePageLanding(true, invoice);
   const facts: [string, string][] = [
     [
       t('sales.invoice.issuedOn'),

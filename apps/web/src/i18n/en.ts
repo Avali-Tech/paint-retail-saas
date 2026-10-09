@@ -46,6 +46,7 @@ export const en = {
     previous: 'Previous',
     next: 'Next',
     range: '{from}–{to} of {total}',
+    rangeMore: '{from}–{to} of {total}+',
     edit: 'Edit',
     none: '—',
     required: 'This is required',

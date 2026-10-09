@@ -25,6 +25,7 @@ import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { parseRupees } from '../lib/inputs.js';
 import { QueryState } from '../lib/QueryState.js';
+import { usePageLanding } from '../sales/focus-landing.js';
 import { VARIANCE_TONE, readCounts, varianceKind, type CountTexts } from './day-end.js';
 import { VarianceBadge, ZReport } from './ZReport.js';
 
@@ -329,6 +330,8 @@ function CloseRegister({ session }: { readonly session: RegisterSessionView }) {
 
 function SessionDetail({ session }: { readonly session: RegisterSessionView }) {
   const { t, label } = useI18n();
+  // Closing takes the count form away: the focus goes to the heading, above the Z-report.
+  usePageLanding(true, session.status);
   return (
     <>
       <PageHeader

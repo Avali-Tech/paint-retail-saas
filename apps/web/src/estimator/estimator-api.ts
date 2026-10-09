@@ -22,6 +22,8 @@ export interface EstimateQuery {
   readonly q?: string | undefined;
   readonly limit: number;
   readonly offset: number;
+  /** Where the page starts, from the page before it (round 6c keyset paging). */
+  readonly cursor?: string | undefined;
 }
 
 export interface PaintProductQuery {

@@ -360,6 +360,10 @@ describe('LedgerMappingsPage', { timeout: 30_000 }, () => {
     await user.type(within(form).getByRole('searchbox'), 'Apex');
     await user.click(await within(form).findByRole('button', { name: 'Choose Apex Builders' }));
     expect(within(form).getByText('Customer: Apex Builders')).toBeVisible();
+    // The picker went with the chosen button: the focus moves to "Change customer".
+    await waitFor(() => {
+      expect(within(form).getByRole('button', { name: 'Change customer' })).toHaveFocus();
+    });
     await user.click(within(form).getByRole('button', { name: 'Change customer' }));
     await user.type(within(form).getByRole('searchbox'), 'Apex');
     await user.click(await within(form).findByRole('button', { name: 'Choose Apex Builders' }));
@@ -404,6 +408,10 @@ describe('LedgerMappingsPage', { timeout: 30_000 }, () => {
     await user.type(name, 'ICICI Bank');
     await user.click(within(form).getByRole('button', { name: 'Save' }));
     await screen.findByText('Mapping saved');
+    // A fresh editor replaces the one saved: the focus goes to the heading, not the page.
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1 })).toHaveFocus();
+    });
     const put = requests.find((request) => request.method === 'PUT');
     expect(put?.path).toBe(`/ledger-mappings/${BANK_MAPPING.id}`);
     expect(put?.body).toEqual({

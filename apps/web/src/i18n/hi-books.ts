@@ -23,6 +23,8 @@ export const booksHi: Translation<typeof booksEn> = {
       sessions: 'सेशन',
       empty: 'इस स्टोर पर अभी कोई रजिस्टर नहीं खुला।',
       status: 'स्थिति',
+      allSessions: 'सभी सेशन',
+      pages: 'सेशन के पेज',
       openedAt: 'खुला',
       closedAt: 'बंद हुआ',
       variance: 'अंतर',

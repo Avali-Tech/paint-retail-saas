@@ -9,6 +9,7 @@
  * Validation limits the API enforces are exported as constants so the screens
  * can check the same thing before sending (the API keeps its own zod schemas).
  */
+import type { ListPageInfo } from './list-page.js';
 import type { CreditCheck, CreditDecision, CreditStatus } from './credit.js';
 import type { Discount } from './gst/types.js';
 import type { LineTintRequest, LineTintView } from './paint-api.js';
@@ -358,9 +359,8 @@ export interface QuotationSummary {
  * newest first; only each quote's latest version unless `allVersions=true`.
  * `q` matches the number or the bill-to name.
  */
-export interface QuotationPage {
+export interface QuotationPage extends ListPageInfo {
   readonly items: readonly QuotationSummary[];
-  readonly total: number;
 }
 
 // Sales orders ----------------------------------------------------------------
@@ -552,9 +552,8 @@ export interface SalesOrderSummary {
  * GET /sales-orders?storeId&partyId&projectId&status&q&limit&offset, newest
  * first. A member sees orders of their stores, by order store or fulfil store.
  */
-export interface SalesOrderPage {
+export interface SalesOrderPage extends ListPageInfo {
   readonly items: readonly SalesOrderSummary[];
-  readonly total: number;
 }
 
 /** GET /sales-orders/:id/credit-check: the confirm dialog's figures before confirming. */

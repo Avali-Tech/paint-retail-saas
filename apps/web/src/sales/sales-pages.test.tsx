@@ -66,8 +66,10 @@ describe('InvoicesPage', { timeout: 30_000 }, () => {
                   },
                 ],
                 total: PAGE_SIZE + 1,
+                totalCapped: false,
+                nextCursor: 'cursor-2',
               })
-            : json({ items: [], total: 0 }),
+            : json({ items: [], total: 0, totalCapped: false, nextCursor: null }),
       },
     });
     const table = await screen.findByRole('table', { name: 'Invoices' });
@@ -90,7 +92,17 @@ describe('InvoicesPage', { timeout: 30_000 }, () => {
       expect(requests.at(-1)?.query.get('q')).toBe('AMP');
     });
     expect(requests.at(-1)?.query.get('status')).toBe('cancelled');
+    await user.type(screen.getByLabelText('Issued from'), '2026-10-01');
+    await user.type(screen.getByLabelText('Issued to'), '2026-10-31');
+    await waitFor(() => {
+      expect(requests.at(-1)?.query.get('to')).toBe('2026-10-31');
+    });
+    expect(requests.at(-1)?.query.get('from')).toBe('2026-10-01');
     await user.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(requests.at(-1)?.query.get('cursor')).toBe('cursor-2');
+      expect(requests.at(-1)?.query.get('offset')).toBe('50');
+    });
     expect(await screen.findByText('No invoices here')).toBeVisible();
   });
 
@@ -170,6 +182,12 @@ describe('InvoicePage', { timeout: 30_000 }, () => {
       note: 'Wrong shade',
     });
     expect(await screen.findByText('Credit note AMPC/26-27/00001 issued')).toBeVisible();
+    // The dialog and its button are gone with the invoice: the focus lands on the note.
+    const heading = await screen.findByRole('heading', { level: 1, name: /AMPC\/26-27\/00001/ });
+    await waitFor(() => {
+      expect(heading).toHaveFocus();
+    });
+    expect(heading).toHaveAttribute('tabindex', '-1');
   });
 
   it('returns without a note', async () => {
@@ -376,8 +394,13 @@ describe('NotesPage', { timeout: 30_000 }, () => {
         'GET /auth/me': () => json(OWNER),
         'GET /notes': (request) =>
           request.query.get('offset') === '0'
-            ? json({ items: [NOTE_SUMMARY, DEBIT_SUMMARY], total: PAGE_SIZE + 1 })
-            : json({ items: [], total: 0 }),
+            ? json({
+                items: [NOTE_SUMMARY, DEBIT_SUMMARY],
+                total: PAGE_SIZE + 1,
+                totalCapped: false,
+                nextCursor: 'cursor-2',
+              })
+            : json({ items: [], total: 0, totalCapped: false, nextCursor: null }),
       },
     });
     const table = await screen.findByRole('table', { name: 'Credit & debit notes' });
@@ -387,7 +410,15 @@ describe('NotesPage', { timeout: 30_000 }, () => {
     await waitFor(() => {
       expect(requests.at(-1)?.query.get('kind')).toBe('debit_note');
     });
+    await user.type(screen.getByRole('searchbox', { name: 'Number or customer' }), 'AMPC');
+    await waitFor(() => {
+      expect(requests.at(-1)?.query.get('q')).toBe('AMPC');
+    });
     await user.click(await screen.findByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(requests.at(-1)?.query.get('cursor')).toBe('cursor-2');
+      expect(requests.at(-1)?.query.get('offset')).toBe('50');
+    });
     expect(await screen.findByText('No notes here')).toBeVisible();
   });
 });

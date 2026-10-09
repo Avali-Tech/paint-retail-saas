@@ -1,5 +1,6 @@
 import { RETURN_DISPOSITIONS, VALUE_CREDIT_NOTE_REASONS, type NoteKind } from '@paint/shared';
 import { z } from 'zod';
+import { keysetPage } from '../common/keyset.js';
 import { threeDecimals } from './billing.schemas.js';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -75,7 +76,11 @@ export const listNotesSchema = z.object({
   storeId: z.uuid().optional(),
   partyId: z.uuid().optional(),
   kind: z.enum(NOTE_KINDS).optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
+  /** Issue dates, India time, both inclusive. */
+  from: z.iso.date('Use a date like 2026-04-01').optional(),
+  to: z.iso.date('Use a date like 2026-04-01').optional(),
+  /** Number or buyer name. */
+  q: z.string().trim().min(1).max(80).optional(),
+  ...keysetPage,
 });
 export type ListNotesQuery = z.output<typeof listNotesSchema>;

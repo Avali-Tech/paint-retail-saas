@@ -9,9 +9,18 @@ import {
   type NoteView,
   type SalesReturnView,
 } from '@paint/shared';
-import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
+import {
+  afterKey,
+  cappedTotal,
+  cursorTime,
+  keysetSlice,
+  NEWEST_FIRST,
+  pageOffset,
+} from '../common/keyset.js';
 import { DATABASE } from '../database/database.module.js';
+import { containsPattern } from '../parties/party-access.js';
 import { indiaToday, loadDocument } from './invoice-view.js';
 import type { ListNotesQuery } from './notes.schemas.js';
 import { adjustedSoFar, noteSummaries, noteView, salesReturnView } from './notes-view.js';
@@ -45,16 +54,39 @@ export class NotesService {
         query.invoiceId
           ? sql`exists (select 1 from ${taxDocumentLinks} l where l.from_document_id = ${taxDocuments.id} and l.to_document_id = ${query.invoiceId} and l.kind = 'note_of')`
           : undefined,
+        query.from ? sql`${taxDocuments.issuedOn} >= ${query.from}::date` : undefined,
+        query.to ? sql`${taxDocuments.issuedOn} <= ${query.to}::date` : undefined,
+        query.q
+          ? or(
+              ilike(taxDocuments.number, containsPattern(query.q)),
+              ilike(taxDocuments.buyerName, containsPattern(query.q)),
+            )
+          : undefined,
       );
-      const notes = await tx
-        .select()
+      const rows = await tx
+        .select({ note: taxDocuments, cursorAt: cursorTime(taxDocuments.createdAt) })
         .from(taxDocuments)
-        .where(where)
+        .where(
+          and(
+            where,
+            afterKey(NEWEST_FIRST, [taxDocuments.createdAt, taxDocuments.id], query.cursor),
+          ),
+        )
         .orderBy(desc(taxDocuments.createdAt), desc(taxDocuments.id))
-        .limit(query.limit)
-        .offset(query.offset);
-      const [total] = await tx.select({ value: count() }).from(taxDocuments).where(where);
-      return { items: await noteSummaries(tx, notes), total: Number(total?.value) };
+        .limit(query.limit + 1)
+        .offset(pageOffset(query));
+      const page = keysetSlice(rows, query.limit, (row) => [row.cursorAt, row.note.id]);
+      return {
+        items: await noteSummaries(
+          tx,
+          page.rows.map((row) => row.note),
+        ),
+        nextCursor: page.nextCursor,
+        ...(await cappedTotal(
+          tx,
+          tx.select({ id: taxDocuments.id }).from(taxDocuments).where(where).$dynamic(),
+        )),
+      };
     });
   }
 

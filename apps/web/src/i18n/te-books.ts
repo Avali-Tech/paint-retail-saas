@@ -24,6 +24,8 @@ export const booksTe: Translation<typeof booksEn> = {
       sessions: 'సెషన్‌లు',
       empty: 'ఈ స్టోర్‌లో ఇంకా ఏ రిజిస్టర్ తెరవలేదు.',
       status: 'స్థితి',
+      allSessions: 'అన్ని సెషన్‌లు',
+      pages: 'సెషన్ పేజీలు',
       openedAt: 'తెరిచింది',
       closedAt: 'మూసింది',
       variance: 'తేడా',

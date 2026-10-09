@@ -2,10 +2,11 @@ import 'reflect-metadata';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema, withTenant, type DatabaseConnection } from '@paint/db';
 import type { PartyLedgerView } from '@paint/shared';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, not, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
+import { afterKey, cursorTime, keysetSlice } from '../common/keyset.js';
 import { DATABASE } from '../database/database.module.js';
-import type { PartyLedgerQuery } from './payments.schemas.js';
+import { LEDGER_ORDER, type PartyLedgerQuery } from './payments.schemas.js';
 import { openTargets } from './posting.js';
 
 const { parties, partyBalances, partyLedger } = schema;
@@ -26,6 +27,9 @@ export class PartyLedgerService {
         .leftJoin(partyBalances, eq(partyBalances.partyId, parties.id))
         .where(eq(parties.id, partyId));
       if (!party) throw new NotFoundException('Customer not found');
+      const key = [partyLedger.entryOn, partyLedger.createdAt, partyLedger.id];
+      const afterCursor = afterKey(LEDGER_ORDER, key, query.cursor);
+      // Everything before this page: before the period, and the period's entries up to the cursor.
       const [opening] = (await tx
         .select({
           total: sql<number>`coalesce(sum(${partyLedger.amountPaise}), 0)`.mapWith(Number),
@@ -34,7 +38,11 @@ export class PartyLedgerService {
         .where(
           and(
             eq(partyLedger.partyId, partyId),
-            query.from ? sql`${partyLedger.entryOn} < ${query.from}::date` : sql`false`,
+            or(
+              query.from ? sql`${partyLedger.entryOn} < ${query.from}::date` : undefined,
+              afterCursor === undefined ? undefined : not(afterCursor),
+              sql`false`,
+            ),
           ),
         )) as [{ total: number }];
       const rows = await tx
@@ -46,6 +54,7 @@ export class PartyLedgerService {
           referenceType: partyLedger.referenceType,
           referenceId: partyLedger.referenceId,
           note: partyLedger.note,
+          cursorAt: cursorTime(partyLedger.createdAt),
         })
         .from(partyLedger)
         .where(
@@ -53,11 +62,14 @@ export class PartyLedgerService {
             eq(partyLedger.partyId, partyId),
             query.from ? sql`${partyLedger.entryOn} >= ${query.from}::date` : undefined,
             query.to ? sql`${partyLedger.entryOn} <= ${query.to}::date` : undefined,
+            afterCursor,
           ),
         )
-        .orderBy(asc(partyLedger.entryOn), asc(partyLedger.createdAt), asc(partyLedger.id));
+        .orderBy(asc(partyLedger.entryOn), asc(partyLedger.createdAt), asc(partyLedger.id))
+        .limit(query.limit + 1);
+      const page = keysetSlice(rows, query.limit, (row) => [row.entryOn, row.cursorAt, row.id]);
       let running = opening.total;
-      const entries = rows.map((row) => {
+      const entries = page.rows.map(({ cursorAt, ...row }) => {
         running += row.amountPaise;
         return { ...row, balancePaise: running };
       });
@@ -68,6 +80,7 @@ export class PartyLedgerService {
         openingPaise: opening.total,
         entries,
         closingPaise: running,
+        nextCursor: page.nextCursor,
         balancePaise: party.balancePaise,
         advancePaise: party.advancePaise,
         openDocuments: await openTargets(tx, partyId),

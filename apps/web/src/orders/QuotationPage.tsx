@@ -24,6 +24,7 @@ import { useCurrentProfile, usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { FormDialog } from '../lib/FormDialog.js';
 import { QueryState } from '../lib/QueryState.js';
+import { usePageLanding } from '../sales/focus-landing.js';
 import { LinesTable } from '../sales/LinesTable.js';
 import { TaxTotals } from '../sales/TaxTotals.js';
 import { StoreSelect, storeLabel } from '../stock/StoreSelect.js';
@@ -118,6 +119,7 @@ function QuotationDetail({ quotation }: { readonly quotation: QuotationView }) {
   const [converting, setConverting] = useState(false);
   const [job, setJob] = useState<QuotationPrintJob | null>(null);
   const prints = useRef(0);
+  usePageLanding(!converting, quotation);
   const manage = can(ORDERS_PERMISSION);
   const { status } = quotation;
   const store = stores.data?.find((candidate) => candidate.id === quotation.storeId);

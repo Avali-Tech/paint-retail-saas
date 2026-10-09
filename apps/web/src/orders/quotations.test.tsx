@@ -4,11 +4,11 @@ import type { Party } from '../api/parties.js';
 import { page } from '../test-support/inventory-fixtures.js';
 import { OWNER, json, profile, type FakeHandler } from '../test-support/fake-api.js';
 import { found } from '../test-support/found.js';
-import { PARTY } from '../test-support/party-fixtures.js';
+import { OVERVIEW, PARTY } from '../test-support/party-fixtures.js';
 import { renderApp } from '../test-support/render-app.js';
 import { AMP, APEX, KPH, ROLLER } from '../pos/test-support/pos-fixtures.js';
 import { lookupIn } from '../pos/test-support/pos-render.js';
-import { ORDER, QUOTE, SENT_QUOTE } from './test-support/order-fixtures.js';
+import { ORDER, QUOTE, SENT_QUOTE, WITHIN_LIMIT } from './test-support/order-fixtures.js';
 
 const location = () => screen.getByTestId('location').textContent;
 const READER = profile(['stores:read', 'sales:read']);
@@ -90,8 +90,10 @@ describe('QuotationsPage', { timeout: 30_000 }, () => {
                   },
                 ],
                 total: 51,
+                totalCapped: false,
+                nextCursor: 'cursor-2',
               })
-            : json({ items: [], total: 0 }),
+            : json({ items: [], total: 0, totalCapped: false, nextCursor: null }),
       },
     });
     const table = await screen.findByRole('table', { name: 'Quotations' });
@@ -104,6 +106,10 @@ describe('QuotationsPage', { timeout: 30_000 }, () => {
     });
     expect(requests.at(-1)?.query.get('status')).toBe('accepted');
     await user.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(requests.at(-1)?.query.get('cursor')).toBe('cursor-2');
+      expect(requests.at(-1)?.query.get('offset')).toBe('50');
+    });
     expect(await screen.findByText('No quotations here')).toBeVisible();
     await user.click(screen.getByRole('link', { name: 'New quotation' }));
     await waitFor(() => {
@@ -423,6 +429,9 @@ describe('QuotationPage', { timeout: 30_000 }, () => {
       routes: editorRoutes({
         'GET /quotations/:id': () => json({ ...SENT_QUOTE, status: 'accepted' }),
         'POST /quotations/:id/convert': () => json(ORDER, 201),
+        // The order opens with its credit panel.
+        'GET /sales-orders/:id/credit-check': () => json(WITHIN_LIMIT),
+        'GET /parties/:id/overview': () => json(OVERVIEW),
       }),
     });
     await user.click(await screen.findByRole('button', { name: 'Convert to order' }));
@@ -434,6 +443,11 @@ describe('QuotationPage', { timeout: 30_000 }, () => {
     });
     expect(found(requests.find((request) => request.path.endsWith('/convert'))).body).toEqual({
       paymentTerms: 'postpaid',
+    });
+    // The quote and its dialog are gone: the focus lands on the new order's heading.
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Sales order SO-000017' });
+    await waitFor(() => {
+      expect(heading).toHaveFocus();
     });
   });
 

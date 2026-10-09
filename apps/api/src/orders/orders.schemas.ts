@@ -26,6 +26,7 @@ import {
   type SalesOrderRequest,
 } from '@paint/shared';
 import { z } from 'zod';
+import { keysetPage } from '../common/keyset.js';
 import { lineTintSchema } from '../paint/paint.schemas.js';
 
 // The request shapes are the contract's (@paint/shared orders-api); each schema
@@ -186,7 +187,7 @@ export const listQuotationsSchema = z.object({
     .enum(['true', 'false'])
     .transform((value) => value === 'true')
     .default(false),
-  ...page,
+  ...keysetPage,
 });
 export type ListQuotationsQuery = z.output<typeof listQuotationsSchema>;
 
@@ -196,7 +197,7 @@ export const listOrdersSchema = z.object({
   projectId: z.uuid().optional(),
   status: z.enum(SALES_ORDER_STATUSES).optional(),
   q: z.string().trim().min(1).max(80).optional(),
-  ...page,
+  ...keysetPage,
 });
 export type ListOrdersQuery = z.output<typeof listOrdersSchema>;
 

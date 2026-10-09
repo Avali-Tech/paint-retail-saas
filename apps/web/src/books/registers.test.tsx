@@ -11,6 +11,7 @@ import {
   STORES,
   SUMMARY,
 } from './test-support/books-fixtures.js';
+import { SESSIONS_SHOWN } from './RegistersPage.js';
 
 const location = () => screen.getByTestId('location').textContent;
 const print = vi.fn();
@@ -53,8 +54,10 @@ const routes = (overrides: Record<string, FakeHandler> = {}): Record<string, Fak
             }),
           ],
           total: 3,
+          totalCapped: false,
+          nextCursor: null,
         })
-      : json({ items: [], total: 0 }),
+      : json({ items: [], total: 0, totalCapped: false, nextCursor: null }),
   ...overrides,
 });
 
@@ -134,6 +137,47 @@ describe('RegistersPage', { timeout: 30_000 }, () => {
       storeId: KKP.id,
       openingFloatPaise: 0,
     });
+  });
+
+  it('pages a busy store’s sessions and filters them by status', async () => {
+    const { user, requests } = renderApp({
+      path: '/registers',
+      routes: routes({
+        'GET /register-sessions': (request) =>
+          request.query.get('cursor') === null
+            ? json({
+                items: [SUMMARY()],
+                total: SESSIONS_SHOWN + 1,
+                totalCapped: false,
+                nextCursor: 'cursor-31',
+              })
+            : json({
+                items: [SUMMARY({ id: 'session-31', registerCode: 'COUNTER-9' })],
+                total: SESSIONS_SHOWN + 1,
+                totalCapped: false,
+                nextCursor: null,
+              }),
+      }),
+    });
+    const pages = await screen.findByRole('navigation', { name: 'Session pages' });
+    expect(pages).toHaveTextContent('1–30 of 31');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByRole('link', { name: 'COUNTER-9' })).toBeVisible();
+    expect(requests.at(-1)?.query.get('cursor')).toBe('cursor-31');
+    expect(requests.at(-1)?.query.get('offset')).toBe('30');
+    await user.click(screen.getByRole('button', { name: 'Previous' }));
+    expect(await screen.findByRole('link', { name: 'COUNTER-1' })).toBeVisible();
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'Closed');
+    await waitFor(() => {
+      expect(requests.at(-1)?.query.get('status')).toBe('closed');
+    });
+    expect(requests.at(-1)?.query.get('offset')).toBe('0');
+    expect(requests.at(-1)?.query.get('cursor')).toBeNull();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'All sessions');
+    // Back to every session: the first page, already loaded.
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('');
+    expect(await screen.findByRole('link', { name: 'COUNTER-1' })).toBeVisible();
   });
 
   it('offers no store picker to a member of one store', async () => {
@@ -269,6 +313,10 @@ describe('RegisterSessionPage', { timeout: 30_000 }, () => {
     expect(report).toHaveTextContent('₹500.00 × 6₹3,000.00₹1.00 × 10₹10.00');
     expect(report).toHaveTextContent('Cash₹1,080.00UPI₹590.00');
     expect(report).toHaveTextContent('Short by twenty');
+    // The count form went with its button: the focus is on the heading, above the Z-report.
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Register COUNTER-1', level: 1 })).toHaveFocus();
+    });
     await user.click(screen.getByRole('button', { name: 'Print Z-report' }));
     expect(print).toHaveBeenCalledOnce();
     expect(screen.queryByRole('form', { name: 'Record cash movement' })).toBeNull();

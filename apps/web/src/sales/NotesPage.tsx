@@ -1,14 +1,17 @@
-import { Card, EmptyState, Field, Icon, PageHeader, Pagination, Select } from '@paint/ui';
+import { Card, EmptyState, Field, Icon, Input, PageHeader, Select } from '@paint/ui';
 import type { NoteKind } from '@paint/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
-import { useUrlFilters } from '../lib/hooks.js';
+import { useDebouncedValue, useUrlFilters } from '../lib/hooks.js';
+import { ListPager, ListRefreshing } from '../lib/ListPager.js';
 import { QueryState } from '../lib/QueryState.js';
 import { PAGE_SIZE } from './InvoicesPage.js';
 import { NotesTable } from './NotesTable.js';
 
-const FILTERS = ['kind'] as const;
+/** Waits for typing to pause before searching (as the MVP 1 lists do). */
+const SEARCH_DELAY_MS = 300;
+const FILTERS = ['kind', 'q'] as const;
 const KINDS: readonly NoteKind[] = ['credit_note', 'debit_note'];
 
 /** /notes — credit and debit notes of the member's stores, newest first. */
@@ -17,10 +20,20 @@ export function NotesPage() {
   const { t, label } = useI18n();
   const filters = useUrlFilters(FILTERS);
   const kind = KINDS.find((value) => value === filters.values.kind);
+  const q = useDebouncedValue(filters.values.q.trim(), SEARCH_DELAY_MS);
   const notes = useQuery({
-    queryKey: ['notes', { kind, offset: filters.offset }],
+    queryKey: ['notes', { kind, q, offset: filters.offset, cursor: filters.cursor }],
     queryFn: ({ signal }) =>
-      api.sales.notes({ kind, limit: PAGE_SIZE, offset: filters.offset }, signal),
+      api.sales.notes(
+        {
+          kind,
+          q: q === '' ? undefined : q,
+          limit: PAGE_SIZE,
+          offset: filters.offset,
+          cursor: filters.cursor,
+        },
+        signal,
+      ),
     placeholderData: keepPreviousData,
   });
   return (
@@ -28,6 +41,15 @@ export function NotesPage() {
       <PageHeader title={t('sales.notes.title')} description={t('sales.notes.description')} />
       <Card>
         <div className="filters">
+          <Field label={t('sales.notes.search')} className="filters__search">
+            <Input
+              type="search"
+              value={filters.values.q}
+              onChange={(event) => {
+                filters.set('q', event.target.value);
+              }}
+            />
+          </Field>
           <Field label={t('sales.notes.kind')}>
             <Select
               value={kind ?? ''}
@@ -43,6 +65,7 @@ export function NotesPage() {
               ))}
             </Select>
           </Field>
+          <ListRefreshing query={notes} />
         </div>
         <QueryState query={notes} error="sales.notes.error">
           {(page) =>
@@ -51,15 +74,11 @@ export function NotesPage() {
             ) : (
               <>
                 <NotesTable notes={page.items} title={t('sales.notes.title')} />
-                <Pagination
-                  offset={filters.offset}
+                <ListPager
+                  filters={filters}
+                  page={page}
                   limit={PAGE_SIZE}
-                  total={page.total}
-                  onChange={filters.setOffset}
                   label={t('sales.notes.pages')}
-                  range={(from, to, total) => t('common.range', { from, to, total })}
-                  previousLabel={t('common.previous')}
-                  nextLabel={t('common.next')}
                 />
               </>
             )

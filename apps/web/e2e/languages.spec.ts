@@ -132,6 +132,20 @@ for (const language of LANGUAGES) {
       ['/products/setup', messages.catalogSetup.title],
       ['/settings/support', messages.supportAccess.title],
     ],
+    // MVP 2: the counter, sales documents, orders and the books.
+    [
+      ['/pos', messages.pos.title],
+      ['/invoices', messages.sales.invoices.title],
+      ['/notes', messages.sales.notes.title],
+      ['/quotations', messages.orders.quotations.title],
+      ['/sales-orders', messages.orders.orders.title],
+    ],
+    [
+      ['/estimates', messages.estimator.list.title],
+      ['/registers', messages.books.registers.title],
+      ['/payments', messages.books.payments.title],
+      ['/accounting/export', messages.books.accounting.title],
+    ],
   ];
 
   for (const [group, screens] of phoneScreens(language.messages).entries()) {

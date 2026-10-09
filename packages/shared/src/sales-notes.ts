@@ -4,6 +4,7 @@
  * the GST engine, and the shapes the API returns. The tax itself comes from the
  * engine (`computeReturn`, `computeAdjustment` in ./gst).
  */
+import type { ListPageInfo } from './list-page.js';
 import type { NoteSource } from './gst/returns.js';
 import { stateTaxLabel } from './gst/states.js';
 import type { Permission } from './permissions.js';
@@ -182,9 +183,8 @@ export interface NoteSummary {
   readonly invoice: { readonly id: string; readonly number: string | null };
 }
 
-export interface NotePage {
+export interface NotePage extends ListPageInfo {
   readonly items: NoteSummary[];
-  readonly total: number;
 }
 
 export interface SalesReturnLineView {

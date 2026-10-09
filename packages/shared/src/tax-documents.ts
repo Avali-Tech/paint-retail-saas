@@ -3,6 +3,7 @@
  * GSTR-1 class of a sale and the shapes the API returns. The tax itself comes
  * from the GST engine (./gst).
  */
+import type { ListPageInfo } from './list-page.js';
 import type { LineTintView } from './paint-api.js';
 
 /** Every kind of GST document; each has its own number series (Rule 46(b), 49(b), 50(b), 53). */
@@ -218,9 +219,9 @@ export interface TaxDocumentSummary {
   readonly totalPaise: number;
 }
 
-export interface TaxDocumentPage {
+/** GET /invoices: newest first, keyset-paged (round 6c). */
+export interface TaxDocumentPage extends ListPageInfo {
   readonly items: TaxDocumentSummary[];
-  readonly total: number;
 }
 
 export interface DocumentSeriesView {

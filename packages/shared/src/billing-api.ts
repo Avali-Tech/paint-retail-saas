@@ -1,3 +1,4 @@
+import type { ListPageInfo } from './list-page.js';
 import type { Discount } from './gst/types.js';
 import type { LineTintRequest } from './paint-api.js';
 import type { TallyParty, TallyReceipt } from './tally/types.js';
@@ -225,9 +226,8 @@ export interface PaymentSummary {
 }
 
 /** GET /payments?storeId&partyId&direction&modeKind&chequeStatus&from&to&q&limit&offset. */
-export interface PaymentPage {
+export interface PaymentPage extends ListPageInfo {
   readonly items: PaymentSummary[];
-  readonly total: number;
 }
 
 // Issue with payments (the POS) -----------------------------------------------
@@ -317,7 +317,11 @@ export interface OpenDocumentView {
   readonly outstandingPaise: number;
 }
 
-/** GET /parties/:id/ledger?from&to. */
+/**
+ * GET /parties/:id/ledger?from&to&limit&cursor: oldest first, a page at a time (round 6c).
+ * `openingPaise` is the balance before this page's first entry (the period's opening on the
+ * first page) and `closingPaise` the balance after its last; `nextCursor` asks for the rest.
+ */
 export interface PartyLedgerView {
   readonly partyId: string;
   readonly from: string | null;
@@ -325,6 +329,7 @@ export interface PartyLedgerView {
   readonly openingPaise: number;
   readonly entries: PartyLedgerEntryView[];
   readonly closingPaise: number;
+  readonly nextCursor: string | null;
   /** Today's balance and unallocated money, whatever the period. */
   readonly balancePaise: number;
   readonly advancePaise: number;
@@ -404,7 +409,12 @@ export interface RegisterSessionView {
   readonly modeTotals: RegisterModeTotal[];
 }
 
-/** GET /register-sessions?storeId&status. */
+/** GET /register-sessions?storeId&status&limit&offset|cursor: newest opened first. */
+export interface RegisterSessionPage extends ListPageInfo {
+  readonly items: RegisterSessionSummary[];
+}
+
+/** One session in {@link RegisterSessionPage}. */
 export interface RegisterSessionSummary {
   readonly id: string;
   readonly storeId: string;

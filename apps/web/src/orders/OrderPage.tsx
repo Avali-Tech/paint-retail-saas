@@ -13,6 +13,7 @@ import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
 import { ReasonDialog } from '../lib/ReasonDialog.js';
+import { usePageLanding } from '../sales/focus-landing.js';
 import { STATUS_TONE } from '../sales/InvoicesPage.js';
 import { TaxTotals } from '../sales/TaxTotals.js';
 import { storeLabel } from '../stock/StoreSelect.js';
@@ -163,6 +164,7 @@ function OrderDetail({ order }: { readonly order: SalesOrderView }) {
   const queryClient = useQueryClient();
   const { t, label, money } = useI18n();
   const [open, setOpen] = useState<Open>(null);
+  usePageLanding(open === null, order);
   const credit = useQuery({
     queryKey: ['sales-orders', order.id, 'credit-check'],
     queryFn: ({ signal }) => api.orders.creditCheck(order.id, signal),

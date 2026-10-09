@@ -151,6 +151,7 @@ export {
   type RefundRequest,
   type RegisterModeTotal,
   type RegisterMovementKind,
+  type RegisterSessionPage,
   type RegisterSessionStatus,
   type RegisterSessionSummary,
   type RegisterSessionView,
@@ -208,6 +209,7 @@ export {
   type TaxDocumentTaxRowView,
   type TaxDocumentView,
 } from './tax-documents.js';
+export { LIST_COUNT_CAP, type ListPageInfo } from './list-page.js';
 export {
   CREDIT_NOTE_REASONS,
   CREDIT_NOTE_WARNING_DAYS,

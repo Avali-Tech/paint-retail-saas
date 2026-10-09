@@ -12,9 +12,9 @@ import type {
   PaymentDirection,
   PaymentModeView,
   PaymentPage,
-  RegisterSessionStatus,
-  RegisterSessionSummary,
   ReconciliationRunView,
+  RegisterSessionPage,
+  RegisterSessionStatus,
   RegisterSessionView,
 } from '@paint/shared';
 import type { ApiClient } from '../api/client.js';
@@ -29,6 +29,8 @@ export interface RegisterQuery {
   readonly status?: RegisterSessionStatus | undefined;
   readonly limit: number;
   readonly offset: number;
+  /** Where the page starts, from the page before it (round 6c keyset paging). */
+  readonly cursor?: string | undefined;
 }
 
 export interface PaymentQuery {
@@ -38,12 +40,14 @@ export interface PaymentQuery {
   readonly q?: string | undefined;
   readonly limit: number;
   readonly offset: number;
+  /** Where the page starts, from the page before it (round 6c keyset paging). */
+  readonly cursor?: string | undefined;
 }
 
 export function booksEndpoints(api: ApiClient) {
   return {
     registers: (query: RegisterQuery, signal?: AbortSignal) =>
-      api.get<{ items: RegisterSessionSummary[]; total: number }>('/register-sessions', {
+      api.get<RegisterSessionPage>('/register-sessions', {
         query: { ...query },
         signal,
       }),
