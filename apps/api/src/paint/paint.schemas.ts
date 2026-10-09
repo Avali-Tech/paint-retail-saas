@@ -13,6 +13,7 @@ import {
   MAX_SURFACE_DIMENSION_FT,
   MAX_WASTAGE_BPS,
   MIN_COATS,
+  SALES_NOTE_MAX_LENGTH,
   ROOM_MAX_LENGTH,
   SHADE_CODE_MAX_LENGTH,
   SHADE_NAME_MAX_LENGTH,
@@ -25,6 +26,7 @@ import {
   hasAtMostTwoDecimals,
   normalizeShadeCode,
   surfaceGrossAreaSqft,
+  type ConvertEstimateRequest,
   type EstimateRequest,
   type LineTintRequest,
   type TintRecordRequest,
@@ -202,3 +204,11 @@ export const listEstimatesSchema = z.object({
   ...page,
 });
 export type ListEstimatesQuery = z.output<typeof listEstimatesSchema>;
+
+/** POST /estimates/:id/convert (round 5b): the tier to quote, with the quotation's validity and note. */
+export const convertEstimateSchema = z.object({
+  tier: z.enum(ESTIMATE_TIERS),
+  validUntil: z.iso.date('Use a date like 2026-04-01').optional(),
+  note: text(SALES_NOTE_MAX_LENGTH).optional(),
+}) satisfies z.ZodType<ConvertEstimateRequest>;
+export type ConvertEstimateInput = z.output<typeof convertEstimateSchema>;

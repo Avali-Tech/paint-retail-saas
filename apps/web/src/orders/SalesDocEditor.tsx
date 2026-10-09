@@ -56,7 +56,7 @@ const PROBLEM_TEXT: Record<HeaderProblem, MessageKey> = {
 };
 
 /** A party on the document: who it is, with "Change" / "Remove", or a picker to choose one. */
-function PartyField({
+export function PartyField({
   label,
   hint,
   value,

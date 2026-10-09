@@ -11,6 +11,7 @@ import { useI18n } from '../i18n/i18n.js';
 import { importRoutes } from '../imports/routes.js';
 import { leadRoutes } from '../leads/routes.js';
 import { opportunityRoutes } from '../opportunities/routes.js';
+import { estimatorRoutes } from '../estimator/routes.js';
 import { orderRoutes } from '../orders/routes.js';
 import { partyRoutes } from '../parties/routes.js';
 import { platformRoutes } from '../platform/routes.js';
@@ -88,6 +89,7 @@ export function AppRoutes() {
         {projectRoutes()}
         {followUpRoutes()}
         {contractRoutes()}
+        {estimatorRoutes()}
         {orderRoutes()}
         {salesRoutes()}
         {booksRoutes()}

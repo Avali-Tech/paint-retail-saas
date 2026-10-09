@@ -3,6 +3,7 @@ import type { IconName } from '@paint/ui';
 import type { MessageKey } from '../i18n/i18n.js';
 import { BOOKS_NAV_ITEMS } from '../books/nav.js';
 import { DOCUMENT_NAV_ITEMS } from '../documents/nav.js';
+import { ESTIMATE_NAV_ITEMS } from '../estimator/nav.js';
 import { FOLLOW_UP_NAV_ITEMS } from '../followups/nav.js';
 import { IMPORT_NAV_ITEMS } from '../imports/nav.js';
 import { CRM_NAV_ITEMS } from '../leads/nav.js';
@@ -73,6 +74,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: 'contracts:read',
   },
   // Each feature keeps its own entries in its own file.
+  ...ESTIMATE_NAV_ITEMS,
   ...ORDER_NAV_ITEMS,
   ...SALES_NAV_ITEMS,
   ...BOOKS_NAV_ITEMS,

@@ -10,6 +10,7 @@ import { importEndpoints } from './imports.js';
 import { leadEndpoints, opportunityEndpoints } from './leads.js';
 import { loyaltyEndpoints } from './loyalty.js';
 import { partyEndpoints } from './parties.js';
+import { estimatorEndpoints } from '../estimator/estimator-api.js';
 import { ordersEndpoints } from '../orders/orders-api.js';
 import { posEndpoints } from '../pos/pos-api.js';
 import { projectEndpoints } from './projects.js';
@@ -111,6 +112,7 @@ export function endpoints(api: ApiClient) {
     pos: posEndpoints(api),
     orders: ordersEndpoints(api),
     books: booksEndpoints(api),
+    estimator: estimatorEndpoints(api),
   };
 }
 

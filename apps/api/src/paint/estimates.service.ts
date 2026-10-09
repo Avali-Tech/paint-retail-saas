@@ -19,15 +19,23 @@ import {
   ESTIMATE_TIERS,
   canAccessStore,
   defaultSurfaceTreatment,
+  estimateTier,
+  isTierProblem,
+  packsOf,
   formatDocumentNumber,
   surfaceGrossAreaSqft,
   surfaceNetAreaSqft,
+  variantTitle,
+  type CoatingChoice,
+  type EstimateLinePurpose,
   type EstimateOptionLine,
   type EstimateOptionView,
   type EstimatePage,
   type EstimateProductRef,
   type EstimateSurfaceView,
   type EstimateView,
+  type EstimatorSurface,
+  type QuotationView,
 } from '@paint/shared';
 import { and, asc, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
@@ -35,8 +43,9 @@ import { requireSaleParty, requireSaleSite } from '../billing/sale-parties.js';
 import { idempotent } from '../billing/idempotency.js';
 import { DATABASE } from '../database/database.module.js';
 import { containsPattern } from '../parties/party-access.js';
+import { QuotationsService } from '../orders/quotations.service.js';
 import { fieldError } from '../tax/tax-lookups.js';
-import type { EstimateInput, ListEstimatesQuery } from './paint.schemas.js';
+import type { ConvertEstimateInput, EstimateInput, ListEstimatesQuery } from './paint.schemas.js';
 
 const {
   brands,
@@ -44,6 +53,7 @@ const {
   estimateSurfaces,
   estimates,
   parties,
+  productVariants,
   products,
   projects,
   quotations,
@@ -52,6 +62,32 @@ const {
 
 type EstimateRow = typeof estimates.$inferSelect;
 type SurfaceRow = typeof estimateSurfaces.$inferSelect;
+type OptionRow = typeof estimateOptions.$inferSelect;
+type VariantRow = typeof productVariants.$inferSelect;
+
+/** A product an option uses, with its packs, as the estimator reads it. */
+interface PricedProduct {
+  readonly id: string;
+  readonly name: string;
+  readonly brandName: string;
+  readonly coverageSqftPerLitre: number | null;
+  readonly defaultCoats: number | null;
+  readonly variants: readonly VariantRow[];
+}
+
+const estimatorSurface = (surface: SurfaceRow): EstimatorSurface => ({
+  netAreaSqft: surfaceNetAreaSqft(surface),
+  coats: surface.coats,
+  condition: surface.condition,
+  primer: surface.primer,
+  putty: surface.putty,
+});
+
+const coating = (product: PricedProduct): CoatingChoice => ({
+  coverageSqftPerLitre: product.coverageSqftPerLitre,
+  defaultCoats: product.defaultCoats,
+  packs: packsOf(product.variants, 'volume'),
+});
 
 /** Net area of saved surfaces, to the hundredth. */
 const totalNetArea = (surfaces: readonly SurfaceRow[]) =>
@@ -82,7 +118,10 @@ const surfaceView = (surface: SurfaceRow): EstimateSurfaceView => ({
  */
 @Injectable()
 export class EstimatesService {
-  constructor(@Inject(DATABASE) private readonly connection: DatabaseConnection) {}
+  constructor(
+    @Inject(DATABASE) private readonly connection: DatabaseConnection,
+    @Inject(QuotationsService) private readonly quotations: QuotationsService,
+  ) {}
 
   create(auth: AuthContext, input: EstimateInput, idempotencyKey?: string): Promise<EstimateView> {
     const request = { method: 'POST', path: '/estimates', body: input };
@@ -194,7 +233,164 @@ export class EstimatesService {
     });
   }
 
+  /**
+   * Runs the estimator (round 5b) for every option of a draft: paint litres,
+   * primer and putty, each as the cheapest pack mix that never under-supplies,
+   * priced at today's selling prices. The results are stored on the options.
+   */
+  compute(auth: AuthContext, id: string): Promise<EstimateView> {
+    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      const row = await this.load(tx, auth, id, true);
+      this.assertDraft(row);
+      const surfaces = (await this.surfacesOf(tx, [id])).map(estimatorSurface);
+      const options = await tx
+        .select()
+        .from(estimateOptions)
+        .where(eq(estimateOptions.estimateId, id));
+      for (const option of options) {
+        await this.computeOption(tx, option, surfaces, row.wastageBps);
+      }
+      return this.view(tx, row);
+    });
+  }
+
+  /**
+   * The chosen tier's computed lines become a new draft quotation for the
+   * estimate's customer and site, through round 4a's quotations, in the same
+   * transaction; the estimate is then converted and final.
+   */
+  convert(
+    auth: AuthContext,
+    id: string,
+    input: ConvertEstimateInput,
+    idempotencyKey?: string,
+  ): Promise<QuotationView> {
+    const request = { method: 'POST', path: `/estimates/${id}/convert`, body: input };
+    return withTenant(this.connection.db, auth.organization.id, (tx) =>
+      idempotent(tx, auth, idempotencyKey, request, async () => {
+        const row = await this.load(tx, auth, id, true);
+        this.assertDraft(row);
+        if (row.partyId === null) {
+          throw new ConflictException('Choose the customer before making a quotation');
+        }
+        const [option] = await tx
+          .select()
+          .from(estimateOptions)
+          .where(and(eq(estimateOptions.estimateId, id), eq(estimateOptions.tier, input.tier)));
+        if (!option) throw fieldError('tier', `This estimate has no ${input.tier} option`);
+        if (option.lines === null) {
+          throw new ConflictException('Compute the estimate before making a quotation');
+        }
+        const quotation = await this.quotations.createIn(tx, auth, {
+          storeId: row.storeId,
+          billToPartyId: row.partyId,
+          ...(row.projectId === null ? {} : { projectId: row.projectId }),
+          ...(input.validUntil === undefined ? {} : { validUntil: input.validUntil }),
+          ...(input.note === undefined ? {} : { note: input.note }),
+          lines: option.lines.map((line) => ({
+            variantId: line.variantId,
+            quantity: line.quantity,
+            unitPricePaise: line.unitPricePaise,
+          })),
+        });
+        await tx
+          .update(estimates)
+          .set({
+            status: 'converted',
+            quotationId: quotation.id,
+            convertedTier: input.tier,
+            convertedAt: sql`now()`,
+            updatedAt: sql`now()`,
+          })
+          .where(eq(estimates.id, id));
+        return quotation;
+      }),
+    );
+  }
+
   // Helpers -----------------------------------------------------------------
+
+  /** A product an option uses, with its brand, coverage and pack sizes. */
+  private async pricedProduct(tx: Transaction, productId: string): Promise<PricedProduct> {
+    // Options point at existing products (foreign keys).
+    const [product] = (await tx
+      .select({
+        id: products.id,
+        name: products.name,
+        brandName: brands.name,
+        coverageSqftPerLitre: products.coverageSqftPerLitre,
+        defaultCoats: products.defaultCoats,
+      })
+      .from(products)
+      .innerJoin(brands, eq(brands.id, products.brandId))
+      .where(eq(products.id, productId))) as [Omit<PricedProduct, 'variants'>];
+    const variants = await tx
+      .select()
+      .from(productVariants)
+      .where(eq(productVariants.productId, productId));
+    return { ...product, variants };
+  }
+
+  private async computeOption(
+    tx: Transaction,
+    option: OptionRow,
+    surfaces: readonly EstimatorSurface[],
+    wastageBps: number,
+  ): Promise<void> {
+    const paint = await this.pricedProduct(tx, option.productId);
+    const primer =
+      option.primerProductId === null ? null : await this.pricedProduct(tx, option.primerProductId);
+    const putty =
+      option.puttyProductId === null ? null : await this.pricedProduct(tx, option.puttyProductId);
+    const chosen: { purpose: EstimateLinePurpose; product: PricedProduct }[] = [
+      { purpose: 'paint', product: paint },
+      ...(primer === null ? [] : [{ purpose: 'primer' as const, product: primer }]),
+      ...(putty === null ? [] : [{ purpose: 'putty' as const, product: putty }]),
+    ];
+    const outcome = estimateTier(
+      surfaces,
+      {
+        tier: option.tier,
+        paint: coating(paint),
+        primer: primer === null ? null : coating(primer),
+        putty: putty === null ? null : { packs: packsOf(putty.variants, 'weight') },
+      },
+      wastageBps,
+    );
+    if (isTierProblem(outcome)) {
+      const name = chosen
+        .filter((choice) => choice.purpose === outcome.purpose)
+        .map((choice) => choice.product.name)
+        .join('');
+      throw new ConflictException(
+        outcome.problem === 'noCoverage'
+          ? `Enter the coverage of ${name} (sq ft per litre) to estimate the ${option.tier} option`
+          : `${name} has no pack with a price on sale for the ${option.tier} option`,
+      );
+    }
+    const lines = outcome.lines.flatMap((line) =>
+      chosen
+        .filter((choice) => choice.purpose === line.purpose)
+        .flatMap(({ product }) =>
+          product.variants
+            .filter((variant) => variant.id === line.variantId)
+            .map((variant): EstimateOptionLine => ({
+              ...line,
+              sku: variant.sku,
+              description: variantTitle(product.brandName, product.name, variant),
+            })),
+        ),
+    );
+    await tx
+      .update(estimateOptions)
+      .set({
+        litres: outcome.paintMl / 1000,
+        lines,
+        totalPaise: outcome.totalPaise,
+        computedAt: sql`now()`,
+      })
+      .where(eq(estimateOptions.id, option.id));
+  }
 
   /** The estimate, locked when `lock` is set; one at a store the member cannot see is "not found". */
   private async load(

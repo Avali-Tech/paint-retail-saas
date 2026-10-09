@@ -12,7 +12,13 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import type { EstimatePage, EstimateView, TintRecordPage, TintRecordView } from '@paint/shared';
+import type {
+  EstimatePage,
+  EstimateView,
+  QuotationView,
+  TintRecordPage,
+  TintRecordView,
+} from '@paint/shared';
 import type { AuthContext } from '../auth/auth-context.js';
 import { CurrentAuth, RequirePermissions } from '../auth/decorators.js';
 import { idempotencyKeySchema } from '../billing/billing.schemas.js';
@@ -20,10 +26,12 @@ import { IdempotencyKey } from '../billing/idempotency.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { EstimatesService } from './estimates.service.js';
 import {
+  convertEstimateSchema,
   estimateSchema,
   listEstimatesSchema,
   listTintRecordsSchema,
   tintRecordSchema,
+  type ConvertEstimateInput,
   type EstimateInput,
   type ListEstimatesQuery,
   type ListTintRecordsQuery,
@@ -77,7 +85,7 @@ export class TintRecordsController {
   }
 }
 
-/** Paint estimates (spec §5.1, §6.2); compute and convert are built after 5a (contract in paint-api). */
+/** Paint estimates (spec §5.1, §6.2), the estimator that prices them and their conversion into a quotation. */
 @Controller('estimates')
 export class EstimatesController {
   constructor(@Inject(EstimatesService) private readonly estimates: EstimatesService) {}
@@ -118,6 +126,29 @@ export class EstimatesController {
     @Body(new ZodValidationPipe(estimateSchema)) body: EstimateInput,
   ): Promise<EstimateView> {
     return this.estimates.update(auth, estimateId, body);
+  }
+
+  /** Runs the estimator for every option of a draft and stores the results (round 5b). */
+  @Post(':id/compute')
+  @HttpCode(200)
+  @RequirePermissions('sales:manage')
+  compute(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', id()) estimateId: string,
+  ): Promise<EstimateView> {
+    return this.estimates.compute(auth, estimateId);
+  }
+
+  /** The chosen tier's computed lines become a draft quotation (round 5b). */
+  @Post(':id/convert')
+  @RequirePermissions('sales:manage')
+  convert(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', id()) estimateId: string,
+    @Body(new ZodValidationPipe(convertEstimateSchema)) body: ConvertEstimateInput,
+    @IdempotencyKey(key()) idempotencyKey: string | undefined,
+  ): Promise<QuotationView> {
+    return this.estimates.convert(auth, estimateId, body, idempotencyKey);
   }
 
   @Delete(':id')

@@ -16,6 +16,7 @@ import { platformHi } from './hi-platform.js';
 import { printHi } from './hi-print.js';
 import { projectsHi } from './hi-projects.js';
 import { ordersHi, ordersEnumsHi } from './hi-orders.js';
+import { estimatorHi, estimatorEnumsHi } from './hi-estimator.js';
 import { posHi } from './hi-pos.js';
 import { purchasingEnumsHi, purchasingHi } from './hi-purchasing.js';
 import { reportEnumsHi, reportsHi } from './hi-reports.js';
@@ -336,6 +337,7 @@ export const hi: Messages = {
   ...posHi,
   ...ordersHi,
   ...booksHi,
+  ...estimatorHi,
   enums: {
     quickActions: {
       new_customer: '+ ग्राहक',
@@ -369,6 +371,7 @@ export const hi: Messages = {
     ...salesEnumsHi,
     ...ordersEnumsHi,
     ...booksEnumsHi,
+    ...estimatorEnumsHi,
   },
   pages: {
     notFound: 'इस पते पर कोई स्क्रीन नहीं है। लिंक जांचें, या मेन्यू या खोज का इस्तेमाल करें।',
