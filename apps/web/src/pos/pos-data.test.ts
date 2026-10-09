@@ -198,7 +198,7 @@ describe('held bills on this device', () => {
     });
     expect(bill.buyer.partyName).toBe('Remembered');
     expect(bill.lines).toEqual([
-      { ...item(), quantity: 2, discount: { kind: 'percent', basisPoints: 500 } },
+      { ...item(), quantity: 2, discount: { kind: 'percent', basisPoints: 500 }, tint: null },
       {
         variantId: 'v-x',
         sku: '',
@@ -207,6 +207,7 @@ describe('held bills on this device', () => {
         unitPricePaise: 1_045_000,
         quantity: 1,
         discount: { kind: 'amount', paise: 100 },
+        tint: null,
       },
     ]);
     const bare = billFromDraft(draft, null, 'k', () => 'x');
@@ -220,5 +221,36 @@ describe('held bills on this device', () => {
     });
     expect(billFromDraft(document(), null, 'k', () => 'x').buyer).toEqual(WALK_IN);
     expect(billFromDraft(document({ lines: [] }), null, 'k', () => 'x').selected).toBeNull();
+  });
+
+  it('matches a remembered line by its place first, and never borrows another line’s shade', () => {
+    const tint = {
+      shadeCode: 'X 132',
+      shadeName: null,
+      brandId: null,
+      machine: null,
+      formula: [],
+      tintChargePaise: 5_000,
+      colorantCostPaise: null,
+      note: null,
+      basePricePaise: 1_045_000,
+    };
+    const snapshot = {
+      items: [{ ...item(), tint }, item({ variantId: 'v-x', name: 'Roller' })],
+      buyer: WALK_IN,
+      payablePaise: 1,
+    };
+    // Saved out of order: line 2 is the tinted base, line 1 the roller.
+    const draft = document({
+      lines: [
+        draftLine({ id: 'b', lineNo: 2, unitPricePaise: 1_050_000 }),
+        draftLine({ id: 'a', lineNo: 1, variantId: 'v-x' }),
+      ],
+    });
+    const bill = billFromDraft(draft, snapshot, 'k', () => 'x');
+    expect(bill.lines.map((line) => [line.name, line.tint?.shadeCode ?? null])).toEqual([
+      ['Roller', null],
+      ['Asian Paints Apex Ultima 20 l', null],
+    ]);
   });
 });

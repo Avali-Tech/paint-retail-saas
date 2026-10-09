@@ -3,6 +3,7 @@ import { priceLine } from '@paint/shared';
 import { useState, type Dispatch, type KeyboardEvent } from 'react';
 import { useI18n } from '../i18n/i18n.js';
 import { parsePositiveQuantity } from '../lib/quantity.js';
+import { TintControl } from '../tint/TintPanel.js';
 import type { BillAction, BillLine } from './bill.js';
 import { discountText, parseDiscount } from './entry.js';
 
@@ -27,12 +28,14 @@ function LineRow({
   index,
   amountPaise,
   selected,
+  partyId,
   dispatch,
 }: {
   readonly line: BillLine;
   readonly index: number;
   readonly amountPaise: number;
   readonly selected: boolean;
+  readonly partyId: string | null;
   readonly dispatch: Dispatch<BillAction>;
 }) {
   const { t, money, number } = useI18n();
@@ -75,6 +78,7 @@ function LineRow({
           {line.sku === '' ? '' : `${line.sku} · `}
           {t('pos.lines.perUnit', { price: money(line.unitPricePaise) })}
         </span>
+        <TintControl line={line} index={index} partyId={partyId} dispatch={dispatch} />
       </div>
       <div className="pos-line__quantity">
         <Button
@@ -157,17 +161,23 @@ function LineRow({
   );
 }
 
-/** The bill's lines: quantity with − / + or typed, a discount as "10%" or rupees, remove. */
+/**
+ * The bill's lines: quantity with − / + or typed, a discount as "10%" or rupees, a
+ * tint for a tintable base (spec §6.3), remove.
+ */
 export function BillLines({
   lines,
   amounts,
   selected,
+  partyId = null,
   dispatch,
 }: {
   readonly lines: readonly BillLine[];
   /** Each line's amount as the preview worked it out. */
   readonly amounts: readonly number[];
   readonly selected: number | null;
+  /** The bill-to, whose past shades the tint panel offers. */
+  readonly partyId?: string | null;
   readonly dispatch: Dispatch<BillAction>;
 }) {
   const { t } = useI18n();
@@ -184,11 +194,13 @@ export function BillLines({
       <ol className="pos-lines" aria-label={t('pos.lines.label')}>
         {lines.map((line, index) => (
           <LineRow
-            key={line.variantId}
+            // A tinted base can be on the bill twice, in two shades.
+            key={`${line.variantId}:${line.tint?.shadeCode ?? ''}`}
             line={line}
             index={index}
             amountPaise={Number(amounts[index])}
             selected={index === selected}
+            partyId={partyId}
             dispatch={dispatch}
           />
         ))}

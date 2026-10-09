@@ -5,6 +5,7 @@ import type { Product } from '../../api/catalog.js';
 import { json, type FakeHandler, type FakeRequest } from '../../test-support/fake-api.js';
 import { page } from '../../test-support/inventory-fixtures.js';
 import { renderApp } from '../../test-support/render-app.js';
+import { lineTintView } from '../../tint/test-support/tint-fixtures.js';
 import type { DraftInput } from '../pos-api.js';
 import {
   AMP,
@@ -73,6 +74,8 @@ export function fakeInvoices(issued: IssuedInvoiceView = ISSUED) {
           variantId: line.variantId,
           quantity: line.quantity,
           unitPricePaise: line.unitPricePaise,
+          // Round 5a: the line's tint is saved with it and read back.
+          ...(line.tint ? { tint: lineTintView(line.tint) } : {}),
         }),
       ),
     });

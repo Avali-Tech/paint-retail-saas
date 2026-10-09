@@ -1,0 +1,66 @@
+// Hindi messages for the tint record (draft: see docs/translations/glossary.md).
+// Same keys as en-tint.ts.
+import type { tintEn } from './en-tint.js';
+import type { Translation } from './shape.js';
+
+export const tintHi: Translation<typeof tintEn> = {
+  tint: {
+    button: 'टिंट',
+    edit: 'टिंट बदलें',
+    buttonOf: '{name} टिंट करें',
+    editOf: '{name} का टिंट बदलें',
+    shown: 'शेड {shade}',
+    charge: 'टिंटिंग {amount}',
+    title: '{name} टिंट करें',
+    description: 'यह बेस किस शेड में टिंट होगा। टिंटिंग चार्ज यूनिट कीमत में जुड़ता है।',
+    base: 'बेस',
+    shadeCode: 'शेड कोड',
+    shadeCodeHint: 'शेड कार्ड जैसा, जैसे X 132',
+    shadeName: 'शेड का नाम',
+    machine: 'मशीन',
+    machineHint: 'कौन सी टिंटिंग मशीन, जैसे काउंटर 1',
+    chargeLabel: 'हर पैक का टिंटिंग चार्ज (₹)',
+    costLabel: 'हर पैक की कलरेंट लागत (₹)',
+    costHint: 'सिर्फ आपके मार्जिन के लिए; बिल पर नहीं',
+    formula: 'फॉर्मूला',
+    formulaHint: 'हर कलरेंट और मशीन हर पैक में कितना डालती है',
+    colorant: 'कलरेंट {number}',
+    amount: 'मात्रा {number}',
+    unit: 'यूनिट {number}',
+    addColorant: 'कलरेंट जोड़ें',
+    removeColorant: 'कलरेंट {number} हटाएं',
+    apply: 'टिंट लगाएं',
+    remove: 'टिंट हटाएं',
+    problems: {
+      shadeCode: 'शेड कोड डालें (40 अक्षर तक)',
+      tooLong: 'यह बहुत लंबा है',
+      amount: 'रुपये में रकम डालें',
+      formulaRow: 'हर कलरेंट का नाम और शून्य से ज्यादा मात्रा दें (3 दशमलव तक)',
+      tooManyColorants: 'एक फॉर्मूले में ज्यादा से ज्यादा 16 कलरेंट होते हैं',
+    },
+    history: {
+      title: 'पिछली बार वाला शेड',
+      search: 'शेड खोजें',
+      searchHint: 'शेड कोड या नाम, ग्राहक या मोबाइल, हर स्टोर में',
+      partyHint: 'इस ग्राहक के शेड, हर स्टोर के। और खोजने के लिए सर्च करें।',
+      typeToSearch: 'ग्राहक चुनें, या शेड, नाम या मोबाइल से खोजें',
+      empty: 'कोई शेड नहीं मिला',
+      error: 'शेड हिस्ट्री लोड नहीं हो सकी',
+      use: '{shade} इस्तेमाल करें',
+      where: '{store} · {date}',
+      document: '{kind} {number}',
+      onBase: '{base} पर',
+      kinds: {
+        quotation: 'कोटेशन',
+        sales_order: 'ऑर्डर',
+        invoice: 'इनवॉइस',
+      },
+    },
+    units: {
+      ml: 'ml',
+      shot: 'शॉट',
+      y: 'Y (1/48 औंस)',
+      g: 'ग्राम',
+    },
+  },
+};

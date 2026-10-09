@@ -5,6 +5,7 @@ import { ApiError, errorMessage } from '../api/errors.js';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { variantTitle } from '../lib/product-title.js';
+import { isTintableProduct } from '../tint/tint.js';
 import type { BillItem } from './bill.js';
 import { parseScan } from './entry.js';
 
@@ -22,6 +23,7 @@ const itemOf = ({ product, variant }: Match, price: number): BillItem => ({
   name: variantTitle(product.brand.name, product.name, variant),
   taxCategoryId: product.taxCategory?.id ?? null,
   unitPricePaise: price,
+  tintable: isTintableProduct(product),
 });
 
 const LINE_KEYS: Readonly<Record<string, LineKey>> = {
