@@ -371,6 +371,7 @@ describe('sales returns', () => {
         quantity: 1,
         unitPricePaise: 11_800,
         rateBps: 1800,
+        taxNature: 'taxable',
         taxablePaise: 10_000,
         cgstPaise: 900,
         sgstPaise: 900,

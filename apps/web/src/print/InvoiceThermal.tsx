@@ -1,5 +1,5 @@
 import type { InvoiceView, PrintLabel } from '@paint/shared';
-import { InvoiceLabel, InvoiceLogo, translationLang } from './InvoiceLabel.js';
+import { InvoiceLabel, InvoiceLogo, tintText, translationLang } from './InvoiceLabel.js';
 
 /**
  * The 80 mm counter receipt for browser printing: the same fields as the A4
@@ -83,6 +83,9 @@ export function InvoiceThermal({ view }: { readonly view: InvoiceView }) {
                 .filter((part) => part !== null)
                 .join(' · ')}
             </p>
+            {line.tint !== null && (
+              <p className="receipt__meta receipt__tint">{tintText(line.tint, labels, true)}</p>
+            )}
             <p className="receipt__pair">
               <span>
                 {line.quantity} {line.uqc} × {line.price}

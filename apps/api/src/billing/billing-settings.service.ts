@@ -22,6 +22,7 @@ import type {
   UpdateSeriesInput,
 } from './billing.schemas.js';
 import { indiaToday } from './invoice-view.js';
+import { bankOf, printFields } from './print-settings.js';
 
 const { documentSeries, gstinProfiles, parties, salesSettings, stores } = schema;
 
@@ -34,6 +35,8 @@ const DEFAULT_SETTINGS: SalesSettingsView = {
   billingLiveOn: null,
   cashNeedsRegister: true,
   registerVarianceAlertPaise: 0,
+  invoiceBank: null,
+  invoiceTerms: [],
 };
 
 const settingsFields = {
@@ -45,6 +48,7 @@ const settingsFields = {
   billingLiveOn: salesSettings.billingLiveOn,
   cashNeedsRegister: salesSettings.cashNeedsRegister,
   registerVarianceAlertPaise: salesSettings.registerVarianceAlertPaise,
+  ...printFields,
 };
 
 const seriesFields = {
@@ -87,12 +91,23 @@ export class BillingSettingsService {
           );
         if (!party) throw fieldError('walkInPartyId', 'Unknown customer');
       }
+      const { invoiceBank, ...rest } = input;
+      const values = {
+        ...rest,
+        ...(invoiceBank !== undefined && {
+          bankName: invoiceBank?.bankName ?? null,
+          bankAccountName: invoiceBank?.accountName ?? null,
+          bankAccountNumber: invoiceBank?.accountNumber ?? null,
+          bankIfsc: invoiceBank?.ifsc ?? null,
+          upiId: invoiceBank?.upiId ?? null,
+        }),
+      };
       await tx
         .insert(salesSettings)
-        .values({ organizationId: auth.organization.id, ...input })
+        .values({ organizationId: auth.organization.id, ...values })
         .onConflictDoUpdate({
           target: salesSettings.organizationId,
-          set: { ...input, updatedAt: sql`now()` },
+          set: { ...values, updatedAt: sql`now()` },
         });
       return this.settingsIn(tx);
     });
@@ -216,7 +231,12 @@ export class BillingSettingsService {
 
   private async settingsIn(tx: Transaction): Promise<SalesSettingsView> {
     const [row] = await tx.select(settingsFields).from(salesSettings);
-    return row ?? DEFAULT_SETTINGS;
+    if (!row) return DEFAULT_SETTINGS;
+    const { bankName, bankAccountName, bankAccountNumber, bankIfsc, upiId, ...settings } = row;
+    return {
+      ...settings,
+      invoiceBank: bankOf({ bankName, bankAccountName, bankAccountNumber, bankIfsc, upiId }),
+    };
   }
 
   private async withSamples(tx: Transaction, rows: SeriesRow[]): Promise<DocumentSeriesView[]> {

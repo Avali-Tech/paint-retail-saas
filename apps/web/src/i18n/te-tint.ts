@@ -31,6 +31,11 @@ export const tintTe: Translation<typeof tintEn> = {
     removeColorant: 'కలరెంట్ {number} తీసివేయండి',
     apply: 'టింట్ వేయండి',
     remove: 'టింట్ తీసివేయండి',
+    summary: {
+      shade: 'టింట్ {shade}',
+      base: 'బేస్ {base}',
+      formula: 'ఫార్ములా {formula}',
+    },
     problems: {
       shadeCode: 'షేడ్ కోడ్ ఇవ్వండి (40 అక్షరాల వరకు)',
       tooLong: 'ఇది చాలా పొడవుగా ఉంది',

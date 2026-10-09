@@ -8,7 +8,13 @@ import { OVERVIEW, PARTY } from '../test-support/party-fixtures.js';
 import { renderApp } from '../test-support/render-app.js';
 import { AMP, APEX, KPH, ROLLER } from '../pos/test-support/pos-fixtures.js';
 import { lookupIn } from '../pos/test-support/pos-render.js';
-import { ORDER, QUOTE, SENT_QUOTE, WITHIN_LIMIT } from './test-support/order-fixtures.js';
+import {
+  LINE_TINT,
+  ORDER,
+  QUOTE,
+  SENT_QUOTE,
+  WITHIN_LIMIT,
+} from './test-support/order-fixtures.js';
 
 const location = () => screen.getByTestId('location').textContent;
 const READER = profile(['stores:read', 'sales:read']);
@@ -457,15 +463,24 @@ describe('QuotationPage', { timeout: 30_000 }, () => {
       routes: editorRoutes({
         'GET /auth/me': () => json(READER),
         'GET /stores': () => json([]),
-        'GET /quotations/:id': () => json(SENT_QUOTE),
+        'GET /quotations/:id': () =>
+          json({
+            ...SENT_QUOTE,
+            lines: SENT_QUOTE.lines.map((line, index) =>
+              index === 0 ? { ...line, tint: LINE_TINT } : line,
+            ),
+          }),
       }),
     });
     expect(
       await screen.findByRole('heading', { name: 'Quotation QT-000042 v2', level: 1 }),
     ).toBeVisible();
+    const tint = 'Tint X 132 · Ivory Mist · Base Asian Paints Apex Ultima 20 l · Formula XY 12 ml';
+    expect(screen.getByRole('table', { name: 'Lines' })).toHaveTextContent(tint);
     vi.spyOn(window, 'print').mockImplementation(() => undefined);
     await first.user.click(screen.getByRole('button', { name: 'Print or save as PDF' }));
     expect(screen.getByTestId('quotation-print')).not.toHaveTextContent('Ameerpet');
+    expect(screen.getByTestId('quotation-print')).toHaveTextContent(tint);
     expect(screen.queryByRole('button', { name: 'Convert to order' })).toBeNull();
     first.unmount();
     renderApp({

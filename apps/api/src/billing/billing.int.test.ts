@@ -11,6 +11,7 @@ import {
   gstinCheckCharacter,
   type DocumentSeriesView,
   type GstinProfileView,
+  type IssuedInvoiceView,
   type SalesSettingsView,
   type TaxCategoryOptions,
   type TaxDocumentPage,
@@ -338,6 +339,8 @@ describe('sales settings', () => {
       billingLiveOn: null,
       cashNeedsRegister: true,
       registerVarianceAlertPaise: 0,
+      invoiceBank: null,
+      invoiceTerms: [],
     });
     const saved = ok(
       await o.put('/sales/settings', {
@@ -360,6 +363,45 @@ describe('sales settings', () => {
       quoteValidityDays: 30,
       partialMinAdvancePct: 25,
     });
+
+    // What the A4 invoice prints: bank details (all four, UPI optional) and terms.
+    const bank = {
+      bankName: 'State Bank of India, Ameerpet',
+      accountName: 'Rangoli Paints Pvt Ltd',
+      accountNumber: '30451234567',
+      ifsc: 'sbin0020345',
+    };
+    expect(
+      ok(
+        await o.put('/sales/settings', {
+          invoiceBank: { ...bank, upiId: 'rangoli@sbi' },
+          invoiceTerms: ['Goods once tinted are not returned.', 'Subject to Hyderabad courts.'],
+        }),
+      ).json<SalesSettingsView>(),
+    ).toMatchObject({
+      partialMinAdvancePct: 25,
+      invoiceBank: { ...bank, ifsc: 'SBIN0020345', upiId: 'rangoli@sbi' },
+      invoiceTerms: ['Goods once tinted are not returned.', 'Subject to Hyderabad courts.'],
+    });
+    expect(
+      ok(await o.put('/sales/settings', { invoiceBank: bank })).json<SalesSettingsView>(),
+    ).toMatchObject({ invoiceBank: { ...bank, ifsc: 'SBIN0020345', upiId: null } });
+    const badBank = await o.put('/sales/settings', {
+      invoiceBank: { ...bank, accountNumber: '12-34', ifsc: 'SBIN12', upiId: 'nope' },
+      invoiceTerms: Array.from({ length: 11 }, () => 'Term'),
+    });
+    expect(badBank.statusCode).toBe(400);
+    expect(issuesOf(badBank)).toEqual([
+      'invoiceBank.accountNumber',
+      'invoiceBank.ifsc',
+      'invoiceBank.upiId',
+      'invoiceTerms',
+    ]);
+    expect(
+      ok(
+        await o.put('/sales/settings', { invoiceBank: null, invoiceTerms: [] }),
+      ).json<SalesSettingsView>(),
+    ).toMatchObject({ invoiceBank: null, invoiceTerms: [], partialMinAdvancePct: 25 });
 
     const unknown = await o.put('/sales/settings', { walkInPartyId: crypto.randomUUID() });
     expect(unknown.statusCode).toBe(400);
@@ -789,14 +831,52 @@ describe('issuing', () => {
         line(b.variants.nil),
       ],
     });
-    expect(invoice.lines.map((l) => [l.rateBps, l.cgstPaise])).toEqual([
-      [1800, expect.any(Number)],
-      [0, 0],
-      [0, 0],
+    expect(invoice.lines.map((l) => [l.rateBps, l.taxNature, l.cgstPaise])).toEqual([
+      [1800, 'taxable', expect.any(Number)],
+      [0, 'exempt', 0],
+      [0, 'nil_rated', 0],
     ]);
     // ₹200 less 10% = ₹180, plus ₹10 and ₹50, less ₹10 off the bill: ₹230 taxable before tax.
     expect(invoice.taxablePaise).toBe(23_000);
     expect(invoice.totalPaise % 100).toBe(0);
+  });
+
+  it("returns what the counter prints: the settings' bank details and terms, and the turnover band", async () => {
+    const fresh = await business();
+    const o = api(fresh.owner);
+    const bill = async () => {
+      const document = ok(
+        await o.post('/invoices', {
+          storeId: fresh.stores.amp,
+          lines: [line(fresh.variants.apex1)],
+        }),
+      ).json<TaxDocumentView>();
+      return ok(await o.post(`/invoices/${document.id}/issue`, {})).json<IssuedInvoiceView>();
+    };
+    expect((await bill()).print).toEqual({ bank: null, terms: [], aggregateTurnoverPaise: 0 });
+
+    const bank = {
+      bankName: 'HDFC Bank, Ameerpet',
+      accountName: 'Rangoli Paints Pvt Ltd',
+      accountNumber: '50100123456789',
+      ifsc: 'HDFC0001234',
+      upiId: null,
+    };
+    ok(await o.put('/sales/settings', { invoiceBank: bank, invoiceTerms: ['No returns.'] }));
+    ok(
+      await o.put(`/gstin-profiles/${gstin('36', PAN, '1')}`, {
+        aatoBand: 'above_5cr',
+        einvoiceRequiredFrom: null,
+        ewayThresholdPaise: 5_000_000,
+      }),
+    );
+    const printed = await bill();
+    expect(printed.print).toEqual({
+      bank,
+      terms: ['No returns.'],
+      aggregateTurnoverPaise: 5_00_00_000_01,
+    });
+    expect(printed.lines[0]?.taxNature).toBe('taxable');
   });
 
   it('issues a bill of supply without tax from a composition store, and never inter-state', async () => {
@@ -810,7 +890,7 @@ describe('issuing', () => {
       totalPaise: 35_400,
     });
     expect(bill.number).toMatch(new RegExp(`^SECB/${fy.slice(2)}/\\d{5}$`));
-    expect(bill.lines[0]?.rateBps).toBeNull();
+    expect(bill.lines[0]).toMatchObject({ rateBps: null, taxNature: null });
     expect(bill.taxRows).toEqual([]);
 
     const interState = await draft({
@@ -1224,6 +1304,66 @@ describe('reading and isolation', () => {
       buyer: { partyId: survivor },
       influencerPartyId: survivor,
     });
+  });
+
+  it('audits every change to the bank details, UPI ID and terms invoices print, in full', async () => {
+    const fresh = await business();
+    const o = api(fresh.owner);
+    const bank = {
+      bankName: 'HDFC Bank, Ameerpet',
+      accountName: 'Rangoli Paints Pvt Ltd',
+      accountNumber: '50100123456789',
+      ifsc: 'HDFC0001234',
+      upiId: 'rangoli@hdfc',
+    };
+    ok(await o.put('/sales/settings', { invoiceBank: bank, invoiceTerms: ['No returns.'] }));
+    // The swap a fraudster would make: another account, another UPI ID.
+    ok(
+      await o.put('/sales/settings', {
+        invoiceBank: { ...bank, accountNumber: '99990000111122', upiId: 'other@ybl' },
+      }),
+    );
+    ok(await o.put('/sales/settings', { invoiceBank: null, invoiceTerms: [] }));
+
+    interface Change {
+      readonly field: string;
+      readonly old: unknown;
+      readonly new: unknown;
+      readonly newText: string | null;
+    }
+    const items = ok(await o.get('/audit-log?table=sales_settings')).json<{
+      items: {
+        action: string;
+        occurredAt: string;
+        actor: { name: string } | null;
+        changes: Change[];
+      }[];
+    }>().items;
+    const [cleared, swapped, first] = items;
+    expect(items).toHaveLength(3);
+    for (const item of items) {
+      expect(item.actor).not.toBeNull();
+      expect(item.occurredAt).toEqual(expect.any(String));
+    }
+    expect(first?.action).toBe('insert');
+    expect(first?.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: 'bank_account_number', new: '50100123456789' }),
+        expect.objectContaining({ field: 'invoice_terms', newText: 'No returns.' }),
+      ]),
+    );
+    expect(swapped?.changes.map(({ field, old, new: next }) => [field, old, next])).toEqual([
+      ['bank_account_number', '50100123456789', '99990000111122'],
+      ['upi_id', 'rangoli@hdfc', 'other@ybl'],
+    ]);
+    expect(cleared?.changes.map((change) => [change.field, change.new])).toEqual([
+      ['bank_name', null],
+      ['bank_account_name', null],
+      ['bank_account_number', null],
+      ['bank_ifsc', null],
+      ['upi_id', null],
+      ['invoice_terms', []],
+    ]);
   });
 
   it('records settings, series, profiles and every issue and cancel in the audit log', async () => {

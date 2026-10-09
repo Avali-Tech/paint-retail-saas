@@ -31,6 +31,11 @@ export const tintHi: Translation<typeof tintEn> = {
     removeColorant: 'कलरेंट {number} हटाएं',
     apply: 'टिंट लगाएं',
     remove: 'टिंट हटाएं',
+    summary: {
+      shade: 'टिंट {shade}',
+      base: 'बेस {base}',
+      formula: 'फॉर्मूला {formula}',
+    },
     problems: {
       shadeCode: 'शेड कोड डालें (40 अक्षर तक)',
       tooLong: 'यह बहुत लंबा है',

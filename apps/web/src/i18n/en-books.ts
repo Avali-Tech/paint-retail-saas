@@ -233,6 +233,7 @@ export const booksEnumsEn = {
     party: 'A customer',
     walk_in: 'Walk-in sales',
     payment_mode: 'Payment mode',
+    bounce_charges: 'Cheque bounce charges',
   },
   exportKinds: {
     sales: 'Sales',

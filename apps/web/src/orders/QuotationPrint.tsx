@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n/i18n.js';
 import { stateLabel } from '../lib/gst-states.js';
+import { TintSummary } from '../tint/TintSummary.js';
 import '../print/print.css';
 
 // A quotation on A4 paper, drawn with round 2b's invoice print styles. "Save as PDF"
@@ -92,7 +93,12 @@ function QuotationA4({ job }: { readonly job: QuotationPrintJob }) {
           {quotation.lines.map((line) => (
             <tr key={line.id}>
               <td>{line.lineNo}</td>
-              <th scope="row">{line.description}</th>
+              <th scope="row">
+                {line.description}
+                {line.tint !== undefined && (
+                  <TintSummary tint={line.tint} base={line.description} />
+                )}
+              </th>
               <td>{line.hsnCode ?? ''}</td>
               <td className="invoice__num">{number(line.quantity)}</td>
               <td className="invoice__num">{money(line.unitPricePaise)}</td>

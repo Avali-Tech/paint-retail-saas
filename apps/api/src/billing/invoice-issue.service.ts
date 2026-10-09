@@ -17,6 +17,7 @@ import {
 import {
   BUYER_DETAILS_THRESHOLD_PAISE,
   DEFAULT_GST_OPTIONS,
+  aatoTurnoverPaise,
   computeInvoice,
   formatINR,
   gstClassFor,
@@ -24,9 +25,11 @@ import {
   requiredHsnDigits,
   uqcFor,
   variantName,
+  type AatoBand,
   type Discount,
   type GstError,
   type Invoice,
+  type InvoicePrintSettings,
   type IssuedInvoiceView,
   type TaxDocumentView,
 } from '@paint/shared';
@@ -56,6 +59,7 @@ import { gstRatesFor } from './gst-rates.js';
 import { earnLoyaltyForInvoice, reverseLoyaltyForCancel } from './loyalty-reversal.js';
 import { idempotent } from './idempotency.js';
 import { documentView, indiaToday, loadDocument, type TaxDocumentRow } from './invoice-view.js';
+import { invoicePrintSettings } from './print-settings.js';
 import { takeDocumentNumber } from './series.js';
 import { walkInParty } from './walk-in.js';
 
@@ -72,9 +76,6 @@ const {
   taxDocumentTaxRows,
   taxDocuments,
 } = schema;
-
-/** A turnover just above ₹5 crore, to read the HSN rule for the `above_5cr` band. */
-const ABOVE_5_CRORE_PAISE = 5_00_00_000_00 + 1;
 
 const discountOf = (bps: number | null, paise: number | null): Discount | null => {
   if (bps !== null) return { kind: 'percent', basisPoints: bps };
@@ -266,9 +267,7 @@ export class InvoiceIssueService {
         address: sql<
           string | null
         >`nullif(concat_ws(', ', ${stores.addressLine}, ${stores.city}, ${stores.state}, ${stores.pincode}), '')`,
-        aatoBand: sql<
-          string | null
-        >`(select gp.aato_band::text from ${gstinProfiles} gp where gp.gstin = ${stores.gstin})`,
+        aatoBand: sql<AatoBand | null>`(select gp.aato_band::text from ${gstinProfiles} gp where gp.gstin = ${stores.gstin})`,
         einvoiceRequired: sql<boolean>`coalesce((select gp.einvoice_required_from <= ${today}::date from ${gstinProfiles} gp where gp.gstin = ${stores.gstin}), false)`,
       })
       .from(stores)
@@ -371,7 +370,7 @@ export class InvoiceIssueService {
     const problems: { path: string; message: string }[] = [];
     // HSN digits by the GSTIN's turnover (Notification 78/2020, spec §2.7).
     const digits = requiredHsnDigits(
-      store.aatoBand === 'above_5cr' ? ABOVE_5_CRORE_PAISE : 0,
+      aatoTurnoverPaise(store.aatoBand ?? 'up_to_5cr'),
       invoice.buyerType,
     );
     lines.forEach((line, index) => {
@@ -436,6 +435,7 @@ export class InvoiceIssueService {
           taxablePaise: computed.taxablePaise,
           taxCategoryId: line.taxCategoryId,
           rateBps: computed.rate?.rateBasisPoints ?? null,
+          taxNature: computed.rate?.nature ?? null,
           cessBps: computed.rate?.cessBasisPoints ?? null,
           cgstPaise: computed.cgstPaise,
           sgstPaise: computed.sgstPaise,
@@ -542,6 +542,7 @@ export class InvoiceIssueService {
       partyId,
       document.partyId === null,
       input,
+      await invoicePrintSettings(tx, store.aatoBand),
     );
     if (order?.prepaid && view.outstandingPaise > 0) {
       throw new ConflictException(
@@ -564,6 +565,7 @@ export class InvoiceIssueService {
     partyId: string,
     walkIn: boolean,
     input: IssueInvoiceInput,
+    print: InvoicePrintSettings,
   ): Promise<IssuedInvoiceView> {
     let outstanding = invoice.totalPaise;
     const target = { documentId: invoice.id, partyLedgerId: null };
@@ -645,6 +647,7 @@ export class InvoiceIssueService {
       paidPaise,
       outstandingPaise: invoice.totalPaise - paidPaise,
       changePaise: views.reduce((sum, view) => sum + (view.changePaise ?? 0), 0),
+      print,
     };
   }
 

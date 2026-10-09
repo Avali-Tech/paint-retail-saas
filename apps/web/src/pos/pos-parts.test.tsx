@@ -1,6 +1,8 @@
 import { render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../i18n/i18n.js';
+import { IdentityProvider } from '../theme/IdentityProvider.js';
+import { lineTintView } from '../tint/test-support/tint-fixtures.js';
 import { product, variant } from '../test-support/inventory-fixtures.js';
 import { billReducer, newBill } from './bill.js';
 import { printViewOf } from './print-view.js';
@@ -68,7 +70,7 @@ describe('TotalsPanel', () => {
 
 describe('printViewOf', () => {
   it('prints an issued counter bill with the engine’s figures and no copy mark', () => {
-    const view = printViewOf(ISSUED, null);
+    const view = printViewOf(ISSUED, null, null);
     expect(view).toMatchObject({
       kind: 'tax_invoice',
       number: 'AMP/26-27/000001',
@@ -89,6 +91,7 @@ describe('printViewOf', () => {
       hsnCode: '3209',
       uqc: 'LTR',
       rateBps: 1800,
+      taxNature: 'taxable',
     });
     const b2b = printViewOf(
       {
@@ -110,6 +113,7 @@ describe('printViewOf', () => {
         ],
       },
       'hi',
+      null,
     );
     expect(b2b).toMatchObject({
       supplyType: 'inter_state',
@@ -123,20 +127,106 @@ describe('printViewOf', () => {
         ...ISSUED,
         kind: 'bill_of_supply',
         buyer: { ...ISSUED.buyer, name: 'Sita', address: 'Ameerpet', stateCode: '36' },
-        lines: [{ ...line, rateBps: null }],
+        lines: [{ ...line, rateBps: null, taxNature: null }],
       },
+      null,
       null,
     );
     expect(supply).toMatchObject({ kind: 'bill_of_supply', buyer: { name: 'Sita' } });
+  });
+
+  it('prints exempt and nil-rated 0% lines apart, as the issue recorded them', () => {
+    const zero = (id: string, taxNature: 'exempt' | 'nil_rated') =>
+      draftLine({
+        id,
+        description: id,
+        hsnCode: '49111010',
+        uqc: 'PCS',
+        unitPricePaise: 1_000,
+        rateBps: 0,
+        taxNature,
+      });
+    const view = printViewOf(
+      { ...ISSUED, lines: [zero('Shade card', 'exempt'), zero('Sample', 'nil_rated')] },
+      null,
+      null,
+    );
+    expect(view.lines.map((line) => line.rate)).toEqual(['Exempt', 'Nil rated']);
+    expect(view.taxSummary.map((row) => row.rate)).toEqual(['Exempt', 'Nil rated']);
+  });
+
+  it('prints the logo, the settings’ bank details and terms, the turnover’s HSN rule and tints', () => {
+    const bank = {
+      bankName: 'HDFC Bank',
+      accountName: 'Sharma Paints LLP',
+      accountNumber: '50100123456789',
+      ifsc: 'HDFC0001234',
+      upiId: 'sharma@hdfc',
+    };
+    const tinted = {
+      ...ISSUED,
+      print: {
+        bank,
+        terms: ['No returns on tinted paint.'],
+        aggregateTurnoverPaise: 5_00_00_000_01,
+      },
+      lines: ISSUED.lines.map((line) => ({
+        ...line,
+        tint: lineTintView({
+          shadeCode: 'X 132',
+          shadeName: 'Ivory Mist',
+          formula: [{ colorant: 'XY', amount: 12, unit: 'ml' }],
+        }),
+      })),
+    };
+    const view = printViewOf(tinted, null, '/api/public/branding/sharma/logo/abc');
+    expect(view.business.logoUrl).toBe('/api/public/branding/sharma/logo/abc');
+    expect(view.bank).toEqual(bank);
+    expect(view.terms).toEqual(['No returns on tinted paint.']);
+    // Above ₹5 crore even a B2C bill needs 6 HSN digits: this bill's 4 are short.
+    expect(view.requirements.hsnDigits).toBe(6);
+    expect(view.issues).toEqual([{ code: 'hsn_digits', clause: '46(g)', line: 0 }]);
+    expect(view.lines[0]?.tint).toEqual({
+      shade: 'X 132 · Ivory Mist',
+      base: 'Asian Paints Apex Ultima 20 l',
+      formula: 'XY 12 ml',
+    });
   });
 });
 
 describe('PrintSlot', () => {
   it('prints in the member’s language under the English labels', () => {
-    render(
-      <I18nProvider locale="te">
-        <PrintSlot job={{ id: 1, invoice: ISSUED, format: 'a4' }} />
-      </I18nProvider>,
+    const logo = {
+      url: '/public/branding/sharma/logo/abc',
+      contentType: 'image/png',
+      width: 200,
+      height: 80,
+      sizeBytes: 1000,
+      updatedAt: '2026-10-01T00:00:00.000Z',
+    };
+    const identity = { slug: 'sharma', logo };
+    const load = () => Promise.resolve(identity);
+    const { container } = render(
+      <IdentityProvider
+        source={{
+          cached: () => identity,
+          load,
+          saveSlug: load,
+          uploadLogo: load,
+          removeLogo: load,
+          assetUrl: (path) => `/api${path}`,
+        }}
+        sessionKey={null}
+      >
+        <I18nProvider locale="te">
+          <PrintSlot job={{ id: 1, invoice: ISSUED, format: 'a4' }} />
+        </I18nProvider>
+      </IdentityProvider>,
+    );
+    expect(container).toBeEmptyDOMElement();
+    expect(document.querySelector('img.invoice__logo')).toHaveAttribute(
+      'src',
+      '/api/public/branding/sharma/logo/abc',
     );
     expect(screen.getByTestId('print-layer')).toHaveAttribute('data-format', 'a4');
     expect(screen.getByRole('article', { name: /AMP\/26-27\/000001/ })).toBeInTheDocument();

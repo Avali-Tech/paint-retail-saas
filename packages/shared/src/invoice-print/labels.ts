@@ -57,6 +57,9 @@ export const INVOICE_LABEL_KEYS = [
   'authorisedSignatory',
   'page',
   'continued',
+  'tint',
+  'base',
+  'formula',
 ] as const;
 
 export type InvoiceLabelKey = (typeof INVOICE_LABEL_KEYS)[number];
@@ -107,6 +110,9 @@ export const INVOICE_LABELS: Readonly<Record<PrintLanguage, InvoiceLabelSet>> = 
     authorisedSignatory: 'Authorised signatory',
     page: 'Page {page} of {pages}',
     continued: 'Continued',
+    tint: 'Tint',
+    base: 'Base',
+    formula: 'Formula',
   },
   hi: {
     taxInvoice: 'टैक्स इनवॉइस',
@@ -152,6 +158,9 @@ export const INVOICE_LABELS: Readonly<Record<PrintLanguage, InvoiceLabelSet>> = 
     authorisedSignatory: 'अधिकृत हस्ताक्षरकर्ता',
     page: 'पेज {page} / {pages}',
     continued: 'जारी',
+    tint: 'टिंट',
+    base: 'बेस',
+    formula: 'फॉर्मूला',
   },
   te: {
     taxInvoice: 'ట్యాక్స్ ఇన్‌వాయిస్',
@@ -197,6 +206,9 @@ export const INVOICE_LABELS: Readonly<Record<PrintLanguage, InvoiceLabelSet>> = 
     authorisedSignatory: 'అధీకృత సంతకందారు',
     page: 'పేజీ {page} / {pages}',
     continued: 'కొనసాగింపు',
+    tint: 'టింట్',
+    base: 'బేస్',
+    formula: 'ఫార్ములా',
   },
 };
 

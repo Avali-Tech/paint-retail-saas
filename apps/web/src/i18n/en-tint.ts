@@ -28,6 +28,11 @@ export const tintEn = {
     removeColorant: 'Remove colorant {number}',
     apply: 'Apply tint',
     remove: 'Remove tint',
+    summary: {
+      shade: 'Tint {shade}',
+      base: 'Base {base}',
+      formula: 'Formula {formula}',
+    },
     problems: {
       shadeCode: 'Enter the shade code (up to 40 characters)',
       tooLong: 'This is too long',

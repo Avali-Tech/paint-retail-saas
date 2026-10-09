@@ -141,6 +141,7 @@ export const draftLine = (overrides: Partial<TaxDocumentLineView> = {}): TaxDocu
   taxablePaise: 0,
   taxCategoryId: null,
   rateBps: null,
+  taxNature: null,
   cgstPaise: 0,
   sgstPaise: 0,
   igstPaise: 0,
@@ -190,6 +191,7 @@ export const document = (overrides: Partial<TaxDocumentView> = {}): TaxDocumentV
 
 /** An issued intra-state invoice for one Apex 20 l, paid in full. */
 export const ISSUED: IssuedInvoiceView = {
+  print: { bank: null, terms: [], aggregateTurnoverPaise: 0 },
   payments: [],
   paidPaise: 1_045_000,
   outstandingPaise: 0,
@@ -221,6 +223,7 @@ export const ISSUED: IssuedInvoiceView = {
         hsnCode: '3209',
         uqc: 'LTR',
         rateBps: 1800,
+        taxNature: 'taxable',
         taxablePaise: 885_593,
         totalPaise: 1_044_999,
       }),

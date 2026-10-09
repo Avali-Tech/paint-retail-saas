@@ -5,14 +5,15 @@ import {
   type Discount,
   type GstRate,
   type InvoiceView,
+  type IssuedInvoiceView,
   type PrintAddress,
   type SecondLanguage,
-  type TaxDocumentView,
 } from '@paint/shared';
 
 // An issued bill as round 2b's templates print it. The issue snapshots every line's
-// rate, price and discount, so the engine's `Invoice` is worked out again from the
-// document (the same inputs give the same figures), then joined to its header data.
+// rate (with its nature: exempt or nil-rated at 0%), price and discount, so the
+// engine's `Invoice` is worked out again from the document (the same inputs give the
+// same figures), then joined to its header data and the business's print settings.
 
 const discountOf = (bps: number | null, paise: number | null): Discount | null => {
   if (bps !== null) return { kind: 'percent', basisPoints: bps };
@@ -26,19 +27,26 @@ const address = (text: string | null, stateCode: string): PrintAddress => ({
   stateCode,
 });
 
-/** The print view of an issued invoice or bill of supply, labels also in `secondLanguage`. */
+/**
+ * The print view of an issued invoice or bill of supply, labels also in
+ * `secondLanguage`, under the business's logo (an image address; null for none).
+ */
 export function printViewOf(
-  document: TaxDocumentView,
+  document: IssuedInvoiceView,
   secondLanguage: SecondLanguage | null,
+  logoUrl: string | null,
 ): InvoiceView {
   // An issued document always has its supplier snapshot, number, date and place of supply.
   const supplierState = String(document.supplier.stateCode);
   const placeOfSupply = String(document.placeOfSupplyCode);
   const composition = document.kind === 'bill_of_supply';
-  const code = (rateBps: number | null) => `rate:${String(rateBps)}`;
+  // A bill of supply's lines have no rate, so no nature either; the engine taxes none.
+  const natureOf = (line: (typeof document.lines)[number]) => line.taxNature ?? 'nil_rated';
+  const code = (line: (typeof document.lines)[number]) =>
+    `${natureOf(line)}:${String(line.rateBps)}`;
   const rates: GstRate[] = document.lines.map((line) => ({
-    categoryCode: code(line.rateBps),
-    nature: Number(line.rateBps) > 0 ? 'taxable' : 'nil_rated',
+    categoryCode: code(line),
+    nature: natureOf(line),
     rateBasisPoints: Number(line.rateBps),
     cessBasisPoints: 0,
     effectiveFrom: '2017-07-01',
@@ -56,7 +64,7 @@ export function printViewOf(
     },
     pricesIncludeTax: document.priceMode === 'inclusive',
     lines: document.lines.map((line) => ({
-      categoryCode: code(line.rateBps),
+      categoryCode: code(line),
       quantity: line.quantity,
       unitPricePaise: line.unitPricePaise,
       discount: discountOf(line.discountBps, line.discountPaise),
@@ -99,14 +107,22 @@ export function printViewOf(
       variant: null,
       hsnCode: String(line.hsnCode),
       uqc: String(line.uqc),
+      tint:
+        line.tint === undefined
+          ? null
+          : {
+              shadeCode: line.tint.shadeCode,
+              shadeName: line.tint.shadeName,
+              base: line.description,
+              formula: line.tint.formula,
+            },
     })),
-    // Not known at the counter: the HSN digits rule is checked when the bill is issued.
-    aggregateTurnoverPaise: 0,
+    aggregateTurnoverPaise: document.print.aggregateTurnoverPaise,
     reverseCharge: document.reverseCharge,
-    logoUrl: null,
+    logoUrl,
     notes: [],
-    terms: [],
-    bank: null,
+    terms: document.print.terms,
+    bank: document.print.bank,
     signatoryName: null,
     secondLanguage,
   });

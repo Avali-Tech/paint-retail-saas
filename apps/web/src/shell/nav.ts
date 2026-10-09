@@ -98,6 +98,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: 'settings',
     permission: 'tax:read',
   },
+  {
+    key: 'invoicePrint',
+    label: 'print.settings.title',
+    path: '/settings/invoice-print',
+    icon: 'settings',
+    permission: 'organization:manage',
+  },
   ...SUPPORT_ACCESS_NAV_ITEMS,
 ];
 

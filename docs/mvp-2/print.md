@@ -37,12 +37,19 @@ flowchart LR
 | `number`, `issuedOn`                                        | `number`, `issued_on`                                                                |
 | `supplier`                                                  | supplier snapshot (GSTIN, state, legal name, address) + store's trade name and phone |
 | `buyer`, `shipTo`                                           | buyer snapshot (`gstin` null when unregistered) and ship-to snapshot                 |
-| `lines[i]`                                                  | `tax_document_lines`: description, `variantName(variant)`, `hsn_code`, `uqc`         |
+| `lines[i]`                                                  | `tax_document_lines`: description, `variantName(variant)`, `hsn_code`, `uqc`, tint   |
 | `aggregateTurnoverPaise`                                    | the GSTIN profile's turnover band (§2.7)                                             |
 | `reverseCharge`                                             | `reverse_charge` (always false)                                                      |
 | `copy`                                                      | chosen at print time                                                                 |
 | `logoUrl`                                                   | `GET /organization/identity` logo address (HTML); the PDF takes the bytes instead    |
 | `notes`, `terms`, `bank`, `signatoryName`, `secondLanguage` | `sales_settings` (round 2a), per store or business                                   |
+
+At the counter (`apps/web/src/pos/print-view.ts`), `POST /invoices/:id/issue` returns `print`
+(`InvoicePrintSettings`: the bank details and terms from `sales_settings`, edited at Settings, Invoice
+print, and the issuing GSTIN's turnover band read as paise), and the logo is the business's own
+(Appearance). Each issued line keeps its `tax_nature` (0068) beside `rate_bps`, so a 0 % line prints as
+exempt or nil-rated as the issue decided. A tinted line prints its shade, base and formula under the
+item on A4, and its shade and formula on one short line on the receipt.
 
 The engine `Invoice` comes from the stored lines through `computeInvoice`, or (round 3) is rebuilt
 from the stored amounts; `buildInvoiceView` refuses a document whose kind, buyer type or line count

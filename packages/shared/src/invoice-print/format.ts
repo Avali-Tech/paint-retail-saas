@@ -1,7 +1,8 @@
 import { gstState } from '../gst/states.js';
 import type { TaxNature } from '../gst/types.js';
 import { paiseToRupees } from '../money.js';
-import type { PrintAddress } from './types.js';
+import type { ColorantUnit, TintFormulaComponent } from '../paint-api.js';
+import type { PrintAddress, PrintLineTint, TintView } from './types.js';
 
 const amountFormatter = new Intl.NumberFormat('en-IN', {
   minimumFractionDigits: 2,
@@ -51,4 +52,36 @@ export function stateLabel(code: string): string {
 export function addressLines(address: PrintAddress): string[] {
   const place = [address.city, address.pincode].filter((part) => part !== null).join(' ');
   return [...address.lines, place].filter((line) => line.trim() !== '');
+}
+
+/** "X 132 · Ivory": a shade code with its name, or the code alone. */
+export function formatShade(code: string, name: string | null): string {
+  return name === null ? code : `${code} · ${name}`;
+}
+
+const COLORANT_UNIT_TEXTS: Readonly<Record<ColorantUnit, string>> = {
+  ml: 'ml',
+  shot: 'shot',
+  y: 'Y',
+  g: 'g',
+};
+
+/** "XY 12 ml, R 3 shot": each colorant and its dose; null for no formula. */
+export function formatFormula(
+  formula: readonly TintFormulaComponent[],
+  unitText: (unit: ColorantUnit) => string = (unit) => COLORANT_UNIT_TEXTS[unit],
+): string | null {
+  if (formula.length === 0) return null;
+  return formula
+    .map((part) => `${part.colorant} ${String(part.amount)} ${unitText(part.unit)}`)
+    .join(', ');
+}
+
+/** A line's tint as printed. */
+export function formatTint(tint: PrintLineTint): TintView {
+  return {
+    shade: formatShade(tint.shadeCode, tint.shadeName),
+    base: tint.base,
+    formula: formatFormula(tint.formula),
+  };
 }

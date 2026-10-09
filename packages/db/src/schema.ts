@@ -3106,6 +3106,18 @@ export const salesSettings = pgTable(
     registerVarianceAlertPaise: bigint('register_variance_alert_paise', { mode: 'number' })
       .notNull()
       .default(0),
+    // Printed on the A4 invoice (spec §5.4): the four bank fields together or none.
+    bankName: text('bank_name'),
+    bankAccountName: text('bank_account_name'),
+    bankAccountNumber: text('bank_account_number'),
+    bankIfsc: text('bank_ifsc'),
+    /** Printed under the bank details, so only with them. */
+    upiId: text('upi_id'),
+    /** Terms and conditions printed on every invoice, in order. */
+    invoiceTerms: text('invoice_terms')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -3117,6 +3129,15 @@ export const salesSettings = pgTable(
     check('sales_settings_quote_validity', sql`${table.quoteValidityDays} between 1 and 365`),
     check('sales_settings_advance_pct', sql`${table.partialMinAdvancePct} between 0 and 100`),
     check('sales_settings_variance_alert', sql`${table.registerVarianceAlertPaise} >= 0`),
+    check(
+      'sales_settings_bank_complete',
+      sql`num_nonnulls(${table.bankName}, ${table.bankAccountName}, ${table.bankAccountNumber}, ${table.bankIfsc}) in (0, 4)`,
+    ),
+    check(
+      'sales_settings_upi_with_bank',
+      sql`${table.upiId} is null or ${table.bankName} is not null`,
+    ),
+    check('sales_settings_invoice_terms', sql`cardinality(${table.invoiceTerms}) <= 10`),
     pgPolicy('sales_settings_tenant_isolation', {
       for: 'all',
       to: tenantRole,
@@ -3177,6 +3198,8 @@ export const documentSeries = pgTable(
 ).enableRLS();
 
 export const taxDocumentStatus = pgEnum('tax_document_status', ['draft', 'issued', 'cancelled']);
+/** A line's GST nature: a 0% rate is nil-rated or exempt, and the two are reported apart. */
+export const taxNature = pgEnum('tax_nature', ['taxable', 'nil_rated', 'exempt', 'non_gst']);
 export const supplyType = pgEnum('supply_type', ['intra_state', 'inter_state']);
 /** GSTR-1 table a sale is reported in (Rule 59(4)). */
 export const gstClass = pgEnum('gst_class', ['b2b', 'b2cl', 'b2cs']);
@@ -3441,6 +3464,8 @@ export const taxDocumentLines = pgTable(
     taxCategoryId: uuid('tax_category_id'),
     /** Null on a bill of supply (no tax) and on drafts. */
     rateBps: integer('rate_bps'),
+    /** The rate's nature, as issue decided it; null exactly when the rate is. */
+    taxNature: taxNature('tax_nature'),
     cessBps: integer('cess_bps'),
     cgstPaise: bigint('cgst_paise', { mode: 'number' }).notNull().default(0),
     sgstPaise: bigint('sgst_paise', { mode: 'number' }).notNull().default(0),
@@ -3486,6 +3511,10 @@ export const taxDocumentLines = pgTable(
     }).onDelete('restrict'),
     check('tax_document_lines_line_no_positive', sql`${table.lineNo} > 0`),
     check('tax_document_lines_quantity_positive', sql`${table.quantity} > 0`),
+    check(
+      'tax_document_lines_nature_with_rate',
+      sql`(${table.taxNature} is null) = (${table.rateBps} is null)`,
+    ),
     check(
       'tax_document_lines_amounts',
       sql`${table.unitPricePaise} >= 0 and ${table.grossPaise} >= 0 and ${table.taxablePaise} >= 0
@@ -4188,6 +4217,12 @@ export const payments = pgTable(
  * a refund. Append-only; a negative row undoes an earlier one. A trigger
  * (migration 0058) keeps every source and target within its amount.
  */
+/** Why an allocation was undone: by hand, or because its cheque bounced (spec §4.6). */
+export const allocationReversalReason = pgEnum('allocation_reversal_reason', [
+  'undone',
+  'cheque_bounce',
+]);
+
 export const allocations = pgTable(
   'allocations',
   {
@@ -4202,6 +4237,8 @@ export const allocations = pgTable(
     refundPaymentId: uuid('refund_payment_id'),
     amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
     reversesAllocationId: uuid('reverses_allocation_id'),
+    /** Set exactly on a reversing row. */
+    reversalReason: allocationReversalReason('reversal_reason'),
     createdByMemberId: uuid('created_by_member_id'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
@@ -4281,6 +4318,10 @@ export const allocations = pgTable(
         and (${table.reversesAllocationId} is null) = (${table.amountPaise} > 0)`,
     ),
     check('allocations_not_self', sql`${table.paymentId} <> ${table.refundPaymentId}`),
+    check(
+      'allocations_reversal_reason',
+      sql`(${table.reversalReason} is null) = (${table.reversesAllocationId} is null)`,
+    ),
     pgPolicy('allocations_tenant_isolation', {
       for: 'all',
       to: tenantRole,
@@ -4302,8 +4343,9 @@ export const tallyLedgerPurpose = pgEnum('tally_ledger_purpose', [
   'party',
   'walk_in',
   'payment_mode',
+  /** Charges recovered from a customer for a bounced cheque (an income ledger). */
+  'bounce_charges',
 ]);
-export const taxNature = pgEnum('tax_nature', ['taxable', 'nil_rated', 'exempt', 'non_gst']);
 
 /**
  * A business's override of a default Tally ledger name (spec §6.1): applies to

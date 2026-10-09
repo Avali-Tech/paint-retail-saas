@@ -129,7 +129,10 @@ describe('InvoicePage', { timeout: 30_000 }, () => {
     ).toBeVisible();
     expect(screen.getByText('Within the state')).toBeVisible();
     const lines = screen.getByRole('table', { name: 'Lines' });
-    expect(lines).toHaveTextContent('Apex Ultima 1 l320910903' + '18%₹300.00₹54.00₹354.00');
+    expect(lines).toHaveTextContent(
+      'Apex Ultima 1 lTint X 132 · Ivory Mist · Base Apex Ultima 1 l · Formula XY 12 ml320910903' +
+        '18%₹300.00₹54.00₹354.00',
+    );
     expect(screen.getAllByRole('definition').map((node) => node.textContent)).toContain(
       '₹1,354.00',
     );

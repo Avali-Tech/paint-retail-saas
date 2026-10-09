@@ -3,7 +3,9 @@ import type {
   NoteKind,
   NotePage,
   NoteView,
+  PrintBankDetails,
   ReturnDisposition,
+  SalesSettingsView,
   SalesReturnView,
   TaxDocumentPage,
   TaxDocumentStatus,
@@ -60,8 +62,18 @@ export interface CreditNoteInput extends ValueNoteInput {
   readonly schemeReference?: string;
 }
 
+/** PUT /sales/settings: what the invoice print settings send (other fields are left as they are). */
+export interface InvoicePrintSettingsInput {
+  readonly invoiceBank: PrintBankDetails | null;
+  readonly invoiceTerms: readonly string[];
+}
+
 export function salesEndpoints(api: ApiClient) {
   return {
+    /** GET /sales/settings (organization:manage). */
+    settings: (signal?: AbortSignal) => api.get<SalesSettingsView>('/sales/settings', { signal }),
+    saveSettings: (input: InvoicePrintSettingsInput) =>
+      api.put<SalesSettingsView>('/sales/settings', input),
     /** Tax invoices and bills of supply only: notes have their own list. */
     invoices: (query: InvoiceQuery, signal?: AbortSignal) =>
       api.get<TaxDocumentPage>('/invoices', {

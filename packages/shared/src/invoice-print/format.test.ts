@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   addressLines,
   formatAmount,
+  formatFormula,
   formatPrintDate,
   formatQuantity,
   formatRate,
+  formatShade,
+  formatTint,
   stateLabel,
 } from './format.js';
 
@@ -57,5 +60,32 @@ describe('print formats', () => {
     expect(
       addressLines({ lines: ['Ameerpet'], city: null, pincode: null, stateCode: '36' }),
     ).toEqual(['Ameerpet']);
+  });
+});
+
+describe('tint formats', () => {
+  it('writes a shade with its name, or the code alone', () => {
+    expect(formatShade('X 132', 'Ivory')).toBe('X 132 · Ivory');
+    expect(formatShade('X 132', null)).toBe('X 132');
+  });
+
+  it('writes a formula colorant by colorant, in its own units or the caller’s', () => {
+    const formula = [
+      { colorant: 'XY', amount: 12.5, unit: 'ml' },
+      { colorant: 'R', amount: 3, unit: 'shot' },
+      { colorant: 'B', amount: 2, unit: 'y' },
+      { colorant: 'W', amount: 1, unit: 'g' },
+    ] as const;
+    expect(formatFormula(formula)).toBe('XY 12.5 ml, R 3 shot, B 2 Y, W 1 g');
+    expect(formatFormula(formula.slice(0, 1), (unit) => unit.toUpperCase())).toBe('XY 12.5 ML');
+    expect(formatFormula([])).toBeNull();
+  });
+
+  it('prints a tint as shade, base and formula', () => {
+    expect(formatTint({ shadeCode: 'X 1', shadeName: null, base: null, formula: [] })).toEqual({
+      shade: 'X 1',
+      base: null,
+      formula: null,
+    });
   });
 });

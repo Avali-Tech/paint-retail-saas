@@ -3,6 +3,8 @@
  * GSTR-1 class of a sale and the shapes the API returns. The tax itself comes
  * from the GST engine (./gst).
  */
+import type { TaxNature } from './gst/types.js';
+import type { PrintBankDetails } from './invoice-print/types.js';
 import type { ListPageInfo } from './list-page.js';
 import type { LineTintView } from './paint-api.js';
 
@@ -28,6 +30,14 @@ export type StockPostOn = (typeof STOCK_POST_ON)[number];
 
 export const AATO_BANDS = ['up_to_5cr', 'above_5cr'] as const;
 export type AatoBand = (typeof AATO_BANDS)[number];
+
+/** A turnover just above ₹5 crore: how the `above_5cr` band reads for the HSN digits rule (§2.7). */
+const ABOVE_5_CRORE_PAISE = 5_00_00_000_00 + 1;
+
+/** The aggregate turnover a band stands for, as requiredHsnDigits reads it. */
+export function aatoTurnoverPaise(band: AatoBand): number {
+  return band === 'above_5cr' ? ABOVE_5_CRORE_PAISE : 0;
+}
 
 export type GstClass = 'b2b' | 'b2cl' | 'b2cs';
 
@@ -139,6 +149,8 @@ export interface TaxDocumentLineView {
   readonly taxablePaise: number;
   readonly taxCategoryId: string | null;
   readonly rateBps: number | null;
+  /** The rate's nature as issued (0% exempt or nil-rated); null exactly when the rate is. */
+  readonly taxNature: TaxNature | null;
   readonly cgstPaise: number;
   readonly sgstPaise: number;
   readonly igstPaise: number;
@@ -246,7 +258,26 @@ export interface SalesSettingsView {
   readonly cashNeedsRegister: boolean;
   /** A register closing further off than this (paise) tells the branch managers. */
   readonly registerVarianceAlertPaise: number;
+  /** Printed on the A4 invoice (spec §5.4); null when not given. */
+  readonly invoiceBank: PrintBankDetails | null;
+  /** Terms and conditions printed on every invoice, in order (at most INVOICE_TERMS_MAX). */
+  readonly invoiceTerms: readonly string[];
 }
+
+/** At most this many terms, each at most INVOICE_TERM_MAX_LENGTH characters. */
+export const INVOICE_TERMS_MAX = 10;
+export const INVOICE_TERM_MAX_LENGTH = 200;
+
+const IFSC = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+const BANK_ACCOUNT = /^[0-9]{9,18}$/;
+const UPI_ID = /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z][a-zA-Z0-9]{1,63}$/;
+
+/** An Indian Financial System Code: 4 letters, 0, then 6 letters or digits ("HDFC0001234"). */
+export const isValidIfsc = (ifsc: string): boolean => IFSC.test(ifsc);
+/** A bank account number as Indian banks issue them: 9 to 18 digits. */
+export const isValidBankAccount = (account: string): boolean => BANK_ACCOUNT.test(account);
+/** A UPI ID (virtual payment address), e.g. "sharmapaints@okhdfc". */
+export const isValidUpiId = (upiId: string): boolean => UPI_ID.test(upiId);
 
 export interface GstinProfileView {
   readonly gstin: string;

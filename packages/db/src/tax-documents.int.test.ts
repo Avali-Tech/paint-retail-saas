@@ -160,6 +160,7 @@ async function issue(t: Tenant, document: string): Promise<void> {
         grossPaise: 23_600,
         taxablePaise: 20_000,
         rateBps: 1800,
+        taxNature: 'taxable',
         cgstPaise: 1_800,
         sgstPaise: 1_800,
         totalPaise: 23_600,

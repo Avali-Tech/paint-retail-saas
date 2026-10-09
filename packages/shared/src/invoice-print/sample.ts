@@ -36,7 +36,18 @@ const RATES: readonly GstRate[] = [
 ];
 
 const ITEMS: readonly (PrintLineDetail & Omit<LineInput, 'categoryCode'>)[] = [
-  item('Asian Paints Apex Ultima', '10 l', '32091090', 2, 6_450_00),
+  {
+    ...item('Asian Paints Apex Ultima', '10 l', '32091090', 2, 6_450_00),
+    tint: {
+      shadeCode: 'X 132',
+      shadeName: 'Ivory Mist',
+      base: 'Apex Ultima Pastel Base',
+      formula: [
+        { colorant: 'XY', amount: 12, unit: 'ml' },
+        { colorant: 'R', amount: 3, unit: 'shot' },
+      ],
+    },
+  },
   {
     ...item('Asian Paints Tractor Emulsion', '4 l', '32091090', 3, 1_180_00),
     discount: { kind: 'percent', basisPoints: 500 },
@@ -54,7 +65,16 @@ function item(
   quantity: number,
   unitPricePaise: number,
 ) {
-  return { description, variant, hsnCode, uqc: 'NOS', quantity, unitPricePaise, discount: null };
+  return {
+    description,
+    variant,
+    hsnCode,
+    uqc: 'NOS',
+    tint: null,
+    quantity,
+    unitPricePaise,
+    discount: null,
+  };
 }
 
 const BUYERS = {
@@ -127,11 +147,12 @@ export function sampleInvoice(options: SampleInvoiceOptions = {}): {
     },
     buyer,
     shipTo: null,
-    lines: items.map(({ description, variant, hsnCode, uqc }) => ({
+    lines: items.map(({ description, variant, hsnCode, uqc, tint }) => ({
       description,
       variant,
       hsnCode,
       uqc,
+      tint,
     })),
     aggregateTurnoverPaise: 3_00_00_000_00,
     reverseCharge: false,

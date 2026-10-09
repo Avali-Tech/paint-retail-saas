@@ -18,6 +18,7 @@ import { STATUS_TONE } from '../sales/InvoicesPage.js';
 import { TaxTotals } from '../sales/TaxTotals.js';
 import { storeLabel } from '../stock/StoreSelect.js';
 import { useStores } from '../stock/stores.js';
+import { TintSummary } from '../tint/TintSummary.js';
 import { DocumentFacts } from './DocumentFacts.js';
 import { OrderAvailability } from './OrderAvailability.js';
 import { OrderCreditPanel } from './OrderCredit.js';
@@ -72,6 +73,7 @@ function OrderLines({
             <th scope="row">
               {line.description}
               <span className="cell-meta">{line.sku}</span>
+              {line.tint !== undefined && <TintSummary tint={line.tint} base={line.description} />}
             </th>
             <td>{storeName(line.fulfilStoreId)}</td>
             <td>{number(line.quantity)}</td>

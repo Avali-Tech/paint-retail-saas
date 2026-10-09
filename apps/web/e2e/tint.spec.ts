@@ -138,6 +138,10 @@ test('a contractor’s repeat order at Kukatpally finds the shade billed at Amee
     .getByRole('button', { name: 'Issue bill' })
     .click();
   await expect(page.getByRole('dialog', { name: /^Bill AMP\// })).toBeVisible();
+  // The receipt prints the shade and formula on one short line under the item.
+  await expect(page.getByTestId('print-layer')).toContainText(
+    'Tint X 132 · Ivory Mist · XY 12.5 ml',
+  );
 
   // Kukatpally: a new order for the same contractor picks the same shade.
   await page.goto('/sales-orders/new');
@@ -158,6 +162,9 @@ test('a contractor’s repeat order at Kukatpally finds the shade billed at Amee
   await repeat.getByRole('button', { name: 'Apply tint' }).click();
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('heading', { name: /^Sales order SO-/, level: 1 })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Lines' })).toContainText(
+    /Tint X 132 · Ivory Mist · Base .+ · Formula XY 12\.5 ml/,
+  );
 
   const history = await call<{ items: { store: { name: string }; shadeCode: string }[] }>(
     'GET',

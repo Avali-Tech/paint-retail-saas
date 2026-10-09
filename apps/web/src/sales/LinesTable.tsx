@@ -1,6 +1,7 @@
 import { Table } from '@paint/ui';
 import type { TaxDocumentLineView } from '@paint/shared';
 import { useI18n } from '../i18n/i18n.js';
+import { TintSummary } from '../tint/TintSummary.js';
 
 /** What the table shows of a line (an invoice's, a note's, a quotation's or an order's). */
 export type LinesTableLine = Pick<
@@ -16,9 +17,13 @@ export type LinesTableLine = Pick<
   | 'igstPaise'
   | 'cessPaise'
   | 'totalPaise'
+  | 'tint'
 >;
 
-/** The lines of an invoice, a note, a quotation or an order: item, HSN, quantity, rate and amounts. */
+/**
+ * The lines of an invoice, a note, a quotation or an order: item (with its tint),
+ * HSN, quantity, rate and amounts.
+ */
 export function LinesTable({ lines }: { readonly lines: readonly LinesTableLine[] }) {
   const { t, money, number } = useI18n();
   return (
@@ -37,7 +42,10 @@ export function LinesTable({ lines }: { readonly lines: readonly LinesTableLine[
       <tbody>
         {lines.map((line) => (
           <tr key={line.id}>
-            <th scope="row">{line.description ?? t('common.none')}</th>
+            <th scope="row">
+              {line.description ?? t('common.none')}
+              {line.tint !== undefined && <TintSummary tint={line.tint} base={line.description} />}
+            </th>
             <td>{line.hsnCode ?? t('common.none')}</td>
             <td>{number(line.quantity)}</td>
             <td>

@@ -126,6 +126,7 @@ export class PaymentsService {
         partyLedgerId: row.partyLedgerId,
         amountPaise: -row.amountPaise,
         reversesAllocationId: row.id,
+        reversalReason: 'undone',
         createdByMemberId: auth.memberId,
       });
       await adjustPartyAdvance(tx, payment.partyId, row.amountPaise);
@@ -192,6 +193,7 @@ export class PaymentsService {
             partyLedgerId: row.partyLedgerId,
             amountPaise: -row.amountPaise,
             reversesAllocationId: row.id,
+            reversalReason: 'cheque_bounce' as const,
             createdByMemberId: auth.memberId,
           })),
         );

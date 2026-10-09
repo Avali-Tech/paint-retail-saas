@@ -8,9 +8,12 @@
 export {
   addressLines,
   formatAmount,
+  formatFormula,
   formatPrintDate,
   formatQuantity,
   formatRate,
+  formatShade,
+  formatTint,
   stateLabel,
 } from './format.js';
 export {

@@ -504,7 +504,7 @@ describe('allocations', () => {
       /allocations are append-only/,
     );
 
-    const reverse = (amountPaise: number) =>
+    const reverse = (amountPaise: number, reversalReason: 'undone' | null = 'undone') =>
       withTenant(connection.db, a.org, (tx) =>
         tx.insert(allocations).values({
           organizationId: a.org,
@@ -513,9 +513,12 @@ describe('allocations', () => {
           documentId: document,
           amountPaise,
           reversesAllocationId: row,
+          reversalReason,
         }),
       );
     expect(await failureMessage(reverse(-100))).toMatch(/a reversal must undo exactly one/);
+    // A reversal always says why.
+    expect(await failureMessage(reverse(-20_000, null))).toMatch(/allocations_reversal_reason/);
     await reverse(-20_000);
     await withTenant(connection.db, a.org, (tx) => adjustPartyAdvance(tx, a.party, 20_000));
     expect(await failureMessage(reverse(-20_000))).toMatch(/allocations_reverses_unique/);

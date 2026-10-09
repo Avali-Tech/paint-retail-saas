@@ -197,6 +197,47 @@ test('a 3-item walk-in sale is billed and printed in under 60 seconds', async ({
   ]);
 });
 
+test('the counter prints the bank details and terms the owner set', async ({ page }) => {
+  const shop = await counter('Bank Print Paints');
+  await stubPrint(page);
+  await signInWithPassword(page, shop.business.ownerPhone);
+  await expect(page.locator('.shell__header')).toBeVisible();
+
+  // Settings, Invoice print: the bank details and terms the A4 invoice prints.
+  await page.goto('/settings/invoice-print');
+  await expect(page.getByRole('heading', { name: 'Invoice print', level: 1 })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Bank and branch' }).fill('HDFC Bank, Ameerpet');
+  await page.getByRole('textbox', { name: 'Account name' }).fill('Bank Print Paints LLP');
+  await page.getByRole('textbox', { name: 'Account number' }).fill('50100123456789');
+  await page.getByRole('textbox', { name: 'IFSC' }).fill('hdfc0001234');
+  await page.getByRole('textbox', { name: /^UPI ID/ }).fill('bankprint@hdfc');
+  await page.getByRole('textbox', { name: /^Terms/ }).fill('No returns on tinted paint.');
+  await expectUsable(page);
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByText('Invoice print settings saved')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'IFSC' })).toHaveValue('HDFC0001234');
+
+  await page.goto('/pos');
+  const scan = page.getByRole('combobox', { name: 'Scan or search' });
+  await scan.fill(APEX_BARCODE);
+  await scan.press('Enter');
+  await page.getByRole('button', { name: /^Pay ₹10,450\.00/ }).click();
+  await page
+    .getByRole('dialog', { name: 'Payment' })
+    .getByRole('button', { name: 'Issue bill' })
+    .click();
+  const issued = page.getByRole('dialog', { name: /^Bill AMP\/\d{2}-\d{2}\/000001 issued$/ });
+  await expect(issued).toBeVisible();
+  await issued.getByRole('button', { name: 'Print A4' }).click();
+  await expect.poll(() => printed(page)).toBe(2);
+  const a4 = page.getByTestId('print-layer');
+  await expect(a4).toHaveAttribute('data-format', 'a4');
+  await expect(a4).toContainText('HDFC Bank, Ameerpet');
+  await expect(a4).toContainText('IFSC HDFC0001234');
+  await expect(a4).toContainText('UPI: bankprint@hdfc');
+  await expect(a4).toContainText('No returns on tinted paint.');
+});
+
 test('a bill is held with F4, resumed from the tray, and the counter passes axe', async ({
   page,
 }) => {

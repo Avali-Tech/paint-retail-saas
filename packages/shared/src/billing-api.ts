@@ -1,5 +1,6 @@
 import type { ListPageInfo } from './list-page.js';
 import type { Discount } from './gst/types.js';
+import type { PrintBankDetails } from './invoice-print/types.js';
 import type { LineTintRequest } from './paint-api.js';
 import type { TallyParty, TallyReceipt } from './tally/types.js';
 import type { TaxDocumentKind, TaxDocumentView } from './tax-documents.js';
@@ -160,6 +161,10 @@ export interface RefundRequest {
   readonly note?: string;
 }
 
+/** Why an allocation was undone: by hand (`undone`), or its cheque bounced (`cheque_bounce`). */
+export const ALLOCATION_REVERSAL_REASONS = ['undone', 'cheque_bounce'] as const;
+export type AllocationReversalReason = (typeof ALLOCATION_REVERSAL_REASONS)[number];
+
 /** One allocation row: positive puts money against a document, negative undoes an earlier row. */
 export interface AllocationView {
   readonly id: string;
@@ -172,6 +177,8 @@ export interface AllocationView {
   readonly targetNumber: string | null;
   readonly amountPaise: number;
   readonly reversesAllocationId: string | null;
+  /** Why a reversing row undid its allocation; null on an ordinary row. */
+  readonly reversalReason: AllocationReversalReason | null;
   /** True once a later row has undone this one. */
   readonly reversed: boolean;
   readonly createdAt: string;
@@ -268,8 +275,23 @@ export interface IssueInvoiceRequest {
   readonly allocateAdvances?: boolean;
 }
 
+/**
+ * What printing an invoice needs from the business, beside the document itself
+ * (spec §5.4): the business's settings as they were when it was issued.
+ */
+export interface InvoicePrintSettings {
+  /** Bank details from the sales settings; null when none are given. */
+  readonly bank: PrintBankDetails | null;
+  /** Terms and conditions from the sales settings, in order. */
+  readonly terms: readonly string[];
+  /** The issuing GSTIN's aggregate turnover band, read for the HSN digits rule (§2.7). */
+  readonly aggregateTurnoverPaise: number;
+}
+
 /** What POST /invoices/:id/issue returns: the invoice, its payments and what is still due. */
 export interface IssuedInvoiceView extends TaxDocumentView {
+  /** For printing it at the counter. */
+  readonly print: InvoicePrintSettings;
   readonly payments: PaymentView[];
   /** Advances and payments allocated to this invoice. */
   readonly paidPaise: number;

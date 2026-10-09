@@ -487,6 +487,7 @@ export class NoteIssueService {
         taxablePaise: line.taxablePaise,
         taxCategoryId: source.taxCategoryId,
         rateBps: source.rateBps,
+        taxNature: source.taxNature,
         cessBps: source.cessBps,
         cgstPaise: line.cgstPaise,
         sgstPaise: line.sgstPaise,
