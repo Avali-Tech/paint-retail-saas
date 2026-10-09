@@ -298,14 +298,14 @@ describe('QuotationPage', { timeout: 30_000 }, () => {
     expect(screen.getByRole('link', { name: 'Share on WhatsApp' })).toHaveAttribute(
       'href',
       `https://wa.me/919876543210?text=${encodeURIComponent(
-        'ABC Paints: quotation QT-000042 v1 for ₹15,000.00, valid until 22 Oct 2026. Ask us for the PDF.',
+        'ABC Paints: quotation QT-000042 v1 for ₹15,000.00, valid until 22 Oct 2026. The PDF follows in this chat.',
       )}`,
     );
     expect(
       within(screen.getByRole('region', { name: 'Versions' })).getByText('v1'),
     ).toHaveAttribute('aria-current', 'page');
 
-    await user.click(screen.getByRole('button', { name: 'Print or save as PDF' }));
+    await user.click(screen.getByRole('button', { name: 'Print' }));
     const layer = screen.getByTestId('quotation-print');
     expect(print).toHaveBeenCalledTimes(1);
     expect(layer).toHaveTextContent('Quotation');
@@ -352,7 +352,7 @@ describe('QuotationPage', { timeout: 30_000 }, () => {
       expect.stringMatching(/^https:\/\/wa\.me\/\?text=/),
     );
     expect(screen.getByRole('link', { name: 'v1' })).toHaveAttribute('href', '/quotations/quote-1');
-    await user.click(screen.getByRole('button', { name: 'Print or save as PDF' }));
+    await user.click(screen.getByRole('button', { name: 'Print' }));
     const layer = screen.getByTestId('quotation-print');
     expect(layer).not.toHaveTextContent('GSTIN');
     expect(layer).not.toHaveTextContent('Site and delivery');
@@ -478,7 +478,7 @@ describe('QuotationPage', { timeout: 30_000 }, () => {
     const tint = 'Tint X 132 · Ivory Mist · Base Asian Paints Apex Ultima 20 l · Formula XY 12 ml';
     expect(screen.getByRole('table', { name: 'Lines' })).toHaveTextContent(tint);
     vi.spyOn(window, 'print').mockImplementation(() => undefined);
-    await first.user.click(screen.getByRole('button', { name: 'Print or save as PDF' }));
+    await first.user.click(screen.getByRole('button', { name: 'Print' }));
     expect(screen.getByTestId('quotation-print')).not.toHaveTextContent('Ameerpet');
     expect(screen.getByTestId('quotation-print')).toHaveTextContent(tint);
     expect(screen.queryByRole('button', { name: 'Convert to order' })).toBeNull();
@@ -492,6 +492,49 @@ describe('QuotationPage', { timeout: 30_000 }, () => {
     expect(await screen.findByRole('button', { name: 'Revise' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Convert to order' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Customer accepted' })).toBeNull();
+  });
+
+  it('downloads the server’s PDF in the member’s language, and says when it cannot', async () => {
+    Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:quote'), revokeObjectURL: vi.fn() });
+    const names: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function record(
+      this: HTMLAnchorElement,
+    ) {
+      names.push(this.download);
+    });
+    let answer = 0;
+    const { user, requests } = renderApp({
+      path: '/quotations/quote-1',
+      routes: editorRoutes({
+        'GET /quotations/:id/pdf': () => {
+          answer += 1;
+          if (answer === 1) {
+            return {
+              status: 200,
+              raw: '%PDF-1.7',
+              headers: { 'content-disposition': 'attachment; filename="QT-000042-v1.pdf"' },
+            };
+          }
+          if (answer === 2) return { status: 200, raw: '%PDF-1.7' };
+          return json({ statusCode: 404, message: 'Quotation not found' }, 404);
+        },
+      }),
+    });
+    const download = await screen.findByRole('button', { name: 'Download PDF' });
+    await user.click(download);
+    await waitFor(() => {
+      expect(names).toEqual(['QT-000042-v1.pdf']);
+    });
+    const pdf = requests.find((request) => request.path === '/quotations/quote-1/pdf');
+    expect(pdf?.query.toString()).toBe('lang=en');
+    // Without a file name from the server, the number and version name it.
+    await user.click(download);
+    await waitFor(() => {
+      expect(names).toEqual(['QT-000042-v1.pdf', 'QT-000042-v1.pdf']);
+    });
+    await user.click(download);
+    expect(await screen.findByText('Quotation not found')).toBeVisible();
+    expect(download).toBeEnabled();
   });
 
   it('says when a quotation cannot be loaded', async () => {

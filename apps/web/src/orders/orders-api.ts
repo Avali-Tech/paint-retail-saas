@@ -61,6 +61,9 @@ export function ordersEndpoints(api: ApiClient) {
     reviseQuotation: (id: string) => api.post<QuotationView>(`/quotations/${id}/revise`),
     sendQuotation: (id: string) => api.post<QuotationView>(`/quotations/${id}/send`),
     acceptQuotation: (id: string) => api.post<QuotationView>(`/quotations/${id}/accept`),
+    /** The quotation as an A4 PDF, labels in English and `lang` (Hindi or Telugu) under them. */
+    quotationPdf: (id: string, lang: 'en' | 'hi' | 'te') =>
+      api.download(`/quotations/${id}/pdf`, { query: { lang } }),
     convertQuotation: (id: string, input: ConvertQuotationRequest, idempotencyKey: string) =>
       api.post<SalesOrderView>(`/quotations/${id}/convert`, input, keyed(idempotencyKey)),
 

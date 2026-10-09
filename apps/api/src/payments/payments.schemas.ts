@@ -108,6 +108,8 @@ export const partyLedgerQuerySchema = z.object({
   to: isoDate.optional(),
   /** Entries per page (round 6c): a busy contractor's account has thousands. */
   limit: z.coerce.number().int().min(1).max(500).default(200),
+  /** A page by position, for a shared link; a cursor wins over it. */
+  offset: z.coerce.number().int().min(0).default(0),
   cursor: cursorParam(LEDGER_ORDER),
 });
 export type PartyLedgerQuery = z.output<typeof partyLedgerQuerySchema>;

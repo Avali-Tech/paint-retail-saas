@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { expectUsable } from './checks.js';
 import { openingStock } from './inventory-support.js';
@@ -152,8 +153,19 @@ test('quote v1 → v2 → order → reservation → partial invoice → dispatch
   await expect(page.getByRole('region', { name: 'Versions' })).toContainText('Revised');
   await page.getByRole('button', { name: 'Mark as sent' }).click();
   await expect(page.getByRole('button', { name: 'Convert to order' })).toBeVisible();
-  await page.getByRole('button', { name: 'Print or save as PDF' }).click();
+  await page.getByRole('button', { name: 'Print', exact: true }).click();
   await expect(page.getByTestId('quotation-print')).toContainText('This is a quotation');
+  // The server's PDF, to attach to the WhatsApp message.
+  const [pdf] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Download PDF' }).click(),
+  ]);
+  expect(pdf.suggestedFilename()).toMatch(/^QT-\d+-v2\.pdf$/);
+  expect(
+    readFileSync(await pdf.path())
+      .subarray(0, 5)
+      .toString(),
+  ).toBe('%PDF-');
 
   await page.getByRole('button', { name: 'Convert to order' }).click();
   await page.getByRole('button', { name: 'Make the order' }).click();

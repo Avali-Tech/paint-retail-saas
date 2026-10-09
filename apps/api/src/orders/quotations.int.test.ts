@@ -8,6 +8,7 @@ import type {
 } from '@paint/shared';
 import { createIsolatedDatabase, type TestDatabase } from '@paint/testing';
 import { sql } from 'drizzle-orm';
+import { extractText, getDocumentProxy } from 'unpdf';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import {
   api,
@@ -453,6 +454,50 @@ describe('POST /quotations/:id/convert', () => {
       paymentTerms: 'prepaid',
     });
     expect(order.lines[0]?.fulfilStoreId).toBe(b.stores.amp);
+  });
+});
+
+describe('GET /quotations/:id/pdf', () => {
+  const textOf = async (body: Buffer) =>
+    (await extractText(await getDocumentProxy(new Uint8Array(body)))).text
+      .join(' ')
+      .replace(/\s+/g, ' ');
+
+  it('draws the quotation as an A4 PDF for members who may read it', async () => {
+    const created = await create({
+      influencerPartyId: painter,
+      projectId: site,
+      note: 'Two coats',
+    });
+    const reply = ok(await owner().get(`/quotations/${created.id}/pdf`));
+    expect(reply.headers['content-type']).toBe('application/pdf');
+    expect(reply.headers['content-disposition']).toContain(`${created.number}-v1.pdf`);
+    expect(reply.headers['cache-control']).toBe('private, no-store');
+    const text = await textOf(reply.rawPayload);
+    for (const expected of [
+      'Quotation',
+      `${created.number} v1`,
+      'Valid until',
+      'Suresh',
+      'Suresh villa',
+      'Plot 4, Beach Road',
+      'Ravi Painter',
+      'Apex Ultima 1 l',
+      'IGST',
+      'Two coats',
+      'This is a quotation, not a tax invoice.',
+    ]) {
+      expect(text).toContain(expected);
+    }
+    expect(text).not.toContain('Tax Invoice');
+
+    const hindi = ok(await owner().get(`/quotations/${created.id}/pdf?lang=hi`));
+    expect(await textOf(hindi.rawPayload)).toContain('पेज 1 / 1');
+    expect(issuesOf(await owner().get(`/quotations/${created.id}/pdf?lang=fr`))).toEqual(['lang']);
+    // Never to a member of another store, nor for a quote that is not there.
+    const kukatpally = await b.member('sales_executive', [b.stores.kkp]);
+    expect((await api(t, kukatpally).get(`/quotations/${created.id}/pdf`)).statusCode).toBe(404);
+    expect((await owner().get(`/quotations/${crypto.randomUUID()}/pdf`)).statusCode).toBe(404);
   });
 });
 

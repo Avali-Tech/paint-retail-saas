@@ -70,7 +70,7 @@ async function bill(
     token,
     body: { storeId, partyId, lines: [{ variantId: brush, quantity }] },
   });
-  return call<{ id: string; totalPaise: number; issuedOn: string }>(
+  return call<{ id: string; number: string; totalPaise: number; issuedOn: string }>(
     'POST',
     `/invoices/${draft.id}/issue`,
     {
@@ -165,7 +165,7 @@ test('a receipt prints as a PDF, and the month goes to Tally once its bank is ma
     },
   });
   // An advance partly paid back, and a cheque the bank returned.
-  const advance = await call<{ id: string }>('POST', '/payments', {
+  const advance = await call<{ id: string; number: string }>('POST', '/payments', {
     token,
     body: {
       storeId: books.storeId,
@@ -176,11 +176,11 @@ test('a receipt prints as a PDF, and the month goes to Tally once its bank is ma
       allocations: [],
     },
   });
-  await call('POST', `/payments/${advance.id}/refund`, {
+  const refund = await call<{ number: string }>('POST', `/payments/${advance.id}/refund`, {
     token,
     body: { modeId: books.modes.upi, amountPaise: 2_000, reference: 'UTR445566' },
   });
-  const cheque = await call<{ id: string }>('POST', '/payments', {
+  const cheque = await call<{ id: string; number: string }>('POST', '/payments', {
     token,
     body: {
       storeId: books.storeId,
@@ -209,6 +209,42 @@ test('a receipt prints as a PDF, and the month goes to Tally once its bank is ma
       .subarray(0, 5)
       .toString(),
   ).toBe('%PDF-');
+
+  // The customer's ledger: the invoice and the payment that settled it, then the advance,
+  // its refund, and the cheque that bounced, each linked to its document.
+  await page.goto(`/parties/${party.id}`);
+  await page.getByRole('link', { name: 'Ledger', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Ledger · Deccan Contractors', level: 1 }),
+  ).toBeVisible();
+  const ledger = page.getByRole('table', { name: 'Ledger entries' });
+  const rows = ledger.getByRole('row');
+  await expect(rows).toHaveCount(7);
+  await expect(rows.nth(1)).toContainText(`${invoice.number}Invoice`);
+  await expect(rows.nth(1)).toContainText('₹236.00 Dr');
+  await expect(rows.nth(2)).toContainText(`${receipt.number}Payment`);
+  await expect(rows.nth(2)).toContainText(/₹236\.00₹0\.00$/);
+  await expect(rows.nth(3)).toContainText(`${advance.number}Payment`);
+  await expect(rows.nth(3)).toContainText(/₹50\.00₹50\.00 Cr$/);
+  await expect(rows.nth(4)).toContainText(`${refund.number}Refund`);
+  await expect(rows.nth(4)).toContainText(/₹20\.00₹30\.00 Cr$/);
+  await expect(rows.nth(5)).toContainText(`${cheque.number}Payment`);
+  await expect(rows.nth(6)).toContainText(
+    `${cheque.number}Cheque bounced · ${cheque.number} bounced: Funds`,
+  );
+  await expect(rows.nth(6)).toContainText(/₹30\.00₹30\.00 Cr$/);
+  await expect(rows.nth(4).getByRole('link', { name: refund.number })).toHaveAttribute(
+    'href',
+    `/payments?q=${refund.number}`,
+  );
+  await expect(page.locator('.facts')).toContainText(
+    'Opening balance₹0.00Closing balance₹30.00 Cr',
+  );
+  await expectUsable(page);
+  await ledger.getByRole('link', { name: invoice.number }).click();
+  await expect(
+    page.getByRole('heading', { name: `Invoice ${invoice.number}`, level: 1 }),
+  ).toBeVisible();
 
   await page.getByRole('link', { name: 'Tally export' }).first().click();
   const counts = page.getByLabel('Vouchers in the period');

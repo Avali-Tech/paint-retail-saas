@@ -647,10 +647,21 @@ describe('reading payments', () => {
 
   it("shows a party's ledger for a period with its opening balance", async () => {
     const party = await customer('Ledger Party');
-    await b.invoice({ partyId: party });
-    await paid({ partyId: party, amountPaise: 1_000 });
+    const invoice = await b.invoice({ partyId: party });
+    const payment = await paid({ partyId: party, amountPaise: 1_000 });
     const all = await ledgerOf(party);
     expect(all.entries).toHaveLength(2);
+    expect(all).toMatchObject({ total: 2, totalCapped: false, nextCursor: null });
+    // Each entry names the invoice or payment it came from, for the ledger screen's links.
+    expect(all.entries.map((entry) => [entry.referenceType, entry.referenceNumber])).toEqual([
+      ['tax_document', invoice.number],
+      ['payment', payment.number],
+    ]);
+    // The second page by position opens where the first entry left the balance.
+    const second = await ledgerOf(party, '?limit=1&offset=1');
+    expect(second).toMatchObject({ openingPaise: 11_800, closingPaise: 10_800, total: 2 });
+    expect(second.entries.map((entry) => entry.id)).toEqual([all.entries[1]?.id]);
+    expect(second.nextCursor).toBeNull();
     const later = await ledgerOf(party, `?from=${await dbToday(t, 1)}`);
     expect(later).toMatchObject({ openingPaise: 10_800, entries: [], closingPaise: 10_800 });
     const earlier = await ledgerOf(party, `?to=${await dbToday(t, -1)}`);

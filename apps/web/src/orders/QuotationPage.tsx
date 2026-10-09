@@ -22,6 +22,7 @@ import { errorMessage } from '../api/errors.js';
 import { useApi } from '../app/services.js';
 import { useCurrentProfile, usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
+import { saveFile } from '../lib/download.js';
 import { FormDialog } from '../lib/FormDialog.js';
 import { QueryState } from '../lib/QueryState.js';
 import { usePageLanding } from '../sales/focus-landing.js';
@@ -111,11 +112,12 @@ function QuotationDetail({ quotation }: { readonly quotation: QuotationView }) {
   const can = usePermissions();
   const profile = useCurrentProfile();
   const stores = useStores();
-  const { t, label, money, date } = useI18n();
+  const { t, label, money, date, locale } = useI18n();
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [converting, setConverting] = useState(false);
   const [job, setJob] = useState<QuotationPrintJob | null>(null);
   const prints = useRef(0);
@@ -137,6 +139,25 @@ function QuotationDetail({ quotation }: { readonly quotation: QuotationView }) {
     } finally {
       setBusy(false);
     }
+  };
+
+  /** The server's A4 PDF, labelled in the member's language; members only, no public link. */
+  const download = () => {
+    setDownloading(true);
+    api.orders
+      .quotationPdf(quotation.id, locale)
+      .then((file) => {
+        saveFile(
+          file.blob,
+          file.fileName ?? `${quotation.number}-v${String(quotation.version)}.pdf`,
+        );
+      })
+      .catch((error: unknown) => {
+        toast({ title: errorMessage(error), tone: 'danger' });
+      })
+      .finally(() => {
+        setDownloading(false);
+      });
   };
 
   const share = t('orders.share.message', {
@@ -238,6 +259,9 @@ function QuotationDetail({ quotation }: { readonly quotation: QuotationView }) {
         <div className="stack">
           <p className="muted">{t('orders.share.hint')}</p>
           <div className="row">
+            <Button variant="secondary" loading={downloading} onClick={download}>
+              {t('orders.share.download')}
+            </Button>
             <Button
               variant="secondary"
               onClick={() => {

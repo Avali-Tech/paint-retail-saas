@@ -321,6 +321,8 @@ export interface PartyLedgerEntryView {
   readonly amountPaise: number;
   readonly referenceType: string | null;
   readonly referenceId: string | null;
+  /** The invoice, note or payment number the entry refers to, when it refers to one. */
+  readonly referenceNumber: string | null;
   readonly note: string | null;
   /** Balance after this entry. */
   readonly balancePaise: number;
@@ -340,18 +342,18 @@ export interface OpenDocumentView {
 }
 
 /**
- * GET /parties/:id/ledger?from&to&limit&cursor: oldest first, a page at a time (round 6c).
+ * GET /parties/:id/ledger?from&to&limit&offset&cursor: oldest first, a page at a time (round 6c).
  * `openingPaise` is the balance before this page's first entry (the period's opening on the
- * first page) and `closingPaise` the balance after its last; `nextCursor` asks for the rest.
+ * first page) and `closingPaise` the balance after its last; `nextCursor` asks for the rest,
+ * and `total` counts the period's entries (up to the list cap).
  */
-export interface PartyLedgerView {
+export interface PartyLedgerView extends ListPageInfo {
   readonly partyId: string;
   readonly from: string | null;
   readonly to: string | null;
   readonly openingPaise: number;
   readonly entries: PartyLedgerEntryView[];
   readonly closingPaise: number;
-  readonly nextCursor: string | null;
   /** Today's balance and unallocated money, whatever the period. */
   readonly balancePaise: number;
   readonly advancePaise: number;

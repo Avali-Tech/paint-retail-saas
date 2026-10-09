@@ -97,11 +97,12 @@ export const ordersEn = {
     },
     share: {
       title: 'Share',
-      hint: 'Print it, or choose “Save as PDF” in the print dialog to send the PDF.',
-      print: 'Print or save as PDF',
+      hint: 'Download the PDF and attach it to the WhatsApp message, or print it.',
+      print: 'Print',
+      download: 'Download PDF',
       whatsapp: 'Share on WhatsApp',
       message:
-        '{business}: quotation {number} v{version} for {total}, valid until {date}. Ask us for the PDF.',
+        '{business}: quotation {number} v{version} for {total}, valid until {date}. The PDF follows in this chat.',
     },
     print: {
       label: 'Quotation to print',
