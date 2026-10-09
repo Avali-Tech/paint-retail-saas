@@ -43,6 +43,7 @@ export const te: Messages = {
     previous: 'మునుపటి',
     next: 'తదుపరి',
     range: '{total} లో {from}–{to}',
+    rangeMore: '{total}+ లో {from}–{to}',
     edit: 'మార్చండి',
     none: '—',
     required: 'ఇది తప్పనిసరి',

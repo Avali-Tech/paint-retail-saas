@@ -43,6 +43,7 @@ export const hi: Messages = {
     previous: 'पिछला',
     next: 'अगला',
     range: '{total} में से {from}–{to}',
+    rangeMore: '{total}+ में से {from}–{to}',
     edit: 'बदलें',
     none: '—',
     required: 'यह जरूरी है',

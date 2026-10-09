@@ -27,6 +27,11 @@ export interface PaginationProps {
   readonly range: (from: number, to: number, total: number) => string;
   readonly previousLabel?: string;
   readonly nextLabel?: string;
+  /**
+   * Whether rows follow this page, when the list knows it better than `total` does
+   * (a keyset-paged list whose count stops at a cap).
+   */
+  readonly hasMore?: boolean;
 }
 
 /** Previous and next pages of a list, with where the visitor is in it. Hidden for a single page. */
@@ -39,8 +44,9 @@ export function Pagination({
   range,
   previousLabel = 'Previous',
   nextLabel = 'Next',
+  hasMore,
 }: PaginationProps) {
-  if (total <= limit && offset === 0) return null;
+  if (total <= limit && offset === 0 && hasMore !== true) return null;
   const to = Math.min(offset + limit, total);
   return (
     <nav className="ui-pagination" aria-label={label}>
@@ -58,7 +64,7 @@ export function Pagination({
       <Button
         variant="secondary"
         size="sm"
-        disabled={to >= total}
+        disabled={!(hasMore ?? to < total)}
         onClick={() => {
           onChange(offset + limit);
         }}

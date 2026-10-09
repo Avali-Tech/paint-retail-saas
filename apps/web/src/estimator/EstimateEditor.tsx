@@ -8,6 +8,7 @@ import { useApi } from '../app/services.js';
 import { usePermissions } from '../auth/session.js';
 import { useI18n, type MessageKey } from '../i18n/i18n.js';
 import { PartyField } from '../orders/SalesDocEditor.js';
+import { usePageLanding } from '../sales/focus-landing.js';
 import { StoreSelect } from '../stock/StoreSelect.js';
 import {
   checkDraft,
@@ -68,6 +69,7 @@ export function EstimateEditor({
   const [createKey] = useState(() => crypto.randomUUID());
   const [convertKey] = useState(() => crypto.randomUUID());
   const rooms = useRef(draft.rooms.length);
+  usePageLanding(true);
   const check = useMemo(() => checkDraft(draft), [draft]);
   const outcomes = useMemo(() => liveTiers(draft, check), [draft, check]);
   const writer = can(ESTIMATES_PERMISSION);

@@ -10,6 +10,7 @@ import {
   type DraftInvoiceLineRequest,
 } from '@paint/shared';
 import { z } from 'zod';
+import { keysetPage } from '../common/keyset.js';
 import { lineTintSchema } from '../paint/paint.schemas.js';
 import { issuePaymentSchema } from '../payments/payments.schemas.js';
 
@@ -121,8 +122,7 @@ export const listInvoicesSchema = z.object({
   to: isoDate.optional(),
   /** Number or buyer name. */
   q: z.string().trim().min(1).max(80).optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
+  ...keysetPage,
 });
 export type ListInvoicesQuery = z.output<typeof listInvoicesSchema>;
 

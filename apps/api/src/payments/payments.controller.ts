@@ -18,7 +18,7 @@ import type {
   PaymentPage,
   PaymentView,
   ReceiptView,
-  RegisterSessionSummary,
+  RegisterSessionPage,
   RegisterSessionView,
 } from '@paint/shared';
 import type { FastifyReply } from 'fastify';
@@ -253,7 +253,7 @@ export class RegisterSessionsController {
   list(
     @CurrentAuth() auth: AuthContext,
     @Query(new ZodValidationPipe(listRegisterSessionsSchema)) query: ListRegisterSessionsQuery,
-  ): Promise<{ items: RegisterSessionSummary[]; total: number }> {
+  ): Promise<RegisterSessionPage> {
     return this.registers.list(auth, query);
   }
 

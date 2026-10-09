@@ -7,7 +7,6 @@ import {
   Icon,
   Input,
   PageHeader,
-  Pagination,
   Select,
   Table,
   buttonStyle,
@@ -17,10 +16,13 @@ import { Link } from 'react-router';
 import { useApi } from '../app/services.js';
 import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
-import { useUrlFilters } from '../lib/hooks.js';
+import { useDebouncedValue, useUrlFilters } from '../lib/hooks.js';
+import { ListPager, ListRefreshing } from '../lib/ListPager.js';
 import { QueryState } from '../lib/QueryState.js';
 import { ORDER_TONE, PAGE_SIZE } from './status.js';
 
+/** Waits for typing to pause before searching (as the MVP 1 lists do). */
+const SEARCH_DELAY_MS = 300;
 const FILTERS = ['status', 'q'] as const;
 
 /** /sales-orders — orders of the member's stores, newest first. */
@@ -30,12 +32,18 @@ export function SalesOrdersPage() {
   const { t, label, money, date } = useI18n();
   const filters = useUrlFilters(FILTERS);
   const status = SALES_ORDER_STATUSES.find((value) => value === filters.values.status);
-  const q = filters.values.q.trim();
+  const q = useDebouncedValue(filters.values.q.trim(), SEARCH_DELAY_MS);
   const orders = useQuery({
-    queryKey: ['sales-orders', { status, q, offset: filters.offset }],
+    queryKey: ['sales-orders', { status, q, offset: filters.offset, cursor: filters.cursor }],
     queryFn: ({ signal }) =>
       api.orders.orders(
-        { status, q: q === '' ? undefined : q, limit: PAGE_SIZE, offset: filters.offset },
+        {
+          status,
+          q: q === '' ? undefined : q,
+          limit: PAGE_SIZE,
+          offset: filters.offset,
+          cursor: filters.cursor,
+        },
         signal,
       ),
     placeholderData: keepPreviousData,
@@ -80,6 +88,7 @@ export function SalesOrdersPage() {
               ))}
             </Select>
           </Field>
+          <ListRefreshing query={orders} />
         </div>
         <QueryState query={orders} error="orders.orders.error">
           {(page) =>
@@ -123,15 +132,11 @@ export function SalesOrdersPage() {
                     ))}
                   </tbody>
                 </Table>
-                <Pagination
-                  offset={filters.offset}
+                <ListPager
+                  filters={filters}
+                  page={page}
                   limit={PAGE_SIZE}
-                  total={page.total}
-                  onChange={filters.setOffset}
                   label={t('orders.orders.pages')}
-                  range={(from, to, total) => t('common.range', { from, to, total })}
-                  previousLabel={t('common.previous')}
-                  nextLabel={t('common.next')}
                 />
               </>
             )

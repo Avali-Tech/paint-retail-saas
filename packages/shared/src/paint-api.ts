@@ -13,6 +13,7 @@
  * Validation limits the API enforces are exported as constants so the screens
  * can check the same thing before sending (the API keeps its own zod schemas).
  */
+import type { ListPageInfo } from './list-page.js';
 import type { NamedRef, PartyRef, QuotationStatus, SalesOrderStatus } from './orders-api.js';
 import type { Permission } from './permissions.js';
 import type { TaxDocumentStatus } from './tax-documents.js';
@@ -523,9 +524,8 @@ export interface EstimateSummary {
  * newest first, at the stores the member works at. `q` matches the number, the
  * title or the party's name. DELETE /estimates/:id removes a draft (204).
  */
-export interface EstimatePage {
+export interface EstimatePage extends ListPageInfo {
   readonly items: readonly EstimateSummary[];
-  readonly total: number;
 }
 
 /**

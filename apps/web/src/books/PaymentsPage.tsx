@@ -8,7 +8,6 @@ import {
   Icon,
   Input,
   PageHeader,
-  Pagination,
   Select,
   Table,
 } from '@paint/ui';
@@ -21,6 +20,7 @@ import { useI18n } from '../i18n/i18n.js';
 import { saveFile } from '../lib/download.js';
 import { useDebouncedValue, useUrlFilters } from '../lib/hooks.js';
 import { isDate } from '../lib/india-time.js';
+import { ListPager, ListRefreshing } from '../lib/ListPager.js';
 import { QueryState } from '../lib/QueryState.js';
 
 export const PAYMENTS_PAGE_SIZE = 50;
@@ -75,7 +75,10 @@ export function PaymentsPage() {
   const q = useDebouncedValue(filters.values.q.trim(), 300);
   const [message, setMessage] = useState<string | null>(null);
   const payments = useQuery({
-    queryKey: ['payments', { direction, from, to, q, offset: filters.offset }],
+    queryKey: [
+      'payments',
+      { direction, from, to, q, offset: filters.offset, cursor: filters.cursor },
+    ],
     queryFn: ({ signal }) =>
       api.books.payments(
         {
@@ -85,6 +88,7 @@ export function PaymentsPage() {
           q: q === '' ? undefined : q,
           limit: PAYMENTS_PAGE_SIZE,
           offset: filters.offset,
+          cursor: filters.cursor,
         },
         signal,
       ),
@@ -138,6 +142,7 @@ export function PaymentsPage() {
                 }}
               />
             </Field>
+            <ListRefreshing query={payments} />
           </div>
           {message !== null && <Alert tone="danger">{message}</Alert>}
           <QueryState query={payments} error="books.payments.error">
@@ -188,17 +193,11 @@ export function PaymentsPage() {
                       ))}
                     </tbody>
                   </Table>
-                  <Pagination
-                    offset={filters.offset}
+                  <ListPager
+                    filters={filters}
+                    page={page}
                     limit={PAYMENTS_PAGE_SIZE}
-                    total={page.total}
-                    onChange={filters.setOffset}
                     label={t('books.payments.pages')}
-                    range={(start, end, total) =>
-                      t('common.range', { from: start, to: end, total })
-                    }
-                    previousLabel={t('common.previous')}
-                    nextLabel={t('common.next')}
                   />
                 </>
               )

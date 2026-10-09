@@ -5,7 +5,9 @@ import {
   type SurfaceCondition,
 } from '@paint/shared';
 import { Button, Card, Checkbox, Field, Input, Select } from '@paint/ui';
+import { useRef } from 'react';
 import { useI18n, type MessageKey } from '../i18n/i18n.js';
+import { useLandingOnChange } from '../sales/focus-landing.js';
 import type { RoomCheck } from './estimate-form.js';
 import type { RoomDraft, RoomProblem } from './rooms.js';
 
@@ -41,6 +43,9 @@ export function RoomsCard({
   readonly onRemove: (key: string) => void;
 }) {
   const { t, number, label } = useI18n();
+  const addRef = useRef<HTMLButtonElement>(null);
+  // A removed room takes its "Remove" button with it: the focus moves to "Add a room".
+  useLandingOnChange(rooms.length, addRef);
   const total = rooms.reduce(
     (sum, { result }) => sum + (typeof result === 'string' ? 0 : netAreaOf(result)),
     0,
@@ -128,7 +133,7 @@ export function RoomsCard({
           );
         })}
         <div className="row">
-          <Button variant="secondary" onClick={onAdd}>
+          <Button ref={addRef} variant="secondary" onClick={onAdd}>
             {t('estimator.rooms.add')}
           </Button>
           <span className="estimator-total">

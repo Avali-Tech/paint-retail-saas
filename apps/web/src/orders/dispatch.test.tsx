@@ -101,6 +101,12 @@ describe('dispatch on the invoice page', { timeout: 30_000 }, () => {
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: 'Dispatch goods' })).toBeNull();
     });
+    // Everything has gone, and the button with it: the focus is on the invoice's heading.
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'Invoice AMP/26-27/000001' }),
+      ).toHaveFocus();
+    });
   });
 
   it('records a small dispatch without an e-way bill when stock left at issue', async () => {

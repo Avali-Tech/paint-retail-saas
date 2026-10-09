@@ -10,13 +10,14 @@ import {
   type PaymentModeView,
 } from '@paint/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type SyntheticEvent } from 'react';
+import { useRef, useState, type SyntheticEvent } from 'react';
 import type { Store } from '../api/stock.js';
 import { errorMessage } from '../api/errors.js';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
 import { PartyPicker } from '../parties/PartyPicker.js';
+import { useLandingOnChange, usePageLanding } from '../sales/focus-landing.js';
 import { storeLabel } from '../stock/StoreSelect.js';
 import { useStores } from '../stock/stores.js';
 import { AccountingNav } from './AccountingNav.js';
@@ -73,6 +74,9 @@ function MappingEditor({
   const [problems, setProblems] = useState<MappingProblem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const changeParty = useRef<HTMLButtonElement>(null);
+  // The picker goes once a party is picked: the focus moves to "Change".
+  useLandingOnChange(form.party === null, changeParty);
   const fields = LEDGER_MATCH_FIELDS[form.purpose];
   const change = (next: Partial<MappingForm>) => {
     setForm({ ...form, ...next });
@@ -282,6 +286,7 @@ function MappingEditor({
             <div className="row">
               <span>{t('books.ledgers.partyChosen', { name: form.party.name })}</span>
               <Button
+                ref={changeParty}
                 size="sm"
                 variant="ghost"
                 onClick={() => {
@@ -325,6 +330,8 @@ function Mappings({
   // A new editor for each mapping edited, and a fresh one after a save.
   const [round, setRound] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
+  // A removed row, or a saved editor, takes the button that had the focus with it.
+  usePageLanding(true, `${String(round)}:${String(mappings.length)}`);
 
   const remove = async (mapping: LedgerMappingView) => {
     setMessage(null);

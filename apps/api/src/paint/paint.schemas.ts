@@ -32,6 +32,7 @@ import {
   type TintRecordRequest,
 } from '@paint/shared';
 import { z } from 'zod';
+import { keysetPage } from '../common/keyset.js';
 
 // The request shapes are the contract's (@paint/shared paint-api); each schema
 // below is checked against it with `satisfies`, so the two cannot drift apart.
@@ -201,7 +202,7 @@ export const listEstimatesSchema = z.object({
   projectId: z.uuid().optional(),
   status: z.enum(ESTIMATE_STATUSES).optional(),
   q: z.string().trim().min(1).max(80).optional(),
-  ...page,
+  ...keysetPage,
 });
 export type ListEstimatesQuery = z.output<typeof listEstimatesSchema>;
 

@@ -9,11 +9,20 @@ import {
   type Transaction,
 } from '@paint/db';
 import { formatINR, type PaymentPage, type PaymentView, type ReceiptView } from '@paint/shared';
-import { and, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { idempotent } from '../billing/idempotency.js';
+import {
+  afterKey,
+  cappedTotal,
+  cursorTime,
+  keysetSlice,
+  NEWEST_FIRST,
+  pageOffset,
+} from '../common/keyset.js';
 import { DATABASE } from '../database/database.module.js';
 import { Notifier } from '../notifications/notifier.js';
+import { containsPattern } from '../parties/party-access.js';
 import { fieldError } from '../tax/tax-lookups.js';
 import { loadPayment, paymentView, receiptView } from './payment-view.js';
 import type {
@@ -309,6 +318,7 @@ export class PaymentsService {
 
   list(auth: AuthContext, query: ListPaymentsQuery): Promise<PaymentPage> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      const pattern = query.q === undefined ? null : containsPattern(query.q);
       const where = and(
         auth.allStores ? undefined : inArray(payments.storeId, [...auth.storeIds]),
         query.storeId ? eq(payments.storeId, query.storeId) : undefined,
@@ -318,15 +328,15 @@ export class PaymentsService {
         query.chequeStatus ? eq(payments.chequeStatus, query.chequeStatus) : undefined,
         query.from ? sql`${payments.receivedOn} >= ${query.from}::date` : undefined,
         query.to ? sql`${payments.receivedOn} <= ${query.to}::date` : undefined,
-        query.q
-          ? or(
-              ilike(payments.number, `%${query.q}%`),
-              ilike(payments.voucherNumber, `%${query.q}%`),
-              ilike(payments.reference, `%${query.q}%`),
-            )
-          : undefined,
+        pattern === null
+          ? undefined
+          : or(
+              ilike(payments.number, pattern),
+              ilike(payments.voucherNumber, pattern),
+              ilike(payments.reference, pattern),
+            ),
       );
-      const items = await tx
+      const rows = await tx
         .select({
           id: payments.id,
           number: payments.number,
@@ -344,16 +354,24 @@ export class PaymentsService {
             when ${payments.direction} = 'in' and ${payments.chequeStatus} is distinct from 'bounced'
             then ${payments.amountPaise} - coalesce((select sum(a.amount_paise) from ${allocations} a where a.payment_id = ${sql.raw('"payments"."id"')}), 0)
             else 0 end`.mapWith(Number),
+          cursorAt: cursorTime(payments.createdAt),
         })
         .from(payments)
         .innerJoin(parties, eq(parties.id, payments.partyId))
         .innerJoin(paymentModes, eq(paymentModes.id, payments.modeId))
-        .where(where)
+        .where(and(where, afterKey(NEWEST_FIRST, [payments.createdAt, payments.id], query.cursor)))
         .orderBy(desc(payments.createdAt), desc(payments.id))
-        .limit(query.limit)
-        .offset(query.offset);
-      const [total] = await tx.select({ value: count() }).from(payments).where(where);
-      return { items, total: Number(total?.value) };
+        .limit(query.limit + 1)
+        .offset(pageOffset(query));
+      const page = keysetSlice(rows, query.limit, (row) => [row.cursorAt, row.id]);
+      return {
+        items: page.rows.map(({ cursorAt, ...item }) => item),
+        nextCursor: page.nextCursor,
+        ...(await cappedTotal(
+          tx,
+          tx.select({ id: payments.id }).from(payments).where(where).$dynamic(),
+        )),
+      };
     });
   }
 

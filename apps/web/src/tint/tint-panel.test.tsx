@@ -144,6 +144,20 @@ describe('the tint panel at the counter', { timeout: 30_000 }, () => {
     });
   });
 
+  it('keeps the tint panel working on the line that takes a removed line’s place and focus', async () => {
+    const { user } = counter();
+    const box = await scanBox();
+    await user.type(box, 'APX-20L{Enter}');
+    await user.type(box, 'APB-4L{Enter}');
+    await screen.findByRole('listitem', { name: BASE });
+    await user.click(screen.getByRole('button', { name: `Remove ${APEX_NAME}` }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: `Remove ${BASE}` })).toHaveFocus();
+    });
+    const dialog = await openTint(user);
+    expect(within(dialog).getByRole('textbox', { name: /^Shade code/ })).toBeVisible();
+  });
+
   it('finds the shade billed at Ameerpet for a repeat order at Kukatpally, and searches wider', async () => {
     const history = vi.fn<(request: FakeRequest) => ReturnType<FakeHandler>>((request) => {
       const q = request.query.get('q');

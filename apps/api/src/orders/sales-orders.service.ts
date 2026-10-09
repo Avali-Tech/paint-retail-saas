@@ -31,7 +31,16 @@ import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
 import { idempotent } from '../billing/idempotency.js';
 import { documentView, indiaToday, type TaxDocumentRow } from '../billing/invoice-view.js';
+import {
+  afterKey,
+  cappedTotal,
+  cursorTime,
+  keysetSlice,
+  NEWEST_FIRST,
+  pageOffset,
+} from '../common/keyset.js';
 import { DATABASE } from '../database/database.module.js';
+import { containsPattern } from '../parties/party-access.js';
 import { fieldError } from '../tax/tax-lookups.js';
 import { orderCredit } from './order-credit.js';
 import { heldByLine, holdStock } from './order-stock.js';
@@ -136,8 +145,8 @@ export class SalesOrdersService {
         query.status ? eq(salesOrders.status, query.status) : undefined,
         query.q
           ? or(
-              ilike(salesOrders.number, `%${query.q}%`),
-              ilike(parties.displayName, `%${query.q}%`),
+              ilike(salesOrders.number, containsPattern(query.q)),
+              ilike(parties.displayName, containsPattern(query.q)),
             )
           : undefined,
       );
@@ -157,21 +166,32 @@ export class SalesOrdersService {
               Number,
             ),
           createdAt: salesOrders.createdAt,
+          cursorAt: cursorTime(salesOrders.createdAt),
         })
         .from(salesOrders)
         .innerJoin(parties, eq(parties.id, salesOrders.billToPartyId))
-        .where(where)
+        .where(
+          and(where, afterKey(NEWEST_FIRST, [salesOrders.createdAt, salesOrders.id], query.cursor)),
+        )
         .orderBy(...newestFirst(salesOrders))
-        .limit(query.limit)
-        .offset(query.offset);
-      const [total] = await tx
-        .select({ value: count() })
-        .from(salesOrders)
-        .innerJoin(parties, eq(parties.id, salesOrders.billToPartyId))
-        .where(where);
+        .limit(query.limit + 1)
+        .offset(pageOffset(query));
+      const page = keysetSlice(rows, query.limit, (row) => [row.cursorAt, row.id]);
       return {
-        items: rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })),
-        total: Number(total?.value),
+        items: page.rows.map(({ cursorAt, ...row }) => ({
+          ...row,
+          createdAt: row.createdAt.toISOString(),
+        })),
+        nextCursor: page.nextCursor,
+        ...(await cappedTotal(
+          tx,
+          tx
+            .select({ id: salesOrders.id })
+            .from(salesOrders)
+            .innerJoin(parties, eq(parties.id, salesOrders.billToPartyId))
+            .where(where)
+            .$dynamic(),
+        )),
       };
     });
   }

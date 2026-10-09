@@ -69,7 +69,7 @@ describe('SalesOrdersPage', { timeout: 30_000 }, () => {
         'GET /auth/me': () => json(OWNER),
         'GET /sales-orders': (request) =>
           request.query.get('offset') !== '0'
-            ? json({ items: [], total: 0 })
+            ? json({ items: [], total: 0, totalCapped: false, nextCursor: null })
             : json({
                 items: [
                   {
@@ -87,6 +87,8 @@ describe('SalesOrdersPage', { timeout: 30_000 }, () => {
                   },
                 ],
                 total: 51,
+                totalCapped: false,
+                nextCursor: 'cursor-2',
               }),
       },
     });
@@ -103,6 +105,10 @@ describe('SalesOrdersPage', { timeout: 30_000 }, () => {
       expect(requests.at(-1)?.query.get('q')).toBe('SO');
     });
     await user.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(requests.at(-1)?.query.get('cursor')).toBe('cursor-2');
+      expect(requests.at(-1)?.query.get('offset')).toBe('50');
+    });
     expect(await screen.findByText('No sales orders here')).toBeVisible();
     await user.click(screen.getByRole('link', { name: 'New order' }));
     expect(await screen.findByRole('heading', { name: 'New sales order', level: 1 })).toBeVisible();
@@ -501,6 +507,14 @@ describe('OrderPage: an open order', { timeout: 30_000 }, () => {
     await waitFor(() => {
       expect(location()).toBe('/invoices/invoice-3');
     });
+    // The order and its dialog are gone: the focus lands on the invoice's heading.
+    const invoiceHeading = await screen.findByRole('heading', {
+      level: 1,
+      name: 'Invoice AMP/26-27/000001',
+    });
+    await waitFor(() => {
+      expect(invoiceHeading).toHaveFocus();
+    });
     const bills = requests.filter(
       (request) => request.path.endsWith('/invoices') && request.method === 'POST',
     );
@@ -635,6 +649,33 @@ describe('OrderPage: an open order', { timeout: 30_000 }, () => {
     });
     expect(requests.find((request) => request.path.endsWith('/order-1/cancel'))?.body).toEqual({
       reason: 'Site postponed',
+    });
+  });
+
+  it('puts the focus on the heading when cancelling takes the order’s buttons away', async () => {
+    let current: SalesOrderView = CONFIRMED;
+    const { user } = renderApp({
+      path: '/sales-orders/order-1',
+      routes: orderRoutes(CONFIRMED, {
+        'GET /sales-orders/:id': () => json(current),
+        'POST /sales-orders/:id/cancel': () => {
+          current = { ...CONFIRMED, status: 'cancelled', cancelReason: 'Site postponed' };
+          return json(current);
+        },
+      }),
+    });
+    await user.click(await screen.findByRole('button', { name: 'Cancel order' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Cancel SO-000017' });
+    await user.type(within(dialog).getByRole('textbox', { name: /Reason/ }), 'Site postponed');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel order' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    expect(screen.queryByRole('button', { name: 'Cancel order' })).toBeNull();
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'Sales order SO-000017' }),
+      ).toHaveFocus();
     });
   });
 

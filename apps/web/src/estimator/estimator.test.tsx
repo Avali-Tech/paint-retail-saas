@@ -82,6 +82,10 @@ async function chooseProduct(user: User, slot: string, search: string, name: str
   await user.click(screen.getByRole('button', { name: `Change: ${slot}` }));
   await user.type(screen.getByRole('searchbox', { name: `Search products for ${slot}` }), search);
   await user.click(await screen.findByRole('button', { name: `Choose Asian Paints ${name}` }));
+  // The list goes with the chosen button: the focus is back on "Change".
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: `Change: ${slot}` })).toHaveFocus();
+  });
 }
 
 /** Types a room's measures (fireEvent: many fields, kept quick). */
@@ -118,8 +122,10 @@ describe('EstimatesPage', { timeout: 30_000 }, () => {
                   },
                 ],
                 total: 51,
+                totalCapped: false,
+                nextCursor: 'cursor-2',
               })
-            : json({ items: [], total: 0 }),
+            : json({ items: [], total: 0, totalCapped: false, nextCursor: null }),
       }),
     });
     const table = await screen.findByRole('table', { name: 'Estimates' });
@@ -133,6 +139,10 @@ describe('EstimatesPage', { timeout: 30_000 }, () => {
     });
     expect(requests.at(-1)?.query.get('status')).toBe('converted');
     await user.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(requests.at(-1)?.query.get('cursor')).toBe('cursor-2');
+      expect(requests.at(-1)?.query.get('offset')).toBe('50');
+    });
     expect(await screen.findByText('No estimates here')).toBeVisible();
     await user.click(screen.getByRole('link', { name: 'New estimate' }));
     await waitFor(() => {
@@ -222,6 +232,11 @@ describe('EstimatePage', { timeout: 60_000 }, () => {
       expect(location()).toBe('/quotations/quote-9');
     });
     expect(await screen.findByText('Quotation QT-000099 made')).toBeVisible();
+    // A new page: the focus starts on its heading.
+    const quote = await screen.findByRole('heading', { level: 1, name: /^Quotation QT-000099/ });
+    await waitFor(() => {
+      expect(quote).toHaveFocus();
+    });
     const create = found(
       requests.find((request) => request.method === 'POST' && request.path === '/estimates'),
     );
@@ -272,6 +287,10 @@ describe('EstimatePage', { timeout: 60_000 }, () => {
     expect(screen.getByText('Fix the rooms marked above')).toBeVisible();
     expect(screen.getByText('Enter the length, width and height in feet')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Remove Room 1' }));
+    // The room went with its button: the focus moves to "Add room".
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add room' })).toHaveFocus();
+    });
     await user.click(screen.getByRole('button', { name: 'Save estimate' }));
     expect(screen.getByText('Add a room')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Add room' }));
@@ -302,6 +321,9 @@ describe('EstimatePage', { timeout: 60_000 }, () => {
       within(tier('Good')).getByText('This paint has no pack with a price on sale'),
     ).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Remove: Good' }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Change: Good' })).toHaveFocus();
+    });
     expect(
       within(tier('Good')).getByText('Choose a paint for a tier to see its packs'),
     ).toBeVisible();

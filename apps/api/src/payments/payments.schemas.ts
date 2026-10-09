@@ -7,7 +7,10 @@ import {
   REGISTER_SESSION_STATUSES,
 } from '@paint/shared';
 import { z } from 'zod';
+import { cursorParam, keysetPage, type Keyset } from '../common/keyset.js';
 
+/** A party's ledger, oldest first: by day, then when it was posted, then id. */
+export const LEDGER_ORDER: Keyset = { order: 'asc', parts: ['date', 'timestamp', 'uuid'] };
 const isoDate = z.iso.date('Use a date like 2026-04-01');
 const amount = z.number().int().positive('Enter an amount above zero').max(1_000_000_000_000);
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -83,8 +86,7 @@ export const listPaymentsSchema = z.object({
   to: isoDate.optional(),
   /** Receipt, voucher or reference number. */
   q: z.string().trim().min(1).max(80).optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
+  ...keysetPage,
 });
 export type ListPaymentsQuery = z.output<typeof listPaymentsSchema>;
 
@@ -104,6 +106,9 @@ export type UpdatePaymentModeInput = z.output<typeof updatePaymentModeSchema>;
 export const partyLedgerQuerySchema = z.object({
   from: isoDate.optional(),
   to: isoDate.optional(),
+  /** Entries per page (round 6c): a busy contractor's account has thousands. */
+  limit: z.coerce.number().int().min(1).max(500).default(200),
+  cursor: cursorParam(LEDGER_ORDER),
 });
 export type PartyLedgerQuery = z.output<typeof partyLedgerQuerySchema>;
 
@@ -150,7 +155,6 @@ export type CloseRegisterInput = z.output<typeof closeRegisterSchema>;
 export const listRegisterSessionsSchema = z.object({
   storeId: z.uuid().optional(),
   status: z.enum(REGISTER_SESSION_STATUSES).optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
+  ...keysetPage,
 });
 export type ListRegisterSessionsQuery = z.output<typeof listRegisterSessionsSchema>;

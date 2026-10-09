@@ -339,8 +339,17 @@ describe('PosPage: the customer', () => {
     });
     await user.click(within(several).getByRole('button', { name: 'Choose Hold Traders' }));
     expect(await screen.findByText('Credit on hold')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Walk-in instead' }));
-    await user.type(screen.getByRole('textbox', { name: 'Customer mobile' }), '9848012345{Enter}');
+    // The list went with the button that was pressed: the focus moves to "Walk-in instead".
+    const walkIn = screen.getByRole('button', { name: 'Walk-in instead' });
+    await waitFor(() => {
+      expect(walkIn).toHaveFocus();
+    });
+    await user.click(walkIn);
+    // And back to the mobile number when that button goes.
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: 'Customer mobile' })).toHaveFocus();
+    });
+    await user.keyboard('9848012345{Enter}');
     await user.click(await screen.findByRole('button', { name: 'Choose Cash Only' }));
     expect(await screen.findByText('No credit: pay in full')).toBeInTheDocument();
   });
@@ -523,6 +532,38 @@ describe('PosPage: held bills and stores', () => {
     expect(localStorage.getItem('pos.store')).toBe(KPH.id);
   });
 
+  it('keeps the focus on the bill when a line is removed with its button', async () => {
+    const { user } = renderPos();
+    const box = await scanBox();
+    await user.type(box, 'APX-20L{Enter}');
+    await screen.findByRole('listitem', { name: APEX_NAME });
+    await user.type(box, 'PUT-20KG{Enter}');
+    await screen.findByRole('listitem', { name: PUTTY_NAME });
+
+    // The putty line takes the apex line's place, and its Remove button the focus.
+    await user.click(screen.getByRole('button', { name: `Remove ${APEX_NAME}` }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: `Remove ${PUTTY_NAME}` })).toHaveFocus();
+    });
+    // The last line gone, the scan box is ready for the next product.
+    await user.click(screen.getByRole('button', { name: `Remove ${PUTTY_NAME}` }));
+    await waitFor(() => {
+      expect(box).toHaveFocus();
+    });
+  });
+
+  it('moves the focus up to the line above when the bottom line is removed', async () => {
+    const { user } = renderPos();
+    const box = await scanBox();
+    await user.type(box, 'APX-20L{Enter}');
+    await user.type(box, 'PUT-20KG{Enter}');
+    await screen.findByRole('listitem', { name: PUTTY_NAME });
+    await user.click(screen.getByRole('button', { name: `Remove ${PUTTY_NAME}` }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: `Remove ${APEX_NAME}` })).toHaveFocus();
+    });
+  });
+
   it('shows one store by name, warns when it is not registered, and the closed register', async () => {
     renderPos(
       {
@@ -541,6 +582,7 @@ describe('PosPage: held bills and stores', () => {
     expect(
       await screen.findByText('You do not work at a store yet. Ask an owner to add you to one.'),
     ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Counter sale', level: 1 })).toBeInTheDocument();
   });
 
   it('reports a counter that cannot load its tax rates', async () => {

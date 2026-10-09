@@ -15,14 +15,23 @@ import {
   type QuotationView,
   type SalesOrderView,
 } from '@paint/shared';
-import { and, count, eq, ilike, inArray, ne, or, sql } from 'drizzle-orm';
+import { and, eq, ilike, inArray, ne, or, sql } from 'drizzle-orm';
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
 import { requireSaleParty } from '../billing/sale-parties.js';
 import { idempotent } from '../billing/idempotency.js';
 import { indiaToday } from '../billing/invoice-view.js';
+import {
+  afterKey,
+  cappedTotal,
+  cursorTime,
+  keysetSlice,
+  NEWEST_FIRST,
+  pageOffset,
+} from '../common/keyset.js';
 import { addDays } from '../contracts/contract-dates.js';
 import { DATABASE } from '../database/database.module.js';
+import { containsPattern } from '../parties/party-access.js';
 import { fieldError } from '../tax/tax-lookups.js';
 import { tintsOf, writeLineTints } from '../paint/line-tints.js';
 import { carriesByLineNo, carryTints } from '../paint/tint-lines.js';
@@ -157,7 +166,10 @@ export class QuotationsService {
               ? eq(quotations.status, query.status)
               : undefined,
         query.q
-          ? or(ilike(quotations.number, `%${query.q}%`), ilike(parties.displayName, `%${query.q}%`))
+          ? or(
+              ilike(quotations.number, containsPattern(query.q)),
+              ilike(parties.displayName, containsPattern(query.q)),
+            )
           : undefined,
       );
       const rows = await tx
@@ -173,25 +185,33 @@ export class QuotationsService {
           validUntil: quotations.validUntil,
           totalPaise: quotations.totalPaise,
           createdAt: quotations.createdAt,
+          cursorAt: cursorTime(quotations.createdAt),
         })
         .from(quotations)
         .innerJoin(parties, eq(parties.id, quotations.billToPartyId))
-        .where(where)
+        .where(
+          and(where, afterKey(NEWEST_FIRST, [quotations.createdAt, quotations.id], query.cursor)),
+        )
         .orderBy(...newestFirst(quotations))
-        .limit(query.limit)
-        .offset(query.offset);
-      const [total] = await tx
-        .select({ value: count() })
-        .from(quotations)
-        .innerJoin(parties, eq(parties.id, quotations.billToPartyId))
-        .where(where);
+        .limit(query.limit + 1)
+        .offset(pageOffset(query));
+      const page = keysetSlice(rows, query.limit, (row) => [row.cursorAt, row.id]);
       return {
-        items: rows.map((row) => ({
+        items: page.rows.map(({ cursorAt, ...row }) => ({
           ...row,
           status: effectiveQuotationStatus(row.status, row.validUntil, today),
           createdAt: row.createdAt.toISOString(),
         })),
-        total: Number(total?.value),
+        nextCursor: page.nextCursor,
+        ...(await cappedTotal(
+          tx,
+          tx
+            .select({ id: quotations.id })
+            .from(quotations)
+            .innerJoin(parties, eq(parties.id, quotations.billToPartyId))
+            .where(where)
+            .$dynamic(),
+        )),
       };
     });
   }

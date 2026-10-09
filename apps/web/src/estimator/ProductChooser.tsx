@@ -1,11 +1,12 @@
 import { productTitle } from '@paint/shared';
 import { Button, Field, Input, Spinner } from '@paint/ui';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { ProductType } from '../api/catalog.js';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { useDebouncedValue } from '../lib/hooks.js';
+import { useLandingOnChange } from '../sales/focus-landing.js';
 import type { PaintProduct } from './estimator-api.js';
 
 export const paintProductName = (product: PaintProduct) =>
@@ -30,6 +31,9 @@ export function ProductChooser({
   const { t } = useI18n();
   const [picking, setPicking] = useState(false);
   const [text, setText] = useState('');
+  const changeRef = useRef<HTMLButtonElement>(null);
+  // Choosing or removing takes the button that had the focus away: it moves to "Change".
+  useLandingOnChange(`${String(picking)}:${value?.id ?? ''}`, changeRef);
   const q = useDebouncedValue(text.trim(), 300);
   const results = useQuery({
     queryKey: ['products', { q, type, estimator: true }],
@@ -48,6 +52,7 @@ export function ProductChooser({
       </Field>
       <div className="row">
         <Button
+          ref={changeRef}
           size="sm"
           variant="secondary"
           aria-expanded={picking}

@@ -48,8 +48,10 @@ describe('PaymentsPage', { timeout: 30_000 }, () => {
                   }),
                 ],
                 total: PAYMENTS_PAGE_SIZE + 1,
+                totalCapped: false,
+                nextCursor: 'cursor-2',
               })
-            : json({ items: [], total: 0 }),
+            : json({ items: [], total: 0, totalCapped: false, nextCursor: null }),
         'GET /payments/:id/receipt.pdf': (request) =>
           request.path.includes('pay-1')
             ? {
@@ -97,6 +99,10 @@ describe('PaymentsPage', { timeout: 30_000 }, () => {
       'direction=out&from=2026-10-01&to=2026-10-08&q=RC&limit=50&offset=0',
     );
     await user.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(requests.at(-1)?.query.get('cursor')).toBe('cursor-2');
+      expect(requests.at(-1)?.query.get('offset')).toBe('50');
+    });
     expect(await screen.findByText('No payments here')).toBeVisible();
   });
 

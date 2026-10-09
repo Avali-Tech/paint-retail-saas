@@ -20,6 +20,8 @@ export const booksEn = {
       sessions: 'Sessions',
       empty: 'No register has been opened at this store yet.',
       status: 'Status',
+      allSessions: 'All sessions',
+      pages: 'Session pages',
       openedAt: 'Opened',
       closedAt: 'Closed',
       variance: 'Variance',

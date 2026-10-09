@@ -404,6 +404,7 @@ export function SalesDocEditor({
               selected={bill.selected}
               partyId={header.billTo?.id ?? null}
               dispatch={dispatch}
+              focusWhenEmpty={scanRef}
             />
             <p className="orders-editor__total">
               {t('orders.editor.linesTotal', { amount: money(linesTotal) })}

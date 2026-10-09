@@ -18,15 +18,24 @@ import type { ApiClient } from './client.js';
 export interface InvoiceQuery {
   readonly status?: TaxDocumentStatus | undefined;
   readonly q?: string | undefined;
+  /** Issue dates, both inclusive. */
+  readonly from?: string | undefined;
+  readonly to?: string | undefined;
   readonly limit: number;
   readonly offset: number;
+  /** Where the page starts, from the page before it (round 6c keyset paging). */
+  readonly cursor?: string | undefined;
 }
 
 export interface NoteQuery {
   readonly kind?: NoteKind | undefined;
   readonly invoiceId?: string | undefined;
+  readonly q?: string | undefined;
+  readonly from?: string | undefined;
+  readonly to?: string | undefined;
   readonly limit: number;
   readonly offset: number;
+  readonly cursor?: string | undefined;
 }
 
 export interface SalesReturnInput {

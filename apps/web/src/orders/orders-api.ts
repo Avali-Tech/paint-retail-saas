@@ -32,6 +32,8 @@ export interface QuotationQuery {
   readonly q?: string | undefined;
   readonly limit: number;
   readonly offset: number;
+  /** Where the page starts, from the page before it (round 6c keyset paging). */
+  readonly cursor?: string | undefined;
 }
 
 export interface SalesOrderQuery {
@@ -39,6 +41,8 @@ export interface SalesOrderQuery {
   readonly q?: string | undefined;
   readonly limit: number;
   readonly offset: number;
+  /** Where the page starts, from the page before it (round 6c keyset paging). */
+  readonly cursor?: string | undefined;
 }
 
 const keyed = (idempotencyKey: string) => ({ headers: { 'Idempotency-Key': idempotencyKey } });

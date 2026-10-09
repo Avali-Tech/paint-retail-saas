@@ -1,12 +1,13 @@
 import { CURRENT_GST_STATES } from '@paint/shared';
 import { Button, Card, Field, Input, Select, Textarea } from '@paint/ui';
 import { useQuery } from '@tanstack/react-query';
-import { useState, type Dispatch } from 'react';
+import { useRef, useState, type Dispatch } from 'react';
 import { errorMessage } from '../api/errors.js';
 import type { Party } from '../api/parties.js';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { stateLabel } from '../lib/gst-states.js';
+import { useLandingOnChange } from '../sales/focus-landing.js';
 import { WALK_IN, buyerGstin, type BillAction, type Buyer } from './bill.js';
 
 /** The customer 360 summary (credit and loyalty), shared with the customer's page. */
@@ -65,6 +66,10 @@ export function CustomerPanel({
   const [found, setFound] = useState<Party[] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const mobileRef = useRef<HTMLInputElement>(null);
+  const changeRef = useRef<HTMLButtonElement>(null);
+  // Choosing a customer, or going back to walk-in, swaps the controls that had the focus.
+  useLandingOnChange(buyer.partyId, buyer.partyId === null ? mobileRef : changeRef);
 
   const choose = (party: Party) => {
     dispatch({
@@ -120,6 +125,7 @@ export function CustomerPanel({
                 error={message ?? undefined}
               >
                 <Input
+                  ref={mobileRef}
                   type="tel"
                   inputMode="tel"
                   autoComplete="off"
@@ -171,6 +177,7 @@ export function CustomerPanel({
             </p>
             <CustomerFacts partyId={buyer.partyId} />
             <Button
+              ref={changeRef}
               variant="ghost"
               size="sm"
               onClick={() => {

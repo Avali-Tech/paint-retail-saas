@@ -37,10 +37,18 @@ import {
   type EstimatorSurface,
   type QuotationView,
 } from '@paint/shared';
-import { and, asc, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { requireSaleParty, requireSaleSite } from '../billing/sale-parties.js';
 import { idempotent } from '../billing/idempotency.js';
+import {
+  afterKey,
+  cappedTotal,
+  cursorTime,
+  keysetSlice,
+  NEWEST_FIRST,
+  pageOffset,
+} from '../common/keyset.js';
 import { DATABASE } from '../database/database.module.js';
 import { containsPattern } from '../parties/party-access.js';
 import { QuotationsService } from '../orders/quotations.service.js';
@@ -195,24 +203,39 @@ export class EstimatesService {
               ilike(parties.displayName, pattern),
             ),
       );
-      const rows = await tx
-        .select({ estimate: estimates, partyName: parties.displayName })
+      const fetched = await tx
+        .select({
+          estimate: estimates,
+          partyName: parties.displayName,
+          cursorAt: cursorTime(estimates.createdAt),
+        })
         .from(estimates)
         .leftJoin(parties, eq(parties.id, estimates.partyId))
-        .where(where)
+        .where(
+          and(where, afterKey(NEWEST_FIRST, [estimates.createdAt, estimates.id], query.cursor)),
+        )
         .orderBy(desc(estimates.createdAt), desc(estimates.id))
-        .limit(query.limit)
-        .offset(query.offset);
-      const [total] = await tx
-        .select({ value: count() })
-        .from(estimates)
-        .leftJoin(parties, eq(parties.id, estimates.partyId))
-        .where(where);
+        .limit(query.limit + 1)
+        .offset(pageOffset(query));
+      const { rows, nextCursor } = keysetSlice(fetched, query.limit, (row) => [
+        row.cursorAt,
+        row.estimate.id,
+      ]);
       const surfaces = await this.surfacesOf(
         tx,
         rows.map((row) => row.estimate.id),
       );
       return {
+        nextCursor,
+        ...(await cappedTotal(
+          tx,
+          tx
+            .select({ id: estimates.id })
+            .from(estimates)
+            .leftJoin(parties, eq(parties.id, estimates.partyId))
+            .where(where)
+            .$dynamic(),
+        )),
         items: rows.map(({ estimate, partyName }) => ({
           id: estimate.id,
           number: estimate.number,
@@ -228,7 +251,6 @@ export class EstimatesService {
           quotationId: estimate.quotationId,
           createdAt: estimate.createdAt.toISOString(),
         })),
-        total: Number(total?.value),
       };
     });
   }

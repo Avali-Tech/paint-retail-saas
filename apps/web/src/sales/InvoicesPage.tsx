@@ -6,7 +6,6 @@ import {
   Icon,
   Input,
   PageHeader,
-  Pagination,
   Select,
   Table,
   type Tone,
@@ -16,11 +15,15 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
-import { useUrlFilters } from '../lib/hooks.js';
+import { useDebouncedValue, useUrlFilters } from '../lib/hooks.js';
+import { isDate } from '../lib/india-time.js';
+import { ListPager, ListRefreshing } from '../lib/ListPager.js';
 import { QueryState } from '../lib/QueryState.js';
 
 export const PAGE_SIZE = 50;
-const FILTERS = ['status', 'q'] as const;
+/** Waits for typing to pause before searching (as the MVP 1 lists do). */
+const SEARCH_DELAY_MS = 300;
+const FILTERS = ['status', 'q', 'from', 'to'] as const;
 
 export const STATUS_TONE: Record<TaxDocumentStatus, Tone> = {
   draft: 'neutral',
@@ -34,13 +37,23 @@ export function InvoicesPage() {
   const { t, label, money, date } = useI18n();
   const filters = useUrlFilters(FILTERS);
   const status = TAX_DOCUMENT_STATUSES.find((value) => value === filters.values.status);
-  const q = filters.values.q.trim();
+  const q = useDebouncedValue(filters.values.q.trim(), SEARCH_DELAY_MS);
+  const from = isDate(filters.values.from) ? filters.values.from : undefined;
+  const to = isDate(filters.values.to) ? filters.values.to : undefined;
 
   const invoices = useQuery({
-    queryKey: ['invoices', { status, q, offset: filters.offset }],
+    queryKey: ['invoices', { status, q, from, to, offset: filters.offset, cursor: filters.cursor }],
     queryFn: ({ signal }) =>
       api.sales.invoices(
-        { status, q: q === '' ? undefined : q, limit: PAGE_SIZE, offset: filters.offset },
+        {
+          status,
+          q: q === '' ? undefined : q,
+          from,
+          to,
+          limit: PAGE_SIZE,
+          offset: filters.offset,
+          cursor: filters.cursor,
+        },
         signal,
       ),
     placeholderData: keepPreviousData,
@@ -75,6 +88,25 @@ export function InvoicesPage() {
               ))}
             </Select>
           </Field>
+          <Field label={t('sales.invoices.from')}>
+            <Input
+              type="date"
+              value={filters.values.from}
+              onChange={(event) => {
+                filters.set('from', event.target.value);
+              }}
+            />
+          </Field>
+          <Field label={t('sales.invoices.to')}>
+            <Input
+              type="date"
+              value={filters.values.to}
+              onChange={(event) => {
+                filters.set('to', event.target.value);
+              }}
+            />
+          </Field>
+          <ListRefreshing query={invoices} />
         </div>
         <QueryState query={invoices} error="sales.invoices.error">
           {(page) =>
@@ -120,15 +152,11 @@ export function InvoicesPage() {
                     ))}
                   </tbody>
                 </Table>
-                <Pagination
-                  offset={filters.offset}
+                <ListPager
+                  filters={filters}
+                  page={page}
                   limit={PAGE_SIZE}
-                  total={page.total}
-                  onChange={filters.setOffset}
                   label={t('sales.invoices.pages')}
-                  range={(from, to, total) => t('common.range', { from, to, total })}
-                  previousLabel={t('common.previous')}
-                  nextLabel={t('common.next')}
                 />
               </>
             )

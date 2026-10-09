@@ -5,7 +5,17 @@ import {
   type IssuedInvoiceView,
   type TaxDocumentView,
 } from '@paint/shared';
-import { Alert, Badge, Button, EmptyState, Field, Icon, Select, useToast } from '@paint/ui';
+import {
+  Alert,
+  Badge,
+  Button,
+  EmptyState,
+  Field,
+  Icon,
+  PageHeader,
+  Select,
+  useToast,
+} from '@paint/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useEffectEvent, useMemo, useReducer, useRef, useState } from 'react';
 import { errorMessage } from '../api/errors.js';
@@ -370,6 +380,7 @@ function Counter({
             selected={bill.selected}
             partyId={bill.buyer.partyId}
             dispatch={dispatch}
+            focusWhenEmpty={scanRef}
           />
           <p className="pos__keys muted">
             <Icon name="check" size={14} /> {t('pos.keys')}
@@ -465,11 +476,10 @@ export function PosPage() {
         const store = choices.find((choice) => choice.id === chosen) ?? choices[0];
         if (store === undefined) {
           return (
-            <EmptyState
-              icon={<Icon name="store" size={32} />}
-              title={t('pos.title')}
-              description={t('pos.noStore')}
-            />
+            <>
+              <PageHeader title={t('pos.title')} />
+              <EmptyState icon={<Icon name="store" size={32} />} title={t('pos.noStore')} />
+            </>
           );
         }
         return (
