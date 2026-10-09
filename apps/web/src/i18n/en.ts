@@ -1,3 +1,4 @@
+import { booksEn, booksEnumsEn } from './en-books.js';
 import { brandingEn } from './en-branding.js';
 import { catalogEn, catalogEnumsEn } from './en-catalog.js';
 import { contractsEn } from './en-contracts.js';
@@ -336,6 +337,7 @@ export const en = {
   ...salesEn,
   ...posEn,
   ...ordersEn,
+  ...booksEn,
   /** Names of API values, for label(group, value). */
   enums: {
     /** Quick actions offered with search, by the API's key. */
@@ -370,6 +372,7 @@ export const en = {
     ...taxEnumsEn,
     ...salesEnumsEn,
     ...ordersEnumsEn,
+    ...booksEnumsEn,
   },
   pages: {
     notFound: 'This address does not lead to a screen. Check the link, or use the menu or search.',

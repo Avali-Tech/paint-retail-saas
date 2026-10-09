@@ -370,6 +370,8 @@ export interface RegisterSessionView {
   readonly registerCode: string;
   readonly status: RegisterSessionStatus;
   readonly openedByMemberId: string;
+  /** Who opened and who closed it, by name, for the Z-report. */
+  readonly openedBy: string;
   readonly openedAt: string;
   readonly openingFloatPaise: number;
   readonly openingNote: string | null;
@@ -380,6 +382,7 @@ export interface RegisterSessionView {
   readonly variancePaise: number | null;
   readonly denominations: Readonly<Record<string, number>> | null;
   readonly closedByMemberId: string | null;
+  readonly closedBy: string | null;
   readonly closedAt: string | null;
   readonly closingNote: string | null;
   readonly cashInPaise: number;

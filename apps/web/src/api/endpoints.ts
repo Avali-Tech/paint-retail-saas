@@ -1,4 +1,5 @@
 import type { QuickAction } from '@paint/shared';
+import { booksEndpoints } from '../books/books-api.js';
 import { catalogEndpoints } from './catalog.js';
 import type { ApiClient } from './client.js';
 import { contractEndpoints } from './contracts.js';
@@ -109,6 +110,7 @@ export function endpoints(api: ApiClient) {
     supportRequests: supportRequestEndpoints(api),
     pos: posEndpoints(api),
     orders: ordersEndpoints(api),
+    books: booksEndpoints(api),
   };
 }
 

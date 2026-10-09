@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
 import type {
   PartyLedgerView,
@@ -20,11 +21,14 @@ import type {
   RegisterSessionSummary,
   RegisterSessionView,
 } from '@paint/shared';
+import type { FastifyReply } from 'fastify';
 import type { AuthContext } from '../auth/auth-context.js';
 import { CurrentAuth, RequirePermissions } from '../auth/decorators.js';
 import { idempotencyKeySchema } from '../billing/billing.schemas.js';
 import { IdempotencyKey } from '../billing/idempotency.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
+import { attachmentHeader } from '../documents/file-checks.js';
+import { renderReceiptPdf } from '../print/render-receipt-pdf.js';
 import { PartyLedgerService } from './party-ledger.service.js';
 import { PaymentModesService } from './payment-modes.service.js';
 import {
@@ -102,6 +106,22 @@ export class PaymentsController {
     @Param('id', id()) paymentId: string,
   ): Promise<ReceiptView> {
     return this.payments.receipt(auth, paymentId);
+  }
+
+  /** The receipt or refund slip as a PDF, to print or share. */
+  @Get(':id/receipt.pdf')
+  @RequirePermissions('sales:read')
+  async receiptPdf(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', id()) paymentId: string,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<Buffer> {
+    const view = await this.payments.receipt(auth, paymentId);
+    void reply
+      .header('content-type', 'application/pdf')
+      .header('content-disposition', attachmentHeader(`${view.number}.pdf`))
+      .header('cache-control', 'private, no-store');
+    return renderReceiptPdf(view);
   }
 
   @Post(':id/allocate')

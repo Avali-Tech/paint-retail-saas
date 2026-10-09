@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { Module, type DynamicModule } from '@nestjs/common';
 import type { DatabaseConnection } from '@paint/db';
+import { AccountingModule } from './accounting/accounting.module.js';
 import { ActivitiesModule } from './activities/activities.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -53,6 +54,7 @@ export class AppModule {
       imports: [
         DatabaseModule.forRoot(connection),
         ObservabilityModule.forRoot(),
+        AccountingModule,
         ActivitiesModule,
         AuditModule,
         BillingModule,

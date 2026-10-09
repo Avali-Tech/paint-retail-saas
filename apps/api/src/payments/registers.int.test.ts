@@ -56,6 +56,8 @@ describe('a day at the counter', () => {
       status: 'open',
       openingFloatPaise: 200_000,
       openingNote: 'Morning',
+      openedBy: 'Owner',
+      closedBy: null,
       expectedCashPaise: 200_000,
       countedCashPaise: null,
       movements: [],
@@ -119,6 +121,8 @@ describe('a day at the counter', () => {
       variancePaise: 110_100 - expected,
       denominations: { '50000': 2, '10000': 1, '100': 1 },
       closingNote: 'Short',
+      openedBy: 'Owner',
+      closedBy: 'Owner',
     });
     expect(closed.variancePaise).toBe(-1_200);
     const notices = ok(await api(t, manager).get('/notifications')).json<NotificationPage>();
