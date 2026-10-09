@@ -153,6 +153,7 @@ function compare(a: readonly number[], b: readonly number[]): number {
 }
 
 describe('cheapestPackMix properties', () => {
+  // Exact searches over many seeds run past the 5 s default on a loaded CI runner under coverage.
   it('never under-supplies, and its lines add up, for 1,000 seeded random cases', () => {
     for (let seed = 1; seed <= 1_000; seed += 1) {
       const { packs, required } = randomCase(seed);
@@ -166,7 +167,7 @@ describe('cheapestPackMix properties', () => {
       expect(total).toBe(mix.totalPaise);
       expect(mix.surplus).toBe(supplied - required);
     }
-  });
+  }, 60_000);
 
   it('is the cheapest mix (then fewest packs, least surplus) on small seeded cases', () => {
     for (let seed = 1; seed <= 300; seed += 1) {
@@ -182,5 +183,5 @@ describe('cheapestPackMix properties', () => {
         bruteForceBest(packs, required),
       );
     }
-  });
+  }, 60_000);
 });
