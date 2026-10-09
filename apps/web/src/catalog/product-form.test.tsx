@@ -9,7 +9,7 @@ import {
   TAX_OPTIONS,
 } from '../test-support/inventory-fixtures.js';
 import { renderApp } from '../test-support/render-app.js';
-import { initialValues } from './ProductFormPage.js';
+import { initialValues, isValidCoverage } from './ProductFormPage.js';
 
 const location = () => screen.getByTestId('location').textContent;
 
@@ -52,7 +52,100 @@ describe('initialValues', () => {
       hsnCode: '3209',
       taxCategoryId: 'tax-paints',
       isActive: true,
+      coverage: '',
+      defaultCoats: '',
+      isTintable: false,
       variants: [],
+    });
+    expect(
+      initialValues(product({ coverageSqftPerLitre: 129.17, defaultCoats: 2, isTintable: true })),
+    ).toMatchObject({ coverage: '129.17', defaultCoats: '2', isTintable: true });
+  });
+});
+
+describe('isValidCoverage', () => {
+  it('takes blank (hardware) or sq ft above zero with at most 2 decimals', () => {
+    expect(isValidCoverage('  ')).toBe(true);
+    expect(isValidCoverage('120')).toBe(true);
+    expect(isValidCoverage('9999.99')).toBe(true);
+    expect(isValidCoverage('0')).toBe(false);
+    expect(isValidCoverage('10000')).toBe(false);
+    expect(isValidCoverage('120.125')).toBe(false);
+    expect(isValidCoverage('a lot')).toBe(false);
+  });
+});
+
+describe('paint details', () => {
+  it('saves coverage, coats and tintable with a new paint', async () => {
+    let body: unknown;
+    const { user } = renderForm('/products/new', {
+      'POST /products': (request) => {
+        body = request.body;
+        return json(product({ id: 'product-new' }), 201);
+      },
+    });
+    await user.selectOptions(
+      await screen.findByRole('combobox', { name: 'Brand' }),
+      'Asian Paints',
+    );
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Royale');
+    const coverage = screen.getByRole('textbox', { name: 'Coverage (sq ft per litre, one coat)' });
+    await user.type(coverage, '0');
+    await user.type(screen.getByRole('textbox', { name: 'SKU' }), 'RY-4L');
+    await user.type(screen.getByRole('textbox', { name: 'Size' }), '4');
+    await user.click(screen.getByRole('button', { name: 'Add product' }));
+    expect(
+      await screen.findByText('Enter sq ft above zero, up to 9,999.99, with at most 2 decimals'),
+    ).toBeInTheDocument();
+
+    await user.clear(coverage);
+    await user.type(coverage, '140.5');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Default coats' }), '3');
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: 'Tintable base: shades are mixed into it at the counter',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Add product' }));
+    await waitFor(() => {
+      expect(body).toMatchObject({
+        name: 'Royale',
+        coverageSqftPerLitre: 140.5,
+        defaultCoats: 3,
+        isTintable: true,
+      });
+    });
+  });
+
+  it('clears them when a product turns out to be hardware', async () => {
+    let body: unknown;
+    const { user } = renderForm('/products/product-apex/edit', {
+      'GET /products/:id': () =>
+        json(product({ coverageSqftPerLitre: 120, defaultCoats: 2, isTintable: true })),
+      'PATCH /products/:id': (request) => {
+        body = request.body;
+        return json(APEX);
+      },
+    });
+    const coverage = await screen.findByRole('textbox', {
+      name: 'Coverage (sq ft per litre, one coat)',
+    });
+    expect(coverage).toHaveValue('120');
+    expect(screen.getByRole('combobox', { name: 'Default coats' })).toHaveDisplayValue('2');
+    await user.clear(coverage);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Default coats' }), 'Not set');
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: 'Tintable base: shades are mixed into it at the counter',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(body).toMatchObject({
+        coverageSqftPerLitre: null,
+        defaultCoats: null,
+        isTintable: false,
+      });
     });
   });
 });
@@ -195,6 +288,9 @@ describe('EditProductPage', () => {
       hsnCode: '3209',
       categoryId: null,
       description: null,
+      coverageSqftPerLitre: null,
+      defaultCoats: null,
+      isTintable: false,
       isActive: false,
     });
     expect(await screen.findByText('Saved')).toBeInTheDocument();

@@ -12,6 +12,7 @@ import {
 } from '@paint/shared';
 import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
+import { lineTints, withTint } from '../paint/line-tints.js';
 
 const {
   organizationMembers,
@@ -181,6 +182,11 @@ export async function quotationView(
     .innerJoin(productVariants, eq(productVariants.id, quotationLines.variantId))
     .where(eq(quotationLines.quotationId, row.id))
     .orderBy(asc(quotationLines.lineNo));
+  const quoteTints = await lineTints(
+    tx,
+    'quotation_line',
+    lines.map(({ line }) => line.id),
+  );
   const versions = await tx
     .select({
       id: quotations.id,
@@ -211,7 +217,7 @@ export async function quotationView(
     createdByMemberId: row.createdByMemberId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
-    lines: lines.map(({ line, sku }) => lineView(line, sku)),
+    lines: lines.map(({ line, sku }) => withTint(lineView(line, sku), quoteTints)),
     versions: versions.map((version) => ({
       id: version.id,
       version: version.version,
@@ -273,6 +279,11 @@ export async function salesOrderView(tx: Transaction, row: SalesOrderRow): Promi
         .where(eq(organizationMembers.id, row.creditOverrideByMemberId))
     : [];
   const stored = row.creditCheck as StoredCreditCheck | null;
+  const orderTints = await lineTints(
+    tx,
+    'sales_order_line',
+    lines.map(({ line }) => line.id),
+  );
   return {
     id: row.id,
     number: row.number,
@@ -307,7 +318,7 @@ export async function salesOrderView(tx: Transaction, row: SalesOrderRow): Promi
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     lines: lines.map(({ line, sku, reserved }) => ({
-      ...lineView(line, sku),
+      ...withTint(lineView(line, sku), orderTints),
       fulfilStoreId: line.fulfilStoreId,
       quantityInvoiced: line.quantityInvoiced,
       quantityCancelled: line.quantityCancelled,

@@ -1,3 +1,5 @@
+import type { Discount } from './gst/types.js';
+import type { LineTintRequest } from './paint-api.js';
 import type { TallyParty, TallyReceipt } from './tally/types.js';
 import type { TaxDocumentKind, TaxDocumentView } from './tax-documents.js';
 
@@ -248,6 +250,17 @@ export interface IssuePaymentRequest {
  * a customer's bill may be paid in part (the rest stays on their account).
  * Payments never exceed what the bill leaves due.
  */
+/** A line of POST/PUT /invoices (a draft or held bill). */
+export interface DraftInvoiceLineRequest {
+  readonly variantId: string;
+  readonly quantity: number;
+  /** Defaults to the variant's selling price. */
+  readonly unitPricePaise?: number;
+  readonly discount?: Discount;
+  /** The shade it is tinted to, written with the line (round 5a); left out = untinted. */
+  readonly tint?: LineTintRequest;
+}
+
 export interface IssueInvoiceRequest {
   readonly einvoice?: { readonly irn: string; readonly ackNo: string; readonly ackAt?: string };
   readonly payments?: readonly IssuePaymentRequest[];

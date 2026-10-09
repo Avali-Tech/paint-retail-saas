@@ -1,5 +1,13 @@
 import { schema } from '@paint/db';
-import { VARIANT_LABEL_MAX_LENGTH, isValidBarcode, isValidHsn } from '@paint/shared';
+import {
+  MAX_COATS,
+  MAX_COVERAGE_SQFT_PER_LITRE,
+  MIN_COATS,
+  VARIANT_LABEL_MAX_LENGTH,
+  hasAtMostTwoDecimals,
+  isValidBarcode,
+  isValidHsn,
+} from '@paint/shared';
 import { z } from 'zod';
 
 export const PRODUCT_TYPES = schema.productType.enumValues;
@@ -83,6 +91,14 @@ export const updateVariantSchema = z
   .refine(withinMrp, withinMrpMessage);
 export type UpdateVariantInput = z.output<typeof updateVariantSchema>;
 
+/** Sq ft per litre per coat (spec §6.2); hardware leaves it out. */
+const coverage = z
+  .number()
+  .positive()
+  .max(MAX_COVERAGE_SQFT_PER_LITRE)
+  .refine(hasAtMostTwoDecimals, 'Use at most 2 decimals');
+const coats = z.number().int().min(MIN_COATS).max(MAX_COATS);
+
 export const createProductSchema = z.object({
   brandId: z.uuid(),
   categoryId: z.uuid().optional(),
@@ -92,6 +108,9 @@ export const createProductSchema = z.object({
   hsnCode,
   /** Where the GST rate comes from; the default category until the business registers for GST. */
   taxCategoryId: z.uuid().optional(),
+  coverageSqftPerLitre: coverage.nullable().optional(),
+  defaultCoats: coats.nullable().optional(),
+  isTintable: z.boolean().optional(),
   variants: z.array(variantSchema).min(1).max(50),
 });
 export type CreateProductInput = z.output<typeof createProductSchema>;
@@ -105,6 +124,10 @@ export const updateProductSchema = z
     description: z.string().trim().min(1).max(2000).nullable().optional(),
     hsnCode: hsnCode.optional(),
     taxCategoryId: z.uuid().optional(),
+    /** Null clears it (e.g. a product that turned out to be hardware). */
+    coverageSqftPerLitre: coverage.nullable().optional(),
+    defaultCoats: coats.nullable().optional(),
+    isTintable: z.boolean().optional(),
     isActive: z.boolean().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, { message: 'Nothing to change' });

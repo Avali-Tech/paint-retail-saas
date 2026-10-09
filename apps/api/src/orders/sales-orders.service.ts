@@ -45,6 +45,7 @@ import {
   type SalesOrderRow,
   type StoredCreditCheck,
 } from './order-views.js';
+import { carryTints } from '../paint/tint-lines.js';
 import { insertOrder, replaceOrder } from './order-writes.js';
 import type {
   BillOrderInput,
@@ -549,20 +550,40 @@ export class SalesOrdersService {
             createdByMemberId: auth.memberId,
           })
           .returning()) as [TaxDocumentRow];
-        await tx.insert(taxDocumentLines).values(
-          billing.map((item, index) => ({
-            organizationId: auth.organization.id,
-            documentId: draft.id,
-            lineNo: index + 1,
-            variantId: item.line.variantId,
-            quantity: item.quantity,
-            unitPricePaise: item.line.unitPricePaise,
-            discountBps: item.line.discountBps,
-            discountPaise:
-              item.line.discountPaise === null
-                ? null
-                : Math.round((item.line.discountPaise * item.quantity) / item.line.quantity),
-            orderLineId: item.line.id,
+        const billed = await tx
+          .insert(taxDocumentLines)
+          .values(
+            billing.map((item, index) => ({
+              organizationId: auth.organization.id,
+              documentId: draft.id,
+              lineNo: index + 1,
+              variantId: item.line.variantId,
+              quantity: item.quantity,
+              unitPricePaise: item.line.unitPricePaise,
+              discountBps: item.line.discountBps,
+              discountPaise:
+                item.line.discountPaise === null
+                  ? null
+                  : Math.round((item.line.discountPaise * item.quantity) / item.line.quantity),
+              orderLineId: item.line.id,
+            })),
+          )
+          .returning({
+            id: taxDocumentLines.id,
+            orderLineId: taxDocumentLines.orderLineId,
+            quantity: taxDocumentLines.quantity,
+          });
+        await carryTints(
+          tx,
+          auth.memberId,
+          'sales_order_line',
+          'invoice_line',
+          { partyId: order.billToPartyId, projectId: order.projectId },
+          billed.map((line) => ({
+            fromLineId: String(line.orderLineId),
+            toLineId: line.id,
+            quantity: line.quantity,
+            storeId,
           })),
         );
         return documentView(tx, draft);

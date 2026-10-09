@@ -1,3 +1,4 @@
+import type { LineTintInput } from '../paint/paint.schemas.js';
 import { ConflictException, UnprocessableEntityException } from '@nestjs/common';
 import { schema, type Transaction } from '@paint/db';
 import {
@@ -21,6 +22,8 @@ export interface SaleLineInput {
   readonly quantity: number;
   readonly unitPricePaise?: number | null;
   readonly discount?: Discount | null;
+  /** Written with the line after pricing (round 5a). */
+  readonly tint?: LineTintInput;
 }
 
 export interface SalePricingInput {

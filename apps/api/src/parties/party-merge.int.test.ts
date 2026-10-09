@@ -184,6 +184,11 @@ describe('merging a duplicate', () => {
       headers: { ...bearer(owner), ...headers },
       payload,
     });
+    await api().post('/estimates', {
+      storeId: hyd,
+      partyId: duplicate,
+      surfaces: [{ room: 'Hall', kind: 'interior_wall', areaSqft: 100, condition: 'repaint' }],
+    });
     // Credit only on the duplicate, with another request waiting.
     const first = await idOf(
       api().post('/credit-requests', { partyId: duplicate, limitPaise: 30_000_00, creditDays: 30 }),
@@ -235,6 +240,7 @@ describe('merging a duplicate', () => {
       // Already a contractor on the shared project: only the painter role moves.
       'project_parties.party_id': 1,
       'loyalty_accounts.party_id': 0,
+      'estimates.party_id': 1,
       activities: 1,
       documents: 1,
     });

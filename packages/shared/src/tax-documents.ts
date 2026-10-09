@@ -3,6 +3,7 @@
  * GSTR-1 class of a sale and the shapes the API returns. The tax itself comes
  * from the GST engine (./gst).
  */
+import type { LineTintView } from './paint-api.js';
 
 /** Every kind of GST document; each has its own number series (Rule 46(b), 49(b), 50(b), 53). */
 export const TAX_DOCUMENT_KINDS = [
@@ -142,6 +143,8 @@ export interface TaxDocumentLineView {
   readonly igstPaise: number;
   readonly cessPaise: number;
   readonly totalPaise: number;
+  /** Its tint (round 5a, invoice and bill-of-supply lines); absent when untinted. */
+  readonly tint?: LineTintView;
 }
 
 export interface TaxDocumentTaxRowView {

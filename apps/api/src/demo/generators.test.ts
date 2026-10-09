@@ -132,6 +132,9 @@ describe('catalogue', () => {
       expect(product.type).toBe(spec.type);
       expect(product.taxCategory).toBe(spec.taxCategory);
       expect(isValidHsn(product.hsnCode)).toBe(true);
+      // Paint by the litre has a coverage; putty (by the kg) and tools have no paint fields.
+      expect(product.paint.coverageSqftPerLitre !== null).toBe(spec.unit === 'l');
+      if (product.paint.isTintable) expect(spec.unit).toBe('l');
       for (const variant of product.variants) {
         expect(variant.unit).toBe(spec.unit);
         expect(isValidBarcode(variant.barcode)).toBe(true);

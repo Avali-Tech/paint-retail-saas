@@ -777,6 +777,19 @@ export const products = pgTable(
      * created during a rollout; the API sets it on every create (migration 0052).
      */
     taxCategoryId: uuid('tax_category_id'),
+    /**
+     * Square feet one litre covers in one coat (the estimator, spec §6.2). Null for
+     * hardware, which has none, and for paint whose data sheet is not entered yet.
+     */
+    coverageSqftPerLitre: numeric('coverage_sqft_per_litre', {
+      precision: 6,
+      scale: 2,
+      mode: 'number',
+    }),
+    /** Coats the estimator uses when a surface does not say; null for hardware. */
+    defaultCoats: integer('default_coats'),
+    /** Its packs are bases tinted at the counter (spec §6.3); false for hardware. */
+    isTintable: boolean('is_tintable').notNull().default(false),
     isActive: boolean('is_active').notNull().default(true),
     ...timestamps,
   },
@@ -806,6 +819,8 @@ export const products = pgTable(
     index('products_tax_category_idx').on(table.organizationId, table.taxCategoryId),
     check('products_hsn_format', sql`${table.hsnCode} ~ '^[0-9]{4}([0-9]{2}){0,2}$'`),
     check('products_gst_rate_range', sql`${table.gstRateBps} between 0 and 10000`),
+    check('products_coverage_positive', sql`${table.coverageSqftPerLitre} > 0`),
+    check('products_default_coats_range', sql`${table.defaultCoats} between 1 and 5`),
     pgPolicy('products_tenant_isolation', {
       for: 'all',
       to: tenantRole,
@@ -5057,6 +5072,406 @@ export const dispatchLines = pgTable(
     check('dispatch_lines_quantity_positive', sql`${table.quantity} > 0`),
     check('dispatch_lines_value_not_negative', sql`${table.valuePaise} >= 0`),
     pgPolicy('dispatch_lines_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+// ---------------------------------------------------------------------------
+// Paint data: tint records and estimates (MVP 2, Sell & Bill, round 5a;
+// spec §3.3, §6.2, §6.3)
+// ---------------------------------------------------------------------------
+
+/**
+ * The shade a line's base was tinted to (P2-M30): on exactly one quotation,
+ * sales order or invoice line, inserted and deleted only while that line's
+ * document is a draft, never updated (trigger tint_records_draft_only,
+ * migration 0064). Store, party and site are copied from the document so the
+ * shade history is searched across every store without joining documents.
+ */
+export const tintRecords = pgTable(
+  'tint_records',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** Where it was tinted: the document's store (an order line's fulfil store). */
+    storeId: uuid('store_id').notNull(),
+    /** The document's bill-to; null on a walk-in bill with no party. */
+    partyId: uuid('party_id'),
+    /** The document's site. */
+    projectId: uuid('project_id'),
+    quotationLineId: uuid('quotation_line_id'),
+    salesOrderLineId: uuid('sales_order_line_id'),
+    invoiceLineId: uuid('invoice_line_id'),
+    /** The shade card's brand. */
+    brandId: uuid('brand_id').notNull(),
+    /** Normalised: trimmed, single spaces, upper case (normalizeShadeCode). */
+    shadeCode: text('shade_code').notNull(),
+    shadeName: text('shade_name'),
+    /** The base: always the line's variant. */
+    baseVariantId: uuid('base_variant_id').notNull(),
+    /** Packs tinted. */
+    packQuantity: numeric('pack_quantity', { precision: 14, scale: 3, mode: 'number' }).notNull(),
+    /** Colorant cost per pack, for margin only. */
+    colorantCostPaise: bigint('colorant_cost_paise', { mode: 'number' }),
+    /** Tinting charge per pack, part of the line's unit price. */
+    tintChargePaise: bigint('tint_charge_paise', { mode: 'number' }).notNull().default(0),
+    /** Free text until machines are integrated (Release 2.4). */
+    machine: text('machine'),
+    /** Colorants per pack: [{ colorant, amount, unit }]. */
+    formula: jsonb('formula')
+      .notNull()
+      .default([])
+      .$type<{ colorant: string; amount: number; unit: string }[]>(),
+    note: text('note'),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('tint_records_organization_id_id_unique').on(table.organizationId, table.id),
+    // One shade per line.
+    uniqueIndex('tint_records_quotation_line_unique')
+      .on(table.quotationLineId)
+      .where(sql`${table.quotationLineId} is not null`),
+    uniqueIndex('tint_records_sales_order_line_unique')
+      .on(table.salesOrderLineId)
+      .where(sql`${table.salesOrderLineId} is not null`),
+    uniqueIndex('tint_records_invoice_line_unique')
+      .on(table.invoiceLineId)
+      .where(sql`${table.invoiceLineId} is not null`),
+    // "Same shade as last time" (spec §3.3): by party and shade, by site, by shade; newest first.
+    index('tint_records_party_shade_idx').on(
+      table.organizationId,
+      table.partyId,
+      table.shadeCode,
+      table.createdAt.desc().nullsFirst(),
+    ),
+    index('tint_records_project_idx')
+      .on(table.organizationId, table.projectId, table.createdAt.desc().nullsFirst())
+      .where(sql`${table.projectId} is not null`),
+    index('tint_records_shade_idx').on(
+      table.organizationId,
+      table.shadeCode,
+      table.createdAt.desc().nullsFirst(),
+    ),
+    index('tint_records_organization_created_idx').on(
+      table.organizationId,
+      table.createdAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst(),
+    ),
+    foreignKey({
+      name: 'tint_records_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'tint_records_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'tint_records_project_fk',
+      columns: [table.organizationId, table.projectId],
+      foreignColumns: [projects.organizationId, projects.id],
+    }).onDelete('restrict'),
+    // A draft's lines are replaced on edit: their tint records go with them.
+    foreignKey({
+      name: 'tint_records_quotation_line_fk',
+      columns: [table.organizationId, table.quotationLineId],
+      foreignColumns: [quotationLines.organizationId, quotationLines.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'tint_records_sales_order_line_fk',
+      columns: [table.organizationId, table.salesOrderLineId],
+      foreignColumns: [salesOrderLines.organizationId, salesOrderLines.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'tint_records_invoice_line_fk',
+      columns: [table.organizationId, table.invoiceLineId],
+      foreignColumns: [taxDocumentLines.organizationId, taxDocumentLines.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'tint_records_brand_fk',
+      columns: [table.organizationId, table.brandId],
+      foreignColumns: [brands.organizationId, brands.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'tint_records_base_variant_fk',
+      columns: [table.organizationId, table.baseVariantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'tint_records_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'tint_records_one_line',
+      sql`num_nonnulls(${table.quotationLineId}, ${table.salesOrderLineId}, ${table.invoiceLineId}) = 1`,
+    ),
+    check(
+      'tint_records_shade_code_format',
+      sql`${table.shadeCode} = upper(${table.shadeCode}) and ${table.shadeCode} ~ '^[^[:space:]]+( [^[:space:]]+)*$'
+        and char_length(${table.shadeCode}) <= 40`,
+    ),
+    check('tint_records_pack_quantity_positive', sql`${table.packQuantity} > 0`),
+    check(
+      'tint_records_amounts',
+      sql`${table.colorantCostPaise} >= 0 and ${table.tintChargePaise} >= 0`,
+    ),
+    check(
+      'tint_records_formula',
+      sql`jsonb_typeof(${table.formula}) = 'array' and jsonb_array_length(${table.formula}) <= 16`,
+    ),
+    check(
+      'tint_records_text_lengths',
+      sql`char_length(${table.shadeName}) between 1 and 80 and char_length(${table.machine}) between 1 and 80
+        and char_length(${table.note}) between 1 and 500`,
+    ),
+    pgPolicy('tint_records_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** An estimate's life: `draft` is edited and computed; `converted` became a quotation. */
+export const estimateStatus = pgEnum('estimate_status', ['draft', 'converted']);
+
+/** What a surface is (spec §3.3). */
+export const surfaceKind = pgEnum('surface_kind', [
+  'interior_wall',
+  'ceiling',
+  'exterior',
+  'wood',
+  'metal',
+]);
+
+/** The state of a surface, which decides primer and putty (spec §6.2). */
+export const surfaceCondition = pgEnum('surface_condition', ['new', 'repaint', 'damaged']);
+
+/** Good / better / best product choices. */
+export const estimateTier = pgEnum('estimate_tier', ['good', 'better', 'best']);
+
+/**
+ * A paint estimate (P2-M29): surfaces to paint and up to three product
+ * choices, whose litres and pack mix the estimator computes (built after 5a).
+ * Changes only while a draft; converting it into a quotation is final
+ * (trigger estimates_draft_only, migration 0064).
+ */
+export const estimates = pgTable(
+  'estimates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** e.g. ES-000007. */
+    number: text('number').notNull(),
+    status: estimateStatus('status').notNull().default('draft'),
+    storeId: uuid('store_id').notNull(),
+    /** The customer; needed by the time it becomes a quotation. */
+    partyId: uuid('party_id'),
+    /** The site. */
+    projectId: uuid('project_id'),
+    title: text('title'),
+    /** Added to litres; basis points (500 = 5 %). */
+    wastageBps: integer('wastage_bps').notNull().default(500),
+    note: text('note'),
+    /** The quotation it became, and from which tier. */
+    quotationId: uuid('quotation_id'),
+    convertedTier: estimateTier('converted_tier'),
+    convertedAt: timestamp('converted_at', { withTimezone: true }),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique('estimates_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('estimates_organization_number_unique').on(table.organizationId, table.number),
+    uniqueIndex('estimates_quotation_unique')
+      .on(table.quotationId)
+      .where(sql`${table.quotationId} is not null`),
+    // Newest first (GET /estimates); NULLS FIRST matches ORDER BY ... DESC.
+    index('estimates_organization_created_idx').on(
+      table.organizationId,
+      table.createdAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst(),
+    ),
+    index('estimates_party_idx')
+      .on(table.organizationId, table.partyId)
+      .where(sql`${table.partyId} is not null`),
+    foreignKey({
+      name: 'estimates_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'estimates_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'estimates_project_fk',
+      columns: [table.organizationId, table.projectId],
+      foreignColumns: [projects.organizationId, projects.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'estimates_quotation_fk',
+      columns: [table.organizationId, table.quotationId],
+      foreignColumns: [quotations.organizationId, quotations.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'estimates_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('estimates_number_format', sql`${table.number} ~ '^ES-[0-9]{6,}$'`),
+    check('estimates_wastage_range', sql`${table.wastageBps} between 0 and 5000`),
+    check(
+      'estimates_converted',
+      sql`(${table.status} = 'converted') = (${table.quotationId} is not null)
+        and (${table.quotationId} is null) = (${table.convertedTier} is null)
+        and (${table.quotationId} is null) = (${table.convertedAt} is null)`,
+    ),
+    check(
+      'estimates_text_lengths',
+      sql`char_length(${table.title}) between 1 and 120 and char_length(${table.note}) between 1 and 500`,
+    ),
+    pgPolicy('estimates_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * A surface of an estimate: an area, or a length × height, less its openings
+ * (doors, windows).
+ */
+export const estimateSurfaces = pgTable(
+  'estimate_surfaces',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    estimateId: uuid('estimate_id').notNull(),
+    /** 1, 2, 3… in the order entered. */
+    position: integer('position').notNull(),
+    room: text('room').notNull(),
+    kind: surfaceKind('kind').notNull(),
+    areaSqft: numeric('area_sqft', { precision: 10, scale: 2, mode: 'number' }),
+    lengthFt: numeric('length_ft', { precision: 8, scale: 2, mode: 'number' }),
+    heightFt: numeric('height_ft', { precision: 8, scale: 2, mode: 'number' }),
+    openingsSqft: numeric('openings_sqft', { precision: 10, scale: 2, mode: 'number' })
+      .notNull()
+      .default(0),
+    condition: surfaceCondition('condition').notNull(),
+    /** Null: the product's default coats. */
+    coats: integer('coats'),
+    primer: boolean('primer').notNull(),
+    putty: boolean('putty').notNull(),
+  },
+  (table) => [
+    unique('estimate_surfaces_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('estimate_surfaces_estimate_position_unique').on(table.estimateId, table.position),
+    foreignKey({
+      name: 'estimate_surfaces_estimate_fk',
+      columns: [table.organizationId, table.estimateId],
+      foreignColumns: [estimates.organizationId, estimates.id],
+    }).onDelete('cascade'),
+    check('estimate_surfaces_position_positive', sql`${table.position} > 0`),
+    check(
+      'estimate_surfaces_room',
+      sql`${table.room} = btrim(${table.room}) and char_length(${table.room}) between 1 and 60`,
+    ),
+    check(
+      'estimate_surfaces_size',
+      sql`(${table.areaSqft} is null) <> (${table.lengthFt} is null)
+        and (${table.lengthFt} is null) = (${table.heightFt} is null)
+        and ${table.areaSqft} > 0 and ${table.lengthFt} > 0 and ${table.heightFt} > 0`,
+    ),
+    check(
+      'estimate_surfaces_openings',
+      sql`${table.openingsSqft} >= 0
+        and ${table.openingsSqft} <= coalesce(${table.areaSqft}, ${table.lengthFt} * ${table.heightFt})`,
+    ),
+    check('estimate_surfaces_coats_range', sql`${table.coats} between 1 and 5`),
+    pgPolicy('estimate_surfaces_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * One tier of an estimate: the products, and what the estimator computed for
+ * them (litres, pack mix and total; null until computed, all or none).
+ */
+export const estimateOptions = pgTable(
+  'estimate_options',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    estimateId: uuid('estimate_id').notNull(),
+    tier: estimateTier('tier').notNull(),
+    /** The paint. */
+    productId: uuid('product_id').notNull(),
+    primerProductId: uuid('primer_product_id'),
+    puttyProductId: uuid('putty_product_id'),
+    litres: numeric('litres', { precision: 12, scale: 3, mode: 'number' }),
+    /** The pack mix as priced: [{ purpose, variantId, sku, description, quantity, unitPricePaise, totalPaise }]. */
+    lines: jsonb('lines').$type<
+      {
+        purpose: string;
+        variantId: string;
+        sku: string;
+        description: string;
+        quantity: number;
+        unitPricePaise: number;
+        totalPaise: number;
+      }[]
+    >(),
+    totalPaise: bigint('total_paise', { mode: 'number' }),
+    computedAt: timestamp('computed_at', { withTimezone: true }),
+  },
+  (table) => [
+    unique('estimate_options_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('estimate_options_estimate_tier_unique').on(table.estimateId, table.tier),
+    foreignKey({
+      name: 'estimate_options_estimate_fk',
+      columns: [table.organizationId, table.estimateId],
+      foreignColumns: [estimates.organizationId, estimates.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'estimate_options_product_fk',
+      columns: [table.organizationId, table.productId],
+      foreignColumns: [products.organizationId, products.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'estimate_options_primer_product_fk',
+      columns: [table.organizationId, table.primerProductId],
+      foreignColumns: [products.organizationId, products.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'estimate_options_putty_product_fk',
+      columns: [table.organizationId, table.puttyProductId],
+      foreignColumns: [products.organizationId, products.id],
+    }).onDelete('restrict'),
+    check(
+      'estimate_options_computed',
+      sql`(${table.computedAt} is null) = (${table.litres} is null)
+        and (${table.computedAt} is null) = (${table.lines} is null)
+        and (${table.computedAt} is null) = (${table.totalPaise} is null)
+        and ${table.litres} >= 0 and ${table.totalPaise} >= 0
+        and jsonb_typeof(${table.lines}) = 'array'`,
+    ),
+    pgPolicy('estimate_options_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

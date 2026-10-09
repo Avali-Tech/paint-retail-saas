@@ -2,6 +2,7 @@ import { nextDocumentNumber, schema, type Transaction } from '@paint/db';
 import { SALES_ORDER_NUMBER_PREFIX, formatDocumentNumber, type PaymentTerms } from '@paint/shared';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
+import { tintsOf, writeLineTints } from '../paint/line-tints.js';
 import { fieldError } from '../tax/tax-lookups.js';
 import type { SalesOrderRow } from './order-views.js';
 import { priceHeader, pricedColumns, saleHeader, type SaleHeaderInput } from './sale-header.js';
@@ -42,19 +43,35 @@ async function pricedOrder(
   return { header: pricedColumns(header, priced), priced, fulfilStores };
 }
 
+/** The order's lines, and the tints sent with them (round 5a), in the saving transaction. */
 async function writeLines(
   tx: Transaction,
   auth: AuthContext,
   orderId: string,
+  input: OrderDraftInput,
   order: Awaited<ReturnType<typeof pricedOrder>>,
 ): Promise<void> {
-  await tx.insert(salesOrderLines).values(
-    order.priced.lines.map((line, index) => ({
-      ...line,
-      organizationId: auth.organization.id,
-      orderId,
-      fulfilStoreId: String(order.fulfilStores[index]),
-    })),
+  const saved = await tx
+    .insert(salesOrderLines)
+    .values(
+      order.priced.lines.map((line, index) => ({
+        ...line,
+        organizationId: auth.organization.id,
+        orderId,
+        fulfilStoreId: String(order.fulfilStores[index]),
+      })),
+    )
+    .returning({
+      id: salesOrderLines.id,
+      lineNo: salesOrderLines.lineNo,
+      quantity: salesOrderLines.quantity,
+    });
+  await writeLineTints(
+    tx,
+    auth,
+    'sales_order_line',
+    { partyId: order.header.billToPartyId, projectId: order.header.projectId },
+    tintsOf(input.lines, saved, (index) => String(order.fulfilStores[index])),
   );
 }
 
@@ -82,7 +99,7 @@ export async function insertOrder(
       createdByMemberId: auth.memberId,
     })
     .returning()) as [SalesOrderRow];
-  await writeLines(tx, auth, row.id, order);
+  await writeLines(tx, auth, row.id, input, order);
   return row;
 }
 
@@ -101,6 +118,6 @@ export async function replaceOrder(
     .where(eq(salesOrders.id, id))
     .returning()) as [SalesOrderRow];
   await tx.delete(salesOrderLines).where(eq(salesOrderLines.orderId, id));
-  await writeLines(tx, auth, id, order);
+  await writeLines(tx, auth, id, input, order);
   return row;
 }

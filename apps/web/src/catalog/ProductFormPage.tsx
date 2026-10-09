@@ -1,5 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { basisPointsToPercent, isValidHsn, type TaxCategoryOptions } from '@paint/shared';
+import {
+  MAX_COATS,
+  MAX_COVERAGE_SQFT_PER_LITRE,
+  MIN_COATS,
+  basisPointsToPercent,
+  hasAtMostTwoDecimals,
+  isValidHsn,
+  type TaxCategoryOptions,
+} from '@paint/shared';
 import {
   Alert,
   Button,
@@ -23,12 +31,28 @@ import { useApi } from '../app/services.js';
 import { showApiError } from '../auth/forms.js';
 import { useI18n, type I18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
-import { optional } from '../lib/inputs.js';
+import { optional, parseNumber } from '../lib/inputs.js';
 import { categoryOptions, usableCategories } from './categories.js';
 import { EMPTY_VARIANT, toVariantInput, variantSchema, type VariantDraft } from './variant-form.js';
 
 /** The most pack sizes a new product may start with (the API's limit). */
 export const MAX_VARIANTS = 50;
+
+const COATS = Array.from({ length: MAX_COATS - MIN_COATS + 1 }, (_, index) =>
+  String(MIN_COATS + index),
+);
+
+/** Coverage typed as sq ft per litre: blank (hardware), or above 0 with at most 2 decimals. */
+export function isValidCoverage(text: string): boolean {
+  if (text.trim() === '') return true;
+  const value = parseNumber(text);
+  return (
+    value !== null &&
+    value > 0 &&
+    value <= MAX_COVERAGE_SQFT_PER_LITRE &&
+    hasAtMostTwoDecimals(value)
+  );
+}
 
 const variantPath = <K extends keyof VariantDraft>(index: number, key: K) =>
   `variants.${String(index)}.${key}` as `variants.${number}.${K}`;
@@ -50,6 +74,9 @@ function formSchema(t: I18n['t'], taxRequired: boolean) {
       .string()
       .refine((value) => !taxRequired || value !== '', t('products.form.taxCategoryRequired')),
     isActive: z.boolean(),
+    coverage: z.string().refine(isValidCoverage, t('products.form.coverageInvalid')),
+    defaultCoats: z.string(),
+    isTintable: z.boolean(),
     variants: z.array(variantSchema(t)),
   });
 }
@@ -64,7 +91,18 @@ const FIELDS = [
   'description',
   'hsnCode',
   'taxCategoryId',
+  'coverage',
+  'defaultCoats',
 ] as const satisfies readonly Path<Values>[];
+
+/** The paint fields as the API takes them: null (or false) for hardware. */
+function paintFields(values: Values) {
+  return {
+    coverageSqftPerLitre: parseNumber(values.coverage),
+    defaultCoats: values.defaultCoats === '' ? null : Number(values.defaultCoats),
+    isTintable: values.isTintable,
+  };
+}
 
 export function initialValues(product: Product | null): Values {
   return {
@@ -77,6 +115,9 @@ export function initialValues(product: Product | null): Values {
     // Blank: the default category (until the business registers for GST).
     taxCategoryId: product?.taxCategory?.id ?? '',
     isActive: product?.isActive ?? true,
+    coverage: product?.coverageSqftPerLitre == null ? '' : String(product.coverageSqftPerLitre),
+    defaultCoats: product?.defaultCoats == null ? '' : String(product.defaultCoats),
+    isTintable: product?.isTintable ?? false,
     // Pack sizes of an existing product are edited one by one on its page.
     variants: product === null ? [{ ...EMPTY_VARIANT }] : [],
   };
@@ -131,11 +172,18 @@ function ProductForm({ product, brands, categories, tax }: ProductFormProps) {
         ? {}
         : { taxCategoryId: values.taxCategoryId }),
     };
+    const paint = paintFields(values);
     try {
       const saved =
         product === null
           ? await api.catalog.createProduct({
               ...fields,
+              // Hardware leaves the paint fields out.
+              ...(paint.coverageSqftPerLitre === null
+                ? {}
+                : { coverageSqftPerLitre: paint.coverageSqftPerLitre }),
+              ...(paint.defaultCoats === null ? {} : { defaultCoats: paint.defaultCoats }),
+              ...(paint.isTintable ? { isTintable: true } : {}),
               ...(values.categoryId === '' ? {} : { categoryId: values.categoryId }),
               ...(optional(values.description) === null
                 ? {}
@@ -146,6 +194,7 @@ function ProductForm({ product, brands, categories, tax }: ProductFormProps) {
               ...fields,
               categoryId: optional(values.categoryId),
               description: optional(values.description),
+              ...paint,
               isActive: values.isActive,
             });
       queryClient.setQueryData(['product', saved.id], saved);
@@ -243,6 +292,30 @@ function ProductForm({ product, brands, categories, tax }: ProductFormProps) {
         {product !== null && (
           <Checkbox label={t('products.form.active')} {...form.register('isActive')} />
         )}
+      </Card>
+
+      <Card title={t('products.form.paint')}>
+        <p className="muted">{t('products.form.paintHint')}</p>
+        <div className="form-grid">
+          <Field
+            label={t('products.form.coverage')}
+            hint={t('products.form.coverageHint')}
+            error={errors.coverage?.message}
+          >
+            <Input inputMode="decimal" {...form.register('coverage')} />
+          </Field>
+          <Field label={t('products.form.defaultCoats')}>
+            <Select {...form.register('defaultCoats')}>
+              <option value="">{t('products.form.noDefaultCoats')}</option>
+              {COATS.map((coats) => (
+                <option key={coats} value={coats}>
+                  {coats}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+        <Checkbox label={t('products.form.tintable')} {...form.register('isTintable')} />
       </Card>
 
       {product === null && (
