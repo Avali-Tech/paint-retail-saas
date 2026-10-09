@@ -1,6 +1,8 @@
 import { stateTaxLabel } from '../gst/states.js';
 import { TallyError, type TallyProblem } from './errors.js';
+import { paiseToRupees } from '../money.js';
 import {
+  bounceChargesNeed,
   compositionSalesNeed,
   partyNeed,
   paymentModeNeed,
@@ -15,10 +17,13 @@ import {
 } from './ledgers.js';
 import type {
   TallyAllocation,
+  TallyChequeBounce,
   TallyDocumentRef,
   TallyParty,
   TallyPeriod,
   TallyReceipt,
+  TallyReceiptRef,
+  TallyRefund,
   TallySalesDocument,
   TallySalesKind,
 } from './types.js';
@@ -51,14 +56,20 @@ export interface TallyEntry {
   readonly rateBasisPoints: number | null;
 }
 
-export type TallyVoucherKind = 'sales' | 'credit_note' | 'debit_note' | 'receipt';
+export type TallyVoucherKind =
+  'sales' | 'credit_note' | 'debit_note' | 'receipt' | 'payment' | 'journal';
+
+/** What a voucher was made from: a GST document kind, or a money event. */
+export type TallyVoucherSource = TallySalesKind | 'receipt' | 'refund' | 'cheque_bounce';
 
 /** The Tally voucher type names to import into. */
-export type TallyVoucherTypes = Readonly<Record<TallySalesKind | 'receipt', string>>;
+export type TallyVoucherTypes = Readonly<Record<TallyVoucherSource, string>>;
 
 /**
  * TallyPrime's predefined voucher types. A bill of supply goes to Sales too;
  * a business that keeps a separate voucher type (or class) for it overrides it.
+ * A refund is money paid out (Payment); a bounced cheque moves no money, it
+ * undoes a receipt, so it is a Journal (docs/mvp-2/tally.md says why).
  */
 export const DEFAULT_TALLY_VOUCHER_TYPES: TallyVoucherTypes = {
   tax_invoice: 'Sales',
@@ -66,6 +77,8 @@ export const DEFAULT_TALLY_VOUCHER_TYPES: TallyVoucherTypes = {
   credit_note: 'Credit Note',
   debit_note: 'Debit Note',
   receipt: 'Receipt',
+  refund: 'Payment',
+  cheque_bounce: 'Journal',
 };
 
 export interface TallyVoucherGst {
@@ -75,8 +88,8 @@ export interface TallyVoucherGst {
 
 export interface TallyVoucher {
   readonly kind: TallyVoucherKind;
-  /** Our document kind, `receipt` for money in. */
-  readonly source: TallySalesKind | 'receipt';
+  /** Our document kind, or the money event. */
+  readonly source: TallyVoucherSource;
   readonly documentId: string;
   readonly voucherType: string;
   readonly number: string;
@@ -84,9 +97,9 @@ export interface TallyVoucher {
   readonly cancelled: boolean;
   readonly partyLedger: string;
   readonly party: TallyParty;
-  /** GST documents only: our GSTIN and the place of supply. Null on receipts. */
+  /** GST documents only: our GSTIN and the place of supply. Null on money vouchers. */
   readonly gst: TallyVoucherGst | null;
-  /** Notes only: the invoices adjusted. */
+  /** Notes: the invoices adjusted. Refunds and bounces: the receipt. Empty otherwise. */
   readonly originals: readonly TallyDocumentRef[];
   readonly narration: string;
   /** Debits first in the order Tally shows them; empty for a cancelled voucher. */
@@ -97,7 +110,7 @@ export interface TallyExport {
   readonly companyName: string;
   readonly from: string;
   readonly to: string;
-  /** In date order; on one date sales, then debit notes, credit notes, receipts. */
+  /** In date order; on one date sales, debit notes, credit notes, receipts, payments, journals. */
   readonly vouchers: readonly TallyVoucher[];
   /** Every ledger the vouchers use, by name. */
   readonly ledgers: readonly TallyLedger[];
@@ -127,6 +140,8 @@ const ORDER: Record<TallyVoucherKind, number> = {
   debit_note: 1,
   credit_note: 2,
   receipt: 3,
+  payment: 4,
+  journal: 5,
 };
 
 /** `2026-09-05` → `05-09-2026`, the way Indian invoices print dates. */
@@ -258,9 +273,93 @@ function receiptLines(receipt: TallyReceipt): Pending[] {
   ];
 }
 
+/** Money going back against a receipt: its Advance bill, or on account. */
+const againstReceipt = (receipt: TallyReceiptRef) =>
+  receipt.advance ? { type: 'Agst Ref' as const, name: receipt.number } : ON_ACCOUNT;
+
+/** A refund: Dr party (against the receipt's advance, or on account), Cr the mode's ledger. */
+function refundLines(refund: TallyRefund): Pending[] {
+  return [
+    {
+      need: partyNeed(refund.party, refund.storeCode),
+      side: 'debit',
+      paise: refund.amountPaise,
+      bills: billsFor(refund.party, refund.amountPaise, [], againstReceipt(refund.receipt)),
+      hsnCodes: [],
+      rateBasisPoints: null,
+    },
+    {
+      need: paymentModeNeed(refund.mode, refund.storeCode),
+      side: 'credit',
+      paise: refund.amountPaise,
+      bills: [],
+      hsnCodes: [],
+      rateBasisPoints: null,
+    },
+  ];
+}
+
+/** The bounce's voucher number: the receipt's, marked, so the two sit together. */
+export const bounceNumber = (bounce: TallyChequeBounce) => `${bounce.receipt.number}/BOUNCE`;
+
+/**
+ * A bounce: the receipt turned round. Dr party, reopening the bills it settled
+ * (the rest against its advance, or on account), Cr the ledger the cheque
+ * went into. A bounce charge is a new bill on the party, Cr bounce charges.
+ */
+function bounceLines(bounce: TallyChequeBounce): Pending[] {
+  const party = partyNeed(bounce.party, bounce.storeCode);
+  const lines: Pending[] = [
+    {
+      need: party,
+      side: 'debit',
+      paise: bounce.amountPaise,
+      bills: billsFor(
+        bounce.party,
+        bounce.amountPaise,
+        bounce.reopened,
+        againstReceipt(bounce.receipt),
+      ),
+      hsnCodes: [],
+      rateBasisPoints: null,
+    },
+    {
+      need: paymentModeNeed(bounce.mode, bounce.storeCode),
+      side: 'credit',
+      paise: bounce.amountPaise,
+      bills: [],
+      hsnCodes: [],
+      rateBasisPoints: null,
+    },
+  ];
+  if (bounce.chargePaise === 0) return lines;
+  return [
+    ...lines,
+    {
+      need: party,
+      side: 'debit',
+      paise: bounce.chargePaise,
+      bills: billsFor(bounce.party, bounce.chargePaise, [], {
+        type: 'New Ref',
+        name: bounceNumber(bounce),
+      }),
+      hsnCodes: [],
+      rateBasisPoints: null,
+    },
+    {
+      need: bounceChargesNeed(bounce.storeCode),
+      side: 'credit',
+      paise: bounce.chargePaise,
+      bills: [],
+      hsnCodes: [],
+      rateBasisPoints: null,
+    },
+  ];
+}
+
 interface Draft {
   readonly kind: TallyVoucherKind;
-  readonly source: TallySalesKind | 'receipt';
+  readonly source: TallyVoucherSource;
   readonly documentId: string;
   readonly number: string;
   readonly date: string;
@@ -321,6 +420,62 @@ function receiptDraft(receipt: TallyReceipt): Draft {
   };
 }
 
+const receiptRef = (receipt: TallyReceiptRef): TallyDocumentRef => ({
+  number: receipt.number,
+  issuedOn: receipt.receivedOn,
+});
+
+function refundDraft(refund: TallyRefund): Draft {
+  const narration = [
+    `Refund ${refund.number} by ${refund.mode.name}`,
+    `against receipt ${refund.receipt.number} dated ${indianDate(refund.receipt.receivedOn)}`,
+    ...(refund.reference === null ? [] : [`ref ${refund.reference}`]),
+    ...(refund.note === null ? [] : [refund.note]),
+    narrationTag(refund.id),
+  ].join('; ');
+  return {
+    kind: 'payment',
+    source: 'refund',
+    documentId: refund.id,
+    number: refund.number,
+    date: refund.paidOn,
+    cancelled: false,
+    party: refund.party,
+    partyNeed: partyNeed(refund.party, refund.storeCode),
+    gst: null,
+    originals: [receiptRef(refund.receipt)],
+    narration,
+    lines: refundLines(refund),
+  };
+}
+
+/** The bounce's own id: one payment is both a receipt and, later, its bounce. */
+export const bounceId = (bounce: TallyChequeBounce) => `${bounce.paymentId}-bounce`;
+
+function bounceDraft(bounce: TallyChequeBounce): Draft {
+  const narration = [
+    `Cheque bounced: receipt ${bounce.receipt.number} dated ${indianDate(bounce.receipt.receivedOn)} by ${bounce.mode.name}`,
+    ...(bounce.reference === null ? [] : [`ref ${bounce.reference}`]),
+    bounce.reason,
+    ...(bounce.chargePaise === 0 ? [] : [`bounce charge Rs ${paiseToRupees(bounce.chargePaise)}`]),
+    narrationTag(bounceId(bounce)),
+  ].join('; ');
+  return {
+    kind: 'journal',
+    source: 'cheque_bounce',
+    documentId: bounceId(bounce),
+    number: bounceNumber(bounce),
+    date: bounce.bouncedOn,
+    cancelled: false,
+    party: bounce.party,
+    partyNeed: partyNeed(bounce.party, bounce.storeCode),
+    gst: null,
+    originals: [receiptRef(bounce.receipt)],
+    narration,
+    lines: bounceLines(bounce),
+  };
+}
+
 /** Adds up lines that land on the same ledger and side, keeping first-seen order. */
 function merge(lines: readonly (Pending & { readonly ledger: string })[]): TallyEntry[] {
   const entries = new Map<string, TallyEntry>();
@@ -344,7 +499,12 @@ function merge(lines: readonly (Pending & { readonly ledger: string })[]): Tally
 }
 
 function drafts(period: TallyPeriod): Draft[] {
-  return [...period.documents.map(documentDraft), ...period.receipts.map(receiptDraft)].sort(
+  return [
+    ...period.documents.map(documentDraft),
+    ...period.receipts.map(receiptDraft),
+    ...period.refunds.map(refundDraft),
+    ...period.bounces.map(bounceDraft),
+  ].sort(
     (a, b) =>
       a.date.localeCompare(b.date) ||
       ORDER[a.kind] - ORDER[b.kind] ||

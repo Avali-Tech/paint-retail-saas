@@ -5,7 +5,8 @@ import { openingStock } from './inventory-support.js';
 import { call, createBusiness, signInWithPassword, type Business } from './support.js';
 
 // The day end and the books (spec §5.5, §6.1; round 4c): a register closes with a
-// ₹20 variance and a Z-report, a receipt prints as a PDF, and the month goes to Tally.
+// ₹20 variance and a Z-report, a receipt prints as a PDF, and the month goes to Tally,
+// refunds and bounced cheques included.
 
 const TELANGANA_GSTIN = '36AABCS1429B1ZV';
 
@@ -69,10 +70,14 @@ async function bill(
     token,
     body: { storeId, partyId, lines: [{ variantId: brush, quantity }] },
   });
-  return call<{ id: string; totalPaise: number }>('POST', `/invoices/${draft.id}/issue`, {
-    token,
-    body: issue,
-  });
+  return call<{ id: string; totalPaise: number; issuedOn: string }>(
+    'POST',
+    `/invoices/${draft.id}/issue`,
+    {
+      token,
+      body: issue,
+    },
+  );
 }
 
 async function stubPrint(page: Page) {
@@ -159,6 +164,35 @@ test('a receipt prints as a PDF, and the month goes to Tally once its bank is ma
       allocations: [{ documentId: invoice.id, amountPaise: invoice.totalPaise }],
     },
   });
+  // An advance partly paid back, and a cheque the bank returned.
+  const advance = await call<{ id: string }>('POST', '/payments', {
+    token,
+    body: {
+      storeId: books.storeId,
+      partyId: party.id,
+      modeId: books.modes.upi,
+      amountPaise: 5_000,
+      reference: 'UTR112233',
+      allocations: [],
+    },
+  });
+  await call('POST', `/payments/${advance.id}/refund`, {
+    token,
+    body: { modeId: books.modes.upi, amountPaise: 2_000, reference: 'UTR445566' },
+  });
+  const cheque = await call<{ id: string }>('POST', '/payments', {
+    token,
+    body: {
+      storeId: books.storeId,
+      partyId: party.id,
+      modeId: books.modes.cheque,
+      amountPaise: 3_000,
+      reference: '004512',
+      chequeDate: invoice.issuedOn,
+      allocations: [],
+    },
+  });
+  await call('POST', `/payments/${cheque.id}/bounce`, { token, body: { reason: 'Funds' } });
 
   await signInWithPassword(page, books.business.ownerPhone);
   await expect(page.locator('.shell__header')).toBeVisible();
@@ -178,7 +212,12 @@ test('a receipt prints as a PDF, and the month goes to Tally once its bank is ma
 
   await page.getByRole('link', { name: 'Tally export' }).first().click();
   const counts = page.getByLabel('Vouchers in the period');
-  await expect(counts).toContainText('Sales2Credit notes0Debit notes0Receipts2');
+  await expect(counts).toContainText('Sales2Credit notes0Debit notes0Receipts4');
+  await expect(
+    page.getByText(
+      'With the receipts go 1 refund, each a Payment voucher, and 1 bounced cheque, each reversed by a Journal voucher on the day it bounced.',
+    ),
+  ).toBeVisible();
   await expect(
     page.getByText(/No Tally ledger is mapped for payment mode "Bank transfer"/),
   ).toBeVisible();
@@ -209,8 +248,11 @@ test('a receipt prints as a PDF, and the month goes to Tally once its bank is ma
   expect(zip).toContain('HDFC Bank');
   expect(zip).toContain('Deccan Contractors');
   expect(zip).toContain('Cash Sales');
+  expect(zip).toContain('VCHTYPE="Payment"');
+  expect(zip).toContain('VCHTYPE="Journal"');
+  expect(zip).toContain(`REMOTEID="paint-${cheque.id}-bounce"`);
   await expect(page.getByRole('table', { name: 'Past exports' })).toContainText(
-    'Sales, Credit notes, Debit notes, Receipts4',
+    'Sales, Credit notes, Debit notes, Receipts8',
   );
 });
 

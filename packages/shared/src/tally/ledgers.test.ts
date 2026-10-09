@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bounceChargesNeed,
   compositionSalesNeed,
   partyNeed,
   paymentModeNeed,
@@ -70,6 +71,20 @@ describe('default ledger names (spec §6.1)', () => {
     expect(mode('cheque')).toEqual({ name: 'Cheques in Hand', group: 'Current Assets' });
     expect(mode('bank_transfer')).toEqual({ name: null, group: 'Bank Accounts' });
     expect(mode('other')).toEqual({ name: null, group: 'Current Assets' });
+  });
+
+  it('credits bounce charges to an Indirect Incomes ledger, per store if mapped', () => {
+    expect(resolveLedger(bounceChargesNeed('AMP'), [])).toEqual({
+      name: 'Cheque Bounce Charges',
+      group: 'Indirect Incomes',
+    });
+    const rule = {
+      purpose: 'bounce_charges',
+      storeCode: 'KKP',
+      ledgerName: 'Bank Charges Recovered',
+    } as const;
+    expect(resolveLedger(bounceChargesNeed('KKP'), [rule]).name).toBe('Bank Charges Recovered');
+    expect(resolveLedger(bounceChargesNeed('AMP'), [rule]).name).toBe('Cheque Bounce Charges');
   });
 });
 

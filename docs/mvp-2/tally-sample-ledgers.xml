@@ -43,6 +43,16 @@
      </LEDGER>
     </TALLYMESSAGE>
     <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <LEDGER NAME="Cheque Bounce Charges" ACTION="Create">
+      <NAME.LIST>
+       <NAME>Cheque Bounce Charges</NAME>
+      </NAME.LIST>
+      <PARENT>Indirect Incomes</PARENT>
+      <ISBILLWISEON>No</ISBILLWISEON>
+      <AFFECTSSTOCK>No</AFFECTSSTOCK>
+     </LEDGER>
+    </TALLYMESSAGE>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
      <LEDGER NAME="Cheques in Hand" ACTION="Create">
       <NAME.LIST>
        <NAME>Cheques in Hand</NAME>

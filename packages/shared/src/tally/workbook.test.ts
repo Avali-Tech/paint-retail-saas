@@ -45,6 +45,8 @@ describe('tallySheets', () => {
       ['Credit Note', 4],
       ['Debit Note', 0],
       ['Receipt', 2],
+      ['Payment', 0],
+      ['Journal', 0],
       ['Ledgers', 6],
     ]);
   });

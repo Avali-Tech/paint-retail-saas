@@ -16,7 +16,7 @@ import {
   type TallyExportOptions,
   type TallyPeriod,
 } from '@paint/shared';
-import { and, asc, between, count, desc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, between, count, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
@@ -29,12 +29,16 @@ import type {
 import { mappingViews } from './ledger-mappings.service.js';
 import {
   EXPORT_KIND_OF,
+  bouncesOf,
   ledgerRuleOf,
   receiptsOf,
+  refundsOf,
   salesDocumentsOf,
   type AllocationRow,
+  type BounceRow,
   type DocumentRow,
   type ReceiptRow,
+  type RefundRow,
 } from './tally-period.js';
 
 const {
@@ -44,6 +48,7 @@ const {
   organizationMembers,
   organizations,
   parties,
+  partyLedger,
   paymentModes,
   payments,
   salesSettings,
@@ -58,6 +63,7 @@ const {
 const original = alias(taxDocuments, 'original');
 const target = alias(taxDocuments, 'target');
 const reversal = alias(allocations, 'reversal');
+const source = alias(payments, 'source');
 
 const DOCUMENT_KINDS: Readonly<Record<AccountingExportKind, readonly DocumentRow['kind'][]>> = {
   sales: ['invoice', 'bill_of_supply'],
@@ -70,7 +76,7 @@ interface Gathered {
   readonly period: TallyPeriod;
   readonly counts: AccountingExportPreview['counts'];
   readonly options: TallyExportOptions;
-  readonly manual: AccountingExportPreview['manual'];
+  readonly withReceipts: AccountingExportPreview['withReceipts'];
 }
 
 const unprocessable = (message: string, issues: { path: string; message: string }[]) =>
@@ -116,14 +122,14 @@ export class AccountingExportsService {
   /** What an export would hold, and every problem that would stop it. */
   preview(auth: AuthContext, query: ExportPreviewQuery): Promise<AccountingExportPreview> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
-      const { period, options, manual, counts } = await this.gather(tx, auth, query);
+      const { period, options, withReceipts, counts } = await this.gather(tx, auth, query);
       return {
         from: query.from,
         to: query.to,
         companyName: period.companyName,
         counts,
         problems: checkTallyExport(period, options),
-        manual,
+        withReceipts,
       };
     });
   }
@@ -142,9 +148,10 @@ export class AccountingExportsService {
           problems.map((problem) => ({ path: problem.code, message: problem.message })),
         );
       }
-      if (period.documents.length + period.receipts.length === 0) {
+      const { documents: docs, receipts, refunds, bounces } = period;
+      if (docs.length + receipts.length + refunds.length + bounces.length === 0) {
         throw unprocessable('Nothing to export', [
-          { path: 'from', message: 'There are no documents or receipts in this period' },
+          { path: 'from', message: 'There are no documents or payments in this period' },
         ]);
       }
       const data = buildTallyExport(period, options);
@@ -229,7 +236,7 @@ export class AccountingExportsService {
     };
   }
 
-  /** The period's documents and receipts, the mapping rules, and what is left to enter by hand. */
+  /** The period's documents and money (receipts, refunds, bounces) and the mapping rules. */
   private async gather(
     tx: Transaction,
     auth: AuthContext,
@@ -328,22 +335,26 @@ export class AccountingExportsService {
             )
             .orderBy(asc(original.issuedOn), asc(original.number));
 
-    const receiptRows: ReceiptRow[] = query.kinds.includes('receipt')
+    const money = query.kinds.includes('receipt');
+    const moneyColumns = {
+      id: payments.id,
+      storeCode: stores.code,
+      partyId: payments.partyId,
+      partyName: parties.displayName,
+      partyGstin: parties.gstin,
+      partyStateCode: parties.placeOfSupply,
+      modeKind: payments.modeKind,
+      modeName: paymentModes.name,
+      amountPaise: payments.amountPaise,
+      reference: payments.reference,
+    };
+    const receiptRows: ReceiptRow[] = money
       ? await tx
           .select({
-            id: payments.id,
+            ...moneyColumns,
             number: payments.number,
             voucherNumber: payments.voucherNumber,
             receivedOn: payments.receivedOn,
-            storeCode: stores.code,
-            partyId: payments.partyId,
-            partyName: parties.displayName,
-            partyGstin: parties.gstin,
-            partyStateCode: parties.placeOfSupply,
-            modeKind: payments.modeKind,
-            modeName: paymentModes.name,
-            amountPaise: payments.amountPaise,
-            reference: payments.reference,
             note: payments.note,
           })
           .from(payments)
@@ -354,12 +365,65 @@ export class AccountingExportsService {
             and(
               eq(payments.direction, 'in'),
               between(payments.receivedOn, query.from, query.to),
-              // A bounced cheque never became money; its bounce is entered by hand.
-              or(isNull(payments.chequeStatus), ne(payments.chequeStatus, 'bounced')),
+              // A bounced cheque is still the receipt it was; its bounce reverses it.
               storeFilter(payments.storeId),
             ),
           )
           .orderBy(asc(payments.receivedOn), asc(payments.number))
+      : [];
+    const refundRows: RefundRow[] = money
+      ? await tx
+          .select({
+            ...moneyColumns,
+            number: payments.number,
+            voucherNumber: payments.voucherNumber,
+            paidOn: payments.receivedOn,
+            note: payments.note,
+            receiptNumber: source.number,
+            receiptVoucherNumber: source.voucherNumber,
+            receivedOn: source.receivedOn,
+          })
+          .from(payments)
+          .innerJoin(stores, eq(stores.id, payments.storeId))
+          .innerJoin(parties, eq(parties.id, payments.partyId))
+          .innerJoin(paymentModes, eq(paymentModes.id, payments.modeId))
+          .innerJoin(allocations, eq(allocations.refundPaymentId, payments.id))
+          .innerJoin(source, eq(source.id, allocations.paymentId))
+          .where(
+            and(
+              eq(payments.direction, 'out'),
+              between(payments.receivedOn, query.from, query.to),
+              storeFilter(payments.storeId),
+            ),
+          )
+          .orderBy(asc(payments.receivedOn), asc(payments.number))
+      : [];
+    const bounceRows: BounceRow[] = money
+      ? await tx
+          .select({
+            ...moneyColumns,
+            bouncedOn: sql<string>`${payments.chequeBouncedOn}::text`,
+            reason: sql<string>`coalesce(${payments.bounceReason}, '')`,
+            // The bounce's charge is the one adjustment it posts against the payment.
+            chargePaise: sql<number>`coalesce((select sum(pl.amount_paise) from ${partyLedger} pl
+              where pl.entry_type = 'adjustment' and pl.reference_type = 'payment'
+              and pl.reference_id = ${payments.id}), 0)`.mapWith(Number),
+            receiptNumber: payments.number,
+            receiptVoucherNumber: payments.voucherNumber,
+            receivedOn: payments.receivedOn,
+          })
+          .from(payments)
+          .innerJoin(stores, eq(stores.id, payments.storeId))
+          .innerJoin(parties, eq(parties.id, payments.partyId))
+          .innerJoin(paymentModes, eq(paymentModes.id, payments.modeId))
+          .where(
+            and(
+              eq(payments.chequeStatus, 'bounced'),
+              between(payments.chequeBouncedOn, query.from, query.to),
+              storeFilter(payments.storeId),
+            ),
+          )
+          .orderBy(asc(payments.chequeBouncedOn), asc(payments.number))
       : [];
     const sourceIds = [...documentIds, ...receiptRows.map((receipt) => receipt.id)];
     const allocationRows: AllocationRow[] =
@@ -381,20 +445,30 @@ export class AccountingExportsService {
                   inArray(allocations.creditNoteId, sourceIds),
                 ),
                 gt(allocations.amountPaise, 0),
-                isNull(reversal.id),
+                // Live, or undone only by a bounce: the receipt as it was taken.
+                or(isNull(reversal.id), eq(reversal.reversalReason, 'cheque_bounce')),
               ),
             )
             .orderBy(asc(allocations.createdAt), asc(allocations.id));
-
-    const [manual] = (await tx
-      .select({
-        refunds: sql<number>`count(*) filter (where ${payments.direction} = 'out'
-          and ${payments.receivedOn} between ${query.from} and ${query.to})`.mapWith(Number),
-        bouncedCheques: sql<number>`count(*) filter (where ${payments.chequeBouncedOn}
-          between ${query.from} and ${query.to})`.mapWith(Number),
-      })
-      .from(payments)
-      .where(storeFilter(payments.storeId))) as [AccountingExportPreview['manual']];
+    const bounceIds = bounceRows.map((row) => row.id);
+    const reopenedRows: AllocationRow[] =
+      bounceIds.length === 0
+        ? []
+        : await tx
+            .select({
+              sourceId: sql<string>`${allocations.paymentId}`,
+              documentNumber: sql<string>`${target.number}`,
+              amountPaise: sql<number>`-${allocations.amountPaise}`.mapWith(Number),
+            })
+            .from(allocations)
+            .innerJoin(target, eq(target.id, allocations.documentId))
+            .where(
+              and(
+                inArray(allocations.paymentId, bounceIds),
+                eq(allocations.reversalReason, 'cheque_bounce'),
+              ),
+            )
+            .orderBy(asc(allocations.createdAt), asc(allocations.id));
 
     const mappings = await mappingViews(tx);
     const storeCodes = new Map(
@@ -421,6 +495,8 @@ export class AccountingExportsService {
           business.walkInPartyId,
         ),
         receipts: receiptsOf(receiptRows, allocationRows, business.walkInPartyId),
+        refunds: refundsOf(refundRows, business.walkInPartyId),
+        bounces: bouncesOf(bounceRows, reopenedRows, business.walkInPartyId),
       },
       options: {
         ledgerRules: mappings.map((mapping) => ledgerRuleOf(mapping, storeCodes, modeNames)),
@@ -434,7 +510,7 @@ export class AccountingExportsService {
             : documentRows.filter((doc) => EXPORT_KIND_OF[doc.kind] === kind).length,
         ]),
       ) as Record<AccountingExportKind, number>,
-      manual,
+      withReceipts: { refunds: refundRows.length, bouncedCheques: bounceRows.length },
     };
   }
 }

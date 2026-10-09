@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { checkTallyExport, type TallyPeriod, type TallyProblemCode } from '../index.js';
-import { BUYER, LINE, OPTIONS, invoice, period, receipt } from './test-support/builders.js';
+import {
+  BUYER,
+  LINE,
+  OPTIONS,
+  bounce,
+  invoice,
+  period,
+  receipt,
+  refund,
+} from './test-support/builders.js';
 import { isIsoDate } from './validate.js';
 
 const codes = (input: TallyPeriod): TallyProblemCode[] =>
@@ -168,5 +177,66 @@ describe('input checks', () => {
         }),
       ),
     ).toEqual(['duplicate_number', 'duplicate_number']);
+  });
+
+  it('checks refunds: in the period, after their receipt, a real party, a positive amount', () => {
+    const party = { ...BUYER, stateCode: '99' };
+    expect(
+      checkTallyExport(
+        period({
+          documents: [],
+          refunds: [
+            refund({ paidOn: '2026-10-01' }),
+            refund({
+              id: 'f2',
+              number: 'AMPR/26-27/00002',
+              receipt: { number: 'X', receivedOn: '2026-09-21', advance: false },
+            }),
+            refund({ id: 'f3', number: 'AMPR/26-27/00003', party, amountPaise: 0 }),
+            refund({ id: 'f4', number: 'AMPR/26-27/00003' }),
+          ],
+        }),
+        OPTIONS,
+      ).map((problem) => [problem.code, problem.message]),
+    ).toEqual([
+      ['out_of_period', 'AMPR/26-27/00001 is dated 2026-10-01, outside 2026-09-01 to 2026-09-30'],
+      [
+        'out_of_period',
+        'AMPR/26-27/00002: its receipt is dated 2026-09-21, not on or before 2026-09-20',
+      ],
+      ['tax_mismatch', 'AMPR/26-27/00003: party state code "99" is unknown'],
+      ['invalid_amount', 'AMPR/26-27/00003: the amount must be a positive amount of paise'],
+      ['duplicate_number', 'AMPR/26-27/00003 appears more than once'],
+    ]);
+  });
+
+  it('checks bounces: dates, party, amounts, and what they reopen', () => {
+    const party = { ...BUYER, stateCode: '99' };
+    const receiptOn = (receivedOn: string) => ({ ...bounce().receipt, receivedOn });
+    expect(
+      codes(
+        period({
+          documents: [],
+          bounces: [
+            bounce({ bouncedOn: '2026-08-31', receipt: receiptOn('2026-08-30') }),
+            bounce({ paymentId: 'r2', receipt: receiptOn('September') }),
+            bounce({ paymentId: 'r3', party }),
+            bounce({ paymentId: 'r4', amountPaise: 0 }),
+            bounce({ paymentId: 'r5', chargePaise: 0.5 }),
+            bounce({ paymentId: 'r6', reopened: [{ documentNumber: 'X', amountPaise: 118001 }] }),
+            bounce({ paymentId: 'r6' }),
+          ],
+        }),
+      ),
+    ).toEqual([
+      'out_of_period',
+      'out_of_period',
+      'tax_mismatch',
+      'invalid_amount',
+      'invalid_amount',
+      'over_allocated',
+      'duplicate_number',
+    ]);
+    expect(codes(period({ documents: [], bounces: [bounce()] }))).toEqual([]);
   });
 });

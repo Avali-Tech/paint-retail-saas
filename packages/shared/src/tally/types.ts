@@ -92,7 +92,11 @@ export interface TallyPaymentMode {
   readonly name: string;
 }
 
-/** Money received from a party: a `payments` row with direction `in`, and its allocations. */
+/**
+ * Money received from a party: a `payments` row with direction `in`, and its
+ * allocations. A cheque that later bounced is still a receipt, with the
+ * allocations it had when it bounced; its bounce is a `TallyChequeBounce`.
+ */
 export interface TallyReceipt {
   readonly id: string;
   /** Receipt number (`RC-000123`) or, for an advance, the receipt voucher number. */
@@ -111,6 +115,57 @@ export interface TallyReceipt {
   readonly note: string | null;
 }
 
+/** The receipt a refund pays back or a bounce reverses. */
+export interface TallyReceiptRef {
+  /** As the receipt was exported: the receipt voucher number for an advance. */
+  readonly number: string;
+  readonly receivedOn: string;
+  /** True when the receipt was a GST receipt voucher: its money sits under an Advance bill. */
+  readonly advance: boolean;
+}
+
+/**
+ * Money paid back to a party (spec §4.6 "Refund paid"): a `payments` row with
+ * direction `out`. It always pays back the unallocated part of one receipt.
+ */
+export interface TallyRefund {
+  readonly id: string;
+  /** The refund voucher number (Rule 51) when it repays an advance, else the payment number. */
+  readonly number: string;
+  readonly paidOn: string;
+  readonly storeCode: string;
+  readonly party: TallyParty;
+  /** How the money went out; the same ledgers as money in. */
+  readonly mode: TallyPaymentMode;
+  readonly amountPaise: number;
+  readonly reference: string | null;
+  readonly receipt: TallyReceiptRef;
+  readonly note: string | null;
+}
+
+/**
+ * A cheque the bank returned (spec §4.6 "Cheque bounced"). Its receipt is
+ * exported as it was taken; this reverses it on the day it bounced.
+ */
+export interface TallyChequeBounce {
+  /** The payment's id: the bounce is one event of the payment. */
+  readonly paymentId: string;
+  readonly bouncedOn: string;
+  readonly storeCode: string;
+  readonly party: TallyParty;
+  /** The mode the cheque was received by: the ledger its receipt debited. */
+  readonly mode: TallyPaymentMode;
+  readonly amountPaise: number;
+  /** The cheque number and bank. */
+  readonly reference: string | null;
+  readonly receipt: TallyReceiptRef;
+  /** The bills the receipt had settled, which the bounce opens again. */
+  readonly reopened: readonly TallyAllocation[];
+  /** The bounce charge the party now owes (a non-GST recovery, [CA-11]); 0 for none. */
+  readonly chargePaise: number;
+  readonly reason: string;
+}
+
 /** Everything one export covers. */
 export interface TallyPeriod {
   /** The company name in TallyPrime; the import is addressed to it. */
@@ -119,4 +174,8 @@ export interface TallyPeriod {
   readonly to: string;
   readonly documents: readonly TallySalesDocument[];
   readonly receipts: readonly TallyReceipt[];
+  /** Refunds paid in the period (by `paidOn`). */
+  readonly refunds: readonly TallyRefund[];
+  /** Cheques that bounced in the period (by `bouncedOn`), whenever they were received. */
+  readonly bounces: readonly TallyChequeBounce[];
 }

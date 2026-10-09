@@ -12,9 +12,11 @@ import {
   LINE,
   OPTIONS,
   WALK_IN,
+  bounce,
   invoice,
   period,
   receipt,
+  refund,
 } from './test-support/builders.js';
 
 const entries = (input: TallyPeriod, options: TallyExportOptions = OPTIONS) =>
@@ -294,8 +296,116 @@ describe('receipts', () => {
   });
 });
 
+describe('refunds', () => {
+  it('pays an advance back as a Payment voucher: Dr party against the advance, Cr the mode', () => {
+    const [voucher] = buildTallyExport(
+      period({ documents: [], refunds: [refund({ reference: 'UTR 9', note: 'Order cut' })] }),
+      OPTIONS,
+    ).vouchers;
+    expect(voucher).toMatchObject({
+      kind: 'payment',
+      source: 'refund',
+      voucherType: 'Payment',
+      number: 'AMPR/26-27/00001',
+      date: '2026-09-20',
+      partyLedger: 'Sri Sai Constructions',
+      gst: null,
+      originals: [{ number: 'AMPA/26-27/00001', issuedOn: '2026-09-12' }],
+    });
+    expect(voucher?.narration).toBe(
+      'Refund AMPR/26-27/00001 by UPI; against receipt AMPA/26-27/00001 dated 12-09-2026; ref UTR 9; Order cut; [paint:f1]',
+    );
+    expect(voucher?.entries).toEqual([
+      entry('Sri Sai Constructions', 'debit', 50000, {
+        bills: [{ type: 'Agst Ref', name: 'AMPA/26-27/00001', paise: 50000 }],
+      }),
+      entry('UPI Clearing', 'credit', 50000),
+    ]);
+  });
+
+  it('pays back money on account on account, and keeps no bills for walk-ins', () => {
+    const onAccount = refund({
+      receipt: { number: 'RC-000001', receivedOn: '2026-09-12', advance: false },
+      mode: { kind: 'cash', name: 'Cash' },
+    });
+    const counter = refund({ id: 'f2', number: 'RC-000009', party: WALK_IN });
+    const [first, second] = entries(period({ documents: [], refunds: [onAccount, counter] }));
+    expect(first).toEqual([
+      entry('Sri Sai Constructions', 'debit', 50000, {
+        bills: [{ type: 'On Account', name: '', paise: 50000 }],
+      }),
+      entry('Cash', 'credit', 50000),
+    ]);
+    expect(second?.[0]).toEqual(entry('Cash Sales', 'debit', 50000));
+  });
+});
+
+describe('bounced cheques', () => {
+  it('reverses the receipt as a Journal on the bounce date, reopening its bills', () => {
+    const [voucher] = buildTallyExport(
+      period({ documents: [], bounces: [bounce()] }),
+      OPTIONS,
+    ).vouchers;
+    expect(voucher).toMatchObject({
+      kind: 'journal',
+      source: 'cheque_bounce',
+      voucherType: 'Journal',
+      documentId: 'r1-bounce',
+      number: 'RC-000001/BOUNCE',
+      date: '2026-09-15',
+      gst: null,
+      originals: [{ number: 'RC-000001', issuedOn: '2026-09-12' }],
+    });
+    expect(voucher?.narration).toBe(
+      'Cheque bounced: receipt RC-000001 dated 12-09-2026 by Cheque; ref Cheque 004512; Funds insufficient; [paint:r1-bounce]',
+    );
+    expect(voucher?.entries).toEqual([
+      entry('Sri Sai Constructions', 'debit', 118000, {
+        bills: [{ type: 'Agst Ref', name: 'AMP/26-27/000001', paise: 118000 }],
+      }),
+      entry('Cheques in Hand', 'credit', 118000),
+    ]);
+  });
+
+  it('charges the party a new bill for a bounce charge, credited to bounce charges', () => {
+    const charged = bounce({
+      reference: null,
+      amountPaise: 150000,
+      chargePaise: 59000,
+      receipt: { number: 'AMPA/26-27/00002', receivedOn: '2026-09-12', advance: true },
+    });
+    const [voucher] = buildTallyExport(
+      period({ documents: [], bounces: [charged] }),
+      OPTIONS,
+    ).vouchers;
+    expect(voucher?.narration).toBe(
+      'Cheque bounced: receipt AMPA/26-27/00002 dated 12-09-2026 by Cheque; Funds insufficient; bounce charge Rs 590.00; [paint:r1-bounce]',
+    );
+    expect(voucher?.entries).toEqual([
+      entry('Sri Sai Constructions', 'debit', 209000, {
+        bills: [
+          { type: 'Agst Ref', name: 'AMP/26-27/000001', paise: 118000 },
+          { type: 'Agst Ref', name: 'AMPA/26-27/00002', paise: 32000 },
+          { type: 'New Ref', name: 'AMPA/26-27/00002/BOUNCE', paise: 59000 },
+        ],
+      }),
+      entry('Cheques in Hand', 'credit', 150000),
+      entry('Cheque Bounce Charges', 'credit', 59000),
+    ]);
+  });
+
+  it('keeps no bills for a walk-in cheque, charge or not', () => {
+    const walkIn = bounce({ party: WALK_IN, reopened: [], chargePaise: 10000 });
+    expect(entries(period({ documents: [], bounces: [walkIn] }))[0]).toEqual([
+      entry('Cash Sales', 'debit', 128000),
+      entry('Cheques in Hand', 'credit', 118000),
+      entry('Cheque Bounce Charges', 'credit', 10000),
+    ]);
+  });
+});
+
 describe('voucher order', () => {
-  it('sorts by date, then sales, debit notes, credit notes, receipts, then number', () => {
+  it('sorts by date, then sales, debit notes, credit notes, receipts, payments, journals, then number', () => {
     const data = buildTallyExport(
       period({
         documents: [
@@ -314,10 +424,32 @@ describe('voucher order', () => {
           invoice({ id: 'f', number: 'A-9', issuedOn: '2026-09-02' }),
         ],
         receipts: [receipt({ receivedOn: '2026-09-10' })],
+        refunds: [
+          refund({
+            paidOn: '2026-09-10',
+            receipt: { ...refund().receipt, receivedOn: '2026-09-10' },
+          }),
+        ],
+        bounces: [
+          bounce({
+            bouncedOn: '2026-09-10',
+            receipt: { ...bounce().receipt, receivedOn: '2026-09-10' },
+          }),
+        ],
       }),
       OPTIONS,
     );
-    expect(data.vouchers.map((v) => v.documentId)).toEqual(['f', 'e', 'd', 'r1', 'b', 'c', 'a']);
+    expect(data.vouchers.map((v) => v.documentId)).toEqual([
+      'f',
+      'e',
+      'd',
+      'r1',
+      'f1',
+      'r1-bounce',
+      'b',
+      'c',
+      'a',
+    ]);
   });
 });
 
