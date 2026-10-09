@@ -11,6 +11,7 @@ import {
 } from '@paint/shared';
 import { newBill, type Bill, type BillAction, type BillLine } from '../pos/bill.js';
 import type { LineKey } from '../pos/ScanBox.js';
+import { lineTint, withViewTint } from '../tint/tint.js';
 
 // The quotation and order editor's header, apart from its lines (the lines are the
 // counter's bill, pos/bill.ts, so the grid works the same as at the POS).
@@ -108,6 +109,7 @@ function commonRequest(header: SalesHeader, lines: readonly BillLine[]) {
         quantity: line.quantity,
         unitPricePaise: line.unitPricePaise,
         discount: line.discount ?? undefined,
+        tint: line.tint ? lineTint(line.tint) : undefined,
       }),
     ),
   });
@@ -131,16 +133,20 @@ const discountOf = (line: SalesLineView): Discount | null => {
   return line.discountPaise === null ? null : { kind: 'amount', paise: line.discountPaise };
 };
 
-/** A saved line back on the grid. */
-export const lineFromView = (line: SalesLineView): BillLine => ({
-  variantId: line.variantId,
-  sku: line.sku,
-  name: line.description,
-  taxCategoryId: null,
-  unitPricePaise: line.unitPricePaise,
-  quantity: line.quantity,
-  discount: discountOf(line),
-});
+/** A saved line back on the grid, with its tint. */
+export const lineFromView = (line: SalesLineView): BillLine =>
+  withViewTint(
+    {
+      variantId: line.variantId,
+      sku: line.sku,
+      name: line.description,
+      taxCategoryId: null,
+      unitPricePaise: line.unitPricePaise,
+      quantity: line.quantity,
+      discount: discountOf(line),
+    },
+    line.tint,
+  );
 
 /** A saved draft quotation or order, ready to edit. */
 export function editorStateOf(document: QuotationView | SalesOrderView | null): {

@@ -2,6 +2,7 @@ import type {
   Discount,
   IssuePaymentRequest,
   IssuedInvoiceView,
+  LineTintRequest,
   PaymentModeView,
   RegisterSessionSummary,
   TaxDocumentPage,
@@ -29,6 +30,7 @@ export interface DraftInput {
     readonly quantity: number;
     readonly unitPricePaise: number;
     readonly discount?: Discount;
+    readonly tint?: LineTintRequest;
   }[];
 }
 

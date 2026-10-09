@@ -1,5 +1,6 @@
 import type { TaxDocumentView } from '@paint/shared';
-import { WALK_IN, newBill, type Bill, type BillItem, type Buyer } from './bill.js';
+import { withViewTint } from '../tint/tint.js';
+import { WALK_IN, newBill, type Bill, type BillItem, type BillLine, type Buyer } from './bill.js';
 
 // Held bills are server drafts (spec §5.2). A draft keeps only variant ids, prices and
 // quantities, so this device also remembers how each line and the customer looked, to
@@ -12,7 +13,8 @@ export const STORE_KEY = 'pos.store';
 
 /** What this device remembers about a held bill. */
 export interface BillSnapshot {
-  readonly items: readonly BillItem[];
+  /** Each line's pack, and its shade when tinted. */
+  readonly items: readonly (BillItem & Pick<BillLine, 'tint'>)[];
   readonly buyer: Buyer;
   readonly payablePaise: number;
 }
@@ -49,15 +51,25 @@ export function setCurrentDraft(storage: Storage, storeId: string, draftId: stri
   else storage.setItem(currentKey(storeId), draftId);
 }
 
-/** A held draft back on the counter, named from this device's memory where it can be. */
+/**
+ * A held draft back on the counter, named from this device's memory where it can be,
+ * with the tints read with its lines (a draft held on another device keeps them too).
+ */
 export function billFromDraft(
   draft: TaxDocumentView,
   snapshot: BillSnapshot | null,
   key: string,
   unknownName: (lineNo: number) => string,
 ): Bill {
-  const lines = draft.lines.map((line) => {
-    const item = snapshot?.items.find((known) => known.variantId === line.variantId) ?? {
+  const remembered = (variantId: string, index: number) => {
+    // The same base can be on the bill twice in two shades: the line at the same place first.
+    const same = snapshot?.items[index];
+    if (same?.variantId === variantId) return same;
+    return snapshot?.items.find((known) => known.variantId === variantId);
+  };
+  const ordered = [...draft.lines].sort((a, b) => a.lineNo - b.lineNo);
+  const named = ordered.map((line, index) => {
+    const item = remembered(line.variantId, index) ?? {
       variantId: line.variantId,
       sku: '',
       name: unknownName(line.lineNo),
@@ -77,6 +89,7 @@ export function billFromDraft(
       discount,
     };
   });
+  const lines = named.map((line, index) => withViewTint(line, ordered[index]?.tint));
   const buyer: Buyer = snapshot?.buyer ?? {
     ...WALK_IN,
     partyId: draft.buyer.partyId,

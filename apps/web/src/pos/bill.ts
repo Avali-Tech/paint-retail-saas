@@ -1,4 +1,5 @@
 import { isValidGstin, type Discount, type PriceMode, type TaxDocumentKind } from '@paint/shared';
+import { lineTint, withTint, type LineTint, type TintChoice } from '../tint/tint.js';
 import type { DraftInput } from './pos-api.js';
 
 // The bill on the counter, as a pure reducer: what is on it, who it is for, and
@@ -13,11 +14,15 @@ export interface BillItem {
   /** The product's tax category (the engine's category code); null when it has none. */
   readonly taxCategoryId: string | null;
   readonly unitPricePaise: number;
+  /** The product's packs are bases tinted at the counter; undefined when not known. */
+  readonly tintable?: boolean;
 }
 
 export interface BillLine extends BillItem {
   readonly quantity: number;
   readonly discount: Discount | null;
+  /** The shade it is tinted to (its unit price includes the tinting charge). */
+  readonly tint?: LineTint | null;
 }
 
 /** Who the bill is for: walk-in by default (no party), with what is typed on the bill. */
@@ -74,6 +79,7 @@ export type BillAction =
   | { readonly type: 'quantity'; readonly index: number; readonly quantity: number }
   | { readonly type: 'step'; readonly index: number; readonly by: 1 | -1 }
   | { readonly type: 'discount'; readonly index: number; readonly discount: Discount | null }
+  | { readonly type: 'tint'; readonly index: number; readonly tint: TintChoice | null }
   | { readonly type: 'remove'; readonly index: number }
   | { readonly type: 'select'; readonly index: number }
   | { readonly type: 'buyer'; readonly buyer: Partial<Buyer> }
@@ -104,8 +110,11 @@ function withLine(bill: Bill, index: number, change: (line: BillLine) => BillLin
 export function billReducer(bill: Bill, action: BillAction): Bill {
   switch (action.type) {
     case 'add': {
-      // The same pack scanned again adds to its line, as a cashier expects.
-      const index = bill.lines.findIndex((line) => line.variantId === action.item.variantId);
+      // The same pack scanned again adds to its line, as a cashier expects (a tinted
+      // line keeps its shade: the new packs get a line of their own).
+      const index = bill.lines.findIndex(
+        (line) => line.variantId === action.item.variantId && !line.tint,
+      );
       if (index !== -1) {
         return withLine(bill, index, (line) => ({
           ...line,
@@ -125,6 +134,8 @@ export function billReducer(bill: Bill, action: BillAction): Bill {
       }));
     case 'discount':
       return withLine(bill, action.index, (line) => ({ ...line, discount: action.discount }));
+    case 'tint':
+      return withLine(bill, action.index, (line) => withTint(line, action.tint));
     case 'remove': {
       const lines = bill.lines.filter((_, at) => at !== action.index);
       return changed(bill, {
@@ -181,6 +192,7 @@ export function draftInput(bill: Bill, storeId: string): DraftInput {
       quantity: line.quantity,
       unitPricePaise: line.unitPricePaise,
       ...(line.discount === null ? {} : { discount: line.discount }),
+      ...(line.tint ? { tint: lineTint(line.tint) } : {}),
     })),
   };
 }

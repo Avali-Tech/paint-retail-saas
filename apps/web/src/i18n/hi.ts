@@ -18,6 +18,7 @@ import { projectsHi } from './hi-projects.js';
 import { ordersHi, ordersEnumsHi } from './hi-orders.js';
 import { estimatorHi, estimatorEnumsHi } from './hi-estimator.js';
 import { posHi } from './hi-pos.js';
+import { tintHi } from './hi-tint.js';
 import { purchasingEnumsHi, purchasingHi } from './hi-purchasing.js';
 import { reportEnumsHi, reportsHi } from './hi-reports.js';
 import { stockCountEnumsHi, stockCountsHi } from './hi-stock-counts.js';
@@ -335,6 +336,7 @@ export const hi: Messages = {
   ...taxHi,
   ...salesHi,
   ...posHi,
+  ...tintHi,
   ...ordersHi,
   ...booksHi,
   ...estimatorHi,

@@ -56,6 +56,15 @@ export const reportsEn = {
         title: 'Projects',
         description: 'Projects with stage, dates, area, paint and expected value',
       },
+      'sales-by-influencer': {
+        title: 'Sales by influencer',
+        description:
+          'What each painter, contractor or architect brought in, per site, net of credit notes',
+      },
+      'sales-by-site': {
+        title: 'Sales by site',
+        description: 'Net sales of each site, with the influencers who brought them in',
+      },
     },
     /** Column headers by report and column key (the API's column id is "<kind>.<key>"). */
     columns: {
@@ -131,6 +140,30 @@ export const reportsEn = {
         paintLitres: 'Paint (litres)',
         expectedValue: 'Expected value (₹)',
         assignedTo: 'Assigned to',
+      },
+      'sales-by-influencer': {
+        influencer: 'Influencer',
+        roles: 'Role',
+        phone: 'Mobile',
+        site: 'Site',
+        customers: 'Billed to',
+        invoices: 'Bills',
+        creditNotes: 'Credit notes',
+        lastBilled: 'Last billed',
+        taxable: 'Taxable value (₹)',
+        total: 'Net sales (₹)',
+      },
+      'sales-by-site': {
+        number: 'Project',
+        site: 'Site',
+        customer: 'Customer',
+        city: 'City',
+        influencers: 'Influencers',
+        invoices: 'Bills',
+        creditNotes: 'Credit notes',
+        lastBilled: 'Last billed',
+        taxable: 'Taxable value (₹)',
+        total: 'Net sales (₹)',
       },
     },
   },

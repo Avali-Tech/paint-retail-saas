@@ -7,6 +7,7 @@ export const REPORT_PERMISSIONS: AnyOf = [
   'purchasing:read',
   'leads:read',
   'projects:read',
+  'sales:read',
 ];
 
 /** Reports, after imports in the navigation. */

@@ -13,6 +13,7 @@ import { partyEndpoints } from './parties.js';
 import { estimatorEndpoints } from '../estimator/estimator-api.js';
 import { ordersEndpoints } from '../orders/orders-api.js';
 import { posEndpoints } from '../pos/pos-api.js';
+import { tintEndpoints } from '../tint/tint-api.js';
 import { projectEndpoints } from './projects.js';
 import { purchasingEndpoints } from './purchasing.js';
 import { recordActivityEndpoints } from './record-activities.js';
@@ -113,6 +114,7 @@ export function endpoints(api: ApiClient) {
     orders: ordersEndpoints(api),
     books: booksEndpoints(api),
     estimator: estimatorEndpoints(api),
+    tint: tintEndpoints(api),
   };
 }
 

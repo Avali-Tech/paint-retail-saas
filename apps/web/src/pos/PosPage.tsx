@@ -368,6 +368,7 @@ function Counter({
             lines={bill.lines}
             amounts={amounts}
             selected={bill.selected}
+            partyId={bill.buyer.partyId}
             dispatch={dispatch}
           />
           <p className="pos__keys muted">

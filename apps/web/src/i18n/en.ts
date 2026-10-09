@@ -15,6 +15,7 @@ import { projectsEn } from './en-projects.js';
 import { ordersEn, ordersEnumsEn } from './en-orders.js';
 import { estimatorEn, estimatorEnumsEn } from './en-estimator.js';
 import { posEn } from './en-pos.js';
+import { tintEn } from './en-tint.js';
 import { purchasingEn, purchasingEnumsEn } from './en-purchasing.js';
 import { reportEnumsEn, reportsEn } from './en-reports.js';
 import { stockCountEnumsEn, stockCountsEn } from './en-stock-counts.js';
@@ -337,6 +338,7 @@ export const en = {
   ...taxEn,
   ...salesEn,
   ...posEn,
+  ...tintEn,
   ...ordersEn,
   ...booksEn,
   ...estimatorEn,

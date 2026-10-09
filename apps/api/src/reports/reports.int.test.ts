@@ -40,6 +40,8 @@ describe('report list', () => {
       'goods-receipts',
       'leads',
       'projects',
+      'sales-by-influencer',
+      'sales-by-site',
     ]);
     // Each filter says what input it takes, so the app builds them without copying enums.
     expect(owner[0]?.filters).toEqual([
@@ -84,7 +86,13 @@ describe('report list', () => {
     for (const summary of owner) {
       expect(summary.columns.every((c) => c.id === `${summary.kind}.${c.key}`)).toBe(true);
     }
-    expect(cashier.map((r) => r.kind)).toEqual(['stock-by-location', 'stock-ledger', 'transfers']);
+    expect(cashier.map((r) => r.kind)).toEqual([
+      'stock-by-location',
+      'stock-ledger',
+      'transfers',
+      'sales-by-influencer',
+      'sales-by-site',
+    ]);
     expect((await get(business.cashier, '/reports/goods-receipts')).statusCode).toBe(403);
     expect((await get(business.owner, '/reports/sales')).statusCode).toBe(404);
   });

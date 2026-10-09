@@ -18,6 +18,7 @@ import { projectsTe } from './te-projects.js';
 import { ordersTe, ordersEnumsTe } from './te-orders.js';
 import { estimatorTe, estimatorEnumsTe } from './te-estimator.js';
 import { posTe } from './te-pos.js';
+import { tintTe } from './te-tint.js';
 import { purchasingEnumsTe, purchasingTe } from './te-purchasing.js';
 import { reportEnumsTe, reportsTe } from './te-reports.js';
 import { stockCountEnumsTe, stockCountsTe } from './te-stock-counts.js';
@@ -342,6 +343,7 @@ export const te: Messages = {
   ...taxTe,
   ...salesTe,
   ...posTe,
+  ...tintTe,
   ...ordersTe,
   ...booksTe,
   ...estimatorTe,

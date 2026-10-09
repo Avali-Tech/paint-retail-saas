@@ -402,6 +402,7 @@ export function SalesDocEditor({
               lines={bill.lines}
               amounts={amounts}
               selected={bill.selected}
+              partyId={header.billTo?.id ?? null}
               dispatch={dispatch}
             />
             <p className="orders-editor__total">
