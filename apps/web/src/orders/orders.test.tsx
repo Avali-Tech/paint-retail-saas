@@ -13,6 +13,7 @@ import {
   AVAILABILITY,
   BLOCKED,
   CONFIRMED,
+  LINE_TINT,
   NEEDS_MANAGER,
   ORDER,
   OVER_LIMIT,
@@ -426,10 +427,18 @@ describe('OrderPage: an open order', { timeout: 30_000 }, () => {
   it('shows the credit as it stood, the lines, stock and invoices', async () => {
     const { user, requests } = renderApp({
       path: '/sales-orders/order-1',
-      routes: orderRoutes(CONFIRMED, {
-        'POST /sales-orders/:id/reserve': () => json(CONFIRMED),
-        'POST /sales-orders/:id/release': () => json({ message: 'Nothing held' }, 409),
-      }),
+      routes: orderRoutes(
+        {
+          ...CONFIRMED,
+          lines: CONFIRMED.lines.map((line, index) =>
+            index === 0 ? { ...line, tint: LINE_TINT } : line,
+          ),
+        },
+        {
+          'POST /sales-orders/:id/reserve': () => json(CONFIRMED),
+          'POST /sales-orders/:id/release': () => json({ message: 'Nothing held' }, 409),
+        },
+      ),
     });
     expect(await screen.findByText('At confirm: Owner approval, 110% of the limit.')).toBeVisible();
     expect(credit()).toHaveTextContent(
@@ -439,7 +448,9 @@ describe('OrderPage: an open order', { timeout: 30_000 }, () => {
     const [, paint, hinge] = within(lines).getAllByRole('row');
     await screen.findAllByText('AMP · Ameerpet');
     expect(paint).toHaveTextContent(
-      'Asian Paints Apex Ultima 20 lAPX-20LAMP · Ameerpet22000₹9,000.00',
+      'Asian Paints Apex Ultima 20 lAPX-20L' +
+        'Tint X 132 · Ivory Mist · Base Asian Paints Apex Ultima 20 l · Formula XY 12 ml' +
+        'AMP · Ameerpet22000₹9,000.00',
     );
     expect(hinge).toHaveTextContent('Godrej Hinge 4 inchHNG-4KPH · Kukatpally104155₹6,000.00');
     expect(within(found(paint)).queryByRole('button')).toBeNull();

@@ -138,6 +138,13 @@ const FIELD_LABELS: Record<string, string> = {
   digits: 'Digits',
   cash_needs_register: 'Cash needs an open register',
   register_variance_alert_paise: 'Register variance alert (paise)',
+  // The bank account invoices print: a change is a classic fraud route, so it is audited in full.
+  bank_name: 'Invoice bank',
+  bank_account_name: 'Invoice bank account name',
+  bank_account_number: 'Invoice bank account number',
+  bank_ifsc: 'Invoice bank IFSC',
+  upi_id: 'Invoice UPI ID',
+  invoice_terms: 'Invoice terms',
   purpose: 'For',
   nature: 'Tax nature',
   supply_type: 'Supply',
@@ -318,6 +325,10 @@ function describe(field: string, value: unknown, names: Map<string, string>): st
   if (value === undefined || value === null) return null;
   if (field.endsWith('_paise')) return formatINR(Number(value));
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  // Lists of text, such as invoice terms, read one after another.
+  if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
+    return value.join(' · ');
+  }
   // Numbers such as quantities come through as JSON numbers.
   const text = typeof value === 'string' ? value : JSON.stringify(value);
   return names.get(text) ?? text;

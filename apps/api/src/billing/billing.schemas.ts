@@ -1,12 +1,17 @@
 import {
   AATO_BANDS,
+  INVOICE_TERMS_MAX,
+  INVOICE_TERM_MAX_LENGTH,
   PRICE_MODES,
   STOCK_POST_ON,
   TAX_DOCUMENT_KINDS,
   TAX_DOCUMENT_STATUSES,
   isCurrentGstStateCode,
+  isValidBankAccount,
   isValidGstin,
+  isValidIfsc,
   isValidSeriesPrefix,
+  isValidUpiId,
   type DraftInvoiceLineRequest,
 } from '@paint/shared';
 import { z } from 'zod';
@@ -138,6 +143,26 @@ export const salesSettingsSchema = z.object({
   billingLiveOn: isoDate.nullable().optional(),
   cashNeedsRegister: z.boolean().optional(),
   registerVarianceAlertPaise: z.number().int().min(0).max(100_000_000).optional(),
+  /** Printed on the A4 invoice; null removes them. */
+  invoiceBank: z
+    .object({
+      bankName: text(120),
+      accountName: text(120),
+      accountNumber: z
+        .string()
+        .trim()
+        .refine(isValidBankAccount, 'Use the account number: 9 to 18 digits'),
+      ifsc: z.string().trim().toUpperCase().refine(isValidIfsc, 'Use an IFSC like SBIN0020345'),
+      upiId: z
+        .string()
+        .trim()
+        .refine(isValidUpiId, 'Use a UPI ID like shop@bank')
+        .nullable()
+        .optional(),
+    })
+    .nullable()
+    .optional(),
+  invoiceTerms: z.array(text(INVOICE_TERM_MAX_LENGTH)).max(INVOICE_TERMS_MAX).optional(),
 });
 export type SalesSettingsInput = z.output<typeof salesSettingsSchema>;
 

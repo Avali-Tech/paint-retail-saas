@@ -225,6 +225,22 @@ describe('the Tally export', () => {
     expect((await remove(party.id)).statusCode).toBe(204);
     expect((await remove(party.id)).statusCode).toBe(404);
 
+    // A bounced cheque's charges have a ledger of their own, per store at most.
+    expect(
+      issuesOf(
+        await mapping({ purpose: 'bounce_charges', modeId: b.modes.bank.id, ledgerName: 'X' }),
+      ),
+    ).toEqual(['modeId']);
+    const bounce = ok(
+      await mapping({
+        purpose: 'bounce_charges',
+        storeId: b.stores.amp,
+        ledgerName: 'Bounce charges',
+      }),
+    ).json<LedgerMappingView>();
+    expect(bounce).toMatchObject({ purpose: 'bounce_charges', storeId: b.stores.amp });
+    expect((await remove(bounce.id)).statusCode).toBe(204);
+
     const list = ok(await owner().get('/ledger-mappings')).json<LedgerMappingView[]>();
     expect(list.map((row) => [row.purpose, row.ledgerName])).toEqual([
       ['sales', 'Sales GST 18%'],

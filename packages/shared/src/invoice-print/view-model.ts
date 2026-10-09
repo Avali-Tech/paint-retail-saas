@@ -8,6 +8,7 @@ import {
   formatPrintDate,
   formatQuantity,
   formatRate,
+  formatTint,
   stateLabel,
 } from './format.js';
 import { LEGAL_TEXTS, fillLabel, invoiceLabels, type InvoiceLabels } from './labels.js';
@@ -238,6 +239,7 @@ export function buildInvoiceView(invoice: Invoice, document: InvoiceDocumentInpu
           columns.map(({ key }) => [key, formatAmount(line[HEAD_PAISE[key]])]),
         ),
         amount: formatAmount(line.totalPaise),
+        tint: detail.tint === null ? null : formatTint(detail.tint),
       };
     }),
     taxSummary: invoice.taxSummary.map((row) => ({

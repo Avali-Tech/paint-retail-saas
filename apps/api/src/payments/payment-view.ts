@@ -66,6 +66,7 @@ async function allocationsOf(tx: Transaction, payment: PaymentRow): Promise<Allo
           : sql<string | null>`${source.number}`,
       amountPaise: allocations.amountPaise,
       reversesAllocationId: allocations.reversesAllocationId,
+      reversalReason: allocations.reversalReason,
       reversed: sql<boolean>`${reversal.id} is not null`,
       createdAt: allocations.createdAt,
     })

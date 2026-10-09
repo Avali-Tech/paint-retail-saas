@@ -76,7 +76,13 @@ describe('buildInvoiceView', () => {
       rate: '18%',
       taxes: { cgst: '983.90', sgst: '983.90' },
       amount: '12,900.00',
+      tint: {
+        shade: 'X 132 · Ivory Mist',
+        base: 'Apex Ultima Pastel Base',
+        formula: 'XY 12 ml, R 3 shot',
+      },
     });
+    expect(printed.lines[1]?.tint).toBeNull();
     expect(printed.lines[1]?.discount).toBe('177.00');
     expect(printed.lines[3]?.variant).toBe('4 inch');
     expect(printed.taxSummary).toEqual([

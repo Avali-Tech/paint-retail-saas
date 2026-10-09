@@ -48,6 +48,9 @@ describe('ledger mapping settings', () => {
     }
     expect(LEDGER_MATCH_FIELDS.party).toEqual(['partyId', 'storeId']);
     expect(LEDGER_MATCH_FIELDS.payment_mode).toEqual(['modeKind', 'modeId', 'storeId']);
+    // A bounced cheque's charges go to their own ledger, per store at most.
+    expect(TALLY_LEDGER_PURPOSES).toContain('bounce_charges');
+    expect(LEDGER_MATCH_FIELDS.bounce_charges).toEqual(['storeId']);
     expect(TALLY_GROUPS).toContain('Duties & Taxes');
   });
 });

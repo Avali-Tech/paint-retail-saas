@@ -125,6 +125,7 @@ export async function documentView(
           taxablePaise: line.taxablePaise,
           taxCategoryId: line.taxCategoryId,
           rateBps: line.rateBps,
+          taxNature: line.taxNature,
           cgstPaise: line.cgstPaise,
           sgstPaise: line.sgstPaise,
           igstPaise: line.igstPaise,

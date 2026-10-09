@@ -1,5 +1,6 @@
 import type {
   InvoiceDispatchesView,
+  LineTintView,
   OrderAvailabilityView,
   OrderCreditView,
   QuotationView,
@@ -36,6 +37,21 @@ export const salesLine = (overrides: Partial<SalesLineView> = {}): SalesLineView
   totalPaise: 9_000_00,
   ...overrides,
 });
+
+/** The paint line's tint (round 5a), as read with the line. */
+export const LINE_TINT: LineTintView = {
+  id: 'tint-1',
+  brand: { id: 'brand-asian', name: 'Asian Paints' },
+  shadeCode: 'X 132',
+  shadeName: 'Ivory Mist',
+  packQuantity: 2,
+  colorantCostPaise: null,
+  tintChargePaise: 0,
+  machine: null,
+  formula: [{ colorant: 'XY', amount: 12, unit: 'ml' }],
+  note: null,
+  createdAt: '2026-10-08T05:00:00.000Z',
+};
 
 /** A hinge set (hardware), with a rupee discount. */
 export const HINGE_LINE = salesLine({

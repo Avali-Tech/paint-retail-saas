@@ -80,6 +80,14 @@
   color: var(--palette-neutral-700);
 }
 
+/* A tinted line's shade, base and formula, small under the item. */
+.invoice__tint {
+  display: block;
+  color: var(--palette-neutral-700);
+  font-size: 8pt;
+  font-weight: 400;
+}
+
 .invoice__num {
   text-align: right;
   white-space: nowrap;
@@ -293,6 +301,11 @@
 
 .receipt__meta {
   color: var(--palette-neutral-700);
+}
+
+/* One short line on a receipt: long formulas wrap rather than widen the column. */
+.receipt__tint {
+  overflow-wrap: anywhere;
 }
 
 .receipt__totals .invoice__grand {

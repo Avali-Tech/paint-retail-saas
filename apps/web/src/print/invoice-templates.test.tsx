@@ -25,6 +25,7 @@ function sparse(): InvoiceView {
       variant: index === 0 ? null : line.variant,
       hsn: index === 0 ? '' : line.hsn,
       discount: null,
+      tint: index === 0 ? { shade: 'X 132', base: null, formula: null } : line.tint,
     })),
     notes: [],
     terms: [],
@@ -63,6 +64,16 @@ describe('InvoiceA4', () => {
       'SGST',
       'Amount',
     ]);
+    // A tint without a base or formula prints its shade alone.
+    expect(a4.querySelector('.invoice__tint')).toHaveTextContent(/^Tint: X 132$/);
+  });
+
+  it('prints a tinted line’s shade, base and formula under it', () => {
+    render(<InvoiceA4 view={sampleInvoiceView()} />);
+    const tints = screen.getByRole('article').querySelectorAll('.invoice__tint');
+    expect([...tints].map((tint) => tint.textContent)).toEqual([
+      'Tint: X 132 · Ivory Mist · Base: Apex Ultima Pastel Base · Formula: XY 12 ml, R 3 shot',
+    ]);
   });
 
   it('prints a bill of supply without a tax summary', () => {
@@ -84,9 +95,17 @@ describe('InvoiceThermal', () => {
     expect(receipt).toHaveTextContent('House 9, KukatpallyTelangana (36)+91 90000 00001');
     expect(receipt).toHaveTextContent('Ship toSite 4, Kondapur, Telangana (36)');
     expect(items[0]).toHaveTextContent(
-      /^1\. Asian Paints Apex UltimaGST 18%2 NOS × 6,450.0012,900.00$/,
+      /^1\. Asian Paints Apex UltimaGST 18%Tint X 1322 NOS × 6,450.0012,900.00$/,
     );
     expect(receipt).not.toHaveTextContent('Rajesh Sharma');
+  });
+
+  it('prints a tinted line’s shade and formula on one short line', () => {
+    render(<InvoiceThermal view={sampleInvoiceView()} />);
+    const tints = screen.getByRole('article').querySelectorAll('.receipt__tint');
+    expect([...tints].map((tint) => tint.textContent)).toEqual([
+      'Tint X 132 · Ivory Mist · XY 12 ml, R 3 shot',
+    ]);
   });
 
   it('prints a bill of supply without tax rates or a tax summary', () => {

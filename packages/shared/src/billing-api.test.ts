@@ -38,6 +38,7 @@ describe('tallyReceiptOf', () => {
     partyLedgerId: null,
     refundPaymentId: null,
     reversesAllocationId: null,
+    reversalReason: null,
     reversed: false,
     createdAt: '2026-10-08T05:00:00.000Z',
   };
@@ -80,6 +81,7 @@ describe('tallyReceiptOf', () => {
         targetNumber: 'AMP/26-27/000001',
         amountPaise: -10_000,
         reversesAllocationId: 'a1',
+        reversalReason: 'undone',
       },
       {
         ...allocation,

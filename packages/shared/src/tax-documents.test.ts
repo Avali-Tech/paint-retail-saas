@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  aatoTurnoverPaise,
   defaultSeries,
   financialYear,
   formatTaxDocumentNumber,
   gstClassFor,
+  isValidBankAccount,
+  isValidIfsc,
   isValidSeriesPrefix,
+  isValidUpiId,
   uqcFor,
 } from './tax-documents.js';
+import { requiredHsnDigits } from './gst/hsn.js';
 
 describe('financialYear', () => {
   it('starts on 1 April', () => {
@@ -74,5 +79,27 @@ describe('uqcFor', () => {
       'MTR',
     ]);
     expect(uqcFor('barrel')).toBe('OTH');
+  });
+});
+
+describe('aatoTurnoverPaise', () => {
+  it('reads each band so the HSN digits rule gives its digits', () => {
+    expect(requiredHsnDigits(aatoTurnoverPaise('up_to_5cr'), 'b2b')).toBe(4);
+    expect(requiredHsnDigits(aatoTurnoverPaise('above_5cr'), 'b2b')).toBe(6);
+    expect(requiredHsnDigits(aatoTurnoverPaise('above_5cr'), 'b2c')).toBe(6);
+  });
+});
+
+describe('bank details', () => {
+  it('knows an IFSC, an account number and a UPI ID', () => {
+    expect(isValidIfsc('SBIN0020345')).toBe(true);
+    expect(isValidIfsc('sbin0020345')).toBe(false);
+    expect(isValidIfsc('SBIN1020345')).toBe(false);
+    expect(isValidBankAccount('30451234567')).toBe(true);
+    expect(isValidBankAccount('1234 5678')).toBe(false);
+    expect(isValidBankAccount('12345678')).toBe(false);
+    expect(isValidUpiId('sharma.paints@sbi')).toBe(true);
+    expect(isValidUpiId('sharmapaints')).toBe(false);
+    expect(isValidUpiId('a@b')).toBe(false);
   });
 });

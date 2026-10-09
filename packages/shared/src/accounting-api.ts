@@ -27,6 +27,7 @@ export const TALLY_LEDGER_PURPOSES = [
   'party',
   'walk_in',
   'payment_mode',
+  'bounce_charges',
 ] as const satisfies readonly TallyLedgerPurpose[];
 
 /** Tally's predefined groups a ledger may be created under. */
@@ -69,6 +70,7 @@ export const LEDGER_MATCH_FIELDS: Readonly<
   party: ['partyId', 'storeId'],
   walk_in: ['storeId'],
   payment_mode: ['modeKind', 'modeId', 'storeId'],
+  bounce_charges: ['storeId'],
 };
 
 /** POST /ledger-mappings and PUT /ledger-mappings/:id: one override of a default ledger name. */

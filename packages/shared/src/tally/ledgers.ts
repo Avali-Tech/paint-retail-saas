@@ -17,7 +17,8 @@ export type TallyLedgerPurpose =
   | 'round_off'
   | 'party'
   | 'walk_in'
-  | 'payment_mode';
+  | 'payment_mode'
+  | 'bounce_charges';
 
 /** The Tally group a ledger is created under in the masters file. */
 export type TallyGroup =

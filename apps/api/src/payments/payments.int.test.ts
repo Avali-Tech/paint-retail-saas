@@ -328,6 +328,8 @@ describe('allocating and undoing', () => {
     expect(undone.allocations.find((a) => a.id === row?.id)?.reversed).toBe(true);
     expect((await reverse()).statusCode).toBe(409);
     const reversal = undone.allocations.find((a) => a.reversesAllocationId === row?.id);
+    expect(reversal?.reversalReason).toBe('undone');
+    expect(row?.reversalReason).toBeNull();
     expect(issuesOf(await reverse(String(reversal?.id)))).toEqual(['allocationId']);
     expect(issuesOf(await reverse(crypto.randomUUID()))).toEqual(['allocationId']);
     expect(await outstandingOf(party, second.id)).toBe(5_000);
@@ -428,7 +430,10 @@ describe('cheques', () => {
       bounceReason: 'Insufficient funds',
       unallocatedPaise: 0,
     });
-    expect(bounced.allocations.map((a) => a.amountPaise)).toEqual([23_600, -23_600]);
+    expect(bounced.allocations.map((a) => [a.amountPaise, a.reversalReason])).toEqual([
+      [23_600, null],
+      [-23_600, 'cheque_bounce'],
+    ]);
     const after = await ledgerOf(party);
     expect(after).toMatchObject({ balancePaise: 23_600 + 50_000, advancePaise: 0 });
     expect(after.entries.slice(-2).map((e) => [e.entryType, e.amountPaise])).toEqual([

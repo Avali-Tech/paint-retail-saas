@@ -1,4 +1,5 @@
 import type { BuyerType, DocumentType, SupplyType } from '../gst/types.js';
+import type { TintFormulaComponent } from '../paint-api.js';
 import type { InvoiceLabels, PrintLabel, SecondLanguage } from './labels.js';
 
 /**
@@ -75,6 +76,17 @@ export interface PrintLineDetail {
   readonly hsnCode: string;
   /** Unit quantity code: NOS, LTR, KGS… */
   readonly uqc: string;
+  /** The shade the line's base is tinted to (spec §6.3); null when untinted. */
+  readonly tint: PrintLineTint | null;
+}
+
+/** A tinted line's shade, as its tint record keeps it. */
+export interface PrintLineTint {
+  readonly shadeCode: string;
+  readonly shadeName: string | null;
+  /** The base tinted (the line's product and pack); null to leave it to the description. */
+  readonly base: string | null;
+  readonly formula: readonly TintFormulaComponent[];
 }
 
 export interface PrintBankDetails {
@@ -146,6 +158,17 @@ export interface LineView {
   readonly rate: string | null;
   readonly taxes: Readonly<Partial<Record<TaxColumnKey, string>>>;
   readonly amount: string;
+  /** The line's tint, printed under it; null when untinted. */
+  readonly tint: TintView | null;
+}
+
+/** A tint as printed: every part already a string. */
+export interface TintView {
+  /** "X 132 · Ivory", or the code alone. */
+  readonly shade: string;
+  readonly base: string | null;
+  /** "XY 12 ml, R 3 shot"; null when no formula was kept. */
+  readonly formula: string | null;
 }
 
 export interface TaxSummaryView {

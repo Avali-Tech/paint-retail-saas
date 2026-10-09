@@ -1,5 +1,5 @@
 import type { InvoiceView, LineView, PrintLabel } from '@paint/shared';
-import { InvoiceLabel, InvoiceLogo, translationLang } from './InvoiceLabel.js';
+import { InvoiceLabel, InvoiceLogo, tintText, translationLang } from './InvoiceLabel.js';
 
 interface Column {
   readonly key: string;
@@ -170,6 +170,9 @@ export function InvoiceA4({ view }: { readonly view: InvoiceView }) {
                     {' '}
                     <span className="invoice__variant">{line.variant}</span>
                   </>
+                )}
+                {line.tint !== null && (
+                  <span className="invoice__tint">{tintText(line.tint, labels, false)}</span>
                 )}
               </th>
               {lineColumns.map((column) => (

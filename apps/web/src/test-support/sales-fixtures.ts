@@ -22,6 +22,7 @@ const line = (overrides: Partial<TaxDocumentLineView>): TaxDocumentLineView => (
   taxablePaise: 30_000,
   taxCategoryId: 'paints',
   rateBps: 1800,
+  taxNature: 'taxable',
   cgstPaise: 2_700,
   sgstPaise: 2_700,
   igstPaise: 0,
@@ -72,7 +73,22 @@ export const INVOICE: TaxDocumentView = {
   cancelReason: null,
   cancelledAt: null,
   lines: [
-    line({}),
+    line({
+      // Tinted at the counter (round 5a): shown under the item.
+      tint: {
+        id: 'tint-1',
+        brand: { id: 'brand-asian', name: 'Asian Paints' },
+        shadeCode: 'X 132',
+        shadeName: 'Ivory Mist',
+        packQuantity: 3,
+        colorantCostPaise: null,
+        tintChargePaise: 0,
+        machine: null,
+        formula: [{ colorant: 'XY', amount: 12, unit: 'ml' }],
+        note: null,
+        createdAt: '2026-10-07T05:30:00.000Z',
+      },
+    }),
     line({
       id: 'line-2',
       lineNo: 2,

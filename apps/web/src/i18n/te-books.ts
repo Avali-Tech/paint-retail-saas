@@ -237,6 +237,7 @@ export const booksEnumsTe: Translation<typeof booksEnumsEn> = {
     party: 'ఒక కస్టమర్',
     walk_in: 'వాక్-ఇన్ అమ్మకాలు',
     payment_mode: 'చెల్లింపు విధానం',
+    bounce_charges: 'చెక్ బౌన్స్ ఛార్జీలు',
   },
   exportKinds: {
     sales: 'అమ్మకాలు',
