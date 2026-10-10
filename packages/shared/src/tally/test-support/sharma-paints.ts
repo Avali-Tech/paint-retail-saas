@@ -6,10 +6,13 @@ import { gstinCheckCharacter } from '../../tax-ids.js';
 import type { TallyLedgerRule } from '../ledgers.js';
 import type {
   TallyAllocation,
+  TallyChequeBounce,
   TallyParty,
   TallyPaymentMode,
   TallyPeriod,
   TallyReceipt,
+  TallyReceiptRef,
+  TallyRefund,
   TallySalesDocument,
 } from '../types.js';
 
@@ -767,15 +770,127 @@ function receipts(issued: readonly Issued[]): TallyReceipt[] {
   ];
 }
 
+/** A receipt of the month, by its cheque or UTR reference (or its number). */
+function receiptBy(all: readonly TallyReceipt[], key: string): TallyReceipt {
+  const found = all.find((r) => r.reference === key || r.number === key);
+  if (!found) throw new Error(`No receipt ${key}`);
+  return found;
+}
+
+const refOf = (receipt: TallyReceipt): TallyReceiptRef => ({
+  number: receipt.number,
+  receivedOn: receipt.receivedOn,
+  advance: receipt.advance,
+});
+
+/** Money paid back in September: part of an advance, and part of what was left on account. */
+function refunds(all: readonly TallyReceipt[]): TallyRefund[] {
+  const advance = receiptBy(all, 'AMPA/26-27/00001');
+  const onAccount = receiptBy(all, 'Cheque 004512, SBI');
+  return [
+    // Lakshmi Interiors drop two rooms: ₹5,000 of their advance goes back (refund voucher, Rule 51).
+    {
+      id: 'rf-001',
+      number: `AMPR/${fy}/00001`,
+      paidOn: iso(24),
+      storeCode: 'AMP',
+      party: PARTIES.lakshmi,
+      mode: MODES.upi,
+      amountPaise: 500000,
+      reference: 'UTR 626711230045',
+      receipt: refOf(advance),
+      note: 'Order reduced: two rooms dropped',
+    },
+    // Sri Sai ask for ₹4,000 of the ₹50,000 cheque's remainder back, by NEFT.
+    {
+      id: 'rf-002',
+      number: 'RC-000885',
+      paidOn: iso(26),
+      storeCode: 'KKP',
+      party: PARTIES.sriSai,
+      mode: MODES.neft,
+      amountPaise: 400000,
+      reference: 'NEFT HDFCN26269004411',
+      receipt: refOf(onAccount),
+      note: null,
+    },
+  ];
+}
+
+/** A cheque the bank returned: its bills open again and the party owes the charge. */
+function bounceOf(
+  receipt: TallyReceipt,
+  bouncedOn: string,
+  chargePaise: number,
+  reason: string,
+): TallyChequeBounce {
+  return {
+    paymentId: receipt.id,
+    bouncedOn,
+    storeCode: receipt.storeCode,
+    party: receipt.party,
+    mode: receipt.mode,
+    amountPaise: receipt.amountPaise,
+    reference: receipt.reference,
+    receipt: refOf(receipt),
+    reopened: receipt.allocations,
+    chargePaise,
+    reason,
+  };
+}
+
 /** The September 2026 period for Sharma Paints & Hardware. */
 export function sharmaPaintsSeptember(): TallyPeriod {
   const issued = issueInvoices();
+  const all = receipts(issued);
   return {
     companyName: 'Sharma Paints & Hardware',
     from: '2026-09-01',
     to: '2026-09-30',
     documents: [...issued.map(({ doc }) => doc), ...notes(issued)],
-    receipts: receipts(issued),
+    receipts: all,
+    refunds: refunds(all),
+    // Vijayawada Builders' ₹1,00,000 cheque comes back three days later, with a ₹500 charge.
+    bounces: [
+      bounceOf(receiptBy(all, 'Cheque 118870, Andhra Bank'), iso(18), 50000, 'Funds insufficient'),
+    ],
+  };
+}
+
+/**
+ * The first days of October: September's money unwinding across the period
+ * boundary. Lakshmi's 29 September cheque bounces (its receipt was in
+ * September's export, so only the reversal is here), and the walk-in who
+ * returned a wrong shade on 9 September is paid back in cash.
+ */
+export function sharmaPaintsOctober(): TallyPeriod {
+  const issued = issueInvoices();
+  const all = receipts(issued);
+  const counter = receiptBy(all, 'UTR 625013370012');
+  const returned = notes(issued).find((note) => note.number === `KKPC/${fy}/00002`);
+  return {
+    companyName: 'Sharma Paints & Hardware',
+    from: '2026-10-01',
+    to: '2026-10-31',
+    documents: [],
+    receipts: [],
+    refunds: [
+      {
+        id: 'rf-003',
+        number: 'RC-000886',
+        paidOn: '2026-10-02',
+        storeCode: 'KKP',
+        party: PARTIES.walkIn,
+        mode: MODES.cash,
+        amountPaise: returned?.totalPaise ?? 0,
+        reference: null,
+        receipt: refOf(counter),
+        note: `Credit note KKPC/${fy}/00002 paid out`,
+      },
+    ],
+    bounces: [
+      bounceOf(receiptBy(all, 'Cheque 220061, HDFC Bank'), '2026-10-03', 0, 'Signature differs'),
+    ],
   };
 }
 

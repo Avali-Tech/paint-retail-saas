@@ -3,11 +3,13 @@ import type {
   LedgerMappingView,
   SupplyType,
   TallyAllocation,
+  TallyChequeBounce,
   TallyGroup,
   TallyLedgerRule,
   TallyParty,
   TallyPaymentMode,
   TallyReceipt,
+  TallyRefund,
   TallySalesDocument,
   TallySalesKind,
   TallyTaxLine,
@@ -69,12 +71,9 @@ export interface AllocationRow {
   readonly amountPaise: number;
 }
 
-/** Money in from a party in the period. */
-export interface ReceiptRow {
+/** The party and mode of a payment, as every money row carries them. */
+interface MoneyRow {
   readonly id: string;
-  readonly number: string;
-  readonly voucherNumber: string | null;
-  readonly receivedOn: string;
   readonly storeCode: string;
   readonly partyId: string;
   readonly partyName: string;
@@ -84,7 +83,36 @@ export interface ReceiptRow {
   readonly modeName: string;
   readonly amountPaise: number;
   readonly reference: string | null;
+}
+
+/** Money in from a party in the period, bounced cheques included. */
+export interface ReceiptRow extends MoneyRow {
+  readonly number: string;
+  readonly voucherNumber: string | null;
+  readonly receivedOn: string;
   readonly note: string | null;
+}
+
+/** The receipt a refund repays or a bounce reverses, as it was exported. */
+interface ReceiptOfRow {
+  readonly receiptNumber: string;
+  readonly receiptVoucherNumber: string | null;
+  readonly receivedOn: string;
+}
+
+/** Money paid back in the period, with the receipt it repays. */
+export interface RefundRow extends MoneyRow, ReceiptOfRow {
+  readonly number: string;
+  readonly voucherNumber: string | null;
+  readonly paidOn: string;
+  readonly note: string | null;
+}
+
+/** A cheque that bounced in the period, and the charge the bounce added. */
+export interface BounceRow extends MoneyRow, ReceiptOfRow {
+  readonly bouncedOn: string;
+  readonly reason: string;
+  readonly chargePaise: number;
 }
 
 /** The export kind a document kind falls under. */
@@ -187,6 +215,58 @@ export function salesDocumentsOf(
   }));
 }
 
+const partyOf = (row: MoneyRow, walkInPartyId: string | null): TallyParty => ({
+  id: row.partyId,
+  name: row.partyName,
+  gstin: row.partyGstin,
+  stateCode: row.partyStateCode,
+  walkIn: row.partyId === walkInPartyId,
+});
+
+const receiptOf = (row: ReceiptOfRow) => ({
+  number: row.receiptVoucherNumber ?? row.receiptNumber,
+  receivedOn: row.receivedOn,
+  advance: row.receiptVoucherNumber !== null,
+});
+
+/** Refunds: numbered by the refund voucher when they repay an advance (Rule 51). */
+export function refundsOf(rows: readonly RefundRow[], walkInPartyId: string | null): TallyRefund[] {
+  return rows.map((row) => ({
+    id: row.id,
+    number: row.voucherNumber ?? row.number,
+    paidOn: row.paidOn,
+    storeCode: row.storeCode,
+    party: partyOf(row, walkInPartyId),
+    mode: { kind: row.modeKind, name: row.modeName },
+    amountPaise: row.amountPaise,
+    reference: row.reference,
+    receipt: receiptOf(row),
+    note: row.note,
+  }));
+}
+
+/** Bounces, each with the bills it opened again (`reopened`, by payment id). */
+export function bouncesOf(
+  rows: readonly BounceRow[],
+  reopened: readonly AllocationRow[],
+  walkInPartyId: string | null,
+): TallyChequeBounce[] {
+  const reopenedBy = group(reopened, (row) => row.sourceId);
+  return rows.map((row) => ({
+    paymentId: row.id,
+    bouncedOn: row.bouncedOn,
+    storeCode: row.storeCode,
+    party: partyOf(row, walkInPartyId),
+    mode: { kind: row.modeKind, name: row.modeName },
+    amountPaise: row.amountPaise,
+    reference: row.reference,
+    receipt: receiptOf(row),
+    reopened: allocationsOf(reopenedBy.get(row.id)),
+    chargePaise: row.chargePaise,
+    reason: row.reason,
+  }));
+}
+
 /** Receipts: numbered by the receipt voucher when it is an advance. */
 export function receiptsOf(
   receipts: readonly ReceiptRow[],
@@ -199,13 +279,7 @@ export function receiptsOf(
     number: receipt.voucherNumber ?? receipt.number,
     receivedOn: receipt.receivedOn,
     storeCode: receipt.storeCode,
-    party: {
-      id: receipt.partyId,
-      name: receipt.partyName,
-      gstin: receipt.partyGstin,
-      stateCode: receipt.partyStateCode,
-      walkIn: receipt.partyId === walkInPartyId,
-    },
+    party: partyOf(receipt, walkInPartyId),
     mode: { kind: receipt.modeKind, name: receipt.modeName },
     amountPaise: receipt.amountPaise,
     reference: receipt.reference,

@@ -31,6 +31,8 @@ const SHEETS: readonly { kind: TallyVoucherKind; name: string }[] = [
   { kind: 'credit_note', name: 'Credit Note' },
   { kind: 'debit_note', name: 'Debit Note' },
   { kind: 'receipt', name: 'Receipt' },
+  { kind: 'payment', name: 'Payment' },
+  { kind: 'journal', name: 'Journal' },
 ];
 
 const VOUCHER_COLUMNS = [

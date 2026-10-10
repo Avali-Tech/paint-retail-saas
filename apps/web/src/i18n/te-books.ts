@@ -100,7 +100,7 @@ export const booksTe: Translation<typeof booksEn> = {
     },
     accounting: {
       title: 'టాలీ ఎగుమతి',
-      description: 'మీ ఇన్‌వాయిస్‌లు, నోట్‌లు, రసీదులు TallyPrime వోచర్‌లుగా',
+      description: 'మీ ఇన్‌వాయిస్‌లు, నోట్‌లు, రసీదులు, రీఫండ్‌లు TallyPrime వోచర్‌లుగా',
       sections: 'టాలీ ఎగుమతి స్క్రీన్‌లు',
       export: 'ఎగుమతి',
       ledgers: 'లెడ్జర్ మ్యాపింగ్',
@@ -184,7 +184,8 @@ export const booksTe: Translation<typeof booksEn> = {
       kinds: 'చేర్చండి',
       chooseKind: 'కనీసం ఒక రకం వోచర్ ఎంచుకోండి',
       counts: 'వ్యవధిలోని వోచర్‌లు',
-      manual: 'ఈ వ్యవధిలోని {refunds}, {bounced} ఎగుమతిలో లేవు: వాటిని టాలీలో చేతితో నమోదు చేయండి.',
+      withReceipts:
+        'రసీదులతో పాటు {refunds} (ప్రతిదీ పేమెంట్ వోచర్), {bounced} (ప్రతిదీ బౌన్స్ అయిన రోజున జర్నల్ వోచర్‌తో తిప్పివేయబడింది) కూడా ఎగుమతిలో ఉన్నాయి.',
       refunds: { one: '{count} రీఫండ్', other: '{count} రీఫండ్‌లు' },
       bounced: { one: '{count} బౌన్స్ చెక్కు', other: '{count} బౌన్స్ చెక్కులు' },
       problems: 'ఎగుమతికి ముందు ఇవి సరిచేయండి:',

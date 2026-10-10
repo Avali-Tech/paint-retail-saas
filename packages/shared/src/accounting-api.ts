@@ -143,8 +143,12 @@ export interface AccountingExportPreview {
   readonly counts: Readonly<Record<AccountingExportKind, number>>;
   /** Every problem at once: unmapped ledgers, clashing names, bad data. Empty when it can export. */
   readonly problems: readonly TallyProblem[];
-  /** Money out the export leaves for the accountant to enter: refunds and bounced cheques. */
-  readonly manual: { readonly refunds: number; readonly bouncedCheques: number };
+  /**
+   * What goes with the receipts besides them: refunds paid (Payment vouchers)
+   * and cheques that bounced (each a Journal on its bounce date). Zero unless
+   * receipts are included.
+   */
+  readonly withReceipts: { readonly refunds: number; readonly bouncedCheques: number };
 }
 
 /** One past export, newest first in GET /accounting-exports. */

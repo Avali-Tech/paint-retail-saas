@@ -82,7 +82,7 @@ describe('the Tally export', () => {
       companyName: 'Rangoli Paints Private Limited',
       counts: { sales: 0, credit_note: 0, debit_note: 0, receipt: 0 },
       problems: [],
-      manual: { refunds: 0, bouncedCheques: 0 },
+      withReceipts: { refunds: 0, bouncedCheques: 0 },
     });
     const empty = await exportFile();
     expect(empty.statusCode).toBe(422);
@@ -116,7 +116,7 @@ describe('the Tally export', () => {
         allocations: [{ documentId: invoice.id, amountPaise: 1_000 }],
       })
     ).id;
-    // Money the export leaves to the accountant: a refund and a bounced cheque.
+    // Money that goes with the receipts: a refund (Payment) and a bounced cheque (Journal).
     const advance = await pay({ modeId: b.modes.upi.id, amountPaise: 5_000, allocations: [] });
     ok(
       await owner().post(`/payments/${advance.id}/refund`, {
@@ -134,21 +134,19 @@ describe('the Tally export', () => {
     ok(await owner().post(`/payments/${cheque.id}/bounce`, { reason: 'Funds' }));
 
     const seen = await preview();
-    expect(seen.counts).toEqual({ sales: 3, credit_note: 1, debit_note: 1, receipt: 3 });
-    expect(seen.manual).toEqual({ refunds: 1, bouncedCheques: 1 });
+    // The bounced cheque is still a receipt: its bounce reverses it.
+    expect(seen.counts).toEqual({ sales: 3, credit_note: 1, debit_note: 1, receipt: 4 });
+    expect(seen.withReceipts).toEqual({ refunds: 1, bouncedCheques: 1 });
     expect(seen.problems.map((problem) => problem.code)).toEqual(['unmapped_ledger']);
     expect(seen.problems[0]?.message).toContain('Bank transfer');
 
     const refused = await exportFile();
     expect(refused.statusCode).toBe(422);
     expect(issuesOf(refused)).toEqual(['unmapped_ledger']);
-    expect((await preview('sales')).counts).toEqual({
-      sales: 3,
-      credit_note: 0,
-      debit_note: 0,
-      receipt: 0,
-    });
-    expect((await preview('receipt')).counts.receipt).toBe(3);
+    const salesOnly = await preview('sales');
+    expect(salesOnly.counts).toEqual({ sales: 3, credit_note: 0, debit_note: 0, receipt: 0 });
+    expect(salesOnly.withReceipts).toEqual({ refunds: 0, bouncedCheques: 0 });
+    expect((await preview('receipt')).counts.receipt).toBe(4);
   });
 
   it('keeps ledger mappings: checked, replaced and removed', async () => {
@@ -269,8 +267,8 @@ describe('the Tally export', () => {
     const history = ok(await owner().get('/accounting-exports')).json<AccountingExportPage>();
     expect(history.total).toBe(2);
     expect(history.items.map((row) => [row.format, row.kinds, row.voucherCount])).toEqual([
-      ['xlsx', ['receipt'], 3],
-      ['tally_xml', ['sales', 'credit_note', 'debit_note', 'receipt'], 8],
+      ['xlsx', ['receipt'], 6],
+      ['tally_xml', ['sales', 'credit_note', 'debit_note', 'receipt'], 11],
     ]);
     const filed = history.items[1];
     expect(filed).toMatchObject({ id, periodFrom: today, periodTo: today, createdBy: 'Owner' });
@@ -319,7 +317,7 @@ describe('the Tally export', () => {
       sales: 2,
       credit_note: 1,
       debit_note: 1,
-      receipt: 3,
+      receipt: 4,
     });
   });
 
@@ -332,6 +330,116 @@ describe('the Tally export', () => {
       api(t, manager).post('/ledger-mappings', {}),
     ]);
     expect(statuses.map((reply: Reply) => reply.statusCode)).toEqual([403, 403, 403, 403]);
+  });
+
+  it('exports a refund as a Payment voucher and a bounced cheque as its receipt plus a Journal', async () => {
+    /** One voucher of the export, by its REMOTEID. */
+    const voucher = (zip: string, remoteId: string) =>
+      zip.slice(zip.indexOf(`REMOTEID="paint-${remoteId}"`)).split('</VOUCHER>')[0] ?? '';
+    const invoiced = await b.invoice({ partyId: b.parties.homeowner, quantity: 1 });
+    const invoiceNumber = String(invoiced.number);
+    // A cheque for part of the bill: allocated, undone, allocated again for more, then bounced.
+    const cheque = await pay({
+      partyId: b.parties.homeowner,
+      modeId: b.modes.cheque.id,
+      reference: '771100',
+      chequeDate: today,
+      amountPaise: 2_000,
+      allocations: [{ documentId: invoiced.id, amountPaise: 1_000 }],
+    });
+    ok(
+      await owner().post(
+        `/payments/${cheque.id}/allocations/${String(cheque.allocations[0]?.id)}/reverse`,
+      ),
+    );
+    ok(
+      await owner().post(`/payments/${cheque.id}/allocate`, {
+        allocations: [{ documentId: invoiced.id, amountPaise: 1_500 }],
+      }),
+    );
+    ok(
+      await owner().post(`/payments/${cheque.id}/bounce`, {
+        reason: 'Signature differs',
+        chargePaise: 500,
+      }),
+    );
+    // An advance with its receipt voucher, part of it paid back.
+    const advance = await pay({ modeId: b.modes.upi.id, amountPaise: 3_000, allocations: [] });
+    const refund = ok(
+      await owner().post(`/payments/${advance.id}/refund`, {
+        modeId: b.modes.upi.id,
+        amountPaise: 700,
+      }),
+    ).json<PaymentView>();
+
+    const zip = ok(await exportFile({ kinds: ['receipt'] })).rawPayload.toString('utf8');
+    /** A bill-wise line, however deep it is indented. */
+    const bill = (name: string, type: string, amount: string) =>
+      new RegExp(
+        `<NAME>${name}</NAME>\\s*<BILLTYPE>${type}</BILLTYPE>\\s*<AMOUNT>${amount}</AMOUNT>`,
+      );
+    // Part of the cheque was left over, so it took a receipt voucher number (an advance).
+    const number = String(cheque.voucherNumber);
+    // The receipt as it was when it bounced: ₹15 against the bill, ₹5 as its advance.
+    const receipt = voucher(zip, cheque.id);
+    expect(receipt).toContain('VCHTYPE="Receipt"');
+    expect(receipt).toMatch(bill(invoiceNumber, 'Agst Ref', '15.00'));
+    expect(receipt).toMatch(bill(number, 'Advance', '5.00'));
+    // The allocation undone before the bounce is not part of it.
+    expect(receipt).not.toContain('<AMOUNT>10.00</AMOUNT>');
+    // Its bounce reopens that bill and the advance, and bills the ₹5 charge.
+    const bounce = voucher(zip, `${cheque.id}-bounce`);
+    expect(bounce).toContain('VCHTYPE="Journal"');
+    expect(bounce).toContain(`<VOUCHERNUMBER>${number}/BOUNCE</VOUCHERNUMBER>`);
+    expect(bounce).toContain(`<REFERENCE>${number}</REFERENCE>`);
+    expect(bounce).toContain('Signature differs; bounce charge Rs 5.00');
+    expect(bounce).toContain('<AMOUNT>-25.00</AMOUNT>');
+    expect(bounce).toMatch(bill(invoiceNumber, 'Agst Ref', '-15.00'));
+    expect(bounce).toMatch(bill(number, 'Agst Ref', '-5.00'));
+    expect(bounce).toMatch(bill(`${number}/BOUNCE`, 'New Ref', '-5.00'));
+    expect(bounce).toContain('<LEDGERNAME>Cheques in Hand</LEDGERNAME>');
+    expect(bounce).toContain('<LEDGERNAME>Cheque Bounce Charges</LEDGERNAME>');
+    expect(zip).toContain('<PARENT>Indirect Incomes</PARENT>');
+    // The refund pays the advance back under its refund voucher number, against the advance.
+    const payment = voucher(zip, refund.id);
+    expect(payment).toContain('VCHTYPE="Payment"');
+    expect(payment).toContain(`<VOUCHERNUMBER>${String(refund.voucherNumber)}</VOUCHERNUMBER>`);
+    expect(payment).toMatch(bill(String(advance.voucherNumber), 'Agst Ref', '-7.00'));
+    expect(payment).toContain('<LEDGERNAME>UPI Clearing</LEDGERNAME>');
+
+    // A cheque taken yesterday that bounced today: today's export holds only its reversal.
+    const yesterday = new Date(Date.parse(`${today}T00:00:00Z`) - 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const earlier = await pay({
+      partyId: b.parties.homeowner,
+      modeId: b.modes.cheque.id,
+      reference: '771101',
+      chequeDate: yesterday,
+      receivedOn: yesterday,
+      allocations: [],
+    });
+    ok(
+      await owner().post(`/payments/${earlier.id}/bounce`, {
+        reason: 'Account closed',
+        chargePaise: 300,
+      }),
+    );
+    // Bounce charges map from settings like any other ledger.
+    ok(
+      await mapping({
+        purpose: 'bounce_charges',
+        storeId: b.stores.amp,
+        ledgerName: 'Bank Charges Recovered',
+      }),
+    );
+    const alone = ok(await exportFile({ kinds: ['receipt'] })).rawPayload.toString('utf8');
+    expect(alone).toContain('<LEDGERNAME>Bank Charges Recovered</LEDGERNAME>');
+    expect(alone).not.toContain('Cheque Bounce Charges');
+    expect(alone).not.toContain(`REMOTEID="paint-${earlier.id}"`);
+    expect(voucher(alone, `${earlier.id}-bounce`)).toContain(
+      `<REFERENCEDATE>${yesterday.replaceAll('-', '')}</REFERENCEDATE>`,
+    );
   });
 
   it('checks the period and the kinds', async () => {

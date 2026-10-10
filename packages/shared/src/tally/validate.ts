@@ -159,5 +159,43 @@ export function checkPeriod(period: TallyPeriod): TallyProblem[] {
     }
     checkAllocations(n, receipt.allocations, receipt.amountPaise);
   }
+
+  const checkReceiptRef = (number: string, received: string, after: string) => {
+    if (!isIsoDate(received) || received > after) {
+      add(
+        'out_of_period',
+        number,
+        `${number}: its receipt is dated ${received}, not on or before ${after}`,
+      );
+    }
+  };
+
+  for (const refund of period.refunds) {
+    const n = refund.number;
+    checkUnique(`refund|${n}`, n);
+    checkDate(n, refund.paidOn);
+    checkParty(n, refund.party);
+    checkReceiptRef(n, refund.receipt.receivedOn, refund.paidOn);
+    if (!isPaise(refund.amountPaise) || refund.amountPaise === 0) {
+      add('invalid_amount', n, `${n}: the amount must be a positive amount of paise`);
+    }
+  }
+
+  for (const bounce of period.bounces) {
+    const n = `${bounce.receipt.number} (bounced)`;
+    checkUnique(`bounce|${bounce.paymentId}`, n);
+    checkDate(n, bounce.bouncedOn);
+    checkParty(n, bounce.party);
+    checkReceiptRef(n, bounce.receipt.receivedOn, bounce.bouncedOn);
+    if (!isPaise(bounce.amountPaise) || bounce.amountPaise === 0 || !isPaise(bounce.chargePaise)) {
+      add(
+        'invalid_amount',
+        n,
+        `${n}: the amount must be a positive amount of paise and the charge whole paise`,
+      );
+      continue;
+    }
+    checkAllocations(n, bounce.reopened, bounce.amountPaise);
+  }
   return problems;
 }

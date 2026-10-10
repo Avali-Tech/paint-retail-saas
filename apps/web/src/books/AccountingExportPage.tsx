@@ -32,10 +32,10 @@ import { AccountingNav } from './AccountingNav.js';
 export const HISTORY_SHOWN = 20;
 const historyKey = ['accounting-exports'] as const;
 
-/** What the period holds, what is left to enter by hand, and every problem in the way. */
+/** What the period holds, the refunds and bounces riding with the receipts, and every problem. */
 function PreviewPanel({ preview }: { readonly preview: AccountingExportPreview }) {
   const { t, label, plural } = useI18n();
-  const { refunds, bouncedCheques } = preview.manual;
+  const { refunds, bouncedCheques } = preview.withReceipts;
   return (
     <div className="stack" aria-live="polite">
       <dl className="facts" aria-label={t('books.export.counts')}>
@@ -48,7 +48,7 @@ function PreviewPanel({ preview }: { readonly preview: AccountingExportPreview }
       </dl>
       {refunds + bouncedCheques > 0 && (
         <Alert tone="info">
-          {t('books.export.manual', {
+          {t('books.export.withReceipts', {
             refunds: plural('books.export.refunds', refunds),
             bounced: plural('books.export.bounced', bouncedCheques),
           })}
@@ -149,7 +149,7 @@ function History() {
   );
 }
 
-/** /accounting/export — a period's invoices, notes and receipts for Tally (spec §6.1). */
+/** /accounting/export — a period's invoices, notes, receipts, refunds and bounces for Tally (spec §6.1). */
 export function AccountingExportPage() {
   const api = useApi();
   const { t, label } = useI18n();

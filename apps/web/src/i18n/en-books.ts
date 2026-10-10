@@ -96,7 +96,7 @@ export const booksEn = {
     },
     accounting: {
       title: 'Tally export',
-      description: 'Your invoices, notes and receipts as vouchers for TallyPrime',
+      description: 'Your invoices, notes, receipts and refunds as vouchers for TallyPrime',
       sections: 'Tally export screens',
       export: 'Export',
       ledgers: 'Ledger mapping',
@@ -179,8 +179,8 @@ export const booksEn = {
       kinds: 'Include',
       chooseKind: 'Choose at least one kind of voucher',
       counts: 'Vouchers in the period',
-      manual:
-        '{refunds} and {bounced} in this period are not in the export: enter them in Tally by hand.',
+      withReceipts:
+        'With the receipts go {refunds}, each a Payment voucher, and {bounced}, each reversed by a Journal voucher on the day it bounced.',
       refunds: { one: '{count} refund', other: '{count} refunds' },
       bounced: { one: '{count} bounced cheque', other: '{count} bounced cheques' },
       problems: 'Fix these before exporting:',

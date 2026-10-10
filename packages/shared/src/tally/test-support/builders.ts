@@ -1,8 +1,10 @@
 import { gstinCheckCharacter } from '../../tax-ids.js';
 import type {
+  TallyChequeBounce,
   TallyParty,
   TallyPeriod,
   TallyReceipt,
+  TallyRefund,
   TallySalesDocument,
   TallyTaxLine,
 } from '../types.js';
@@ -83,6 +85,41 @@ export function receipt(overrides: Partial<TallyReceipt> = {}): TallyReceipt {
   };
 }
 
+/** ₹500 of an advance paid back by UPI. */
+export function refund(overrides: Partial<TallyRefund> = {}): TallyRefund {
+  return {
+    id: 'f1',
+    number: 'AMPR/26-27/00001',
+    paidOn: '2026-09-20',
+    storeCode: 'AMP',
+    party: BUYER,
+    mode: { kind: 'upi', name: 'UPI' },
+    amountPaise: 50000,
+    reference: null,
+    receipt: { number: 'AMPA/26-27/00001', receivedOn: '2026-09-12', advance: true },
+    note: null,
+    ...overrides,
+  };
+}
+
+/** The ₹1,180 cheque for AMP/26-27/000001, back from the bank unpaid. */
+export function bounce(overrides: Partial<TallyChequeBounce> = {}): TallyChequeBounce {
+  return {
+    paymentId: 'r1',
+    bouncedOn: '2026-09-15',
+    storeCode: 'AMP',
+    party: BUYER,
+    mode: { kind: 'cheque', name: 'Cheque' },
+    amountPaise: 118000,
+    reference: 'Cheque 004512',
+    receipt: { number: 'RC-000001', receivedOn: '2026-09-12', advance: false },
+    reopened: [{ documentNumber: 'AMP/26-27/000001', amountPaise: 118000 }],
+    chargePaise: 0,
+    reason: 'Funds insufficient',
+    ...overrides,
+  };
+}
+
 export function period(overrides: Partial<TallyPeriod> = {}): TallyPeriod {
   return {
     companyName: 'Sharma Paints & Hardware',
@@ -90,6 +127,8 @@ export function period(overrides: Partial<TallyPeriod> = {}): TallyPeriod {
     to: '2026-09-30',
     documents: [invoice()],
     receipts: [],
+    refunds: [],
+    bounces: [],
     ...overrides,
   };
 }

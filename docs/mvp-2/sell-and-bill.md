@@ -611,15 +611,16 @@ headless-Chromium sidecar. Round 2 spikes the first, because the API image runs 
 **Mode:** accounting vouchers (ledger lines only, no stock items), because shops keep stock in our system
 and their accountants mostly want sales and tax ledgers right. Item-level vouchers are [PO-8].
 
-| Our document               | Tally voucher type               | Ledger lines                                                                                                                                                         |
-| -------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tax invoice                | Sales                            | Dr party (or "Cash Sales" for the walk-in party) = total; Cr sales ledger per rate and supply type = taxable; Cr Output CGST / SGST / IGST per rate; Dr/Cr Round Off |
-| Bill of supply             | Sales (separate voucher class)   | Dr party; Cr "Sales – Composition"                                                                                                                                   |
-| Credit note                | Credit Note                      | Mirror of the sale; original invoice number and date in the reference fields                                                                                         |
-| Debit note                 | Debit Note                       | Same as a sale                                                                                                                                                       |
-| Payment in                 | Receipt                          | Cr party; Dr cash / bank / UPI clearing ledger by payment mode; bill-wise allocation to the invoice numbers                                                          |
-| Refund out, bounced cheque | Payment / Journal                | Dr party; Cr mode ledger (bounce: reverse the receipt)                                                                                                               |
-| Receipt voucher (advance)  | Receipt with "Advance" bill type | As a receipt, not allocated                                                                                                                                          |
+| Our document              | Tally voucher type               | Ledger lines                                                                                                                                                         |
+| ------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tax invoice               | Sales                            | Dr party (or "Cash Sales" for the walk-in party) = total; Cr sales ledger per rate and supply type = taxable; Cr Output CGST / SGST / IGST per rate; Dr/Cr Round Off |
+| Bill of supply            | Sales (separate voucher class)   | Dr party; Cr "Sales – Composition"                                                                                                                                   |
+| Credit note               | Credit Note                      | Mirror of the sale; original invoice number and date in the reference fields                                                                                         |
+| Debit note                | Debit Note                       | Same as a sale                                                                                                                                                       |
+| Payment in                | Receipt                          | Cr party; Dr cash / bank / UPI clearing ledger by payment mode; bill-wise allocation to the invoice numbers                                                          |
+| Refund out                | Payment                          | Dr party; Cr mode ledger; bill-wise against the advance repaid, or on account                                                                                        |
+| Bounced cheque            | Journal (receipt kept)           | On the bounce date: Dr party, reopening the bills; Cr mode ledger; a bounce charge Dr party, Cr "Cheque Bounce Charges" (docs/mvp-2/tally.md)                        |
+| Receipt voucher (advance) | Receipt with "Advance" bill type | As a receipt, not allocated                                                                                                                                          |
 
 | Mapping setting (`ledger_mappings`) | Default name                                                            | Matched by                              |
 | ----------------------------------- | ----------------------------------------------------------------------- | --------------------------------------- |

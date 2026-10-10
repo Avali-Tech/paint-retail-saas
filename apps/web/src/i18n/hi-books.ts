@@ -99,7 +99,7 @@ export const booksHi: Translation<typeof booksEn> = {
     },
     accounting: {
       title: 'टैली एक्सपोर्ट',
-      description: 'आपके इनवॉइस, नोट और रसीदें TallyPrime के वाउचर के रूप में',
+      description: 'आपके इनवॉइस, नोट, रसीदें और रिफंड TallyPrime के वाउचर के रूप में',
       sections: 'टैली एक्सपोर्ट की स्क्रीन',
       export: 'एक्सपोर्ट',
       ledgers: 'लेजर मैपिंग',
@@ -181,8 +181,8 @@ export const booksHi: Translation<typeof booksEn> = {
       kinds: 'शामिल करें',
       chooseKind: 'कम से कम एक तरह का वाउचर चुनें',
       counts: 'अवधि के वाउचर',
-      manual:
-        'इस अवधि के {refunds} और {bounced} एक्सपोर्ट में नहीं हैं: इन्हें टैली में हाथ से दर्ज करें।',
+      withReceipts:
+        'रसीदों के साथ {refunds} (हर एक पेमेंट वाउचर) और {bounced} (हर एक बाउंस के दिन जर्नल वाउचर से उलटा गया) भी एक्सपोर्ट में हैं।',
       refunds: { one: '{count} रिफंड', other: '{count} रिफंड' },
       bounced: { one: '{count} बाउंस चेक', other: '{count} बाउंस चेक' },
       problems: 'एक्सपोर्ट से पहले इन्हें ठीक करें:',

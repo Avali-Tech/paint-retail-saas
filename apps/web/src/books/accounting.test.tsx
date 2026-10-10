@@ -130,7 +130,7 @@ describe('AccountingExportPage', { timeout: 30_000 }, () => {
                   message: 'No ledger for payment mode "Bank transfer" (bank_transfer)',
                 },
               ],
-              manual: { refunds: 1, bouncedCheques: 2 },
+              withReceipts: { refunds: 1, bouncedCheques: 2 },
             }),
           ),
       }),
@@ -140,7 +140,7 @@ describe('AccountingExportPage', { timeout: 30_000 }, () => {
     ).toBeVisible();
     expect(
       screen.getByText(
-        '1 refund and 2 bounced cheques in this period are not in the export: enter them in Tally by hand.',
+        'With the receipts go 1 refund, each a Payment voucher, and 2 bounced cheques, each reversed by a Journal voucher on the day it bounced.',
       ),
     ).toBeVisible();
     expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled();

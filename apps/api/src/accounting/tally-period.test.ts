@@ -1,15 +1,19 @@
 import type { LedgerMappingView } from '@paint/shared';
 import { describe, expect, it } from 'vitest';
 import {
+  bouncesOf,
   documentParty,
   ledgerRuleOf,
   natureOf,
   receiptsOf,
+  refundsOf,
   salesDocumentsOf,
   taxLinesOf,
+  type BounceRow,
   type DocumentRow,
   type LineRow,
   type ReceiptRow,
+  type RefundRow,
 } from './tally-period.js';
 
 const doc = (overrides: Partial<DocumentRow> = {}): DocumentRow => ({
@@ -196,6 +200,110 @@ describe('receiptsOf', () => {
       party: { walkIn: true },
       allocations: [],
     });
+  });
+});
+
+const money = {
+  storeCode: 'AMP',
+  partyId: 'party-1',
+  partyName: 'Deccan Contractors',
+  partyGstin: null,
+  partyStateCode: '36',
+  modeKind: 'cheque',
+  modeName: 'Cheque',
+  amountPaise: 5_000,
+  reference: '004512',
+  receiptNumber: 'RC-000001',
+  receiptVoucherNumber: null,
+  receivedOn: '2026-09-12',
+} as const;
+
+describe('refundsOf', () => {
+  const refund = (overrides: Partial<RefundRow> = {}): RefundRow => ({
+    ...money,
+    id: 'out-1',
+    number: 'RF-000001',
+    voucherNumber: null,
+    paidOn: '2026-09-20',
+    note: 'Order cut',
+    ...overrides,
+  });
+
+  it('numbers a refund of an advance by its refund voucher, against the receipt voucher', () => {
+    const [plain, voucher] = refundsOf(
+      [
+        refund(),
+        refund({
+          id: 'out-2',
+          voucherNumber: 'AMPR/1',
+          receiptVoucherNumber: 'AMPA/1',
+          partyId: 'walk-in',
+        }),
+      ],
+      'walk-in',
+    );
+    expect(plain).toEqual({
+      id: 'out-1',
+      number: 'RF-000001',
+      paidOn: '2026-09-20',
+      storeCode: 'AMP',
+      party: {
+        id: 'party-1',
+        name: 'Deccan Contractors',
+        gstin: null,
+        stateCode: '36',
+        walkIn: false,
+      },
+      mode: { kind: 'cheque', name: 'Cheque' },
+      amountPaise: 5_000,
+      reference: '004512',
+      receipt: { number: 'RC-000001', receivedOn: '2026-09-12', advance: false },
+      note: 'Order cut',
+    });
+    expect(voucher).toMatchObject({
+      number: 'AMPR/1',
+      party: { walkIn: true },
+      receipt: { number: 'AMPA/1', advance: true },
+    });
+  });
+});
+
+describe('bouncesOf', () => {
+  const bounce = (overrides: Partial<BounceRow> = {}): BounceRow => ({
+    ...money,
+    id: 'pay-1',
+    bouncedOn: '2026-09-15',
+    reason: 'Funds insufficient',
+    chargePaise: 500,
+    ...overrides,
+  });
+
+  it('carries the bills each bounce reopened and its charge', () => {
+    const [first, second] = bouncesOf(
+      [bounce(), bounce({ id: 'pay-2', chargePaise: 0 })],
+      [{ sourceId: 'pay-1', documentNumber: 'AMP/26-27/000001', amountPaise: 4_000 }],
+      null,
+    );
+    expect(first).toEqual({
+      paymentId: 'pay-1',
+      bouncedOn: '2026-09-15',
+      storeCode: 'AMP',
+      party: {
+        id: 'party-1',
+        name: 'Deccan Contractors',
+        gstin: null,
+        stateCode: '36',
+        walkIn: false,
+      },
+      mode: { kind: 'cheque', name: 'Cheque' },
+      amountPaise: 5_000,
+      reference: '004512',
+      receipt: { number: 'RC-000001', receivedOn: '2026-09-12', advance: false },
+      reopened: [{ documentNumber: 'AMP/26-27/000001', amountPaise: 4_000 }],
+      chargePaise: 500,
+      reason: 'Funds insufficient',
+    });
+    expect(second).toMatchObject({ paymentId: 'pay-2', reopened: [], chargePaise: 0 });
   });
 });
 

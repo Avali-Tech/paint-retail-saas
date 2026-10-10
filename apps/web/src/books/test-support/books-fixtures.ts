@@ -177,7 +177,7 @@ export const PREVIEW = (
   companyName: 'ABC Paints Private Limited',
   counts: { sales: 40, credit_note: 3, debit_note: 1, receipt: 15 },
   problems: [],
-  manual: { refunds: 0, bouncedCheques: 0 },
+  withReceipts: { refunds: 0, bouncedCheques: 0 },
   ...overrides,
 });
 

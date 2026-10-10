@@ -25,6 +25,7 @@ export type TallyGroup =
   | 'Sales Accounts'
   | 'Duties & Taxes'
   | 'Indirect Expenses'
+  | 'Indirect Incomes'
   | 'Sundry Debtors'
   | 'Cash-in-Hand'
   | 'Bank Accounts'
@@ -245,6 +246,21 @@ export function paymentModeNeed(mode: TallyPaymentMode, storeCode: string): Tall
     description: `payment mode "${mode.name}" (${mode.kind})`,
     master: plain('payment_mode', fallback.group),
     identity: 'payment_mode',
+  };
+}
+
+/**
+ * What a party pays for a bounced cheque (spec §4.6, a non-GST recovery
+ * pending [CA-11]): income, under Indirect Incomes.
+ */
+export function bounceChargesNeed(storeCode: string): TallyLedgerNeed {
+  return {
+    purpose: 'bounce_charges',
+    match: { storeCode },
+    defaultName: 'Cheque Bounce Charges',
+    description: 'cheque bounce charges',
+    master: plain('bounce_charges', 'Indirect Incomes'),
+    identity: 'bounce_charges',
   };
 }
 
