@@ -191,6 +191,12 @@ export const listQuotationsSchema = z.object({
 });
 export type ListQuotationsQuery = z.output<typeof listQuotationsSchema>;
 
+/** GET /quotations/:id/pdf: the language printed under the English labels (none for `en`). */
+export const quotationPdfSchema = z.object({
+  lang: z.enum(['en', 'hi', 'te']).default('en'),
+});
+export type QuotationPdfQuery = z.output<typeof quotationPdfSchema>;
+
 export const listOrdersSchema = z.object({
   storeId: z.uuid().optional(),
   partyId: z.uuid().optional(),

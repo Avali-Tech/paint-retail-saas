@@ -29,6 +29,13 @@ export {
   type PrintLanguage,
   type SecondLanguage,
 } from './labels.js';
+export {
+  QUOTATION_LABEL_KEYS,
+  QUOTATION_ONLY_LABELS,
+  quotationLabels,
+  type QuotationLabelKey,
+  type QuotationLabels,
+} from './quotation-labels.js';
 export { sampleInvoice, sampleInvoiceView, type SampleInvoiceOptions } from './sample.js';
 export { THERMAL_COLUMNS, renderThermalText, wrapText } from './thermal-text.js';
 export type * from './types.js';

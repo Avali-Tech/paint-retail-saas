@@ -100,11 +100,12 @@ export const ordersHi: Translation<typeof ordersEn> = {
     },
     share: {
       title: 'शेयर करें',
-      hint: 'प्रिंट करें, या PDF भेजने के लिए प्रिंट डायलॉग में “Save as PDF” चुनें।',
-      print: 'प्रिंट करें या PDF सेव करें',
+      hint: 'PDF डाउनलोड करके WhatsApp मैसेज के साथ भेजें, या प्रिंट करें।',
+      print: 'प्रिंट करें',
+      download: 'PDF डाउनलोड करें',
       whatsapp: 'WhatsApp पर शेयर करें',
       message:
-        '{business}: कोटेशन {number} v{version}, कुल {total}, {date} तक मान्य। PDF के लिए हमें बताएँ।',
+        '{business}: कोटेशन {number} v{version}, कुल {total}, {date} तक मान्य। PDF इसी चैट में भेज रहे हैं।',
     },
     print: {
       label: 'प्रिंट के लिए कोटेशन',

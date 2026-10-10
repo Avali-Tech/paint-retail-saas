@@ -100,11 +100,12 @@ export const ordersTe: Translation<typeof ordersEn> = {
     },
     share: {
       title: 'షేర్ చేయండి',
-      hint: 'ప్రింట్ చేయండి, లేదా PDF పంపడానికి ప్రింట్ డైలాగ్‌లో “Save as PDF” ఎంచుకోండి.',
-      print: 'ప్రింట్ లేదా PDF సేవ్',
+      hint: 'PDF డౌన్‌లోడ్ చేసి WhatsApp మెసేజ్‌తో పంపండి, లేదా ప్రింట్ చేయండి.',
+      print: 'ప్రింట్',
+      download: 'PDF డౌన్‌లోడ్',
       whatsapp: 'WhatsAppలో షేర్ చేయండి',
       message:
-        '{business}: కొటేషన్ {number} v{version}, మొత్తం {total}, {date} వరకు చెల్లుతుంది. PDF కోసం మమ్మల్ని అడగండి.',
+        '{business}: కొటేషన్ {number} v{version}, మొత్తం {total}, {date} వరకు చెల్లుతుంది. PDF ఈ చాట్‌లోనే పంపుతున్నాం.',
     },
     print: {
       label: 'ప్రింట్ కోసం కొటేషన్',

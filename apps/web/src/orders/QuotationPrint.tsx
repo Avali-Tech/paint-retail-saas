@@ -6,8 +6,8 @@ import { stateLabel } from '../lib/gst-states.js';
 import { TintSummary } from '../tint/TintSummary.js';
 import '../print/print.css';
 
-// A quotation on A4 paper, drawn with round 2b's invoice print styles. "Save as PDF"
-// in the print dialog gives the PDF to share. It is an offer, never a tax invoice,
+// A quotation on A4 paper, drawn with round 2b's invoice print styles; the PDF to share
+// comes from the API (GET /quotations/:id/pdf). It is an offer, never a tax invoice,
 // so it carries no Rule 46 heading or copy mark.
 
 /** One request to print: a new `id` prints again. */

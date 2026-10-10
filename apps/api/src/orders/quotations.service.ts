@@ -31,6 +31,7 @@ import {
 } from '../common/keyset.js';
 import { addDays } from '../contracts/contract-dates.js';
 import { DATABASE } from '../database/database.module.js';
+import type { QuotationPdfStore } from '../print/render-quotation-pdf.js';
 import { containsPattern } from '../parties/party-access.js';
 import { fieldError } from '../tax/tax-lookups.js';
 import { tintsOf, writeLineTints } from '../paint/line-tints.js';
@@ -52,7 +53,7 @@ import type {
 import { priceHeader, pricedColumns, saleHeader, storedHeader } from './sale-header.js';
 import { discountOf } from './sale-pricing.js';
 
-const { parties, quotationLines, quotations, salesSettings } = schema;
+const { parties, quotationLines, quotations, salesSettings, stores } = schema;
 
 /**
  * Quotations (P2-M03, spec §5.3): versioned quotes for a party, site or
@@ -146,6 +147,35 @@ export class QuotationsService {
     return withTenant(this.connection.db, auth.organization.id, async (tx) =>
       quotationView(tx, await loadQuotation(tx, auth, id), await indiaToday(tx)),
     );
+  }
+
+  /** The quotation and its store's letterhead, for the PDF (spec §5.3 "Share"). */
+  printable(
+    auth: AuthContext,
+    id: string,
+  ): Promise<{ quotation: QuotationView; store: QuotationPdfStore }> {
+    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      const quotation = await quotationView(
+        tx,
+        await loadQuotation(tx, auth, id),
+        await indiaToday(tx),
+      );
+      const [store] = (await tx
+        .select({
+          name: stores.name,
+          legalName: stores.legalName,
+          tradeName: stores.tradeName,
+          gstin: sql<
+            string | null
+          >`case when ${stores.registrationType} <> 'unregistered' then ${stores.gstin} end`,
+          address: sql<
+            string | null
+          >`nullif(concat_ws(', ', ${stores.addressLine}, ${stores.city}, ${stores.state}, ${stores.pincode}), '')`,
+        })
+        .from(stores)
+        .where(eq(stores.id, quotation.storeId))) as [QuotationPdfStore];
+      return { quotation, store };
+    });
   }
 
   list(auth: AuthContext, query: ListQuotationsQuery): Promise<QuotationPage> {

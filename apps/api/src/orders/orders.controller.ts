@@ -11,6 +11,7 @@ import {
   Post,
   Put,
   Query,
+  Res,
 } from '@nestjs/common';
 import type {
   DispatchView,
@@ -26,11 +27,14 @@ import type {
   StaleReservationPage,
   TaxDocumentView,
 } from '@paint/shared';
+import type { FastifyReply } from 'fastify';
 import type { AuthContext } from '../auth/auth-context.js';
 import { CurrentAuth, RequirePermissions } from '../auth/decorators.js';
 import { idempotencyKeySchema } from '../billing/billing.schemas.js';
 import { IdempotencyKey } from '../billing/idempotency.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
+import { attachmentHeader } from '../documents/file-checks.js';
+import { renderQuotationPdf } from '../print/render-quotation-pdf.js';
 import { DispatchesService } from './dispatches.service.js';
 import { GoLiveService } from './go-live.service.js';
 import {
@@ -43,6 +47,7 @@ import {
   goLiveSchema,
   listOrdersSchema,
   listQuotationsSchema,
+  quotationPdfSchema,
   quotationSchema,
   releaseOrderSchema,
   reserveOrderSchema,
@@ -58,6 +63,7 @@ import {
   type ListOrdersQuery,
   type ListQuotationsQuery,
   type QuotationInput,
+  type QuotationPdfQuery,
   type ReleaseOrderInput,
   type ReserveOrderInput,
   type SalesOrderInput,
@@ -100,6 +106,29 @@ export class QuotationsController {
     @Param('id', id()) quotationId: string,
   ): Promise<QuotationView> {
     return this.quotations.get(auth, quotationId);
+  }
+
+  /**
+   * The quotation as an A4 PDF, to download and share (spec §5.3). Only to signed-in
+   * members: there is no public link to it yet.
+   */
+  @Get(':id/pdf')
+  @RequirePermissions('sales:read')
+  async pdf(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', id()) quotationId: string,
+    @Query(new ZodValidationPipe(quotationPdfSchema)) query: QuotationPdfQuery,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<Buffer> {
+    const { quotation, store } = await this.quotations.printable(auth, quotationId);
+    void reply
+      .header('content-type', 'application/pdf')
+      .header(
+        'content-disposition',
+        attachmentHeader(`${quotation.number}-v${String(quotation.version)}.pdf`),
+      )
+      .header('cache-control', 'private, no-store');
+    return renderQuotationPdf(quotation, store, query.lang === 'en' ? null : query.lang);
   }
 
   @Put(':id')
