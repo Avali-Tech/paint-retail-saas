@@ -180,17 +180,31 @@ describe('PosPage: the bill', () => {
     await user.clear(box);
     await user.type(box, 'BOOM{Enter}');
     expect(await screen.findByText('Catalogue down')).toBeInTheDocument();
+    // A failed lookup gives the code back, so Enter tries again.
+    expect(box).toHaveValue('BOOM');
+    await user.keyboard('{Enter}');
+    expect(await screen.findByText('Catalogue down')).toBeInTheDocument();
+    expect(box).toHaveValue('BOOM');
     await user.clear(box);
     await user.type(box, 'no such thing{Enter}');
     expect(await screen.findByText('Nothing matches “no such thing”')).toBeInTheDocument();
     // A name with a space skips the barcode lookup.
-    expect(requests.filter((request) => request.path === '/products/lookup')).toHaveLength(3);
+    expect(requests.filter((request) => request.path === '/products/lookup')).toHaveLength(4);
 
     await user.clear(box);
     await user.type(box, 'primer');
     await user.click(screen.getByRole('button', { name: 'Find' }));
     const results = await screen.findByRole('listbox', { name: 'Matching products' });
     expect(within(results).getByRole('option', { name: /PRM-1/ })).toHaveTextContent('—');
+    // Picked from the list, a variant without a price is refused and the list stays.
+    await user.pointer({
+      keys: '[MouseLeft>]',
+      target: within(results).getByRole('option', { name: /PRM-1/ }),
+    });
+    expect(
+      screen.getByText('PRM-1 has no selling price. Set one in Products before selling it.'),
+    ).toBeInTheDocument();
+    expect(results).toBeVisible();
     await user.keyboard('{Escape}');
     expect(screen.getByRole('listbox', { hidden: true })).not.toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Find' }));
@@ -208,7 +222,108 @@ describe('PosPage: the bill', () => {
     expect(screen.getByText('Total · 1 item')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Find' }));
   });
+
+  it('adds scans typed while a lookup is pending, in the order they were scanned', async () => {
+    const apex = gate();
+    const { user } = renderPos({
+      'GET /products/lookup': async (request) => {
+        if (request.query.get('code') === 'APX-20L') await apex.wait;
+        return lookupIn(PRODUCTS)(request);
+      },
+    });
+    const box = await scanBox();
+    // A barcode gun: the box empties on Enter, ready for the next code at once.
+    await user.type(box, 'APX-20L{Enter}');
+    expect(box).toHaveValue('');
+    expect(screen.getByRole('status', { name: 'Loading…' })).toBeInTheDocument();
+    await user.type(box, '2*PUT-20KG{Enter}');
+    expect(box).toHaveValue('');
+    // What is typed while the lookups run is kept.
+    await user.type(box, 'rol');
+    expect(screen.queryByRole('listitem', { name: PUTTY_NAME })).toBeNull();
+    apex.open();
+    await screen.findByRole('listitem', { name: PUTTY_NAME });
+    const bill = screen.getByRole('list', { name: 'Bill' });
+    expect(
+      within(bill)
+        .getAllByRole('listitem')
+        .map((item) => item.getAttribute('aria-label')),
+    ).toEqual([APEX_NAME, PUTTY_NAME]);
+    expect(screen.getByRole('textbox', { name: `Quantity of ${PUTTY_NAME}` })).toHaveValue('2');
+    expect(box).toHaveValue('rol');
+    expect(screen.queryByRole('status', { name: 'Loading…' })).toBeNull();
+  });
+
+  it('gives back a code with no single match, unless something new was typed', async () => {
+    let search = gate();
+    const { user } = renderPos({
+      'GET /products': async (request) => {
+        await search.wait;
+        return request.query.get('q') === 'down'
+          ? json({ message: 'Search is down' }, 500)
+          : searchIn(PRODUCTS)(request);
+      },
+    });
+    const box = await scanBox();
+
+    await user.type(box, 'zzz{Enter}');
+    expect(box).toHaveValue('');
+    search.open();
+    expect(await screen.findByText('Nothing matches “zzz”')).toBeInTheDocument();
+    expect(box).toHaveValue('zzz');
+
+    search = gate();
+    await user.clear(box);
+    await user.type(box, 'qqq{Enter}');
+    await user.type(box, 'a');
+    search.open();
+    expect(await screen.findByText('Nothing matches “qqq”')).toBeInTheDocument();
+    expect(box).toHaveValue('a');
+
+    // A failed search does not give the code back over what was typed since.
+    search = gate();
+    await user.clear(box);
+    await user.type(box, 'down{Enter}');
+    await user.type(box, 'y');
+    search.open();
+    expect(await screen.findByText('Search is down')).toBeInTheDocument();
+    expect(box).toHaveValue('y');
+
+    // Several matches: the list is offered and the code comes back with its quantity.
+    search = gate();
+    await user.clear(box);
+    await user.type(box, '3*roller{Enter}');
+    search.open();
+    const results = await screen.findByRole('listbox', { name: 'Matching products' });
+    expect(box).toHaveValue('3*roller');
+    expect(within(results).getAllByRole('option')).toHaveLength(2);
+    await user.keyboard('{ArrowDown}{Enter}');
+    await screen.findByRole('listitem', { name: 'Asian Paints Roller 4 inch' });
+    expect(
+      screen.getByRole('textbox', { name: 'Quantity of Asian Paints Roller 4 inch' }),
+    ).toHaveValue('3');
+    expect(box).toHaveValue('');
+    expect(results).not.toBeVisible();
+
+    search = gate();
+    await user.type(box, 'roller{Enter}');
+    await user.type(box, 'x');
+    search.open();
+    const roller9 = await screen.findByRole('option', { name: /ROL-9/ });
+    expect(box).toHaveValue('x');
+    await user.pointer({ keys: '[MouseLeft>]', target: roller9 });
+    await screen.findByRole('listitem', { name: 'Asian Paints Roller 9 inch' });
+  });
 });
+
+/** A response held back until the test lets it through. */
+function gate() {
+  let open!: () => void;
+  const wait = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  return { wait, open };
+}
 
 describe('PosPage: the customer', () => {
   it('finds a customer by mobile with their credit and points, and goes back to walk-in', async () => {

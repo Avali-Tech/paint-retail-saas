@@ -1,5 +1,5 @@
 import { Button, Field, Input, Spinner } from '@paint/ui';
-import { useId, useState, type KeyboardEvent, type RefObject } from 'react';
+import { useId, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import type { Product, Variant } from '../api/catalog.js';
 import { ApiError, errorMessage } from '../api/errors.js';
 import { useApi } from '../app/services.js';
@@ -59,19 +59,28 @@ export function ScanBox({
   const [message, setMessage] = useState<string | null>(null);
   const [matches, setMatches] = useState<{ quantity: number; options: Match[] } | null>(null);
   const [active, setActive] = useState(0);
-  const [busy, setBusy] = useState(false);
+  const [inFlight, setInFlight] = useState(0);
+  // Lookups run one after another, so lines land in the order they were scanned.
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  // Bumped by every edit and submit: a scan gives its code back only if nothing came since.
+  const edits = useRef(0);
 
-  const add = (match: Match, quantity: number) => {
-    const { product, variant } = match;
+  /** Adds a match; false (with the reason shown) when it cannot be sold. */
+  const add = ({ product, variant }: Match, quantity: number): boolean => {
     if (!(product.isActive && variant.isActive)) {
       setMessage(t('pos.scan.inactive', { sku: variant.sku }));
-      return;
+      return false;
     }
     if (variant.sellingPricePaise === null) {
       setMessage(t('pos.scan.noPrice', { sku: variant.sku }));
-      return;
+      return false;
     }
-    onAdd(itemOf(match, variant.sellingPricePaise), quantity);
+    onAdd(itemOf({ product, variant }, variant.sellingPricePaise), quantity);
+    return true;
+  };
+
+  const choose = (match: Match, quantity: number) => {
+    if (!add(match, quantity)) return;
     setText('');
     setMatches(null);
     setMessage(null);
@@ -88,16 +97,10 @@ export function ScanBox({
     }
   };
 
-  const find = async () => {
-    const { quantity, code } = parseScan(text);
-    if (code === '') {
-      if (text.trim() !== '') onQuantity(quantity);
-      setText('');
-      return;
-    }
-    setBusy(true);
-    setMessage(null);
-    setMatches(null);
+  const lookup = async (scanned: string, code: string, quantity: number, edit: number) => {
+    const giveBack = () => {
+      if (edits.current === edit) setText(scanned);
+    };
     try {
       const found = await exact(code);
       if (found !== null) {
@@ -114,16 +117,37 @@ export function ScanBox({
       );
       const [only] = candidates;
       if (only !== undefined && candidates.length === 1) add(only, quantity);
-      else if (only === undefined) setMessage(t('pos.scan.notFound', { code }));
-      else {
+      else if (only === undefined) {
+        setMessage(t('pos.scan.notFound', { code }));
+        giveBack();
+      } else {
         setMatches({ quantity, options: candidates });
         setActive(0);
+        giveBack();
       }
     } catch (error) {
       setMessage(errorMessage(error));
+      giveBack();
     } finally {
-      setBusy(false);
+      setInFlight((count) => count - 1);
     }
+  };
+
+  /** Takes the text and empties the box at once, so the next scan can be typed meanwhile. */
+  const find = () => {
+    const scanned = text;
+    const { quantity, code } = parseScan(scanned);
+    setText('');
+    if (code === '') {
+      if (scanned.trim() !== '') onQuantity(quantity);
+      return;
+    }
+    edits.current += 1;
+    const edit = edits.current;
+    setInFlight((count) => count + 1);
+    setMessage(null);
+    setMatches(null);
+    queue.current = queue.current.then(() => lookup(scanned, code, quantity, edit));
   };
 
   const { quantity: pending, options } = matches ?? { quantity: 1, options: [] };
@@ -144,8 +168,8 @@ export function ScanBox({
     if (event.key === 'Enter') {
       event.preventDefault();
       const chosen = options[active];
-      if (chosen !== undefined) add(chosen, pending);
-      else void find();
+      if (chosen !== undefined) choose(chosen, pending);
+      else find();
       return;
     }
     const lineKey = LINE_KEYS[event.key];
@@ -176,6 +200,7 @@ export function ScanBox({
             autoFocus
             value={text}
             onChange={(event) => {
+              edits.current += 1;
               setText(event.target.value);
               setMessage(null);
             }}
@@ -184,16 +209,16 @@ export function ScanBox({
         </Field>
         <Button
           variant="secondary"
-          loading={busy}
+          loading={inFlight > 0}
           onClick={() => {
-            void find();
+            find();
             inputRef.current?.focus();
           }}
         >
           {t('pos.scan.find')}
         </Button>
       </div>
-      {busy && <Spinner size="sm" label={t('common.loading')} />}
+      {inFlight > 0 && <Spinner size="sm" label={t('common.loading')} />}
       <ul
         id={listId}
         role="listbox"
@@ -211,7 +236,7 @@ export function ScanBox({
             onMouseDown={(event) => {
               // Keep the focus in the box, where the next scan is typed.
               event.preventDefault();
-              add(option, pending);
+              choose(option, pending);
             }}
           >
             {t('pos.scan.option', {
