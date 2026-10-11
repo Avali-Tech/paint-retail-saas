@@ -23,6 +23,25 @@ const variantRows = () =>
     .map((row) => row.textContent);
 
 describe('ProductDetailPage', () => {
+  it('says when a product has no tax category yet', async () => {
+    renderDetail({ 'GET /products/:id': () => json(product({ taxCategory: null })) });
+    expect(await screen.findByText('No tax category yet')).toBeInTheDocument();
+    // Hardware-like: no paint details at all.
+    expect(screen.queryByText(/sq ft per litre/)).toBeNull();
+    expect(screen.queryByText(/Default coats/)).toBeNull();
+    expect(screen.queryByText('Tintable base')).toBeNull();
+  });
+
+  it('shows a paint’s coverage, coats and that it is a tintable base', async () => {
+    renderDetail({
+      'GET /products/:id': () =>
+        json(product({ coverageSqftPerLitre: 129.17, defaultCoats: 2, isTintable: true })),
+    });
+    expect(await screen.findByText('Covers 129.17 sq ft per litre')).toBeInTheDocument();
+    expect(screen.getByText('Default coats: 2')).toBeInTheDocument();
+    expect(screen.getByText('Tintable base')).toBeInTheDocument();
+  });
+
   it('shows the product, its pack sizes and prices, and stock by store', async () => {
     const { requests } = renderDetail({
       'GET /products/:id': () =>
@@ -47,6 +66,7 @@ describe('ProductDetailPage', () => {
     });
     expect(await screen.findByRole('heading', { name: 'Apex Ultima', level: 1 })).toBeVisible();
     expect(screen.getByText('HSN 3209 · GST 18%')).toBeInTheDocument();
+    expect(screen.getByText('Tax category: Paints 18%')).toBeInTheDocument();
     expect(screen.getByText('Emulsions')).toBeInTheDocument();
     expect(screen.getByText('Weatherproof exterior emulsion')).toBeInTheDocument();
     expect(variantRows()).toEqual([

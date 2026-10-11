@@ -59,6 +59,15 @@ export const reportsHi: Translation<typeof reportsEn> = {
         title: 'प्रोजेक्ट',
         description: 'प्रोजेक्ट, स्टेज, तारीख, एरिया, पेंट और अनुमानित कीमत के साथ',
       },
+      'sales-by-influencer': {
+        title: 'इन्फ्लुएंसर के हिसाब से बिक्री',
+        description:
+          'हर पेंटर, कॉन्ट्रैक्टर या आर्किटेक्ट ने साइट के हिसाब से क्या बिकवाया, क्रेडिट नोट घटाकर',
+      },
+      'sales-by-site': {
+        title: 'साइट के हिसाब से बिक्री',
+        description: 'हर साइट की नेट बिक्री, उसे लाने वाले इन्फ्लुएंसर के साथ',
+      },
     },
     columns: {
       'stock-by-location': {
@@ -133,6 +142,30 @@ export const reportsHi: Translation<typeof reportsEn> = {
         paintLitres: 'पेंट (लीटर)',
         expectedValue: 'अनुमानित वैल्यू (₹)',
         assignedTo: 'किसको सौंपा',
+      },
+      'sales-by-influencer': {
+        influencer: 'इन्फ्लुएंसर',
+        roles: 'रोल',
+        phone: 'मोबाइल',
+        site: 'साइट',
+        customers: 'बिल किसके नाम',
+        invoices: 'बिल',
+        creditNotes: 'क्रेडिट नोट',
+        lastBilled: 'आखिरी बिल',
+        taxable: 'टैक्स योग्य कीमत (₹)',
+        total: 'नेट बिक्री (₹)',
+      },
+      'sales-by-site': {
+        number: 'प्रोजेक्ट',
+        site: 'साइट',
+        customer: 'ग्राहक',
+        city: 'शहर',
+        influencers: 'इन्फ्लुएंसर',
+        invoices: 'बिल',
+        creditNotes: 'क्रेडिट नोट',
+        lastBilled: 'आखिरी बिल',
+        taxable: 'टैक्स योग्य कीमत (₹)',
+        total: 'नेट बिक्री (₹)',
       },
     },
   },

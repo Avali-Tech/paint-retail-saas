@@ -133,6 +133,29 @@ describe('API container image', () => {
     expect(listing.output).not.toMatch(/\b(npm|npx|corepack|vitest|typescript|src)\b/);
   });
 
+  it('draws an invoice PDF with the bundled Noto fonts, writing nothing to disk', async () => {
+    // The invoice PDF (apps/api/src/print) is pdfkit with fonts in dist/server/fonts: check
+    // both are in the image and work as the read-only node user, in all three scripts.
+    const script = `
+      import PDFDocument from 'pdfkit';
+      const fonts = '/app/dist/server/fonts/';
+      const doc = new PDFDocument({ font: fonts + 'NotoSans-Regular.ttf' });
+      const chunks = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => {
+        const pdf = Buffer.concat(chunks);
+        console.log(pdf.subarray(0, 5).toString(), pdf.length > 1000);
+      });
+      doc.text('Tax Invoice ₹18,073.00');
+      doc.font(fonts + 'NotoSansDevanagari-Regular.ttf').text('टैक्स इनवॉइस');
+      doc.font(fonts + 'NotoSansTelugu-Regular.ttf').text('ట్యాక్స్ ఇన్‌వాయిస్');
+      doc.end();`;
+    const result = await api.exec(['node', '--input-type=module', '-e', script]);
+
+    expect(result.output.trim()).toBe('%PDF- true');
+    expect(result.exitCode).toBe(0);
+  });
+
   it('runs the restore drill from the ops image against the migrated database', async () => {
     const output = await runOnce(opsImage, { DRILL_SOURCE_URL: databaseUrl() });
 

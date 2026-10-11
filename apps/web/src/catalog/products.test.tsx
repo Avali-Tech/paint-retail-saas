@@ -63,6 +63,8 @@ describe('ProductsPage', () => {
       id: 'product-old',
       name: 'Old Enamel',
       isActive: false,
+      hsnCode: '3208',
+      taxCategory: null,
       variants: [
         variant({ mrpPaise: null, sellingPricePaise: null }),
         variant({
@@ -78,9 +80,9 @@ describe('ProductsPage', () => {
     const table = await screen.findByRole('table', { name: 'Products' });
     const rows = within(table).getAllByRole('row');
     expect(rows.map((row) => row.textContent)).toEqual([
-      'ProductBrandTypeSizes / packsPrice',
-      'Apex UltimaAsian PaintsExterior paint1 l, 4 l₹450.00 – ₹1,700.00',
-      'Old Enamel InactiveAsian PaintsExterior paint1 l, Red · 1 l—',
+      'ProductBrandTypeSizes / packsHSN · taxPrice',
+      'Apex UltimaAsian PaintsExterior paint1 l, 4 l3209 · Paints 18%₹450.00 – ₹1,700.00',
+      'Old Enamel InactiveAsian PaintsExterior paint1 l, Red · 1 l3208 · ——',
     ]);
     expect(screen.getByRole('link', { name: '+ Product' })).toHaveAttribute(
       'href',

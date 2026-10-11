@@ -43,6 +43,11 @@ test('quick actions open from search and with their two-key shortcuts', async ({
   await page.keyboard.press('n');
   await page.keyboard.press('a');
   await expect(page).toHaveURL(/\/contracts\/new$/);
+  // The form focuses its own search first; search the app only after that, or a slow
+  // render takes the focus back and closes the quick actions.
+  await expect(
+    page.getByRole('searchbox', { name: 'Search by name, mobile or GSTIN' }),
+  ).toBeFocused();
   await page.getByRole('combobox', { name: 'Search' }).fill('contract');
   await expect(
     page
@@ -89,9 +94,9 @@ test('phones get a bottom bar with the rest under "More" @phone', async ({ page 
   await expect(sidebar).toBeHidden();
   await expect(bottomBar.getByRole('link')).toHaveText([
     'Dashboard',
+    'Counter sale',
     'Customers',
     'Products',
-    'Stock',
   ]);
   await bottomBar.getByRole('button', { name: 'More' }).click();
   const more = page.getByRole('dialog', { name: 'More' });

@@ -31,6 +31,10 @@ describe('PartyDetailPage (customer 360)', { timeout: 30_000 }, () => {
       'href',
       `/parties/${PARTY.id}/edit`,
     );
+    expect(screen.getByRole('link', { name: 'Ledger' })).toHaveAttribute(
+      'href',
+      `/parties/${PARTY.id}/ledger`,
+    );
 
     const contact = region('Contact');
     expect(
@@ -40,6 +44,7 @@ describe('PartyDetailPage (customer 360)', { timeout: 30_000 }, () => {
     expect(within(contact).getByText('Apex Builders Private Limited')).toBeVisible();
     expect(within(contact).getByText('Pays on time')).toBeVisible();
     expect(within(contact).getByText('36AABCU9603R1ZO')).toBeVisible();
+    expect(within(contact).getByText('36 · Telangana')).toBeVisible();
     expect(within(contact).getByText('Builder')).toBeVisible();
     expect(within(contact).getByText('WhatsApp')).toBeVisible();
     expect(await within(contact).findByText('HYD · Hyderabad')).toBeVisible();
@@ -112,6 +117,8 @@ describe('PartyDetailPage (customer 360)', { timeout: 30_000 }, () => {
     expect(heading).toBeVisible();
     expect(screen.getByText('Inactive')).toBeVisible();
     expect(screen.queryByRole('link', { name: 'Edit' })).toBeNull();
+    // No sales:read, so no ledger (the ledger API asks for it).
+    expect(screen.queryByRole('link', { name: 'Ledger' })).toBeNull();
     expect(within(region('Contact')).getByText('No contact details yet')).toBeVisible();
     expect(within(region('Activities')).getByText('Nothing yet')).toBeVisible();
     expect(await within(region('Documents')).findByText('No documents yet')).toBeVisible();

@@ -1,13 +1,18 @@
 import type { Permission } from '@paint/shared';
 import type { IconName } from '@paint/ui';
 import type { MessageKey } from '../i18n/i18n.js';
+import { BOOKS_NAV_ITEMS } from '../books/nav.js';
 import { DOCUMENT_NAV_ITEMS } from '../documents/nav.js';
+import { ESTIMATE_NAV_ITEMS } from '../estimator/nav.js';
 import { FOLLOW_UP_NAV_ITEMS } from '../followups/nav.js';
 import { IMPORT_NAV_ITEMS } from '../imports/nav.js';
 import { CRM_NAV_ITEMS } from '../leads/nav.js';
 import type { AnyOf } from '../lib/guard.js';
+import { ORDER_NAV_ITEMS } from '../orders/nav.js';
 import { CUSTOMER_NAV_ITEMS } from '../parties/nav.js';
+import { POS_NAV_ITEMS } from '../pos/nav.js';
 import { REPORT_NAV_ITEMS } from '../reports/nav.js';
+import { SALES_NAV_ITEMS } from '../sales/nav.js';
 import { SUPPORT_ACCESS_NAV_ITEMS } from '../support-access/nav.js';
 import { TEAM_NAV_ITEMS } from '../team/nav.js';
 
@@ -29,6 +34,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: 'dashboard',
     permission: 'stores:read',
   },
+  ...POS_NAV_ITEMS,
   {
     key: 'customers',
     label: 'nav.customers',
@@ -68,6 +74,10 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: 'contracts:read',
   },
   // Each feature keeps its own entries in its own file.
+  ...ESTIMATE_NAV_ITEMS,
+  ...ORDER_NAV_ITEMS,
+  ...SALES_NAV_ITEMS,
+  ...BOOKS_NAV_ITEMS,
   ...FOLLOW_UP_NAV_ITEMS,
   ...DOCUMENT_NAV_ITEMS,
   ...CUSTOMER_NAV_ITEMS,
@@ -78,6 +88,20 @@ export const NAV_ITEMS: readonly NavItem[] = [
     key: 'appearance',
     label: 'nav.appearance',
     path: '/settings/appearance',
+    icon: 'settings',
+    permission: 'organization:manage',
+  },
+  {
+    key: 'tax',
+    label: 'taxSettings.title',
+    path: '/settings/tax',
+    icon: 'settings',
+    permission: 'tax:read',
+  },
+  {
+    key: 'invoicePrint',
+    label: 'print.settings.title',
+    path: '/settings/invoice-print',
     icon: 'settings',
     permission: 'organization:manage',
   },

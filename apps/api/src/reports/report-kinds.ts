@@ -1,6 +1,6 @@
 import { schema, type Transaction } from '@paint/db';
-import { paiseToRupees, variantName, type Permission } from '@paint/shared';
-import { and, asc, desc, eq, or, sql, type AnyColumn } from 'drizzle-orm';
+import { variantName, type Permission } from '@paint/shared';
+import { and, asc, desc, eq, or, sql } from 'drizzle-orm';
 import { alias, type PgSelect } from 'drizzle-orm/pg-core';
 import type { z } from 'zod';
 import type { AuthContext } from '../auth/auth-context.js';
@@ -15,6 +15,8 @@ import {
   supplierFilter,
   type ReportFilter,
 } from './report-filters.js';
+import { ist, quantity, rupees, text } from './report-values.js';
+import { salesByInfluencer, salesBySite } from './sales-reports.js';
 
 const {
   brands,
@@ -60,14 +62,6 @@ export interface ReportKind<F> {
 const store = { storeId: storeFilter };
 const dateRange = { from: dateFilter, to: dateFilter };
 
-/** A moment as people in India read it, e.g. "2026-10-01 18:05". */
-const ist = (column: AnyColumn) =>
-  sql<string | null>`to_char(${column} at time zone 'Asia/Kolkata', 'YYYY-MM-DD HH24:MI')`;
-const rupees = (paise: unknown) =>
-  paise === null ? null : paiseToRupees(Math.round(Number(paise)));
-const quantity = (value: unknown) =>
-  value === null ? null : Math.round(Number(value) * 1000) / 1000;
-const text = (value: unknown) => value as string | null;
 /** The pack as people say it, e.g. "10 l" or "2 inch" (see variantName). */
 const variant = (r: Record<string, unknown>) =>
   variantName({ packSize: Number(r.packSize), unit: String(r.unit), label: text(r.label) });
@@ -486,4 +480,6 @@ export const REPORT_KINDS: readonly ReportKind<unknown>[] = [
   receipts,
   leadReport,
   projectReport,
+  salesByInfluencer,
+  salesBySite,
 ];

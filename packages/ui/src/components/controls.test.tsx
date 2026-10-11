@@ -83,4 +83,35 @@ describe('Pagination', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Previous' }));
     expect(onChange).toHaveBeenLastCalledWith(0);
   });
+
+  it('follows the list rather than the total when it says whether more rows follow', async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <Pagination
+        offset={0}
+        limit={50}
+        total={50}
+        hasMore
+        onChange={onChange}
+        label="Pages"
+        range={range}
+      />,
+    );
+    // The count stopped at the cap, but the list has more: Next still works.
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(onChange).toHaveBeenLastCalledWith(50);
+
+    rerender(
+      <Pagination
+        offset={50}
+        limit={50}
+        total={120}
+        hasMore={false}
+        onChange={onChange}
+        label="Pages"
+        range={range}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+  });
 });

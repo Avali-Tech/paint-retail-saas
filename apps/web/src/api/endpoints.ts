@@ -1,4 +1,5 @@
 import type { QuickAction } from '@paint/shared';
+import { booksEndpoints } from '../books/books-api.js';
 import { catalogEndpoints } from './catalog.js';
 import type { ApiClient } from './client.js';
 import { contractEndpoints } from './contracts.js';
@@ -9,13 +10,19 @@ import { importEndpoints } from './imports.js';
 import { leadEndpoints, opportunityEndpoints } from './leads.js';
 import { loyaltyEndpoints } from './loyalty.js';
 import { partyEndpoints } from './parties.js';
+import { estimatorEndpoints } from '../estimator/estimator-api.js';
+import { ordersEndpoints } from '../orders/orders-api.js';
+import { posEndpoints } from '../pos/pos-api.js';
+import { tintEndpoints } from '../tint/tint-api.js';
 import { projectEndpoints } from './projects.js';
 import { purchasingEndpoints } from './purchasing.js';
 import { recordActivityEndpoints } from './record-activities.js';
 import { reportEndpoints } from './reports.js';
+import { salesEndpoints } from './sales.js';
 import { stockCountEndpoints } from './stock-counts.js';
 import { stockEndpoints } from './stock.js';
 import { supportRequestEndpoints } from '../support-access/grants.js';
+import { taxEndpoints } from './tax.js';
 import { teamEndpoints } from './team.js';
 import { transferEndpoints } from './transfers.js';
 import type {
@@ -86,6 +93,8 @@ export function endpoints(api: ApiClient) {
     parties: partyEndpoints(api),
     credit: creditEndpoints(api),
     loyalty: loyaltyEndpoints(api),
+    tax: taxEndpoints(api),
+    sales: salesEndpoints(api),
     catalog: catalogEndpoints(api),
     stock: stockEndpoints(api),
     transfers: transferEndpoints(api),
@@ -101,6 +110,11 @@ export function endpoints(api: ApiClient) {
     documents: documentEndpoints(api),
     reports: reportEndpoints(api),
     supportRequests: supportRequestEndpoints(api),
+    pos: posEndpoints(api),
+    orders: ordersEndpoints(api),
+    books: booksEndpoints(api),
+    estimator: estimatorEndpoints(api),
+    tint: tintEndpoints(api),
   };
 }
 

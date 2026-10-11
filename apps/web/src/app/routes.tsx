@@ -2,6 +2,7 @@ import { EmptyState, Icon, buttonStyle } from '@paint/ui';
 import { lazy } from 'react';
 import { Link, Route, Routes } from 'react-router';
 import { SignInPage } from '../auth/SignInPage.js';
+import { booksRoutes } from '../books/routes.js';
 import { catalogRoutes } from '../catalog/routes.js';
 import { contractRoutes } from '../contracts/routes.js';
 import { documentRoutes } from '../documents/routes.js';
@@ -10,11 +11,16 @@ import { useI18n } from '../i18n/i18n.js';
 import { importRoutes } from '../imports/routes.js';
 import { leadRoutes } from '../leads/routes.js';
 import { opportunityRoutes } from '../opportunities/routes.js';
+import { estimatorRoutes } from '../estimator/routes.js';
+import { orderRoutes } from '../orders/routes.js';
 import { partyRoutes } from '../parties/routes.js';
 import { platformRoutes } from '../platform/routes.js';
+import { posRoutes } from '../pos/routes.js';
+import { printRoutes } from '../print/routes.js';
 import { projectRoutes } from '../projects/routes.js';
 import { purchasingRoutes } from '../purchasing/routes.js';
 import { reportRoutes } from '../reports/routes.js';
+import { salesRoutes } from '../sales/routes.js';
 import { AppShell } from '../shell/AppShell.js';
 import { HomeRedirect, RequireAuth } from '../shell/guards.js';
 import { stockCountRoutes } from '../stock-counts/routes.js';
@@ -31,6 +37,14 @@ const DashboardPage = lazy(() =>
 );
 const AppearancePage = lazy(() =>
   import('../settings/AppearancePage.js').then((module) => ({ default: module.AppearancePage })),
+);
+const TaxSettingsPage = lazy(() =>
+  import('../settings/TaxSettingsPage.js').then((module) => ({ default: module.TaxSettingsPage })),
+);
+const InvoicePrintSettingsPage = lazy(() =>
+  import('../settings/InvoicePrintSettingsPage.js').then((module) => ({
+    default: module.InvoicePrintSettingsPage,
+  })),
 );
 const SecurityPage = lazy(() =>
   import('../settings/SecurityPage.js').then((module) => ({ default: module.SecurityPage })),
@@ -67,6 +81,7 @@ export function AppRoutes() {
       >
         <Route index element={<HomeRedirect />} />
         <Route path="dashboard" element={guarded('stores:read', DashboardPage)} />
+        {posRoutes()}
         {partyRoutes()}
         {catalogRoutes()}
         {stockRoutes()}
@@ -79,13 +94,23 @@ export function AppRoutes() {
         {projectRoutes()}
         {followUpRoutes()}
         {contractRoutes()}
+        {estimatorRoutes()}
+        {orderRoutes()}
+        {salesRoutes()}
+        {booksRoutes()}
         {documentRoutes()}
         {reportRoutes()}
         {teamRoutes()}
         {supportAccessRoutes()}
+        {printRoutes()}
         <Route
           path="settings/appearance"
           element={guarded('organization:manage', AppearancePage)}
+        />
+        <Route path="settings/tax" element={guarded('tax:read', TaxSettingsPage)} />
+        <Route
+          path="settings/invoice-print"
+          element={guarded('organization:manage', InvoicePrintSettingsPage)}
         />
         {/* Every signed-in member manages their own two-factor sign-in. */}
         <Route path="settings/security" element={<SecurityPage />} />

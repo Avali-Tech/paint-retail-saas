@@ -1,6 +1,7 @@
 // Hindi messages (draft translations: see docs/translations/glossary.md). Same shape as
 // en.ts; each feature's messages are in hi-<feature>.ts, mirroring en-<feature>.ts.
 import type { Messages } from './en.js';
+import { booksHi, booksEnumsHi } from './hi-books.js';
 import { brandingHi } from './hi-branding.js';
 import { catalogEnumsHi, catalogHi } from './hi-catalog.js';
 import { contractsHi } from './hi-contracts.js';
@@ -12,13 +13,20 @@ import { leadEnumsHi, leadsHi } from './hi-leads.js';
 import { loyaltyEnumsHi, loyaltyHi } from './hi-loyalty.js';
 import { partiesHi, partyEnumsHi } from './hi-parties.js';
 import { platformHi } from './hi-platform.js';
+import { printHi } from './hi-print.js';
 import { projectsHi } from './hi-projects.js';
+import { ordersHi, ordersEnumsHi } from './hi-orders.js';
+import { estimatorHi, estimatorEnumsHi } from './hi-estimator.js';
+import { posHi } from './hi-pos.js';
+import { tintHi } from './hi-tint.js';
 import { purchasingEnumsHi, purchasingHi } from './hi-purchasing.js';
 import { reportEnumsHi, reportsHi } from './hi-reports.js';
 import { stockCountEnumsHi, stockCountsHi } from './hi-stock-counts.js';
 import { stockEnumsHi, stockHi } from './hi-stock.js';
 import { supportAccessHi } from './hi-support-access.js';
+import { taxHi, taxEnumsHi } from './hi-tax.js';
 import { teamHi } from './hi-team.js';
+import { salesEnumsHi, salesHi } from './hi-sales.js';
 import { transferEnumsHi, transfersHi } from './hi-transfers.js';
 import { workflowHi } from './hi-workflow.js';
 
@@ -35,6 +43,7 @@ export const hi: Messages = {
     previous: 'पिछला',
     next: 'अगला',
     range: '{total} में से {from}–{to}',
+    rangeMore: '{total}+ में से {from}–{to}',
     edit: 'बदलें',
     none: '—',
     required: 'यह जरूरी है',
@@ -322,8 +331,16 @@ export const hi: Messages = {
   ...reportsHi,
   ...teamHi,
   ...platformHi,
+  ...printHi,
   ...supportAccessHi,
   ...brandingHi,
+  ...taxHi,
+  ...salesHi,
+  ...posHi,
+  ...tintHi,
+  ...ordersHi,
+  ...booksHi,
+  ...estimatorHi,
   enums: {
     quickActions: {
       new_customer: '+ ग्राहक',
@@ -353,6 +370,11 @@ export const hi: Messages = {
     ...leadEnumsHi,
     ...followUpEnumsHi,
     ...reportEnumsHi,
+    ...taxEnumsHi,
+    ...salesEnumsHi,
+    ...ordersEnumsHi,
+    ...booksEnumsHi,
+    ...estimatorEnumsHi,
   },
   pages: {
     notFound: 'इस पते पर कोई स्क्रीन नहीं है। लिंक जांचें, या मेन्यू या खोज का इस्तेमाल करें।',

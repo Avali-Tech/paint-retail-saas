@@ -20,6 +20,9 @@ interface Product {
   type: string;
   hsnCode: string;
   gstRatePercent: number;
+  coverageSqftPerLitre: number | null;
+  defaultCoats: number | null;
+  isTintable: boolean;
   isActive: boolean;
   description: string | null;
   brand: { id: string; name: string };
@@ -99,7 +102,6 @@ async function product(overrides: object = {}, token = owner): Promise<Product> 
     name: `Product ${String(n)}`,
     type: 'interior_paint',
     hsnCode: '3209',
-    gstRatePercent: 18,
     variants: [{ sku: `SKU-${String(n)}-1L`, packSize: 1, unit: 'l' }],
     ...overrides,
   });
@@ -218,7 +220,6 @@ describe('catalogue lifecycle', () => {
       name: `Life ${String(next())}`,
       type: 'interior_paint',
       hsnCode: '3209',
-      gstRatePercent: 18,
       variants: [{ sku: `LIFE-${String(next())}`, packSize: 1, unit: 'l' }],
       ...overrides,
     });
@@ -327,7 +328,6 @@ describe('POST /products', () => {
       name: 'Apex Ultima',
       type: 'exterior_paint',
       hsnCode: '32091090',
-      gstRatePercent: 18,
       variants: [
         {
           sku: 'ap-ult-20l',
@@ -348,7 +348,6 @@ describe('POST /products', () => {
       name: 'Apex Ultima',
       type: 'exterior_paint',
       hsnCode: '32091090',
-      gstRatePercent: 18,
       brand: { id: asian, name: 'Asian Paints Pro' },
       category: { id: exterior, name: 'Exterior Emulsions', parentId: null },
     });
@@ -369,7 +368,7 @@ describe('POST /products', () => {
 
   it.each([
     [{ hsnCode: '320' }, 'hsnCode'],
-    [{ gstRatePercent: 17 }, 'gstRatePercent'],
+    [{ taxCategoryId: 'paints' }, 'taxCategoryId'],
     [{ type: 'lipstick' }, 'type'],
     [{ variants: [] }, 'variants'],
     [{ variants: [{ sku: 'bad sku!', packSize: 1, unit: 'l' }] }, 'variants.0.sku'],
@@ -392,7 +391,6 @@ describe('POST /products', () => {
       name: 'Invalid Product',
       type: 'primer',
       hsnCode: '3209',
-      gstRatePercent: 18,
       variants: [{ sku: 'OK-1', packSize: 1, unit: 'l' }],
       ...overrides,
     });
@@ -412,7 +410,6 @@ describe('POST /products', () => {
       name: 'Orphan',
       type: 'primer',
       hsnCode: '3209',
-      gstRatePercent: 18,
       variants: [{ sku: 'ORPHAN-1', packSize: 1, unit: 'l' }],
     };
 
@@ -458,7 +455,6 @@ describe('POST /products', () => {
       name: `Other ${n}`,
       type: 'primer',
       hsnCode: '3209',
-      gstRatePercent: 18,
       variants: [{ sku: `OTHER-${n}`, packSize: 1, unit: 'l' }],
       ...payloads[kind],
     });
@@ -472,7 +468,6 @@ describe('POST /products', () => {
       name: 'Not Allowed',
       type: 'primer',
       hsnCode: '3209',
-      gstRatePercent: 18,
       variants: [{ sku: 'NOPE-1', packSize: 1, unit: 'l' }],
     });
 
@@ -492,7 +487,7 @@ describe('GET /products', () => {
     const berger = await make('/brands', { name: 'berger' });
     const interior = await make('/categories', { name: 'Interior' });
     const emulsions = await make('/categories', { name: 'Emulsions', parentId: interior });
-    const base = { hsnCode: '3209', gstRatePercent: 18 };
+    const base = { hsnCode: '3209' };
     ids = {
       royale: await make('/products', {
         ...base,
@@ -579,10 +574,14 @@ describe('PATCH /products/:id', () => {
   it('renames, re-rates, moves and deactivates a product', async () => {
     const created = await product({ categoryId: await category(`Cat ${String(next())}`) });
 
+    const options = (await api(owner).get('/tax-categories/options')).json<{
+      categories: { id: string; name: string }[];
+    }>();
+    const exempt = options.categories.find((option) => option.name === 'Exempt');
     const updated = (
       await api(owner).patch(`/products/${created.id}`, {
         name: 'Renamed',
-        gstRatePercent: 5,
+        taxCategoryId: exempt?.id,
         categoryId: null,
         description: 'Low-VOC formula',
         isActive: false,
@@ -591,7 +590,8 @@ describe('PATCH /products/:id', () => {
 
     expect(updated).toMatchObject({
       name: 'Renamed',
-      gstRatePercent: 5,
+      gstRatePercent: 0,
+      taxCategory: { id: exempt?.id, name: 'Exempt' },
       category: null,
       description: 'Low-VOC formula',
       isActive: false,
@@ -629,6 +629,71 @@ describe('PATCH /products/:id', () => {
       (await api(owner).patch('/products/00000000-0000-4000-8000-000000000000', { name: 'Ghost' }))
         .statusCode,
     ).toBe(404);
+  });
+});
+
+describe('paint fields (spec §3.5)', () => {
+  it('leaves them out for hardware, and keeps them for paint', async () => {
+    const hinge = await product({ type: 'tool', hsnCode: '8302' });
+    expect(hinge).toMatchObject({
+      coverageSqftPerLitre: null,
+      defaultCoats: null,
+      isTintable: false,
+    });
+
+    const paint = await product({
+      coverageSqftPerLitre: 129.17,
+      defaultCoats: 2,
+      isTintable: true,
+    });
+    expect(paint).toMatchObject({
+      coverageSqftPerLitre: 129.17,
+      defaultCoats: 2,
+      isTintable: true,
+    });
+    const listed = (
+      await api(owner).get(`/products?q=${encodeURIComponent(paint.name)}`)
+    ).json<Page>();
+    expect(listed.items[0]).toMatchObject({ coverageSqftPerLitre: 129.17, isTintable: true });
+  });
+
+  it('edits them, null clearing a number', async () => {
+    const paint = await product({ coverageSqftPerLitre: 120 });
+    const edited = (
+      await api(owner).patch(`/products/${paint.id}`, { defaultCoats: 3, isTintable: true })
+    ).json<Product>();
+    expect(edited).toMatchObject({ coverageSqftPerLitre: 120, defaultCoats: 3, isTintable: true });
+    const cleared = (
+      await api(owner).patch(`/products/${paint.id}`, {
+        coverageSqftPerLitre: null,
+        defaultCoats: null,
+        isTintable: false,
+      })
+    ).json<Product>();
+    expect(cleared).toMatchObject({
+      coverageSqftPerLitre: null,
+      defaultCoats: null,
+      isTintable: false,
+    });
+  });
+
+  it('refuses coverage that is not positive or too precise, and coats out of range', async () => {
+    const paint = await product();
+    const issues = async (changes: object) => {
+      const response = await api(owner).patch(`/products/${paint.id}`, changes);
+      expect(response.statusCode).toBe(400);
+      return response.json<{ issues: { path: string }[] }>().issues.map((issue) => issue.path);
+    };
+    expect(await issues({ coverageSqftPerLitre: 0 })).toEqual(['coverageSqftPerLitre']);
+    expect(await issues({ coverageSqftPerLitre: 10_000 })).toEqual(['coverageSqftPerLitre']);
+    expect(await issues({ coverageSqftPerLitre: 120.125 })).toEqual(['coverageSqftPerLitre']);
+    expect(await issues({ defaultCoats: 0 })).toEqual(['defaultCoats']);
+    expect(await issues({ defaultCoats: 2.5 })).toEqual(['defaultCoats']);
+    expect(await issues({ isTintable: 'yes' })).toEqual(['isTintable']);
+    // Store staff read the catalogue but do not edit it.
+    expect(
+      (await api(storeEmployee).patch(`/products/${paint.id}`, { isTintable: true })).statusCode,
+    ).toBe(403);
   });
 });
 
@@ -891,7 +956,6 @@ describe('labelled variants', () => {
       name: `Paint Brush ${n}`,
       type: 'tool',
       hsnCode: '9603',
-      gstRatePercent: 18,
       variants: [piece(`PB${n}-2`, '2 inch', ['4006381333955'])],
     });
     expect(theirs.statusCode).toBe(201);

@@ -1,7 +1,10 @@
 import { schema } from '@paint/db';
 import {
-  GST_RATES_PERCENT,
+  MAX_COATS,
+  MAX_COVERAGE_SQFT_PER_LITRE,
+  MIN_COATS,
   VARIANT_LABEL_MAX_LENGTH,
+  hasAtMostTwoDecimals,
   isValidBarcode,
   isValidHsn,
 } from '@paint/shared';
@@ -40,11 +43,6 @@ export const variantLabel = z
   .max(VARIANT_LABEL_MAX_LENGTH)
   .transform((value) => (value === '' ? null : value));
 export const hsnCode = z.string().trim().refine(isValidHsn, 'Enter a 4, 6 or 8-digit HSN code');
-export const gstRatePercent = z
-  .number()
-  .refine((rate) => (GST_RATES_PERCENT as readonly number[]).includes(rate), {
-    message: `Use a GST rate of ${GST_RATES_PERCENT.join(', ')}%`,
-  });
 
 const withinMrp = (variant: { mrpPaise?: number | null; sellingPricePaise?: number | null }) =>
   variant.mrpPaise == null ||
@@ -93,6 +91,14 @@ export const updateVariantSchema = z
   .refine(withinMrp, withinMrpMessage);
 export type UpdateVariantInput = z.output<typeof updateVariantSchema>;
 
+/** Sq ft per litre per coat (spec §6.2); hardware leaves it out. */
+const coverage = z
+  .number()
+  .positive()
+  .max(MAX_COVERAGE_SQFT_PER_LITRE)
+  .refine(hasAtMostTwoDecimals, 'Use at most 2 decimals');
+const coats = z.number().int().min(MIN_COATS).max(MAX_COATS);
+
 export const createProductSchema = z.object({
   brandId: z.uuid(),
   categoryId: z.uuid().optional(),
@@ -100,7 +106,11 @@ export const createProductSchema = z.object({
   type: z.enum(PRODUCT_TYPES),
   description: z.string().trim().min(1).max(2000).optional(),
   hsnCode,
-  gstRatePercent,
+  /** Where the GST rate comes from; the default category until the business registers for GST. */
+  taxCategoryId: z.uuid().optional(),
+  coverageSqftPerLitre: coverage.nullable().optional(),
+  defaultCoats: coats.nullable().optional(),
+  isTintable: z.boolean().optional(),
   variants: z.array(variantSchema).min(1).max(50),
 });
 export type CreateProductInput = z.output<typeof createProductSchema>;
@@ -113,7 +123,11 @@ export const updateProductSchema = z
     type: z.enum(PRODUCT_TYPES).optional(),
     description: z.string().trim().min(1).max(2000).nullable().optional(),
     hsnCode: hsnCode.optional(),
-    gstRatePercent: gstRatePercent.optional(),
+    taxCategoryId: z.uuid().optional(),
+    /** Null clears it (e.g. a product that turned out to be hardware). */
+    coverageSqftPerLitre: coverage.nullable().optional(),
+    defaultCoats: coats.nullable().optional(),
+    isTintable: z.boolean().optional(),
     isActive: z.boolean().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, { message: 'Nothing to change' });

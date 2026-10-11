@@ -1,0 +1,71 @@
+// Telugu messages for the tint record (draft: see docs/translations/glossary.md).
+// Same keys as en-tint.ts.
+import type { tintEn } from './en-tint.js';
+import type { Translation } from './shape.js';
+
+export const tintTe: Translation<typeof tintEn> = {
+  tint: {
+    button: 'టింట్',
+    edit: 'టింట్ మార్చండి',
+    buttonOf: '{name} టింట్ చేయండి',
+    editOf: '{name} టింట్ మార్చండి',
+    shown: 'షేడ్ {shade}',
+    charge: 'టింటింగ్ {amount}',
+    title: '{name} టింట్ చేయండి',
+    description: 'ఈ బేస్‌ను ఏ షేడ్‌కు టింట్ చేస్తారో. టింటింగ్ ఛార్జ్ యూనిట్ ధరకు కలుస్తుంది.',
+    base: 'బేస్',
+    shadeCode: 'షేడ్ కోడ్',
+    shadeCodeHint: 'షేడ్ కార్డ్‌లో ఉన్నట్లు, ఉదా. X 132',
+    shadeName: 'షేడ్ పేరు',
+    machine: 'మెషిన్',
+    machineHint: 'ఏ టింటింగ్ మెషిన్, ఉదా. కౌంటర్ 1',
+    chargeLabel: 'ఒక్కో ప్యాక్ టింటింగ్ ఛార్జ్ (₹)',
+    costLabel: 'ఒక్కో ప్యాక్ కలరెంట్ ఖర్చు (₹)',
+    costHint: 'మీ మార్జిన్ కోసం మాత్రమే; బిల్‌లో ఉండదు',
+    formula: 'ఫార్ములా',
+    formulaHint: 'ప్రతి కలరెంట్, మెషిన్ ఒక్కో ప్యాక్‌లో ఎంత వేస్తుందో',
+    colorant: 'కలరెంట్ {number}',
+    amount: 'మొత్తం {number}',
+    unit: 'యూనిట్ {number}',
+    addColorant: 'కలరెంట్ జోడించండి',
+    removeColorant: 'కలరెంట్ {number} తీసివేయండి',
+    apply: 'టింట్ వేయండి',
+    remove: 'టింట్ తీసివేయండి',
+    summary: {
+      shade: 'టింట్ {shade}',
+      base: 'బేస్ {base}',
+      formula: 'ఫార్ములా {formula}',
+    },
+    problems: {
+      shadeCode: 'షేడ్ కోడ్ ఇవ్వండి (40 అక్షరాల వరకు)',
+      tooLong: 'ఇది చాలా పొడవుగా ఉంది',
+      amount: 'రూపాయల్లో మొత్తం ఇవ్వండి',
+      formulaRow: 'ప్రతి కలరెంట్‌కు పేరు, సున్నా కంటే ఎక్కువ మొత్తం ఇవ్వండి (3 దశాంశాల వరకు)',
+      tooManyColorants: 'ఒక ఫార్ములాలో గరిష్ఠంగా 16 కలరెంట్‌లు ఉంటాయి',
+    },
+    history: {
+      title: 'పోయినసారి షేడ్',
+      search: 'షేడ్‌లు వెతకండి',
+      searchHint: 'షేడ్ కోడ్ లేదా పేరు, కస్టమర్ లేదా మొబైల్, అన్ని స్టోర్‌లలో',
+      partyHint: 'ఈ కస్టమర్ షేడ్‌లు, అన్ని స్టోర్‌లలో. ఇంకా వెతకడానికి సెర్చ్ చేయండి.',
+      typeToSearch: 'కస్టమర్‌ను ఎంచుకోండి, లేదా షేడ్, పేరు లేదా మొబైల్‌తో వెతకండి',
+      empty: 'ఏ షేడ్ దొరకలేదు',
+      error: 'షేడ్ హిస్టరీ లోడ్ కాలేదు',
+      use: '{shade} వాడండి',
+      where: '{store} · {date}',
+      document: '{kind} {number}',
+      onBase: '{base} పై',
+      kinds: {
+        quotation: 'కొటేషన్',
+        sales_order: 'ఆర్డర్',
+        invoice: 'ఇన్‌వాయిస్',
+      },
+    },
+    units: {
+      ml: 'ml',
+      shot: 'షాట్‌లు',
+      y: 'Y (1/48 ఔన్స్)',
+      g: 'గ్రా',
+    },
+  },
+};

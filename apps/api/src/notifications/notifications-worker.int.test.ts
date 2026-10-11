@@ -73,7 +73,6 @@ async function product(quantity: number): Promise<{ id: string; sku: string }> {
         name: `Paint ${String(seq)}`,
         type: 'interior_paint',
         hsnCode: '3209',
-        gstRatePercent: 18,
         variants: [{ sku, packSize: 1, unit: 'l' }],
       })
     ).json<{ variants: { id: string }[] }>().variants[0]?.id,
@@ -160,6 +159,8 @@ describe('low stock', () => {
       followUps: 0,
       contractRenewals: 0,
       loyaltyExpiries: 0,
+      // Every business in the test database, reconciled once today.
+      reconciliations: expect.any(Number),
       emailsSent: 1,
       emailsFailed: 0,
     });
@@ -168,6 +169,7 @@ describe('low stock', () => {
       followUps: 0,
       contractRenewals: 0,
       loyaltyExpiries: 0,
+      reconciliations: 0,
       emailsSent: 0,
       emailsFailed: 0,
     });

@@ -79,9 +79,17 @@ test('counter staff sign in with a code texted to their mobile', async ({ page }
   const nav = page.getByRole('navigation', { name: 'Main' });
   await expect(nav.getByRole('link')).toHaveText([
     'Dashboard',
+    'Counter sale',
     'Customers',
     'Products',
     'Stock',
+    'Estimates',
+    'Quotations',
+    'Sales orders',
+    'Invoices',
+    'Credit & debit notes',
+    'Day end',
+    'Payments',
     'Follow-ups',
     'Documents',
     'Reports',

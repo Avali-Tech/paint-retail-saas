@@ -83,7 +83,6 @@ beforeAll(async () => {
         name: 'Apex',
         type: 'exterior_paint',
         hsnCode: '3209',
-        gstRatePercent: 18,
         variants: [{ sku: 'APX-1L', packSize: 1, unit: 'l' }],
       })
     ).json<{ variants: { id: string }[] }>().variants[0]?.id,
@@ -185,6 +184,11 @@ describe('merging a duplicate', () => {
       headers: { ...bearer(owner), ...headers },
       payload,
     });
+    await api().post('/estimates', {
+      storeId: hyd,
+      partyId: duplicate,
+      surfaces: [{ room: 'Hall', kind: 'interior_wall', areaSqft: 100, condition: 'repaint' }],
+    });
     // Credit only on the duplicate, with another request waiting.
     const first = await idOf(
       api().post('/credit-requests', { partyId: duplicate, limitPaise: 30_000_00, creditDays: 30 }),
@@ -214,6 +218,7 @@ describe('merging a duplicate', () => {
     expect(result.moved).toEqual({
       'leads.party_id': 1,
       'leads.referred_by_party_id': 1,
+      'ledger_mappings.party_id': 0,
       'opportunities.party_id': 1,
       'projects.customer_party_id': 1,
       'contracts.party_id': 1,
@@ -225,10 +230,17 @@ describe('merging a duplicate', () => {
       // The survivor already has a customer profile; the duplicate never had a supplier one.
       'customer_profiles.party_id': 0,
       'supplier_profiles.party_id': 0,
+      'tax_documents.influencer_party_id': 0,
+      'tax_documents.party_id': 0,
+      'quotations.bill_to_party_id': 0,
+      'quotations.influencer_party_id': 0,
+      'sales_orders.bill_to_party_id': 0,
+      'sales_orders.influencer_party_id': 0,
       'supplier_products.supplier_party_id': 1,
       // Already a contractor on the shared project: only the painter role moves.
       'project_parties.party_id': 1,
       'loyalty_accounts.party_id': 0,
+      'estimates.party_id': 1,
       activities: 1,
       documents: 1,
     });
@@ -384,6 +396,37 @@ describe('merge rules', () => {
     ]);
     // Nothing changed.
     expect((await api().get(`/parties/${a}`)).json<PartyView>().isActive).toBe(true);
+  });
+
+  it('refuses a duplicate whose opening balance was imported for the go-live', async () => {
+    const a = await party('Opening A');
+    const b = await party('Opening B');
+    const [owned] = await t.connection.db
+      .select({
+        organizationId: schema.parties.organizationId,
+        memberId: schema.organizationMembers.id,
+      })
+      .from(schema.parties)
+      .innerJoin(
+        schema.organizationMembers,
+        eq(schema.organizationMembers.organizationId, schema.parties.organizationId),
+      )
+      .where(eq(schema.parties.id, a))
+      .limit(1);
+    await t.connection.db.insert(schema.goLiveOpenings).values({
+      organizationId: String(owned?.organizationId),
+      partyId: a,
+      amountPaise: 5_000,
+      importedByMemberId: String(owned?.memberId),
+    });
+
+    const refused = await merge(a, b);
+
+    expect([refused.statusCode, message(refused)]).toEqual([
+      409,
+      'This party has an imported opening balance; merge the other way, or import it for the other party',
+    ]);
+    expect((await merge(b, a)).statusCode).toBe(200);
   });
 
   it('merges parties with nothing but their roles', async () => {

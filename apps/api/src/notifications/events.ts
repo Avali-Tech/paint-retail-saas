@@ -15,4 +15,7 @@ export const EVENT_TITLES: Record<NotificationEvent, string> = {
   credit_request_awaiting_approval: 'A credit request needs your approval',
   credit_request_decided: 'Your credit request is approved or rejected',
   loyalty_tier_reached: 'A customer you look after reaches a new loyalty tier',
+  cheque_bounced: 'A cheque taken at your store bounces',
+  register_variance: 'A register at your store closes with cash over or short',
+  reconciliation_mismatch: 'The nightly check finds the books out of balance',
 };

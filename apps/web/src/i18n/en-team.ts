@@ -134,6 +134,12 @@ export const teamEn = {
       credit: 'Credit',
       loyalty: 'Loyalty',
       audit: 'Audit log',
+      tax: 'Tax & GST',
+      sales: 'Sales',
+      billing: 'Billing',
+      payments: 'Payments',
+      register: 'Cash register',
+      accounting: 'Accounting',
     },
     organization: {
       manage: 'Run the business: settings, appearance, sign-in rules and support access',
@@ -173,5 +179,26 @@ export const teamEn = {
     },
     loyalty: { read: 'See loyalty points', manage: 'Enrol members, award and redeem points' },
     audit: { read: 'See the audit log' },
+    tax: {
+      read: 'See GST registrations and tax rates',
+      manage: 'Change GST registrations, tax categories and rates',
+    },
+    sales: {
+      read: 'See invoices and bills',
+      manage: 'Make quotations and sales orders, reserve stock for them',
+    },
+    billing: {
+      issue: 'Make and issue invoices and bills of supply',
+      cancel: 'Cancel an invoice on the day it was issued',
+      notes: 'Raise credit and debit notes and take returns',
+    },
+    payments: {
+      manage: 'Record payments, allocate them to bills, clear or bounce cheques and refund',
+    },
+    register: { manage: 'Open and close cash registers, pay cash in and out' },
+    accounting: {
+      export: 'Set Tally ledgers and export the books',
+      reconcile: 'See the nightly reconciliation of the books and run it now',
+    },
   },
 };

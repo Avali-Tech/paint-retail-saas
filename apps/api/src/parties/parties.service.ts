@@ -15,7 +15,7 @@ import {
   type DatabaseConnection,
   type Transaction,
 } from '@paint/db';
-import { canAccessStore, panFromGstin } from '@paint/shared';
+import { canAccessStore, panFromGstin, stateCodeFromGstin } from '@paint/shared';
 import { and, count, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
@@ -54,6 +54,8 @@ export interface PartyView {
   readonly city: string | null;
   readonly state: string | null;
   readonly pincode: string | null;
+  /** GSTN state code: from the GSTIN when there is one, else as entered. */
+  readonly placeOfSupply: string | null;
   readonly homeStoreId: string | null;
   readonly notes: string | null;
   readonly tags: string[];
@@ -123,6 +125,7 @@ export class PartiesService {
     return this.mapDuplicates(auth, fields, () =>
       withTenant(this.connection.db, auth.organization.id, async (tx) => {
         await this.assertHomeStore(tx, auth, fields.homeStoreId ?? null);
+        this.checkPlaceOfSupply(fields.gstin, fields.placeOfSupply);
         const values = { ...fields, pan: this.checkedPan(fields.gstin, fields.pan) };
         await tx.insert(parties).values({ id, organizationId: auth.organization.id, ...values });
         await this.replaceRoles(tx, auth.organization.id, id, roles);
@@ -149,6 +152,7 @@ export class PartiesService {
         }
         const gstin = fields.gstin === undefined ? current.gstin : fields.gstin;
         const pan = fields.pan === undefined ? current.pan : fields.pan;
+        this.checkPlaceOfSupply(gstin, fields.placeOfSupply);
         await tx
           .update(parties)
           .set({ ...fields, pan: this.checkedPan(gstin, pan), updatedAt: sql`now()` })
@@ -275,6 +279,20 @@ export class PartiesService {
       throw new BadRequestException('The PAN does not match the GSTIN');
     }
     return fromGstin;
+  }
+
+  /** Refuses a place of supply that contradicts the GSTIN (a trigger copies the GSTIN's). */
+  private checkPlaceOfSupply(
+    gstin: string | null | undefined,
+    placeOfSupply: string | null | undefined,
+  ) {
+    if (gstin && placeOfSupply && placeOfSupply !== stateCodeFromGstin(gstin)) {
+      throw new BadRequestException({
+        statusCode: 400,
+        message: 'Invalid request',
+        issues: [{ path: 'placeOfSupply', message: "The GSTIN's state is the place of supply" }],
+      });
+    }
   }
 
   private async replaceRoles(

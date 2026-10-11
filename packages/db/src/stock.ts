@@ -1,7 +1,7 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Database, Transaction } from './client.js';
 import { isCheckViolation } from './errors.js';
-import { stockBalances, stockLedger, type stockMovementType } from './schema.js';
+import { stockBalances, stockLedger, stockReservations, type stockMovementType } from './schema.js';
 
 export type StockMovementType = (typeof stockMovementType.enumValues)[number];
 
@@ -292,5 +292,221 @@ export async function findStockMismatches(db: Database | Transaction): Promise<S
     variantId: row.variant_id,
     onHand: Number(row.on_hand),
     ledgerTotal: Number(row.ledger_total),
+  }));
+}
+
+/** Stock to hold for an order line at a store (spec §4.3). */
+export interface StockReservationRequest {
+  readonly organizationId: string;
+  readonly storeId: string;
+  readonly variantId: string;
+  readonly orderLineId: string;
+  /** More than zero, at most 3 decimals. */
+  readonly quantity: number;
+  readonly createdByMemberId?: string;
+}
+
+/**
+ * Holds stock for order lines: adds each quantity to the store's
+ * `stock_balances.reserved` and records an open reservation, in the caller's
+ * transaction. A line holds at most one open reservation (release it first to
+ * change it). Balances are touched in a fixed order, as postStockMovements does.
+ *
+ * Throws InsufficientStockError when a store has less available (on hand less
+ * already reserved) than asked; the caller's transaction then rolls back.
+ * Returns the reservation ids, in the order given.
+ */
+export async function reserveStock(
+  tx: Transaction,
+  requests: readonly StockReservationRequest[],
+): Promise<string[]> {
+  const ids = new Map<StockReservationRequest, string>();
+  const ordered = [...requests].sort((a, b) =>
+    `${a.storeId}:${a.variantId}`.localeCompare(`${b.storeId}:${b.variantId}`),
+  );
+  for (const request of ordered) {
+    await tx
+      .insert(stockBalances)
+      .values({
+        organizationId: request.organizationId,
+        storeId: request.storeId,
+        variantId: request.variantId,
+      })
+      .onConflictDoNothing();
+    try {
+      await tx
+        .update(stockBalances)
+        .set({
+          reserved: sql`${stockBalances.reserved} + ${request.quantity}`,
+          updatedAt: sql`now()`,
+        })
+        .where(
+          and(
+            eq(stockBalances.storeId, request.storeId),
+            eq(stockBalances.variantId, request.variantId),
+          ),
+        );
+    } catch (error) {
+      if (isCheckViolation(error, ['stock_balances_reserved_within_on_hand'])) {
+        throw new InsufficientStockError(request.storeId, request.variantId);
+      }
+      throw error;
+    }
+    const [row] = (await tx
+      .insert(stockReservations)
+      .values({
+        organizationId: request.organizationId,
+        storeId: request.storeId,
+        variantId: request.variantId,
+        orderLineId: request.orderLineId,
+        quantity: request.quantity,
+        createdByMemberId: request.createdByMemberId,
+      })
+      .returning({ id: stockReservations.id })) as [{ id: string }];
+    ids.set(request, row.id);
+  }
+  return requests.map((request) => String(ids.get(request)));
+}
+
+/** What a release gives back: part or all of an order line's open reservation. */
+export interface StockReservationRelease {
+  readonly orderLineId: string;
+  /** Defaults to all of it; more than is held releases what is held. */
+  readonly quantity?: number;
+  /** Set when the goods are going out (an invoice or dispatch): the reservation is consumed. */
+  readonly consumedBy?: { readonly type: 'tax_document' | 'dispatch'; readonly id: string };
+}
+
+/**
+ * Gives back held stock, in the caller's transaction: takes the quantity off
+ * `stock_balances.reserved` and closes it in the reservations, `consumed` when
+ * the goods are going out, `released` otherwise. Part of a reservation is
+ * split off into a closed row of its own; the rest stays open. Returns the
+ * quantity actually released per request (0 when the line holds nothing).
+ */
+export async function releaseStock(
+  tx: Transaction,
+  releases: readonly StockReservationRelease[],
+): Promise<number[]> {
+  if (releases.length === 0) return [];
+  // Lock every open reservation involved first, then work in balance order, so
+  // concurrent releases cannot deadlock. A line named twice is read afresh each time.
+  const lineIds = [...new Set(releases.map((release) => release.orderLineId))];
+  const locked = await tx
+    .select({
+      orderLineId: stockReservations.orderLineId,
+      storeId: stockReservations.storeId,
+      variantId: stockReservations.variantId,
+    })
+    .from(stockReservations)
+    .where(
+      and(inArray(stockReservations.orderLineId, lineIds), eq(stockReservations.status, 'open')),
+    )
+    .orderBy(asc(stockReservations.storeId), asc(stockReservations.variantId))
+    .for('update');
+  const keyOf = (release: StockReservationRelease) => {
+    const row = locked.find((candidate) => candidate.orderLineId === release.orderLineId);
+    return row ? `${row.storeId}:${row.variantId}` : '';
+  };
+  const released = new Map<StockReservationRelease, number>();
+  const ordered = [...releases].sort((a, b) => keyOf(a).localeCompare(keyOf(b)));
+  for (const release of ordered) {
+    const [open] = await tx
+      .select()
+      .from(stockReservations)
+      .where(
+        and(
+          eq(stockReservations.orderLineId, release.orderLineId),
+          eq(stockReservations.status, 'open'),
+        ),
+      );
+    if (open === undefined) {
+      released.set(release, 0);
+      continue;
+    }
+    const quantity = Math.min(toMilli(release.quantity ?? open.quantity), toMilli(open.quantity));
+    released.set(release, quantity / 1000);
+    if (quantity <= 0) continue;
+    await tx
+      .update(stockBalances)
+      .set({
+        reserved: sql`${stockBalances.reserved} - ${quantity / 1000}`,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(eq(stockBalances.storeId, open.storeId), eq(stockBalances.variantId, open.variantId)),
+      );
+    const closed = {
+      status: release.consumedBy ? ('consumed' as const) : ('released' as const),
+      consumedByType: release.consumedBy?.type ?? null,
+      consumedById: release.consumedBy?.id ?? null,
+      closedAt: sql`clock_timestamp()`,
+    };
+    if (quantity === toMilli(open.quantity)) {
+      await tx.update(stockReservations).set(closed).where(eq(stockReservations.id, open.id));
+    } else {
+      await tx
+        .update(stockReservations)
+        .set({ quantity: sql`${stockReservations.quantity} - ${quantity / 1000}` })
+        .where(eq(stockReservations.id, open.id));
+      await tx.insert(stockReservations).values({
+        organizationId: open.organizationId,
+        storeId: open.storeId,
+        variantId: open.variantId,
+        orderLineId: open.orderLineId,
+        quantity: quantity / 1000,
+        createdByMemberId: open.createdByMemberId,
+        ...closed,
+      });
+    }
+  }
+  return releases.map((release) => Number(released.get(release)));
+}
+
+export interface ReservationMismatch {
+  readonly organizationId: string;
+  readonly storeId: string;
+  readonly variantId: string;
+  readonly reserved: number;
+  readonly openReservations: number;
+}
+
+/**
+ * Balances whose `reserved` differs from the sum of their open reservations
+ * (spec §3.3). Should always be empty; run it nightly with findStockMismatches.
+ * Outside tenant scope it checks every organisation.
+ */
+export async function findReservationMismatches(
+  db: Database | Transaction,
+): Promise<ReservationMismatch[]> {
+  const result = await db.execute<{
+    organization_id: string;
+    store_id: string;
+    variant_id: string;
+    reserved: string;
+    open_total: string;
+  }>(sql`
+    select
+      coalesce(b.organization_id, r.organization_id) as organization_id,
+      coalesce(b.store_id, r.store_id) as store_id,
+      coalesce(b.variant_id, r.variant_id) as variant_id,
+      coalesce(b.reserved, 0) as reserved,
+      coalesce(r.total, 0) as open_total
+    from ${stockBalances} b
+    full outer join (
+      select organization_id, store_id, variant_id, sum(quantity) as total
+      from ${stockReservations}
+      where status = 'open'
+      group by organization_id, store_id, variant_id
+    ) r on r.store_id = b.store_id and r.variant_id = b.variant_id
+    where coalesce(b.reserved, 0) <> coalesce(r.total, 0)
+    order by 1, 2, 3
+  `);
+  return result.rows.map((row) => ({
+    organizationId: row.organization_id,
+    storeId: row.store_id,
+    variantId: row.variant_id,
+    reserved: Number(row.reserved),
+    openReservations: Number(row.open_total),
   }));
 }

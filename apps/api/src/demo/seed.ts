@@ -1,4 +1,5 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import type { LatestReconciliation } from '@paint/shared';
 import pg from 'pg';
 import { base32Decode, sealSecret, totp } from '../auth/totp.js';
 import { NotificationsWorker } from '../notifications/notifications-worker.js';
@@ -33,7 +34,9 @@ import {
   scheduleStockCounts,
   scheduleTransfers,
 } from './seed-inventory.js';
+import { assertReconciled } from './seed-billing.js';
 import { onboardBusinesses, seedLargeShop } from './seed-large.js';
+import { scheduleSales } from './seed-sales.js';
 import { setUpBusiness, setUpCatalogueAndParties, type ReadSmsCode } from './seed-setup.js';
 
 export interface SeedOptions {
@@ -123,6 +126,7 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
     scheduleCredit(context, timeline);
     scheduleLoyalty(context, timeline);
     scheduleDuplicates(context, timeline);
+    scheduleSales(context, timeline);
     // The owner caught up with notifications a few days ago; newer ones stay unread.
     timeline.at(3, async () => {
       await context.as('owner').post('/notifications/read-all');
@@ -137,8 +141,10 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
     await seedLargeShop(context, options.databaseUrl, options.large, new Date());
   }
 
-  // Today's reminders and alerts: stock at its reorder level, follow-ups due, renewals.
+  // Today's reminders and alerts (stock at its reorder level, follow-ups due,
+  // renewals) and the nightly reconciliation of the books, which must find nothing.
   await options.app.get(NotificationsWorker).runOnce();
+  assertReconciled(await context.as('owner').get<LatestReconciliation>('/reconciliation/latest'));
   const twoFactor = await enrolAuthenticator(context, options);
   const { operator, token: operatorToken } = await createOperator(options);
   if (options.large !== null) {

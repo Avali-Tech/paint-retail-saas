@@ -61,3 +61,21 @@ export const list = z.string().transform((value) => [
       .filter((item) => item !== ''),
   ),
 ]);
+
+/**
+ * A date such as 2026-04-01, 01-04-2026 or 01/04/2026 (day first, as written
+ * in India); gives YYYY-MM-DD.
+ */
+export const date = z.string().transform((value, context) => {
+  const dayFirst = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(value);
+  const iso = dayFirst
+    ? `${String(dayFirst[3])}-${String(dayFirst[2]).padStart(2, '0')}-${String(dayFirst[1]).padStart(2, '0')}`
+    : value;
+  // A real calendar day: 2026-02-30 rolls over and is refused.
+  const time = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? Date.parse(`${iso}T00:00:00Z`) : Number.NaN;
+  if (Number.isNaN(time) || new Date(time).toISOString().slice(0, 10) !== iso) {
+    context.addIssue({ code: 'custom', message: 'Enter a date such as 2026-04-01 or 01-04-2026' });
+    return z.NEVER;
+  }
+  return iso;
+});

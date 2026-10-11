@@ -60,6 +60,15 @@ export const reportsTe: Translation<typeof reportsEn> = {
         title: 'ప్రాజెక్ట్‌లు',
         description: 'ప్రాజెక్ట్‌లు, స్టేజ్, తేదీలు, ఏరియా, పెయింట్ మరియు అంచనా విలువతో',
       },
+      'sales-by-influencer': {
+        title: 'ఇన్‌ఫ్లుయెన్సర్ వారీగా అమ్మకాలు',
+        description:
+          'ప్రతి పెయింటర్, కాంట్రాక్టర్ లేదా ఆర్కిటెక్ట్ సైట్ వారీగా తెచ్చిన అమ్మకాలు, క్రెడిట్ నోట్లు తీసివేసి',
+      },
+      'sales-by-site': {
+        title: 'సైట్ వారీగా అమ్మకాలు',
+        description: 'ప్రతి సైట్ నికర అమ్మకాలు, వాటిని తెచ్చిన ఇన్‌ఫ్లుయెన్సర్‌లతో',
+      },
     },
     columns: {
       'stock-by-location': {
@@ -134,6 +143,30 @@ export const reportsTe: Translation<typeof reportsEn> = {
         paintLitres: 'పెయింట్ (లీటర్లు)',
         expectedValue: 'అంచనా విలువ (₹)',
         assignedTo: 'ఎవరికి అప్పగించారు',
+      },
+      'sales-by-influencer': {
+        influencer: 'ఇన్‌ఫ్లుయెన్సర్',
+        roles: 'పాత్ర',
+        phone: 'మొబైల్',
+        site: 'సైట్',
+        customers: 'బిల్ ఎవరి పేరున',
+        invoices: 'బిల్లులు',
+        creditNotes: 'క్రెడిట్ నోట్లు',
+        lastBilled: 'చివరి బిల్',
+        taxable: 'పన్ను విధించదగిన విలువ (₹)',
+        total: 'నికర అమ్మకాలు (₹)',
+      },
+      'sales-by-site': {
+        number: 'ప్రాజెక్ట్',
+        site: 'సైట్',
+        customer: 'కస్టమర్',
+        city: 'నగరం',
+        influencers: 'ఇన్‌ఫ్లుయెన్సర్‌లు',
+        invoices: 'బిల్లులు',
+        creditNotes: 'క్రెడిట్ నోట్లు',
+        lastBilled: 'చివరి బిల్',
+        taxable: 'పన్ను విధించదగిన విలువ (₹)',
+        total: 'నికర అమ్మకాలు (₹)',
       },
     },
   },

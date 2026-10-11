@@ -16,6 +16,7 @@ export const importsHi: Translation<typeof importsEn> = {
       products: 'प्रोडक्ट और पैक साइज',
       parties: 'ग्राहक, सप्लायर और दूसरी पार्टियां',
       'opening-stock': 'हर स्टोर का ओपनिंग स्टॉक',
+      'opening-balances': 'बिलिंग शुरू होने पर ओपनिंग बैलेंस',
     },
     columns: 'कॉलम',
     columnsList: '{kind} के कॉलम',

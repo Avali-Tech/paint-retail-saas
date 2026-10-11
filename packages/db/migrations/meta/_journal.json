@@ -358,6 +358,132 @@
       "when": 1791382189726,
       "tag": "0050_variant_label",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1791397831948,
+      "tag": "0051_gst_master_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1791397832598,
+      "tag": "0052_gst_master_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1791397833232,
+      "tag": "0053_grant_tax_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1791399475340,
+      "tag": "0054_tax_documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1791399476016,
+      "tag": "0055_tax_document_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1791399476775,
+      "tag": "0056_grant_billing_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1791403337204,
+      "tag": "0057_payments_register",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1791403348660,
+      "tag": "0058_payment_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1791403349300,
+      "tag": "0059_grant_payment_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1791465797956,
+      "tag": "0060_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1791465822574,
+      "tag": "0061_order_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1791465823247,
+      "tag": "0062_grant_order_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1791482769986,
+      "tag": "0063_paint_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1791482776128,
+      "tag": "0064_paint_data_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1791538754825,
+      "tag": "0065_reconciliation",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1791538755564,
+      "tag": "0066_reconciliation_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1791582826870,
+      "tag": "0067_print_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1791582842369,
+      "tag": "0068_backfills",
+      "breakpoints": true
     }
   ]
 }

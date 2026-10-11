@@ -18,6 +18,7 @@ const {
   roles,
   stockLedger,
   stores,
+  taxCategories,
   users,
 } = schema;
 
@@ -105,6 +106,65 @@ const FIELD_LABELS: Record<string, string> = {
   content_type: 'File type',
   width: 'Width (px)',
   height: 'Height (px)',
+  tax_category_id: 'Tax category',
+  hsn_code: 'HSN code',
+  rate_bps: 'GST rate (basis points)',
+  effective_from: 'From',
+  effective_to: 'To',
+  is_default: 'Default',
+  gst_registration_type: 'Registration type',
+  gst_state_code: 'State code',
+  gstin: 'GSTIN',
+  legal_name: 'Legal name',
+  trade_name: 'Trade name',
+  address_line: 'Address',
+  city: 'City',
+  pincode: 'PIN code',
+  number: 'Number',
+  cancel_reason: 'Cancellation reason',
+  irn: 'IRN',
+  ack_no: 'Acknowledgement number',
+  aato_band: 'Turnover band',
+  einvoice_required_from: 'E-invoice from',
+  eway_threshold_paise: 'E-way bill threshold (paise)',
+  stock_post_on: 'Stock out on',
+  walk_in_party_id: 'Walk-in customer',
+  quote_validity_days: 'Quotation validity (days)',
+  partial_min_advance_pct: 'Minimum advance (%)',
+  default_price_mode: 'Prices',
+  billing_live_on: 'Billing from',
+  kind: 'Document',
+  prefix: 'Prefix',
+  digits: 'Digits',
+  cash_needs_register: 'Cash needs an open register',
+  register_variance_alert_paise: 'Register variance alert (paise)',
+  // The bank account invoices print: a change is a classic fraud route, so it is audited in full.
+  bank_name: 'Invoice bank',
+  bank_account_name: 'Invoice bank account name',
+  bank_account_number: 'Invoice bank account number',
+  bank_ifsc: 'Invoice bank IFSC',
+  upi_id: 'Invoice UPI ID',
+  invoice_terms: 'Invoice terms',
+  purpose: 'For',
+  nature: 'Tax nature',
+  supply_type: 'Supply',
+  mode_kind: 'Payment mode kind',
+  mode_id: 'Payment mode',
+  party_id: 'Party',
+  tally_ledger_name: 'Tally ledger',
+  tally_group: 'Tally group',
+  position: 'Order',
+  register_code: 'Register',
+  opening_float_paise: 'Opening float (paise)',
+  expected_cash_paise: 'Expected cash (paise)',
+  counted_cash_paise: 'Counted cash (paise)',
+  variance_paise: 'Variance (paise)',
+  cheque_status: 'Cheque',
+  bounce_reason: 'Bounce reason',
+  period_from: 'From',
+  period_to: 'To',
+  kinds: 'Vouchers',
+  format: 'Format',
 };
 
 // Every named table's records are keyed by a uuid: comparing uuids (not id::text) lets each
@@ -129,6 +189,18 @@ const recordLabel = sql<string | null>`case ${auditLog.tableName}
   when 'organization_logos' then 'Logo'
   when 'parties' then (select p.display_name from parties p where p.id = ${recordUuid})
   when 'loyalty_accounts' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id = ${recordUuid})
+  when 'tax_categories' then (select tc.name from tax_categories tc where tc.id = ${recordUuid})
+  when 'tax_rates' then (select tc.name from tax_rates tr join tax_categories tc on tc.id = tr.tax_category_id where tr.id = ${recordUuid})
+  when 'stores' then (select s.code || ' · ' || s.name from stores s where s.id = ${recordUuid})
+  when 'gstin_profiles' then (select gp.gstin from gstin_profiles gp where gp.id = ${recordUuid})
+  when 'sales_settings' then 'Sales settings'
+  when 'document_series' then (select s.code || ' · ' || ds.prefix from document_series ds join stores s on s.id = ds.store_id where ds.id = ${recordUuid})
+  when 'tax_documents' then (select coalesce(td.number, 'Draft') from tax_documents td where td.id = ${recordUuid})
+  when 'payment_modes' then (select pm.name from payment_modes pm where pm.id = ${recordUuid})
+  when 'ledger_mappings' then (select lm.tally_ledger_name from ledger_mappings lm where lm.id = ${recordUuid})
+  when 'register_sessions' then (select s.code || ' · ' || rs.register_code from register_sessions rs join stores s on s.id = rs.store_id where rs.id = ${recordUuid})
+  when 'payments' then (select p.number from payments p where p.id = ${recordUuid})
+  when 'accounting_exports' then (select ae.period_from::text || ' – ' || ae.period_to::text from accounting_exports ae where ae.id = ${recordUuid})
   when 'loyalty_ledger' then (select p.display_name from loyalty_accounts la join parties p on p.id = la.party_id where la.id = ${recordUuid})
   else (select ${users.fullName} from ${organizationMembers} join ${users} on ${users.id} = ${organizationMembers.userId} where ${organizationMembers.id}::text = ${auditLog.recordId})
 end`;
@@ -239,6 +311,10 @@ export class AuditService {
         .select({ id: categories.id, name: categories.name })
         .from(categories)
         .where(inArray(categories.id, [...ids('category_id'), ...ids('parent_id')]))),
+      ...(await tx
+        .select({ id: taxCategories.id, name: taxCategories.name })
+        .from(taxCategories)
+        .where(inArray(taxCategories.id, ids('tax_category_id')))),
     ];
     return new Map(found.map(({ id, name }) => [id, name]));
   }
@@ -249,6 +325,10 @@ function describe(field: string, value: unknown, names: Map<string, string>): st
   if (value === undefined || value === null) return null;
   if (field.endsWith('_paise')) return formatINR(Number(value));
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  // Lists of text, such as invoice terms, read one after another.
+  if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
+    return value.join(' · ');
+  }
   // Numbers such as quantities come through as JSON numbers.
   const text = typeof value === 'string' ? value : JSON.stringify(value);
   return names.get(text) ?? text;

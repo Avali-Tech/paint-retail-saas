@@ -45,7 +45,6 @@ export async function createProduct(
         name,
         type: 'interior_paint',
         hsnCode: '3209',
-        gstRatePercent: 18,
         variants: variants.map((variant) => ({ unit: 'l', barcodes: [], ...variant })),
       },
     },

@@ -1,6 +1,7 @@
 // Telugu messages (draft translations: see docs/translations/glossary.md). Same shape as
 // en.ts; each feature's messages are in te-<feature>.ts, mirroring en-<feature>.ts.
 import type { Messages } from './en.js';
+import { booksTe, booksEnumsTe } from './te-books.js';
 import { brandingTe } from './te-branding.js';
 import { catalogEnumsTe, catalogTe } from './te-catalog.js';
 import { contractsTe } from './te-contracts.js';
@@ -12,13 +13,20 @@ import { leadEnumsTe, leadsTe } from './te-leads.js';
 import { loyaltyEnumsTe, loyaltyTe } from './te-loyalty.js';
 import { partiesTe, partyEnumsTe } from './te-parties.js';
 import { platformTe } from './te-platform.js';
+import { printTe } from './te-print.js';
 import { projectsTe } from './te-projects.js';
+import { ordersTe, ordersEnumsTe } from './te-orders.js';
+import { estimatorTe, estimatorEnumsTe } from './te-estimator.js';
+import { posTe } from './te-pos.js';
+import { tintTe } from './te-tint.js';
 import { purchasingEnumsTe, purchasingTe } from './te-purchasing.js';
 import { reportEnumsTe, reportsTe } from './te-reports.js';
 import { stockCountEnumsTe, stockCountsTe } from './te-stock-counts.js';
 import { stockEnumsTe, stockTe } from './te-stock.js';
 import { supportAccessTe } from './te-support-access.js';
+import { taxTe, taxEnumsTe } from './te-tax.js';
 import { teamTe } from './te-team.js';
+import { salesEnumsTe, salesTe } from './te-sales.js';
 import { transferEnumsTe, transfersTe } from './te-transfers.js';
 import { workflowTe } from './te-workflow.js';
 
@@ -35,6 +43,7 @@ export const te: Messages = {
     previous: 'మునుపటి',
     next: 'తదుపరి',
     range: '{total} లో {from}–{to}',
+    rangeMore: '{total}+ లో {from}–{to}',
     edit: 'మార్చండి',
     none: '—',
     required: 'ఇది తప్పనిసరి',
@@ -329,8 +338,16 @@ export const te: Messages = {
   ...reportsTe,
   ...teamTe,
   ...platformTe,
+  ...printTe,
   ...supportAccessTe,
   ...brandingTe,
+  ...taxTe,
+  ...salesTe,
+  ...posTe,
+  ...tintTe,
+  ...ordersTe,
+  ...booksTe,
+  ...estimatorTe,
   enums: {
     quickActions: {
       new_customer: '+ కస్టమర్',
@@ -360,6 +377,11 @@ export const te: Messages = {
     ...leadEnumsTe,
     ...followUpEnumsTe,
     ...reportEnumsTe,
+    ...taxEnumsTe,
+    ...salesEnumsTe,
+    ...ordersEnumsTe,
+    ...booksEnumsTe,
+    ...estimatorEnumsTe,
   },
   pages: {
     notFound: 'ఈ చిరునామాలో ఏ స్క్రీన్ లేదు. లింక్‌ను చూడండి, లేదా మెనూ లేదా వెతకడం ఉపయోగించండి.',

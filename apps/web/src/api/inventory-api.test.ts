@@ -70,7 +70,6 @@ describe('catalogue, stock and purchasing endpoints', () => {
         name: 'Apex',
         type: 'exterior_paint',
         hsnCode: '3209',
-        gstRatePercent: 18,
         variants: [],
       }),
       catalog.updateProduct('p1', { name: 'Apex Ultima' }),

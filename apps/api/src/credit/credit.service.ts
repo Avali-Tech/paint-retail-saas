@@ -29,8 +29,10 @@ import { requireParty } from '../leads/crm-lookups.js';
 import { Notifier } from '../notifications/notifier.js';
 import { canSeeParty, containsPattern } from '../parties/party-access.js';
 import {
+  billingLiveOn,
   creditRulesOf,
   creditSummaryOf,
+  exposureOf,
   visibleParties,
   type CreditSummary,
 } from './credit-lookups.js';
@@ -41,7 +43,15 @@ import type {
   UpdateCreditInput,
 } from './credit.schemas.js';
 
-const { creditProfiles, creditRequests, creditRules, organizationMembers, parties, users } = schema;
+const {
+  creditProfiles,
+  creditRequests,
+  creditRules,
+  organizationMembers,
+  parties,
+  partyBalances,
+  users,
+} = schema;
 
 const holders = alias(organizationMembers, 'holder');
 const holderUsers = alias(users, 'holder_user');
@@ -75,6 +85,8 @@ export interface CreditListItem {
   readonly creditDays: number;
   readonly risk: CreditSummary['risk'];
   readonly manualExposurePaise: number;
+  readonly exposurePaise: number;
+  readonly exposureSource: CreditSummary['exposureSource'];
   readonly overdueDays: number;
   readonly check: CreditCheck;
 }
@@ -129,7 +141,7 @@ export class CreditService {
         {
           status: summary.status,
           limitPaise: summary.limitPaise,
-          exposurePaise: summary.manualExposurePaise,
+          exposurePaise: summary.exposurePaise,
           overdueDays: summary.overdueDays,
         },
         amountPaise,
@@ -146,6 +158,11 @@ export class CreditService {
         query.risk ? eq(creditProfiles.risk, query.risk) : undefined,
         query.q ? ilike(parties.displayName, containsPattern(query.q)) : undefined,
       );
+      // Closest to the limit first: by the hand-entered exposure, or the ledger once live.
+      const live = (await billingLiveOn(tx)) !== null;
+      const owed = live
+        ? sql`coalesce(${partyBalances.balancePaise}, 0)`
+        : sql`${creditProfiles.manualExposurePaise}`;
       const rows = await tx
         .select({
           profile: creditProfiles,
@@ -153,9 +170,10 @@ export class CreditService {
         })
         .from(creditProfiles)
         .innerJoin(parties, eq(parties.id, creditProfiles.partyId))
+        .leftJoin(partyBalances, eq(partyBalances.partyId, creditProfiles.partyId))
         .where(where)
         .orderBy(
-          sql`${creditProfiles.manualExposurePaise}::numeric / nullif(${creditProfiles.limitPaise}, 0) desc nulls last`,
+          sql`${owed}::numeric / nullif(${creditProfiles.limitPaise}, 0) desc nulls last`,
           parties.displayName,
         )
         .limit(query.limit)
@@ -166,24 +184,28 @@ export class CreditService {
         .innerJoin(parties, eq(parties.id, creditProfiles.partyId))
         .where(where);
       const rules = await creditRulesOf(tx, auth.organization.id);
-      return {
-        items: rows.map(({ profile, party }): CreditListItem => ({
+      const items: CreditListItem[] = [];
+      for (const { profile, party } of rows) {
+        const exposure = await exposureOf(tx, party.id, profile);
+        items.push({
           party,
           status: profile.status,
           limitPaise: profile.limitPaise,
           creditDays: profile.creditDays,
           risk: profile.risk,
           manualExposurePaise: profile.manualExposurePaise,
-          overdueDays: profile.overdueDays,
+          exposurePaise: exposure.exposurePaise,
+          exposureSource: exposure.source,
+          overdueDays: exposure.overdueDays,
           check: checkCredit(rules, {
             status: profile.status,
             limitPaise: profile.limitPaise,
-            exposurePaise: profile.manualExposurePaise,
-            overdueDays: profile.overdueDays,
+            exposurePaise: exposure.exposurePaise,
+            overdueDays: exposure.overdueDays,
           }),
-        })),
-        total: Number(totals?.total),
-      };
+        });
+      }
+      return { items, total: Number(totals?.total) };
     });
   }
 
@@ -193,6 +215,11 @@ export class CreditService {
       await this.party(tx, auth, partyId, true);
       const exposureChanged =
         input.manualExposurePaise !== undefined || input.overdueDays !== undefined;
+      if (exposureChanged && (await billingLiveOn(tx)) !== null) {
+        throw new ConflictException(
+          'Billing is live: what this party owes and how late come from its ledger now',
+        );
+      }
       const changes = {
         ...input,
         ...(exposureChanged

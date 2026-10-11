@@ -1,3 +1,4 @@
+import type { PartyLedgerView } from '@paint/shared';
 import type { ApiClient } from './client.js';
 import type { CreditSummary } from './credit.js';
 import type { LoyaltySummary } from './loyalty.js';
@@ -45,6 +46,8 @@ export interface Party {
   readonly city: string | null;
   readonly state: string | null;
   readonly pincode: string | null;
+  /** GSTN state code: from the GSTIN when there is one, else as entered. */
+  readonly placeOfSupply: string | null;
   readonly homeStoreId: string | null;
   readonly notes: string | null;
   readonly tags: string[];
@@ -79,6 +82,7 @@ export interface PartyInput {
   readonly city?: string | null;
   readonly state?: string | null;
   readonly pincode?: string | null;
+  readonly placeOfSupply?: string | null;
   readonly homeStoreId?: string | null;
   readonly notes?: string | null;
   readonly tags: string[];
@@ -183,6 +187,16 @@ export interface MergeResult {
   readonly moved: Readonly<Record<string, number>>;
 }
 
+/** GET /parties/:id/ledger: a period, a page at a time (round 6c keyset paging). */
+export interface PartyLedgerQuery {
+  readonly from?: string | undefined;
+  readonly to?: string | undefined;
+  readonly limit: number;
+  readonly offset: number;
+  /** Where the page starts, from the page before it. */
+  readonly cursor?: string | undefined;
+}
+
 export function partyEndpoints(api: ApiClient) {
   return {
     list: (query: PartyQuery, signal?: AbortSignal) =>
@@ -190,6 +204,9 @@ export function partyEndpoints(api: ApiClient) {
     get: (id: string, signal?: AbortSignal) => api.get<Party>(`/parties/${id}`, { signal }),
     overview: (id: string, signal?: AbortSignal) =>
       api.get<PartyOverview>(`/parties/${id}/overview`, { signal }),
+    /** The party's account: entries with running balance, opening and closing per page. */
+    ledger: (id: string, query: PartyLedgerQuery, signal?: AbortSignal) =>
+      api.get<PartyLedgerView>(`/parties/${id}/ledger`, { query: { ...query }, signal }),
     create: (input: PartyInput) => api.post<Party>('/parties', input),
     update: (id: string, input: Partial<PartyInput> & { isActive?: boolean }) =>
       api.patch<Party>(`/parties/${id}`, input),

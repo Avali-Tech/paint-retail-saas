@@ -1,3 +1,4 @@
+import type { ProductPaintFields } from '@paint/shared';
 import { internalEan13 } from './identity.js';
 import type { Random } from './random.js';
 
@@ -23,11 +24,15 @@ type ProductType =
   | 'waterproofing'
   | 'tool';
 type Unit = 'l' | 'kg' | 'piece';
+/** Keys of the tax categories every business starts with (migration 0052). */
+export type DemoTaxCategory = 'paints' | 'varnishes' | 'putty' | 'brushes_rollers';
 
 interface CategorySpec {
   readonly name: string;
   readonly type: ProductType;
+  /** HSN headings: paints 3208 (solvent-based) and 3209 (water-based), putty 3214, brushes and rollers 9603. */
   readonly hsnCode: string;
+  readonly taxCategory: DemoTaxCategory;
   readonly unit: Unit;
   readonly packs: readonly number[];
   /** Subcategories, by keyword in the product name. */
@@ -70,6 +75,7 @@ export const CATEGORIES = {
     name: 'Interior Emulsion',
     type: 'interior_paint',
     hsnCode: '3209',
+    taxCategory: 'paints',
     unit: 'l',
     packs: [1, 4, 10, 20],
   },
@@ -77,23 +83,48 @@ export const CATEGORIES = {
     name: 'Exterior Emulsion',
     type: 'exterior_paint',
     hsnCode: '3209',
+    taxCategory: 'paints',
     unit: 'l',
     packs: [1, 4, 10, 20],
   },
-  enamel: { name: 'Enamel', type: 'enamel', hsnCode: '3208', unit: 'l', packs: [0.5, 1, 4] },
-  primer: { name: 'Primer', type: 'primer', hsnCode: '3209', unit: 'l', packs: [1, 4, 10, 20] },
-  putty: { name: 'Putty', type: 'putty', hsnCode: '3214', unit: 'kg', packs: [1, 5, 20, 40] },
+  enamel: {
+    name: 'Enamel',
+    type: 'enamel',
+    hsnCode: '3208',
+    taxCategory: 'paints',
+    unit: 'l',
+    packs: [0.5, 1, 4],
+  },
+  primer: {
+    name: 'Primer',
+    type: 'primer',
+    hsnCode: '3209',
+    taxCategory: 'paints',
+    unit: 'l',
+    packs: [1, 4, 10, 20],
+  },
+  putty: {
+    name: 'Putty',
+    type: 'putty',
+    hsnCode: '3214',
+    taxCategory: 'putty',
+    unit: 'kg',
+    packs: [1, 5, 20, 40],
+  },
   wood: {
     name: 'Wood Finish',
     type: 'wood_finish',
     hsnCode: '3208',
+    taxCategory: 'varnishes',
     unit: 'l',
     packs: [0.5, 1, 4],
   },
   waterproofing: {
     name: 'Waterproofing',
     type: 'waterproofing',
+    // Waterproofing coatings: 3824 (chemical preparations), 18% like paints.
     hsnCode: '3824',
+    taxCategory: 'paints',
     unit: 'l',
     packs: [1, 4, 10, 20],
   },
@@ -101,6 +132,7 @@ export const CATEGORIES = {
     name: 'Tools',
     type: 'tool',
     hsnCode: '9603',
+    taxCategory: 'brushes_rollers',
     unit: 'piece',
     packs: [1],
     subcategories: [
@@ -112,6 +144,27 @@ export const CATEGORIES = {
   },
 } as const satisfies Record<string, CategorySpec>;
 export type CategoryKey = keyof typeof CATEGORIES;
+
+const HARDWARE: ProductPaintFields = {
+  coverageSqftPerLitre: null,
+  defaultCoats: null,
+  isTintable: false,
+};
+
+/**
+ * Coverage per coat (sq ft per litre, from typical data sheets), default coats and
+ * whether bases are tinted at the counter; putty (by the kg) and tools have none.
+ */
+export const PAINT_FIELDS: Readonly<Record<CategoryKey, ProductPaintFields>> = {
+  interior: { coverageSqftPerLitre: 120, defaultCoats: 2, isTintable: true },
+  exterior: { coverageSqftPerLitre: 100, defaultCoats: 2, isTintable: true },
+  enamel: { coverageSqftPerLitre: 130, defaultCoats: 2, isTintable: true },
+  primer: { coverageSqftPerLitre: 140, defaultCoats: 1, isTintable: false },
+  putty: HARDWARE,
+  wood: { coverageSqftPerLitre: 120, defaultCoats: 2, isTintable: false },
+  waterproofing: { coverageSqftPerLitre: 60, defaultCoats: 2, isTintable: false },
+  tools: HARDWARE,
+};
 
 /** A product family as sold in Indian paint shops, with its MRP per litre / kg / piece in rupees. */
 interface Line {
@@ -288,7 +341,8 @@ export interface ProductPlan {
   readonly name: string;
   readonly type: ProductType;
   readonly hsnCode: string;
-  readonly gstRatePercent: 18;
+  readonly taxCategory: DemoTaxCategory;
+  readonly paint: ProductPaintFields;
   readonly variants: readonly VariantPlan[];
 }
 
@@ -392,7 +446,8 @@ export function buildCatalogue(random: Random, every = 1): ProductPlan[] {
       name: entry.name,
       type: spec.type,
       hsnCode: spec.hsnCode,
-      gstRatePercent: 18,
+      taxCategory: spec.taxCategory,
+      paint: PAINT_FIELDS[entry.category],
       variants,
     };
   });

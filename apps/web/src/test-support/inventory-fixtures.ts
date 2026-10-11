@@ -1,3 +1,4 @@
+import type { TaxCategoryOptions } from '@paint/shared';
 import type { Brand, Category, Product, Variant } from '../api/catalog.js';
 import type { Page } from '../api/page.js';
 import type { LowStockItem, ReorderRule, StockRow, Store } from '../api/stock.js';
@@ -20,6 +21,22 @@ const store = (id: string, code: string, name: string): Store => ({
 export const HYD = store('store-hyd', 'HYD', 'Hyderabad');
 export const PUN = store('store-pun', 'PUN', 'Pune');
 export const STORES: Store[] = [HYD, PUN];
+
+/** Tax categories for the product form, before the business registers for GST. */
+export const TAX_OPTIONS: TaxCategoryOptions = {
+  gstRegistered: false,
+  categories: [
+    { id: 'tax-paints', key: 'paints', name: 'Paints 18%', isDefault: true, currentRateBps: 1800 },
+    {
+      id: 'tax-putty',
+      key: 'putty',
+      name: 'Putty & fillers 18%',
+      isDefault: false,
+      currentRateBps: 1800,
+    },
+    { id: 'tax-later', key: null, name: 'Starts later 5%', isDefault: false, currentRateBps: null },
+  ],
+};
 
 export const BRANDS: Brand[] = [
   { id: 'brand-asian', name: 'Asian Paints', isActive: true },
@@ -51,6 +68,10 @@ export const product = (overrides: Partial<Product> = {}): Product => ({
   description: null,
   hsnCode: '3209',
   gstRatePercent: 18,
+  coverageSqftPerLitre: null,
+  defaultCoats: null,
+  isTintable: false,
+  taxCategory: { id: 'tax-paints', name: 'Paints 18%' },
   isActive: true,
   brand: { id: 'brand-asian', name: 'Asian Paints' },
   category: null,

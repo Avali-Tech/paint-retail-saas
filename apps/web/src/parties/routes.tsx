@@ -10,6 +10,9 @@ const PartiesPage = lazy(() =>
 const PartyDetailPage = lazy(() =>
   import('./PartyDetailPage.js').then((module) => ({ default: module.PartyDetailPage })),
 );
+const PartyLedgerPage = lazy(() =>
+  import('./PartyLedgerPage.js').then((module) => ({ default: module.PartyLedgerPage })),
+);
 const NewPartyPage = lazy(() =>
   import('./PartyFormPage.js').then((module) => ({ default: module.NewPartyPage })),
 );
@@ -51,6 +54,8 @@ export function partyRoutes() {
       <Route path="parties/new" element={guarded('parties:manage', NewPartyPage)} />
       <Route path="parties/:id" element={guarded('parties:read', PartyDetailPage)} />
       <Route path="parties/:id/edit" element={guarded('parties:manage', EditPartyPage)} />
+      {/* The account, behind the ledger API's own permission. */}
+      <Route path="parties/:id/ledger" element={guarded('sales:read', PartyLedgerPage)} />
       {/* Where a loyalty search result leads: the 360, scrolled to the points. */}
       <Route path="parties/:id/loyalty" element={guarded('parties:read', PartyDetailPage)} />
       <Route path="credit-requests" element={guarded('credit:read', CreditRequestsPage)} />

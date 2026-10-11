@@ -84,7 +84,6 @@ export async function seedBusiness(t: TestApp): Promise<Business> {
     name: 'Apex',
     type: 'exterior_paint',
     hsnCode: '3209',
-    gstRatePercent: 18,
     variants: [
       { sku: 'APX-1L', packSize: 1, unit: 'l' },
       { sku: 'APX-4L', packSize: 4, unit: 'l' },

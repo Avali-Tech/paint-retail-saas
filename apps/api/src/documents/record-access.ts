@@ -6,16 +6,20 @@ import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
 
 const {
+  accountingExports,
   contracts,
   goodsReceipts,
   leads,
   opportunities,
   parties,
+  payments,
   products,
   projects,
   purchaseOrders,
+  registerSessions,
   stockCounts,
   stores,
+  taxDocuments,
   transfers,
 } = schema;
 
@@ -129,6 +133,38 @@ const RULES: Record<RecordType, RecordRule> = {
     id: stockCounts.id,
     stores: [stockCounts.storeId],
     label: sql`${stockCounts.number}`,
+  },
+  tax_document: {
+    read: 'sales:read',
+    manage: 'billing:issue',
+    table: taxDocuments,
+    id: taxDocuments.id,
+    stores: [taxDocuments.storeId],
+    label: sql`coalesce(${taxDocuments.number}, 'Draft')`,
+  },
+  payment: {
+    read: 'sales:read',
+    manage: 'payments:manage',
+    table: payments,
+    id: payments.id,
+    stores: [payments.storeId],
+    label: sql`${payments.number}`,
+  },
+  register_session: {
+    read: 'register:manage',
+    manage: 'register:manage',
+    table: registerSessions,
+    id: registerSessions.id,
+    stores: [registerSessions.storeId],
+    label: sql`${registerSessions.registerCode}`,
+  },
+  accounting_export: {
+    read: 'accounting:export',
+    manage: 'accounting:export',
+    table: accountingExports,
+    id: accountingExports.id,
+    stores: [],
+    label: sql`${accountingExports.periodFrom}::text || ' – ' || ${accountingExports.periodTo}::text`,
   },
 };
 

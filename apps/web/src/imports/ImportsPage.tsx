@@ -34,6 +34,7 @@ const KIND_NAMES: Readonly<Record<string, MessageKey>> = {
   products: 'imports.kinds.products',
   parties: 'imports.kinds.parties',
   'opening-stock': 'imports.kinds.opening-stock',
+  'opening-balances': 'imports.kinds.opening-balances',
 };
 
 /** Where to look at what was imported. */

@@ -194,6 +194,22 @@ function ProductView({ product }: { readonly product: Product }) {
             <span className="muted">
               {t('products.detail.tax', { hsn: product.hsnCode, rate: product.gstRatePercent })}
             </span>
+            <span className="muted">
+              {product.taxCategory === null
+                ? t('products.detail.noTaxCategory')
+                : t('products.detail.taxCategory', { name: product.taxCategory.name })}
+            </span>
+            {product.isTintable && <Badge tone="primary">{t('products.detail.tintable')}</Badge>}
+            {product.coverageSqftPerLitre !== null && (
+              <span className="muted">
+                {t('products.detail.coverage', { coverage: product.coverageSqftPerLitre })}
+              </span>
+            )}
+            {product.defaultCoats !== null && (
+              <span className="muted">
+                {t('products.detail.coats', { count: product.defaultCoats })}
+              </span>
+            )}
           </span>
         }
         actions={

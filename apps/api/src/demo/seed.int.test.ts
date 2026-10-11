@@ -2,7 +2,19 @@ import { randomUUID } from 'node:crypto';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { findStockMismatches, schema } from '@paint/db';
+import {
+  findAllocationMismatches,
+  findPartyBalanceMismatches,
+  findReservationMismatches,
+  findStockMismatches,
+  schema,
+} from '@paint/db';
+import {
+  isValidGstin,
+  type GoLivePreview,
+  type GstRegistrations,
+  type LatestReconciliation,
+} from '@paint/shared';
 import { withPgClient } from '@paint/testing';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
@@ -243,6 +255,101 @@ describe('the demo business', () => {
     expect(renewals.total).toBeGreaterThan(0);
     const notifications = await get<{ unread: number }>('/notifications');
     expect(notifications.unread).toBeGreaterThan(0);
+  });
+
+  it('is registered for GST in Telangana, with HSN codes, tax categories and customers by state', async () => {
+    const registrations = await get<GstRegistrations>('/gst-registrations');
+    expect(registrations.legalName).toBe('Sharma Paints & Hardware');
+    expect(registrations.pan).toMatch(/^[A-Z]{3}F[A-Z]\d{4}[A-Z]$/);
+    expect(
+      registrations.stores.map((store) => [store.code, store.registrationType, store.stateCode]),
+    ).toEqual([
+      ['AMP', 'regular', '36'],
+      ['KPL', 'regular', '36'],
+      ['SEC', 'regular', '36'],
+    ]);
+    expect(registrations.stores.every((store) => isValidGstin(String(store.gstin)))).toBe(true);
+
+    const products = await get<{
+      items: { hsnCode: string; type: string; taxCategory: { name: string } | null }[];
+    }>('/products?limit=200');
+    const taxOf = (type: string) =>
+      new Set(
+        products.items
+          .filter((product) => product.type === type)
+          .map((product) => `${product.hsnCode} ${String(product.taxCategory?.name)}`),
+      );
+    expect(taxOf('interior_paint')).toEqual(new Set(['3209 Paints 18%']));
+    expect(taxOf('enamel')).toEqual(new Set(['3208 Paints 18%']));
+    expect(taxOf('putty')).toEqual(new Set(['3214 Putty & fillers 18%']));
+    expect(taxOf('wood_finish')).toEqual(new Set(['3208 Varnishes & wood finishes 18%']));
+    expect(taxOf('tool')).toEqual(new Set(['9603 Brushes & rollers 18%']));
+
+    const customers = await get<{
+      items: { displayName: string; city: string; placeOfSupply: string; gstin: string | null }[];
+    }>('/parties?limit=200');
+    const andhra = customers.items.filter((party) => party.placeOfSupply === '37');
+    expect(andhra.map((party) => party.city).sort()).toEqual(['Guntur', 'Vijayawada']);
+    expect(andhra.find((party) => party.city === 'Vijayawada')?.gstin?.slice(0, 2)).toBe('37');
+    // The counter's walk-in party has none: each bill names the buyer's state.
+    expect(
+      customers.items
+        .filter((party) => party.placeOfSupply !== '37' && party.displayName !== 'Walk-in customer')
+        .every((p) => p.placeOfSupply === '36'),
+    ).toBe(true);
+  });
+
+  it('bills for two months since going live, with every book reconciled', async () => {
+    const goLive = await get<GoLivePreview>('/sales/go-live');
+    expect(goLive).toMatchObject({ live: true, billingLiveOn: indiaDate(60) });
+    const [invoices] = await t.connection.db
+      .select({
+        count: sql<number>`count(*)::int`,
+        oldest: sql<string>`min(${schema.taxDocuments.issuedOn})::text`,
+        newest: sql<string>`max(${schema.taxDocuments.issuedOn})::text`,
+        days: sql<number>`count(distinct ${schema.taxDocuments.issuedOn})::int`,
+        interState: sql<number>`count(*) filter (where ${schema.taxDocuments.igstPaise} > 0)::int`,
+        onAccount: sql<number>`count(*) filter (where ${schema.taxDocuments.dueOn} > ${schema.taxDocuments.issuedOn})::int`,
+      })
+      .from(schema.taxDocuments)
+      .where(
+        sql`${schema.taxDocuments.kind} = 'invoice' and ${schema.taxDocuments.status} = 'issued'`,
+      );
+    expect(invoices?.count).toBeGreaterThan(150);
+    expect(invoices?.oldest).toBe(indiaDate(59));
+    expect(invoices?.newest).toBe(indiaDate(1));
+    expect(invoices?.days).toBe(59);
+    expect(invoices?.interState).toBeGreaterThan(0);
+    expect(invoices?.onAccount).toBeGreaterThan(10);
+
+    const notes = await get<{ items: { kind: string }[] }>('/notes?limit=200');
+    expect(notes.items.filter((note) => note.kind === 'credit_note')).toHaveLength(3);
+    expect(notes.items.filter((note) => note.kind === 'debit_note')).toHaveLength(1);
+    expect((await get<{ total: number }>('/payments?chequeStatus=bounced')).total).toBe(1);
+    expect(
+      (await get<{ total: number }>('/payments?modeKind=bank_transfer')).total,
+    ).toBeGreaterThan(10);
+    expect((await get<{ total: number }>('/register-sessions?status=closed')).total).toBe(59 * 3);
+    expect((await get<{ total: number }>('/quotations')).total).toBe(2);
+    const [held] = await t.connection.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(schema.stockReservations)
+      .where(sql`${schema.stockReservations.status} = 'open'`);
+    expect(held?.count).toBeGreaterThan(1);
+    // Opening balances came from the import; the first builder's is long overdue.
+    const [opening] = await t.connection.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(schema.partyLedger)
+      .where(
+        sql`${schema.partyLedger.entryType} = 'opening' and ${schema.partyLedger.entryOn} = ${indiaDate(60)}`,
+      );
+    expect(opening?.count).toBe(23);
+
+    const { run } = await get<LatestReconciliation>('/reconciliation/latest');
+    expect(run).toMatchObject({ trigger: 'scheduled', findingCount: 0, runOn: indiaDate(0) });
+    expect(await findReservationMismatches(t.connection.db)).toEqual([]);
+    expect(await findPartyBalanceMismatches(t.connection.db)).toEqual([]);
+    expect(await findAllocationMismatches(t.connection.db)).toEqual([]);
   });
 
   it('has near-duplicate parties to merge', async () => {

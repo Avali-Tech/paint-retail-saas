@@ -12,6 +12,7 @@ import { sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
 import type { ImportColumn, Importer, ImportReport, ParsedRow, RowError } from './import-types.js';
+import { openingBalancesImporter } from './opening-balances.importer.js';
 import { openingStockImporter } from './opening-stock.importer.js';
 import { partiesImporter } from './parties.importer.js';
 import { productsImporter } from './products.importer.js';
@@ -20,10 +21,9 @@ export const MAX_IMPORT_ROWS = 5_000;
 const BOM = '\uFEFF';
 
 const IMPORTERS: Record<string, Importer<unknown>> = Object.fromEntries(
-  [productsImporter, partiesImporter, openingStockImporter].map((importer) => [
-    importer.kind,
-    importer as Importer<unknown>,
-  ]),
+  [productsImporter, partiesImporter, openingStockImporter, openingBalancesImporter].map(
+    (importer) => [importer.kind, importer as Importer<unknown>],
+  ),
 );
 
 export interface ImportKind {

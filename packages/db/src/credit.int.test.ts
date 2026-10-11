@@ -156,7 +156,13 @@ describe('credit profiles', () => {
     expect(entries).toEqual([
       {
         action: 'insert',
-        newValues: { status: 'active', limit_paise: 100, credit_days: 7, hold_reason: null },
+        newValues: {
+          status: 'active',
+          limit_paise: 100,
+          credit_days: 7,
+          hold_reason: null,
+          opening_overdue_since: null,
+        },
       },
       { action: 'update', newValues: { limit_paise: 200 } },
     ]);

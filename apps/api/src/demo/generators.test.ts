@@ -1,6 +1,7 @@
 import {
   isValidBarcode,
   isValidGstin,
+  isValidHsn,
   isValidPan,
   isValidPincode,
   panFromGstin,
@@ -17,7 +18,15 @@ import {
   toolSizes,
   type ProductPlan,
 } from './catalogue.js';
-import { gstinFor, internalEan13, LOCALITIES, panFor, PhoneBook, TELANGANA } from './identity.js';
+import {
+  ANDHRA_PRADESH,
+  gstinFor,
+  internalEan13,
+  LOCALITIES,
+  panFor,
+  PhoneBook,
+  TELANGANA,
+} from './identity.js';
 import { buildPlan, nearestStore, surname, type DemoPlan } from './plan.js';
 import {
   openingQuantity,
@@ -121,7 +130,11 @@ describe('catalogue', () => {
         sized ? product.variants.map(() => 1) : spec.packs,
       );
       expect(product.type).toBe(spec.type);
-      expect(product.gstRatePercent).toBe(18);
+      expect(product.taxCategory).toBe(spec.taxCategory);
+      expect(isValidHsn(product.hsnCode)).toBe(true);
+      // Paint by the litre has a coverage; putty (by the kg) and tools have no paint fields.
+      expect(product.paint.coverageSqftPerLitre !== null).toBe(spec.unit === 'l');
+      if (product.paint.isTintable) expect(spec.unit).toBe('l');
       for (const variant of product.variants) {
         expect(variant.unit).toBe(spec.unit);
         expect(isValidBarcode(variant.barcode)).toBe(true);
@@ -240,6 +253,25 @@ describe('plan', () => {
     ]);
     expect(new Set(full.stores.map((store) => store.gstin)).size).toBe(1);
     expect(isValidGstin(full.stores[0]?.gstin ?? '')).toBe(true);
+    expect(full.stores[0]?.gstin.startsWith(TELANGANA)).toBe(true);
+  });
+
+  it('has a couple of customers in Andhra Pradesh for inter-state sales', () => {
+    for (const plan of [full, small]) {
+      const andhra = plan.parties.filter((party) => party.stateCode === ANDHRA_PRADESH);
+      expect(andhra.map((party) => [party.key, party.city])).toEqual([
+        ['retail-1', 'Guntur'],
+        ['builder-1', 'Vijayawada'],
+      ]);
+      const builder = andhra.find((party) => party.key === 'builder-1');
+      expect(builder?.gstin?.startsWith(ANDHRA_PRADESH)).toBe(true);
+      expect(isValidGstin(builder?.gstin ?? '')).toBe(true);
+      expect(andhra.find((party) => party.key === 'retail-1')?.gstin).toBeNull();
+      const others = plan.parties.filter((party) => party.stateCode !== ANDHRA_PRADESH);
+      expect(
+        others.every((party) => party.stateCode === TELANGANA && party.city === 'Hyderabad'),
+      ).toBe(true);
+    }
   });
 
   it('has a team in every role with unique mobiles', () => {

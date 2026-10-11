@@ -72,7 +72,6 @@ beforeAll(async () => {
         name: 'Apex',
         type: 'exterior_paint',
         hsnCode: '3209',
-        gstRatePercent: 18,
         variants: [
           { sku: 'APX-1L', packSize: 1, unit: 'l', mrpPaise: 65_000, sellingPricePaise: 60_000 },
         ],
@@ -120,7 +119,6 @@ describe('audit log', () => {
         name: 'Lifecycle Primer',
         type: 'primer',
         hsnCode: '3209',
-        gstRatePercent: 18,
         variants: [{ sku: 'LCP-1L', packSize: 1, unit: 'l' }],
       })
     ).json<{ id: string; variants: { id: string }[] }>();

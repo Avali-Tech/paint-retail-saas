@@ -122,7 +122,6 @@ async function setup(): Promise<Setup> {
         name,
         type: 'interior_paint',
         hsnCode: '3209',
-        gstRatePercent: 18,
         variants: [{ sku, packSize: 1, unit: 'l' }],
       })
     ).json<{ variants: { id: string; sku: string }[] }>().variants[0];
@@ -133,7 +132,6 @@ async function setup(): Promise<Setup> {
     name: `Apex ${s}`,
     type: 'interior_paint',
     hsnCode: '3209',
-    gstRatePercent: 18,
     variants: [{ sku: `APX-${s}`, packSize: 1, unit: 'l', barcodes: [barcode] }],
   });
   const apex = apexResponse.json<{ variants: { id: string; sku: string }[] }>().variants[0];
@@ -673,7 +671,6 @@ describe('lists and accuracy', () => {
         name: 'Acc',
         type: 'primer',
         hsnCode: '3209',
-        gstRatePercent: 18,
         variants: [
           { sku: 'ACC-1', packSize: 1, unit: 'l' },
           { sku: 'ACC-4', packSize: 4, unit: 'l' },

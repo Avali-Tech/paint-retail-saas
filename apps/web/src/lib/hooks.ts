@@ -20,9 +20,12 @@ export interface UrlFilters<K extends string> {
   readonly values: Readonly<Record<K, string>>;
   /** Where the list starts (for paging). */
   readonly offset: number;
+  /** Where a keyset-paged list's page starts, as the API gave it out (with `offset`). */
+  readonly cursor: string | undefined;
   /** Changes one filter and goes back to the first page. */
   readonly set: (key: K, value: string) => void;
-  readonly setOffset: (offset: number) => void;
+  /** Moves to a page: by `cursor` when the API gave one for it, else by offset alone. */
+  readonly setOffset: (offset: number, cursor?: string | null) => void;
 }
 
 /**
@@ -36,6 +39,7 @@ export function useUrlFilters<K extends string>(keys: readonly K[]): UrlFilters<
     string
   >;
   const offset = Math.max(0, Number(params.get('offset') ?? 0) || 0);
+  const cursor = params.get('cursor') ?? undefined;
   const update = (change: (next: URLSearchParams) => void) => {
     setParams(
       (current) => {
@@ -49,17 +53,21 @@ export function useUrlFilters<K extends string>(keys: readonly K[]): UrlFilters<
   return {
     values,
     offset,
+    cursor,
     set: (key, value) => {
       update((next) => {
         if (value === '') next.delete(key);
         else next.set(key, value);
         next.delete('offset');
+        next.delete('cursor');
       });
     },
-    setOffset: (value) => {
+    setOffset: (value, nextCursor) => {
       update((next) => {
         if (value === 0) next.delete('offset');
         else next.set('offset', String(value));
+        if (value === 0 || !nextCursor) next.delete('cursor');
+        else next.set('cursor', nextCursor);
       });
     },
   };

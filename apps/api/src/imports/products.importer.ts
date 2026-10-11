@@ -1,24 +1,19 @@
 import { schema, type Transaction } from '@paint/db';
-import {
-  GST_RATES_PERCENT,
-  VARIANT_LABEL_MAX_LENGTH,
-  percentToBasisPoints,
-  variantName,
-  variantTitle,
-} from '@paint/shared';
+import { VARIANT_LABEL_MAX_LENGTH, variantName, variantTitle } from '@paint/shared';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AuthContext } from '../auth/auth-context.js';
 import {
   barcode,
   catalogName,
-  gstRatePercent,
   hsnCode,
   packSize,
   PRODUCT_TYPES,
   sku,
   UNITS,
 } from '../catalog/catalog.schemas.js';
+import { isGstRegistered, taxCategoryRateBps } from '../tax/tax-lookups.js';
+import { taxCategoryName } from '../tax/tax.schemas.js';
 import { choice, decimal, list, optional, required, rupees, text } from './import-cells.js';
 import {
   FirstSeen,
@@ -29,7 +24,7 @@ import {
   type RowPlan,
 } from './import-types.js';
 
-const { brands, categories, productBarcodes, productVariants, products } = schema;
+const { brands, categories, productBarcodes, productVariants, products, taxCategories } = schema;
 
 const row = z
   .object({
@@ -37,12 +32,12 @@ const row = z
     product: required(catalogName),
     type: required(choice(PRODUCT_TYPES)),
     hsn_code: required(hsnCode),
-    gst_percent: required(decimal.pipe(gstRatePercent)),
     sku: required(sku),
     pack_size: required(decimal.pipe(packSize)),
     unit: required(choice(UNITS)),
     variant_label: optional(text(1, VARIANT_LABEL_MAX_LENGTH)),
     category: optional(catalogName),
+    tax_category: optional(taxCategoryName),
     description: optional(text(1, 2000)),
     mrp: optional(rupees),
     selling_price: optional(rupees),
@@ -53,12 +48,12 @@ const row = z
     product: cells.product,
     type: cells.type,
     hsnCode: cells.hsn_code,
-    gstRateBps: percentToBasisPoints(cells.gst_percent),
     sku: cells.sku,
     packSize: cells.pack_size,
     unit: cells.unit,
     label: cells.variant_label,
     category: cells.category,
+    taxCategory: cells.tax_category,
     description: cells.description,
     mrpPaise: cells.mrp,
     sellingPricePaise: cells.selling_price,
@@ -71,7 +66,17 @@ interface Family {
   readonly key: string;
   readonly first: ParsedRow<ProductRow>;
   category: string | undefined;
+  taxCategory: string | undefined;
   description: string | undefined;
+}
+
+/** A tax category as the import uses it. */
+interface TaxChoice {
+  readonly id: string;
+  readonly name: string;
+  readonly isActive: boolean;
+  readonly isDefault: boolean;
+  readonly rateBps: number;
 }
 
 /** A row that passed every check, with what it matched. */
@@ -92,7 +97,12 @@ const familyKey = (value: ProductRow) => `${lower(value.brand)}|${lower(value.pr
 const REQUIRED_FAMILY_FIELDS = [
   ['type', 'type'],
   ['hsnCode', 'hsn_code'],
-  ['gstRateBps', 'gst_percent'],
+] as const;
+/** Family fields that may be left blank on some rows (blank keeps the saved value). */
+const OPTIONAL_FAMILY_FIELDS = [
+  ['category', 'category'],
+  ['taxCategory', 'tax_category'],
+  ['description', 'description'],
 ] as const;
 
 export const productsImporter: Importer<ProductRow> = {
@@ -115,12 +125,6 @@ export const productsImporter: Importer<ProductRow> = {
     },
     { name: 'hsn_code', required: true, description: '4, 6 or 8-digit HSN code', example: '3209' },
     {
-      name: 'gst_percent',
-      required: true,
-      description: `GST rate: ${GST_RATES_PERCENT.join(', ')}`,
-      example: '18',
-    },
-    {
       name: 'sku',
       required: true,
       description: 'Your code for this pack; matches it next time',
@@ -139,6 +143,13 @@ export const productsImporter: Importer<ProductRow> = {
       required: false,
       description: 'Category; new ones are added',
       example: 'Exterior emulsions',
+    },
+    {
+      name: 'tax_category',
+      required: false,
+      description:
+        'Tax category from Settings, Tax & GST; blank keeps it, or gives new products the default until the business registers for GST',
+      example: 'Paints 18%',
     },
     { name: 'description', required: false, description: 'Product description', example: '' },
     { name: 'mrp', required: false, description: 'MRP in rupees', example: '650.00' },
@@ -185,11 +196,11 @@ export const productsImporter: Importer<ProductRow> = {
             ]);
           }
         }
-        for (const field of ['category', 'description'] as const) {
+        for (const [field, column] of OPTIONAL_FAMILY_FIELDS) {
           const known = family[field];
           if (known !== undefined && value[field] !== undefined && known !== value[field]) {
             problems.push([
-              field,
+              column,
               `Differs from row ${String(family.first.row)} for the same product`,
             ]);
           }
@@ -209,6 +220,7 @@ export const productsImporter: Importer<ProductRow> = {
       }
       if (family) {
         family.category ??= value.category;
+        family.taxCategory ??= value.taxCategory;
         family.description ??= value.description;
         checked.push({ ...parsed, family });
       } else {
@@ -216,6 +228,7 @@ export const productsImporter: Importer<ProductRow> = {
           key,
           first: parsed,
           category: value.category,
+          taxCategory: value.taxCategory,
           description: value.description,
         };
         families.set(key, created);
@@ -296,6 +309,24 @@ export const productsImporter: Importer<ProductRow> = {
       ).map((owner) => [owner.barcode, owner.variantId]),
     );
 
+    const taxRows: TaxChoice[] = await tx
+      .select({
+        id: taxCategories.id,
+        name: taxCategories.name,
+        isActive: taxCategories.isActive,
+        isDefault: taxCategories.isDefault,
+        rateBps: taxCategoryRateBps,
+      })
+      .from(taxCategories);
+    const taxByName = new Map(taxRows.map((tax) => [lower(tax.name), tax]));
+    const defaultTax = taxRows.find((tax) => tax.isDefault);
+    const registered = await isGstRegistered(tx);
+    /** The family's tax category: the one named, else the default for a new product. */
+    const taxFor = (family: Family, product: typeof products.$inferSelect | undefined) => {
+      if (family.taxCategory !== undefined) return taxByName.get(lower(family.taxCategory));
+      return product ? undefined : defaultTax;
+    };
+
     const existingProduct = (value: ProductRow) => {
       const brandId = brandIds.get(lower(value.brand));
       return brandId ? existingProducts.get(`${brandId}|${lower(value.product)}`) : undefined;
@@ -305,7 +336,8 @@ export const productsImporter: Importer<ProductRow> = {
       return (
         product.type !== first.type ||
         product.hsnCode !== first.hsnCode ||
-        product.gstRateBps !== first.gstRateBps ||
+        (family.taxCategory !== undefined &&
+          taxFor(family, product)?.id !== product.taxCategoryId) ||
         (family.category !== undefined &&
           categoryIds.get(lower(family.category)) !== product.categoryId) ||
         (family.description !== undefined && family.description !== product.description)
@@ -325,6 +357,16 @@ export const productsImporter: Importer<ProductRow> = {
       const categoryId = family.category && categoryIds.get(lower(family.category));
       if (categoryId && inactive.has(categoryId) && categoryId !== product?.categoryId) {
         problems.push(['category', `${String(family.category)} is inactive. Reactivate it first.`]);
+      }
+      const tax = taxFor(family, product);
+      if (family.taxCategory !== undefined) {
+        if (!tax) {
+          problems.push(['tax_category', 'Unknown tax category; see Settings, Tax & GST']);
+        } else if (!tax.isActive && tax.id !== product?.taxCategoryId) {
+          problems.push(['tax_category', `${tax.name} is inactive. Reactivate it first.`]);
+        }
+      } else if (!product && registered) {
+        problems.push(['tax_category', 'Required: the business is registered for GST']);
       }
       if (match && match.variant.productId !== product?.id) {
         problems.push([
@@ -396,7 +438,13 @@ export const productsImporter: Importer<ProductRow> = {
         label: `${value.sku} · ${variantTitle(value.brand, value.product, value)}`,
       })),
       apply: (applyTx) =>
-        apply(applyTx, auth, planned, { brandIds, categoryIds, existingProduct, familyChanged }),
+        apply(applyTx, auth, planned, {
+          brandIds,
+          categoryIds,
+          existingProduct,
+          familyChanged,
+          taxFor,
+        }),
     };
   },
 };
@@ -410,6 +458,10 @@ async function apply(
     categoryIds: Map<string, string>;
     existingProduct: (value: ProductRow) => typeof products.$inferSelect | undefined;
     familyChanged: (family: Family, product: typeof products.$inferSelect) => boolean;
+    taxFor: (
+      family: Family,
+      product: typeof products.$inferSelect | undefined,
+    ) => TaxChoice | undefined;
   },
 ): Promise<void> {
   const organizationId = auth.organization.id;
@@ -435,14 +487,15 @@ async function apply(
     }
     if (productIds.has(family.key)) continue;
 
+    const product = known.existingProduct(value);
+    const tax = known.taxFor(family, product);
     const details = {
       type: family.first.value.type,
       hsnCode: family.first.value.hsnCode,
-      gstRateBps: family.first.value.gstRateBps,
+      ...(tax && { taxCategoryId: tax.id, gstRateBps: tax.rateBps }),
       ...(category === undefined ? {} : { categoryId: categoryIds.get(lower(category)) }),
       ...(family.description === undefined ? {} : { description: family.description }),
     };
-    const product = known.existingProduct(value);
     if (product) {
       if (known.familyChanged(family, product)) {
         await tx
@@ -458,6 +511,8 @@ async function apply(
           organizationId,
           brandId: String(brandIds.get(brandKey)),
           name: value.product,
+          // A new product always has a tax category: the plan refused rows without one.
+          gstRateBps: 0,
           ...details,
         })
         .returning({ id: products.id });

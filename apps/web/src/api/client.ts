@@ -6,6 +6,8 @@ export interface RequestOptions {
   readonly query?: Readonly<Record<string, QueryValue>>;
   readonly body?: unknown;
   readonly signal?: AbortSignal;
+  /** Extra request headers, e.g. an `Idempotency-Key` so a retried POST is done once. */
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 /** A file the API sent back, with the name its Content-Disposition gave (null without one). */
@@ -20,7 +22,10 @@ export interface ApiClient {
   put<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T>;
   patch<T>(path: string, body: unknown, options?: RequestOptions): Promise<T>;
   delete<T>(path: string, options?: RequestOptions): Promise<T>;
-  /** GET a file (a document, a CSV report) with the bearer token, as a blob. */
+  /**
+   * A file (a document, a CSV report) with the bearer token, as a blob: GET, or
+   * POST with `options.body` as JSON when making the file is an action (an export).
+   */
   download(path: string, options?: RequestOptions): Promise<DownloadedFile>;
   /** POST multipart/form-data (a file upload); the browser sets the boundary. */
   upload<T>(path: string, form: FormData): Promise<T>;
@@ -82,6 +87,7 @@ interface Outgoing {
   readonly body?: BodyInit;
   readonly contentType?: string;
   readonly accept: string;
+  readonly headers?: Readonly<Record<string, string>> | undefined;
 }
 
 /** A small fetch wrapper: JSON in and out, bearer token, errors as ApiError. */
@@ -89,7 +95,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
   /** Sends the request and answers the response when it is OK; anything else becomes an ApiError. */
   async function send(method: string, path: string, init: Outgoing): Promise<Response> {
     const token = options.getToken();
-    const headers: Record<string, string> = { accept: init.accept };
+    const headers: Record<string, string> = { ...init.headers, accept: init.accept };
     if (init.contentType !== undefined) headers['content-type'] = init.contentType;
     if (token !== null) headers.authorization = `Bearer ${token}`;
 
@@ -116,6 +122,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     const response = await send(method, path, {
       query: init.query,
       signal: init.signal,
+      headers: init.headers,
       accept: 'application/json',
       ...(init.body === undefined
         ? {}
@@ -131,10 +138,13 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     patch: (path, body, init) => request('PATCH', path, { ...init, body }),
     delete: (path, init) => request('DELETE', path, init),
     download: async (path, init = {}) => {
-      const response = await send('GET', path, {
+      const response = await send(init.body === undefined ? 'GET' : 'POST', path, {
         query: init.query,
         signal: init.signal,
         accept: '*/*',
+        ...(init.body === undefined
+          ? {}
+          : { body: JSON.stringify(init.body), contentType: 'application/json' }),
       });
       return {
         blob: await response.blob(),

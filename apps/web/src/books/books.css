@@ -1,0 +1,93 @@
+/* Day end and the books. Only design tokens: branding restyles everything. */
+
+.denominations,
+.export-kinds {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.denominations {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: var(--space-3);
+}
+
+.denominations > legend {
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+}
+
+/* The Z-report: one narrow column, as it prints on an 80 mm roll. */
+.z-report {
+  max-width: 72mm;
+  font-variant-numeric: tabular-nums;
+}
+
+.z-report__head {
+  margin-bottom: var(--space-3);
+  text-align: center;
+}
+
+.z-report__head p {
+  margin: 0;
+}
+
+.z-report__title {
+  font-weight: 700;
+}
+
+.z-report__section {
+  margin: var(--space-3) 0 var(--space-1);
+  font-weight: 600;
+}
+
+.z-report__rows {
+  margin: 0;
+}
+
+.z-report__rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.z-report__rows dd {
+  margin: 0;
+  text-align: end;
+}
+
+.z-report__variance {
+  margin-top: var(--space-1);
+  font-weight: 600;
+}
+
+/* Printing the Z-report prints it alone. */
+@media print {
+  body:has(.z-report) * {
+    visibility: hidden;
+  }
+
+  .z-report,
+  .z-report * {
+    visibility: visible;
+  }
+
+  .z-report {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 72mm;
+  }
+}
+
+.export-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.problems {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+}

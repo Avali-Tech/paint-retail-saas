@@ -1,3 +1,4 @@
+import { booksEn, booksEnumsEn } from './en-books.js';
 import { brandingEn } from './en-branding.js';
 import { catalogEn, catalogEnumsEn } from './en-catalog.js';
 import { contractsEn } from './en-contracts.js';
@@ -9,13 +10,20 @@ import { leadEnumsEn, leadsEn } from './en-leads.js';
 import { loyaltyEn, loyaltyEnumsEn } from './en-loyalty.js';
 import { partiesEn, partyEnumsEn } from './en-parties.js';
 import { platformEn } from './en-platform.js';
+import { printEn } from './en-print.js';
 import { projectsEn } from './en-projects.js';
+import { ordersEn, ordersEnumsEn } from './en-orders.js';
+import { estimatorEn, estimatorEnumsEn } from './en-estimator.js';
+import { posEn } from './en-pos.js';
+import { tintEn } from './en-tint.js';
 import { purchasingEn, purchasingEnumsEn } from './en-purchasing.js';
 import { reportEnumsEn, reportsEn } from './en-reports.js';
 import { stockCountEnumsEn, stockCountsEn } from './en-stock-counts.js';
 import { stockEn, stockEnumsEn } from './en-stock.js';
 import { supportAccessEn } from './en-support-access.js';
+import { taxEn, taxEnumsEn } from './en-tax.js';
 import { teamEn } from './en-team.js';
+import { salesEnumsEn, salesEn } from './en-sales.js';
 import { transferEnumsEn, transfersEn } from './en-transfers.js';
 import { workflowEn } from './en-workflow.js';
 import type { Translation } from './shape.js';
@@ -38,6 +46,7 @@ export const en = {
     previous: 'Previous',
     next: 'Next',
     range: '{from}–{to} of {total}',
+    rangeMore: '{from}–{to} of {total}+',
     edit: 'Edit',
     none: '—',
     required: 'This is required',
@@ -324,8 +333,16 @@ export const en = {
   ...reportsEn,
   ...teamEn,
   ...platformEn,
+  ...printEn,
   ...supportAccessEn,
   ...brandingEn,
+  ...taxEn,
+  ...salesEn,
+  ...posEn,
+  ...tintEn,
+  ...ordersEn,
+  ...booksEn,
+  ...estimatorEn,
   /** Names of API values, for label(group, value). */
   enums: {
     /** Quick actions offered with search, by the API's key. */
@@ -357,6 +374,11 @@ export const en = {
     ...leadEnumsEn,
     ...followUpEnumsEn,
     ...reportEnumsEn,
+    ...taxEnumsEn,
+    ...salesEnumsEn,
+    ...ordersEnumsEn,
+    ...booksEnumsEn,
+    ...estimatorEnumsEn,
   },
   pages: {
     notFound: 'This address does not lead to a screen. Check the link, or use the menu or search.',

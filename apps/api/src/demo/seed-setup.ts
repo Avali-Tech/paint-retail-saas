@@ -1,4 +1,4 @@
-import type { SessionGrant } from '@paint/shared';
+import { gstStateName, type SessionGrant, type TaxCategoryOptions } from '@paint/shared';
 import { CATEGORIES, type CategoryKey } from './catalogue.js';
 import { DEMO_APP_NAME, DEMO_BUSINESS, DEMO_PASSWORD, DEMO_SLUG, type PartyPlan } from './plan.js';
 import { must, type SeedContext, type SeededVariant } from './seed-context.js';
@@ -55,15 +55,25 @@ export async function setUpBusiness(context: SeedContext, readSmsCode: ReadSmsCo
   // Shorter than the one sign-up derives from the name (sharma-paints-hardware).
   await o.put('/organization/slug', { slug: DEMO_SLUG });
 
+  // GST: registered in Telangana (state 36), one GSTIN for the three branches.
+  await o.put('/gst-registrations/business', { legalName: DEMO_BUSINESS });
   for (const store of plan.stores) {
     const created = await o.post('/stores', {
       name: store.name,
       code: store.code,
       city: store.city,
       state: store.state,
-      gstin: store.gstin,
     });
     context.storeIds.set(store.key, created.id);
+    await o.put(`/gst-registrations/stores/${created.id}`, {
+      registrationType: 'regular',
+      stateCode: store.stateCode,
+      gstin: store.gstin,
+      tradeName: DEMO_APP_NAME,
+      addressLine: `Main Road, ${store.locality.area}`,
+      city: store.city,
+      pincode: store.locality.pincode,
+    });
   }
   const roles = await o.get<{ id: string; key: string }[]>('/roles');
   for (const person of team) {
@@ -124,6 +134,10 @@ async function codeSignIn(
 export async function setUpCatalogueAndParties(context: SeedContext): Promise<void> {
   const { plan } = context;
   const inventory = context.as('inventory');
+  const tax = await inventory.get<TaxCategoryOptions>('/tax-categories/options');
+  // A new business has only the default categories, every one with a key.
+  for (const category of tax.categories)
+    context.taxCategoryIds.set(String(category.key), category.id);
   for (const brand of new Set(plan.catalogue.map((product) => product.brand))) {
     context.brandIds.set(brand, (await inventory.post('/brands', { name: brand })).id);
   }
@@ -143,8 +157,9 @@ export async function setUpCatalogueAndParties(context: SeedContext): Promise<vo
       name: product.name,
       type: product.type,
       hsnCode: product.hsnCode,
-      gstRatePercent: product.gstRatePercent,
+      taxCategoryId: context.taxCategoryId(product.taxCategory),
       description: `${product.brand} ${product.name}`,
+      ...product.paint,
       variants: product.variants.map((variant) => ({
         sku: variant.sku,
         packSize: variant.packSize,
@@ -199,8 +214,10 @@ export async function createParty(context: SeedContext, party: PartyPlan): Promi
     ...(party.alternatePhone === null ? {} : { alternatePhone: party.alternatePhone }),
     ...(party.gstin === null ? {} : { gstin: party.gstin }),
     addressLine: party.addressLine,
-    city: 'Hyderabad',
-    state: 'Telangana',
+    city: party.city,
+    state: gstStateName(party.stateCode),
+    // With a GSTIN the API takes the place of supply from it.
+    ...(party.gstin === null ? { placeOfSupply: party.stateCode } : {}),
     pincode: party.pincode,
     ...(party.homeStore === null ? {} : { homeStoreId: context.storeId(party.homeStore) }),
     tags: party.tags,

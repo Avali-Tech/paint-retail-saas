@@ -151,6 +151,7 @@ export const party = (overrides: Partial<Party> = {}): Party => ({
   city: 'Hyderabad',
   state: null,
   pincode: null,
+  placeOfSupply: null,
   homeStoreId: null,
   notes: null,
   tags: [],
