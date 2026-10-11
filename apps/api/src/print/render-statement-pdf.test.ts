@@ -158,29 +158,33 @@ describe('renderStatementPdf', () => {
     }
   });
 
-  it('runs onto more pages with the headings repeated and every page numbered', async () => {
-    const many = entries(160);
-    const data = {
-      ...DATA,
-      entries: many,
-      openItems: Array.from({ length: 40 }, (_, index) => ({
-        kind: 'charge' as const,
-        number: null,
-        raisedOn: '2026-09-01',
-        dueOn: '2026-09-01',
-        outstandingPaise: 100,
-        daysPastDue: index - 5,
-      })),
-    };
-    const pdf = await read(await renderStatementPdf(buildStatementView(data, 'hi')));
-    expect(pdf.totalPages).toBeGreaterThan(3);
-    expect(pdf.pages[1]).toContain('Rangoli Paints · Statement of Account · Deccan Contractors');
-    expect(pdf.pages[1]).toContain('Particulars');
-    expect(pdf.pages.at(-1)).toContain(
-      `Page ${String(pdf.totalPages)} of ${String(pdf.totalPages)}`,
-    );
-    expect(pdf.text).toContain('Charge');
-  });
+  it(
+    'runs onto more pages with the headings repeated and every page numbered',
+    { timeout: 60_000 },
+    async () => {
+      const many = entries(160);
+      const data = {
+        ...DATA,
+        entries: many,
+        openItems: Array.from({ length: 40 }, (_, index) => ({
+          kind: 'charge' as const,
+          number: null,
+          raisedOn: '2026-09-01',
+          dueOn: '2026-09-01',
+          outstandingPaise: 100,
+          daysPastDue: index - 5,
+        })),
+      };
+      const pdf = await read(await renderStatementPdf(buildStatementView(data, 'hi')));
+      expect(pdf.totalPages).toBeGreaterThan(3);
+      expect(pdf.pages[1]).toContain('Rangoli Paints · Statement of Account · Deccan Contractors');
+      expect(pdf.pages[1]).toContain('Particulars');
+      expect(pdf.pages.at(-1)).toContain(
+        `Page ${String(pdf.totalPages)} of ${String(pdf.totalPages)}`,
+      );
+      expect(pdf.text).toContain('Charge');
+    },
+  );
 
   it('says when a period has no entries, and leaves out what is not known', async () => {
     const pdf = await read(

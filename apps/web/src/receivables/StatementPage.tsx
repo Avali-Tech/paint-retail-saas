@@ -184,7 +184,12 @@ export function StatementPage() {
           {(data) => (
             <>
               <ShareCard data={data} choice={choice} />
-              <section className="invoice-preview__paper" aria-label={t('statement.preview')}>
+              {/* Focusable: on a phone the A4 sheet scrolls sideways inside it. */}
+              <section
+                className="invoice-preview__paper"
+                aria-label={t('statement.preview')}
+                tabIndex={0}
+              >
                 <StatementA4
                   view={buildStatementView(data, choice.lang === 'en' ? null : choice.lang)}
                 />
