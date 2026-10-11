@@ -138,11 +138,16 @@ export function PartyLedgerPage() {
         title={name === undefined ? t('parties.ledger.open') : t('parties.ledger.title', { name })}
         description={t('parties.ledger.description')}
         actions={
-          name === undefined ? undefined : (
-            <Link to={`/parties/${id}`} {...buttonStyle('secondary')}>
-              {t('parties.ledger.back', { name })}
+          <span className="row">
+            <Link to={`/parties/${id}/statement`} {...buttonStyle('secondary')}>
+              {t('statement.open')}
             </Link>
-          )
+            {name !== undefined && (
+              <Link to={`/parties/${id}`} {...buttonStyle('secondary')}>
+                {t('parties.ledger.back', { name })}
+              </Link>
+            )}
+          </span>
         }
       />
       <Card>

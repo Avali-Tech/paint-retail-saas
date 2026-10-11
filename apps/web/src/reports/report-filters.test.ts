@@ -21,6 +21,11 @@ describe('report filters', () => {
       { value: 'brand_new', label: 'Brand new' },
     ]);
     expect(choice('source', ['walk_in'])).toEqual([{ value: 'walk_in', label: 'Walk-in' }]);
+    expect(choice('groupBy', ['customer', 'salesperson', 'store'])).toEqual([
+      { value: 'customer', label: 'Customer' },
+      { value: 'salesperson', label: 'Salesperson' },
+      { value: 'store', label: 'Store' },
+    ]);
     // A filter the app does not know yet: its values humanized.
     expect(choice('channel', ['walk_in'])).toEqual([{ value: 'walk_in', label: 'Walk in' }]);
     expect(filterChoices(i18n, { name: 'from', type: 'date' })).toEqual([]);
@@ -28,6 +33,10 @@ describe('report filters', () => {
 
   it('names filters and reports, falling back to the API for new ones', () => {
     expect(filterLabel(i18n.t, 'storeId')).toBe('Store');
+    expect(filterLabel(i18n.t, 'asOf')).toBe('As of');
+    expect(reportText(i18n.t, { kind: 'receivables-ageing', title: 'x' }).title).toBe(
+      'Receivables ageing',
+    );
     expect(filterLabel(i18n.t, 'paymentMode')).toBe('PaymentMode');
     expect(reportText(i18n.t, { kind: 'stock-ledger', title: 'x' })).toEqual({
       title: 'Stock ledger',

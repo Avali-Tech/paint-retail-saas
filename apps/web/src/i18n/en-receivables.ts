@@ -1,0 +1,116 @@
+// English messages for receivables and customer statements (spread into en.ts).
+// The printed statement's own labels live in @paint/shared (statement-labels.ts),
+// because the API's PDF prints them too.
+
+export const receivablesEn = {
+  /** What customers owe and how late (GET /receivables/*), behind credit:read. */
+  receivables: {
+    nav: 'Receivables',
+    title: 'Receivables',
+    description: 'What customers owe, how late it is, and who to call first.',
+    error: 'Could not load receivables',
+    filters: 'Filters',
+    asOf: 'As of',
+    asOfHint: 'India date: every bill is aged as on this day',
+    allStores: 'All my stores',
+    search: 'Customer or mobile',
+    overdueOnly: 'Only rows with something overdue',
+    salesperson: 'Salesperson: {name}',
+    noSalesperson: 'Not assigned',
+    noStore: 'No store (opening balances)',
+    clear: 'Show everyone',
+    tiles: {
+      label: 'Receivables figures',
+      outstanding: 'Total outstanding',
+      customers: { one: '{count} customer owes', other: '{count} customers owe' },
+      advance: '{amount} paid in advance',
+      overdue: 'Overdue',
+      dueToday: 'Due today',
+      dueThisWeek: 'Due this week',
+      credit: 'Credit used',
+      ofLimit: 'of {limit} given',
+      noLimits: 'No credit limits set',
+      overLimit: {
+        one: '{count} customer over the limit',
+        other: '{count} customers over the limit',
+      },
+    },
+    top: {
+      title: 'Who owes most',
+      empty: 'Nobody owes anything on this day.',
+      overdue: '{amount} overdue',
+      late: { one: '{count} day late', other: '{count} days late' },
+    },
+    ageing: {
+      title: 'Ageing',
+      groupBy: 'Group by',
+      table: 'Ageing by {group}',
+      name: 'Name',
+      customers: 'Customers',
+      total: 'Total',
+      advance: 'Advance',
+      balance: 'Balance',
+      late: 'Most days late',
+      limit: 'Credit limit',
+      actions: 'Open',
+      ledger: 'Ledger',
+      statement: 'Statement',
+      showCustomers: 'Show the customers of {name}',
+      totals: 'All rows',
+      empty: 'Nobody owes anything on this day',
+      pages: 'Ageing pages',
+      csv: 'Download CSV',
+      csvFailed: 'Could not download the ageing',
+    },
+    /** The dashboard's tile. */
+    tile: {
+      title: 'Receivables',
+      overdue: 'Overdue',
+      dueThisWeek: 'Due this week',
+      open: 'Open receivables',
+    },
+  },
+  /** A party's statement (GET /parties/:id/statement), behind sales:read. */
+  statement: {
+    open: 'Statement',
+    title: 'Statement · {name}',
+    loadingTitle: 'Statement',
+    description: 'The account for a period with the ageing on its last day, to print or send.',
+    back: 'Back to {name}',
+    ledger: 'Ledger',
+    from: 'From',
+    to: 'To',
+    language: 'Labels on the statement',
+    rangeInvalid: 'The end date cannot be before the start date',
+    error: 'Could not load the statement',
+    actions: 'Print and share',
+    download: 'Download PDF',
+    print: 'Print',
+    whatsapp: 'Share on WhatsApp',
+    shareHint:
+      'Share on WhatsApp saves the PDF and opens WhatsApp with a short message to the customer: attach the PDF there.',
+    noPhone: 'No mobile number on record: WhatsApp will ask whom to send it to.',
+    saved: 'PDF saved: attach it in WhatsApp',
+    preview: 'Statement preview',
+  },
+};
+
+export const receivablesEnumsEn = {
+  ageingGroups: {
+    customer: 'Customer',
+    salesperson: 'Salesperson',
+    store: 'Store',
+  },
+  ageingBuckets: {
+    not_due: 'Not yet due',
+    days_0_30: '0–30 days',
+    days_31_60: '31–60 days',
+    days_61_90: '61–90 days',
+    days_90_plus: 'Over 90 days',
+  },
+  statementLanguages: {
+    en: 'English',
+    hi: 'English and Hindi',
+    te: 'English and Telugu',
+  },
+};

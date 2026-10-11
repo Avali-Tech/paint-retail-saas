@@ -33,6 +33,8 @@ export const reportsTe: Translation<typeof reportsEn> = {
       supplierId: 'సప్లయర్',
       stage: 'స్టేజ్',
       source: 'సోర్స్',
+      asOf: 'ఈ తేదీ నాటికి',
+      groupBy: 'దేని ప్రకారం',
     },
     kinds: {
       'stock-by-location': {
@@ -68,6 +70,16 @@ export const reportsTe: Translation<typeof reportsEn> = {
       'sales-by-site': {
         title: 'సైట్ వారీగా అమ్మకాలు',
         description: 'ప్రతి సైట్ నికర అమ్మకాలు, వాటిని తెచ్చిన ఇన్‌ఫ్లుయెన్సర్‌లతో',
+      },
+      'receivables-ageing': {
+        title: 'బకాయి వయస్సు',
+        description:
+          'ప్రతి కస్టమర్, సేల్స్‌పర్సన్ లేదా స్టోర్ బకాయి, ఆలస్యం ప్రకారం, ఏ రోజు నాటికైనా',
+      },
+      'receivables-open-bills': {
+        title: 'వయస్సు ప్రకారం బకాయి బిల్లులు',
+        description:
+          'డబ్బు బకాయి ఉన్న ప్రతి బిల్లు, ఎక్కువ ఆలస్యమైనది ముందు: ఎవరి నుండి వసూలు చేయాలి',
       },
     },
     columns: {
@@ -167,6 +179,36 @@ export const reportsTe: Translation<typeof reportsEn> = {
         lastBilled: 'చివరి బిల్',
         taxable: 'పన్ను విధించదగిన విలువ (₹)',
         total: 'నికర అమ్మకాలు (₹)',
+      },
+      'receivables-ageing': {
+        name: 'పేరు',
+        code: 'స్టోర్ కోడ్',
+        phone: 'మొబైల్',
+        customers: 'కస్టమర్‌లు',
+        notDue: 'ఇంకా గడువు రాలేదు (₹)',
+        days0To30: '0–30 రోజులు (₹)',
+        days31To60: '31–60 రోజులు (₹)',
+        days61To90: '61–90 రోజులు (₹)',
+        days90Plus: '90 రోజులకు పైగా (₹)',
+        outstanding: 'మొత్తం బకాయి (₹)',
+        advance: 'అడ్వాన్స్ (₹)',
+        net: 'బ్యాలెన్స్ (₹)',
+        maxDaysPastDue: 'అత్యధిక ఆలస్యం (రోజులు)',
+        limit: 'క్రెడిట్ లిమిట్ (₹)',
+      },
+      'receivables-open-bills': {
+        customer: 'కస్టమర్',
+        phone: 'మొబైల్',
+        salesperson: 'సేల్స్‌పర్సన్',
+        store: 'స్టోర్',
+        kind: 'రకం',
+        number: 'నంబర్',
+        raisedOn: 'తేదీ',
+        dueOn: 'గడువు తేదీ',
+        daysPastDue: 'ఆలస్యమైన రోజులు',
+        bucket: 'వయస్సు',
+        total: 'బిల్లు మొత్తం (₹)',
+        outstanding: 'బకాయి (₹)',
       },
     },
   },

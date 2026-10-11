@@ -246,6 +246,23 @@
   text-align: right;
 }
 
+/* ---- Statement of account (P2-M12), on the A4 invoice's styles ---- */
+
+.statement .invoice__lines {
+  margin-bottom: 4mm;
+}
+
+.statement__ageing {
+  max-width: 90mm;
+  margin-bottom: 4mm;
+  break-inside: avoid;
+}
+
+.statement .invoice__terms {
+  padding-left: 0;
+  text-align: center;
+}
+
 /* ---- Thermal 80 mm: 72 mm printable ---- */
 
 .invoice--thermal {

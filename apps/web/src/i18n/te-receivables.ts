@@ -1,0 +1,117 @@
+// Telugu messages for receivables and customer statements (draft: see
+// docs/translations/glossary.md). Same keys as en-receivables.ts.
+import type { receivablesEn, receivablesEnumsEn } from './en-receivables.js';
+import type { Translation } from './shape.js';
+
+export const receivablesTe: Translation<typeof receivablesEn> = {
+  receivables: {
+    nav: 'బకాయిలు',
+    title: 'బకాయిలు',
+    description: 'కస్టమర్‌లు ఎంత బకాయి ఉన్నారు, ఎంత ఆలస్యం, ముందు ఎవరికి ఫోన్ చేయాలి.',
+    error: 'బకాయిలు లోడ్ కాలేదు',
+    filters: 'ఫిల్టర్‌లు',
+    asOf: 'ఈ తేదీ నాటికి',
+    asOfHint: 'భారత తేదీ: ప్రతి బిల్లు వయస్సు ఈ రోజు ప్రకారం',
+    allStores: 'నా అన్ని స్టోర్‌లు',
+    search: 'కస్టమర్ లేదా మొబైల్',
+    overdueOnly: 'ఆలస్యమైన బకాయి ఉన్నవి మాత్రమే',
+    salesperson: 'సేల్స్‌పర్సన్: {name}',
+    noSalesperson: 'ఎవరికీ అప్పగించలేదు',
+    noStore: 'స్టోర్ లేదు (ప్రారంభ బ్యాలెన్స్‌లు)',
+    clear: 'అందరినీ చూపించు',
+    tiles: {
+      label: 'బకాయి గణాంకాలు',
+      outstanding: 'మొత్తం బకాయి',
+      customers: {
+        one: '{count} కస్టమర్ బకాయి ఉన్నారు',
+        other: '{count} కస్టమర్‌లు బకాయి ఉన్నారు',
+      },
+      advance: '{amount} అడ్వాన్స్ చెల్లించారు',
+      overdue: 'గడువు దాటిన బకాయి',
+      dueToday: 'ఈరోజు చెల్లించాల్సింది',
+      dueThisWeek: 'ఈ వారం చెల్లించాల్సింది',
+      credit: 'వాడిన క్రెడిట్',
+      ofLimit: 'ఇచ్చిన {limit}లో',
+      noLimits: 'క్రెడిట్ లిమిట్‌లు సెట్ చేయలేదు',
+      overLimit: {
+        one: '{count} కస్టమర్ లిమిట్ దాటారు',
+        other: '{count} కస్టమర్‌లు లిమిట్ దాటారు',
+      },
+    },
+    top: {
+      title: 'ఎక్కువ బకాయి ఉన్నవారు',
+      empty: 'ఈ రోజు ఎవరికీ బకాయి లేదు.',
+      overdue: '{amount} గడువు దాటింది',
+      late: { one: '{count} రోజు ఆలస్యం', other: '{count} రోజులు ఆలస్యం' },
+    },
+    ageing: {
+      title: 'బకాయి వయస్సు',
+      groupBy: 'దేని ప్రకారం',
+      table: '{group} ప్రకారం బకాయి వయస్సు',
+      name: 'పేరు',
+      customers: 'కస్టమర్‌లు',
+      total: 'మొత్తం',
+      advance: 'అడ్వాన్స్',
+      balance: 'బ్యాలెన్స్',
+      late: 'అత్యధిక ఆలస్యం (రోజులు)',
+      limit: 'క్రెడిట్ లిమిట్',
+      actions: 'తెరువు',
+      ledger: 'ఖాతా',
+      statement: 'ఖాతా వివరణ',
+      showCustomers: '{name} కస్టమర్‌లను చూపించు',
+      totals: 'అన్ని వరుసలు',
+      empty: 'ఈ రోజు ఎవరికీ బకాయి లేదు',
+      pages: 'బకాయి వయస్సు పేజీలు',
+      csv: 'CSV డౌన్‌లోడ్ చేయండి',
+      csvFailed: 'బకాయి వయస్సు డౌన్‌లోడ్ కాలేదు',
+    },
+    tile: {
+      title: 'బకాయిలు',
+      overdue: 'గడువు దాటినవి',
+      dueThisWeek: 'ఈ వారం చెల్లించాల్సింది',
+      open: 'బకాయిలు తెరువు',
+    },
+  },
+  statement: {
+    open: 'ఖాతా వివరణ',
+    title: 'ఖాతా వివరణ · {name}',
+    loadingTitle: 'ఖాతా వివరణ',
+    description: 'ఒక కాలానికి ఖాతా, చివరి రోజు బకాయి వయస్సుతో, ప్రింట్ చేయడానికి లేదా పంపడానికి.',
+    back: '{name}కి వెనక్కి',
+    ledger: 'ఖాతా',
+    from: 'నుండి',
+    to: 'వరకు',
+    language: 'వివరణపై లేబుల్‌లు',
+    rangeInvalid: 'చివరి తేదీ ప్రారంభ తేదీ కంటే ముందు ఉండకూడదు',
+    error: 'ఖాతా వివరణ లోడ్ కాలేదు',
+    actions: 'ప్రింట్, షేర్',
+    download: 'PDF డౌన్‌లోడ్ చేయండి',
+    print: 'ప్రింట్ చేయండి',
+    whatsapp: 'WhatsAppలో పంపండి',
+    shareHint:
+      'WhatsAppలో పంపండి నొక్కితే PDF సేవ్ అవుతుంది, కస్టమర్‌కి చిన్న మెసేజ్‌తో WhatsApp తెరుచుకుంటుంది: అక్కడ PDF జత చేయండి.',
+    noPhone: 'మొబైల్ నంబర్ లేదు: ఎవరికి పంపాలో WhatsApp అడుగుతుంది.',
+    saved: 'PDF సేవ్ అయింది: దాన్ని WhatsAppలో జత చేయండి',
+    preview: 'ఖాతా వివరణ ప్రివ్యూ',
+  },
+};
+
+export const receivablesEnumsTe: Translation<typeof receivablesEnumsEn> = {
+  ageingGroups: {
+    customer: 'కస్టమర్',
+    salesperson: 'సేల్స్‌పర్సన్',
+    store: 'స్టోర్',
+  },
+  ageingBuckets: {
+    not_due: 'ఇంకా గడువు రాలేదు',
+    days_0_30: '0–30 రోజులు',
+    days_31_60: '31–60 రోజులు',
+    days_61_90: '61–90 రోజులు',
+    days_90_plus: '90 రోజులకు పైగా',
+  },
+  statementLanguages: {
+    en: 'ఇంగ్లీష్',
+    hi: 'ఇంగ్లీష్, హిందీ',
+    te: 'ఇంగ్లీష్, తెలుగు',
+  },
+};

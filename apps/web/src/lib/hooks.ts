@@ -24,6 +24,8 @@ export interface UrlFilters<K extends string> {
   readonly cursor: string | undefined;
   /** Changes one filter and goes back to the first page. */
   readonly set: (key: K, value: string) => void;
+  /** Changes several filters at once ("" clears one) and goes back to the first page. */
+  readonly setMany: (changes: Partial<Record<K, string>>) => void;
   /** Moves to a page: by `cursor` when the API gave one for it, else by offset alone. */
   readonly setOffset: (offset: number, cursor?: string | null) => void;
 }
@@ -50,18 +52,26 @@ export function useUrlFilters<K extends string>(keys: readonly K[]): UrlFilters<
       { replace: true },
     );
   };
+  // One address change for all of them: several set() calls in one event would each
+  // start from the same address and undo one another.
+  const setMany = (changes: Partial<Record<K, string>>) => {
+    update((next) => {
+      for (const [key, value] of Object.entries(changes) as [K, string][]) {
+        if (value === '') next.delete(key);
+        else next.set(key, value);
+      }
+      next.delete('offset');
+      next.delete('cursor');
+    });
+  };
   return {
     values,
     offset,
     cursor,
     set: (key, value) => {
-      update((next) => {
-        if (value === '') next.delete(key);
-        else next.set(key, value);
-        next.delete('offset');
-        next.delete('cursor');
-      });
+      setMany({ [key]: value } as Partial<Record<K, string>>);
     },
+    setMany,
     setOffset: (value, nextCursor) => {
       update((next) => {
         if (value === 0) next.delete('offset');

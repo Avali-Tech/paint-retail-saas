@@ -1,0 +1,18 @@
+/* Receivables. Design tokens only (theme-guard.test.ts). */
+
+.receivables__overview {
+  display: grid;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.receivables__overview .tiles {
+  margin: 0;
+}
+
+@media (min-width: 900px) {
+  .receivables__overview {
+    grid-template-columns: 2fr 1fr;
+    align-items: start;
+  }
+}

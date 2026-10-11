@@ -11,6 +11,7 @@ import type { AnyOf } from '../lib/guard.js';
 import { ORDER_NAV_ITEMS } from '../orders/nav.js';
 import { CUSTOMER_NAV_ITEMS } from '../parties/nav.js';
 import { POS_NAV_ITEMS } from '../pos/nav.js';
+import { RECEIVABLES_NAV_ITEMS } from '../receivables/nav.js';
 import { REPORT_NAV_ITEMS } from '../reports/nav.js';
 import { SALES_NAV_ITEMS } from '../sales/nav.js';
 import { SUPPORT_ACCESS_NAV_ITEMS } from '../support-access/nav.js';
@@ -78,6 +79,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   ...ORDER_NAV_ITEMS,
   ...SALES_NAV_ITEMS,
   ...BOOKS_NAV_ITEMS,
+  ...RECEIVABLES_NAV_ITEMS,
   ...FOLLOW_UP_NAV_ITEMS,
   ...DOCUMENT_NAV_ITEMS,
   ...CUSTOMER_NAV_ITEMS,
