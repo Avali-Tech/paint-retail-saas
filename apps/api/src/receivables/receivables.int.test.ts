@@ -102,6 +102,9 @@ beforeAll(async () => {
     status: 'active',
     limitPaise: 500_000,
     creditDays: 30,
+    // These books carry bills months overdue on purpose; waive the overdue block
+    // (P2-M09) so they can still be issued on credit.
+    overdueWaivedUntil: await day(365),
   });
 
   // Go-live 40 days ago: Ramesh owed ₹2,000, overdue since 70 days ago.
