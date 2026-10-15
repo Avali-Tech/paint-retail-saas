@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { OWNER, json, profile, type FakeHandler } from '../test-support/fake-api.js';
 import { found } from '../test-support/found.js';
 import { page } from '../test-support/inventory-fixtures.js';
-import { CREDIT, OVERVIEW, PARTY } from '../test-support/party-fixtures.js';
+import { OVERVIEW, PARTY } from '../test-support/party-fixtures.js';
 import { renderApp } from '../test-support/render-app.js';
 import { INVOICE } from '../test-support/sales-fixtures.js';
 import { AMP, APEX, KPH } from '../pos/test-support/pos-fixtures.js';
@@ -266,61 +266,95 @@ describe('OrderPage: credit and confirm', { timeout: 30_000 }, () => {
     expect(new Set(posts.map((request) => request.headers['Idempotency-Key'])).size).toBe(1);
   });
 
-  it('lets a manager ask the owner for approval when over the limit', async () => {
-    let overview = OVERVIEW;
+  it('lets a manager ask the owner for a credit approval, then shows it waiting', async () => {
+    let order: SalesOrderView = ORDER;
     let fail = true;
+    const approval = {
+      id: 'ap-1',
+      number: 'AP-000001',
+      status: 'pending' as const,
+      level: 'owner' as const,
+      requestedBy: { memberId: 'member-2', name: 'Ravi Manager' },
+      createdAt: '2026-10-08T06:00:00.000Z',
+    };
     const { user, requests } = renderApp({
       path: '/sales-orders/order-1',
       routes: orderRoutes(ORDER, {
         'GET /auth/me': () => json(BRANCH_MANAGER),
-        'GET /parties/:id/overview': () => json(overview),
-        'POST /credit-requests': () => {
+        'GET /sales-orders/:id': () => json(order),
+        'POST /credit-approvals': () => {
           if (fail) {
             fail = false;
             return json({ message: 'Try later' }, 500);
           }
-          overview = {
-            ...OVERVIEW,
-            credit: {
-              ...CREDIT,
-              pendingRequest: {
-                id: 'cr-1',
-                number: 'CR-000001',
-                limitPaise: 33_000_00,
-                creditDays: 30,
-              },
-            },
-          };
-          return json({ id: 'cr-1' }, 201);
+          order = { ...ORDER, creditApproval: approval };
+          return json({ ...approval, kind: 'sale' }, 201);
         },
       }),
     });
     expect(
       await screen.findByText('Ask an owner to confirm this order, or to raise the limit.'),
     ).toBeVisible();
-    const ask = await screen.findByRole('button', {
-      name: 'Request owner approval (limit ₹33,000.00)',
-    });
-    await user.click(ask);
-    expect(await screen.findByText('Try later')).toBeVisible();
-    await user.click(ask);
-    expect(await screen.findByText('Request sent to the owner')).toBeVisible();
+    await user.click(await screen.findByRole('button', { name: 'Ask for approval' }));
+    let dialog = await screen.findByRole('dialog', { name: 'Ask for credit approval' });
+    expect(dialog).toHaveTextContent('the owner is told and decides.');
+    await user.click(within(dialog).getByRole('button', { name: 'Send for approval' }));
+    expect(await within(dialog).findByText('Give a reason of at least 3 characters')).toBeVisible();
+    await user.type(within(dialog).getByRole('textbox', { name: /Why this sale/ }), 'Big site');
+    await user.click(within(dialog).getByRole('button', { name: 'Send for approval' }));
+    expect(await within(dialog).findByText('Try later')).toBeVisible();
+    await user.click(within(dialog).getByRole('button', { name: 'Send for approval' }));
+    expect(await screen.findByText('Asked for approval: AP-000001')).toBeVisible();
     expect(
-      await screen.findByRole('link', {
-        name: 'Credit request CR-000001 is waiting for the owner',
-      }),
-    ).toHaveAttribute('href', '/credit-requests/cr-1');
-    expect(requests.find((request) => request.path === '/credit-requests')?.body).toEqual({
-      partyId: PARTY.id,
-      limitPaise: 33_000_00,
-      creditDays: 30,
-      note: 'For sales order SO-000017',
-    });
+      await screen.findByRole('link', { name: 'AP-000001 is waiting for the owner to approve' }),
+    ).toHaveAttribute('href', '/credit/approvals/ap-1');
+    expect(requests.filter((request) => request.path === '/credit-approvals').at(-1)?.body).toEqual(
+      { salesOrderId: ORDER.id, reason: 'Big site' },
+    );
     // Without the owner's approval the confirm cannot pass the credit rules.
     await user.click(screen.getByRole('button', { name: 'Confirm' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Confirm SO-000017' });
+    dialog = await screen.findByRole('dialog', { name: 'Confirm SO-000017' });
     expect(within(dialog).queryByRole('textbox')).toBeNull();
     expect(within(dialog).getByRole('button', { name: 'Confirm order' })).toBeVisible();
+  });
+
+  it('says when the approval is given, and shows the site checked with the order', async () => {
+    renderApp({
+      path: '/sales-orders/order-1',
+      routes: orderRoutes(
+        {
+          ...ORDER,
+          creditApproval: {
+            id: 'ap-2',
+            number: 'AP-000002',
+            status: 'approved',
+            level: 'owner',
+            requestedBy: { memberId: 'member-2', name: 'Ravi Manager' },
+            createdAt: '2026-10-08T06:00:00.000Z',
+          },
+        },
+        {
+          'GET /auth/me': () => json(BRANCH_MANAGER),
+          'GET /sales-orders/:id/credit-check': () =>
+            json({
+              ...OVER_LIMIT,
+              site: {
+                siteAccountId: 'site-1',
+                projectId: 'project-1',
+                projectName: 'Jubilee Hills villa',
+                status: 'active',
+                limitPaise: 10_000_00,
+                exposurePaise: 2_000_00,
+                check: { ...OVER_LIMIT.check, utilizationPercent: 170 },
+              },
+            }),
+        },
+      ),
+    });
+    expect(await screen.findByText('AP-000002 is approved: confirm the order now')).toBeVisible();
+    expect(credit()).toHaveTextContent('SiteJubilee Hills villa');
+    expect(credit()).toHaveTextContent('Site limit used after it170%');
+    expect(screen.queryByRole('button', { name: 'Ask for approval' })).toBeNull();
   });
 
   it('shows a manager approval to whoever may give it, and asks others to find a manager', async () => {
@@ -344,18 +378,24 @@ describe('OrderPage: credit and confirm', { timeout: 30_000 }, () => {
       }),
     });
     expect(await screen.findByText('Ask a manager to confirm this order.')).toBeVisible();
-    expect(screen.queryByRole('button', { name: /Request owner approval/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Ask for approval' })).toBeVisible();
   });
 
-  it('asks the owner without a request button for a member who cannot raise one', async () => {
+  it('offers no approval request to a member who cannot change orders', async () => {
     renderApp({
       path: '/sales-orders/order-1',
-      routes: orderRoutes(ORDER, { 'GET /auth/me': () => json(SALES) }),
+      routes: orderRoutes(ORDER, {
+        'GET /auth/me': () =>
+          json({
+            ...SALES,
+            permissions: SALES.permissions.filter((key) => key !== 'sales:manage'),
+          }),
+      }),
     });
     expect(
       await screen.findByText('Ask an owner to confirm this order, or to raise the limit.'),
     ).toBeVisible();
-    expect(screen.queryByRole('button', { name: /Request owner approval/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Ask for approval' })).toBeNull();
   });
 
   it('confirms within the limit without a reason, and explains a manual figure', async () => {

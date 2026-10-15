@@ -5,6 +5,7 @@ import { booksTe, booksEnumsTe } from './te-books.js';
 import { brandingTe } from './te-branding.js';
 import { catalogEnumsTe, catalogTe } from './te-catalog.js';
 import { contractsTe } from './te-contracts.js';
+import { approvalsEnumsTe, approvalsTe } from './te-approvals.js';
 import { creditEnumsTe, creditTe } from './te-credit.js';
 import { documentsTe } from './te-documents.js';
 import { followUpEnumsTe, followUpsTe } from './te-followups.js';
@@ -322,6 +323,7 @@ export const te: Messages = {
   // Each feature keeps its messages in its own file.
   ...partiesTe,
   ...creditTe,
+  ...approvalsTe,
   ...loyaltyTe,
   ...catalogTe,
   ...stockTe,
@@ -368,6 +370,7 @@ export const te: Messages = {
     },
     ...partyEnumsTe,
     ...creditEnumsTe,
+    ...approvalsEnumsTe,
     ...loyaltyEnumsTe,
     ...catalogEnumsTe,
     ...stockEnumsTe,

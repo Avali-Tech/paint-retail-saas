@@ -1,7 +1,10 @@
 import {
   BUYER_DETAILS_THRESHOLD_PAISE,
   priceLine,
+  type CreditApprovalRefusal,
+  type CreditApprovalView,
   type GstRate,
+  type IssuePaymentRequest,
   type IssuedInvoiceView,
   type TaxDocumentView,
 } from '@paint/shared';
@@ -30,6 +33,7 @@ import { useStores } from '../stock/stores.js';
 import { billReducer, newBill, type Bill, type BillItem } from './bill.js';
 import { BillLines } from './BillLines.js';
 import { CustomerPanel, usePartyOverview } from './CustomerPanel.js';
+import { CreditCheckDialog, creditRefusalOf } from './CreditCheckDialog.js';
 import { createDraftSaver } from './draft-saver.js';
 import {
   STORE_KEY,
@@ -102,6 +106,12 @@ function Counter({
   const [payOpen, setPayOpen] = useState(false);
   const [issueError, setIssueError] = useState<string | null>(null);
   const [issued, setIssued] = useState<IssuedSummary | null>(null);
+  /** A bill on credit the rules refused, waiting for what the counter does about it. */
+  const [creditCheck, setCreditCheck] = useState<{
+    readonly refusal: CreditApprovalRefusal;
+    readonly payments: readonly IssuePaymentRequest[];
+    readonly draftId: string;
+  } | null>(null);
   const [job, setJob] = useState<PrintJob | null>(null);
   const scanRef = useRef<HTMLInputElement>(null);
   const timer = useRef<number | undefined>(undefined);
@@ -223,24 +233,60 @@ function Counter({
     setJob({ id: prints.current, invoice, format });
   };
 
+  const done = (draftId: string, invoice: IssuedInvoiceView) => {
+    forgetDraft(localStorage, draftId);
+    setCurrentDraft(localStorage, store.id, null);
+    setIssued({
+      number: String(invoice.number),
+      changePaise: invoice.changePaise,
+      print: (format) => {
+        print(invoice, format);
+      },
+    });
+    print(invoice, 'thermal');
+  };
+
   const issue: Issue = async (payments) => {
     setIssueError(null);
+    let draftId = '';
     try {
-      const draftId = String(await persist(bill));
-      const invoice = await api.pos.issue(draftId, payments, `${bill.key}:issue`);
-      forgetDraft(localStorage, draftId);
-      setCurrentDraft(localStorage, store.id, null);
-      setIssued({
-        number: String(invoice.number),
-        changePaise: invoice.changePaise,
-        print: (format) => {
-          print(invoice, format);
-        },
-      });
-      print(invoice, 'thermal');
+      draftId = String(await persist(bill));
+      done(draftId, await api.pos.issue(draftId, payments, `${bill.key}:issue`));
     } catch (error) {
-      setIssueError(errorMessage(error));
+      // Money left on credit past the rules: the approval prompt takes over.
+      const refusal = creditRefusalOf(error);
+      if (refusal === null) {
+        setIssueError(errorMessage(error));
+        return;
+      }
+      setPayOpen(false);
+      setCreditCheck({ refusal, payments, draftId });
     }
+  };
+
+  /** Issues the refused bill with the member's own approval, then shows it issued. */
+  const approveAndIssue = async (
+    { payments, draftId }: { payments: readonly IssuePaymentRequest[]; draftId: string },
+    reason: string,
+  ) => {
+    const invoice = await api.pos.issue(draftId, payments, `${bill.key}:issue:approved`, {
+      reason,
+    });
+    setCreditCheck(null);
+    setPayOpen(true);
+    done(draftId, invoice);
+  };
+
+  /** Keeps the refused bill as held (waiting for its approval) and starts the next one. */
+  const holdForApproval = async (asked: CreditApprovalView | null) => {
+    setCreditCheck(null);
+    startNewBill();
+    await queryClient.invalidateQueries({ queryKey: draftsKey(store.id) });
+    toast({
+      title:
+        asked === null ? t('pos.totals.held') : t('approvals.pos.held', { number: asked.number }),
+      tone: 'success',
+    });
   };
 
   const newSale = () => {
@@ -415,6 +461,22 @@ function Counter({
         issued={issued}
         onNewSale={newSale}
       />
+      {creditCheck !== null && (
+        <CreditCheckDialog
+          refusal={creditCheck.refusal}
+          draftId={creditCheck.draftId}
+          storeId={store.id}
+          onClose={() => {
+            setCreditCheck(null);
+          }}
+          onApprove={(reason) => approveAndIssue(creditCheck, reason)}
+          onHold={holdForApproval}
+          onPay={() => {
+            setCreditCheck(null);
+            setPayOpen(true);
+          }}
+        />
+      )}
       <PrintSlot job={job} />
     </div>
   );

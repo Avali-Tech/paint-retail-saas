@@ -3,6 +3,13 @@ import type { NavItem } from '../shell/nav.js';
 /** Credit and loyalty sections, after the core sections in the navigation. */
 export const CUSTOMER_NAV_ITEMS: readonly NavItem[] = [
   {
+    key: 'creditApprovals',
+    label: 'approvals.title',
+    path: '/credit/approvals',
+    icon: 'check',
+    permission: 'credit:read',
+  },
+  {
     key: 'creditRequests',
     label: 'credit.requests.title',
     path: '/credit-requests',

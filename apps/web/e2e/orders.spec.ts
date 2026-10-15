@@ -237,9 +237,13 @@ test('an order at 110 % of the credit limit needs the owner', async ({ browser }
   );
   await expect(credit).toContainText('Over the credit limit: the owner approves it.');
   await expect(credit).toContainText('Ask an owner to confirm this order');
-  await credit.getByRole('button', { name: 'Request owner approval (limit ₹33,000.00)' }).click();
+  // The manager asks for the owner's approval (MVP 3: a credit approval, not a new limit).
+  await credit.getByRole('button', { name: 'Ask for approval' }).click();
+  const ask = manager.getByRole('dialog', { name: 'Ask for credit approval' });
+  await ask.getByRole('textbox', { name: 'Why this sale should go ahead' }).fill('Big site');
+  await ask.getByRole('button', { name: 'Send for approval' }).click();
   await expect(
-    credit.getByRole('link', { name: /^Credit request CR-\d+ is waiting for the owner$/ }),
+    credit.getByRole('link', { name: /^AP-\d+ is waiting for the owner to approve$/ }),
   ).toBeVisible();
 
   // The owner confirms past the rules with a reason, recorded on the order.

@@ -12,15 +12,16 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { errorMessage } from '../api/errors.js';
 import { CREDIT_RISKS, type CreditRisk, type CreditSummary } from '../api/credit.js';
 import { useApi } from '../app/services.js';
 import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { FormDialog } from '../lib/FormDialog.js';
 import { parseRupees, rupeesInput } from '../lib/inputs.js';
+import { AskApprovalDialog, WaiverField, refreshApprovals } from './approval-parts.js';
 import { RequestDecision, refreshCredit } from './RequestDecision.js';
 import { RequestFields } from './RequestFields.js';
+import { SiteAccountsSection, type SiteProject } from './SiteAccounts.js';
 
 export const STATUS_TONE: Record<CreditSummary['status'], Tone> = {
   none: 'neutral',
@@ -65,29 +66,38 @@ export function readBalance(
 }
 
 /**
- * A party's credit on its 360 page: limit, days, what it owes, what the next
- * sale on credit needs, and the actions the member's role allows. Requesting,
- * holding and updating what the party owes need credit:manage; approving, rejecting and releasing need credit:approve.
+ * A party's credit on its 360 page: limit, days, what it owes (the hand-entered
+ * figure before billing went live, the ledger and open orders after), what the
+ * next sale on credit needs, holds and site accounts, and the actions the
+ * member's role allows. Requesting, holding, asking to release and (before
+ * go-live) updating what the party owes need credit:manage; approving,
+ * rejecting, releasing and adding sites need credit:approve.
  */
 export function CreditPanel({
   partyId,
   credit,
+  projects = [],
 }: {
   readonly partyId: string;
   readonly credit: CreditSummary;
+  /** The party's projects, to open site accounts on. */
+  readonly projects?: readonly SiteProject[];
 }) {
   const api = useApi();
-  const { t, plural, label, money, number } = useI18n();
+  const { t, plural, label, money, number, date } = useI18n();
   const can = usePermissions();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [dialog, setDialog] = useState<'request' | 'hold' | 'balance' | null>(null);
+  const [dialog, setDialog] = useState<
+    'request' | 'hold' | 'balance' | 'release' | 'askRelease' | null
+  >(null);
+  const [waive, setWaive] = useState('');
   const [limit, setLimit] = useState('');
   const [days, setDays] = useState('');
   const [risk, setRisk] = useState<CreditRisk>(credit.risk);
   const [text, setText] = useState('');
-  const [releasing, setReleasing] = useState(false);
-  const { check, pendingRequest } = credit;
+  const { check, pendingRequest, pendingRelease } = credit;
+  const live = credit.exposure;
 
   const open = (next: 'request' | 'hold' | 'balance') => {
     // The balance dialog reuses the two amount fields for what is owed and how late.
@@ -109,16 +119,10 @@ export function CreditPanel({
     await refreshCredit(queryClient);
     toast({ title: message, tone: 'success' });
   };
-  const release = async () => {
-    setReleasing(true);
-    try {
-      await api.credit.release(partyId);
-      await done(t('credit.released'));
-    } catch (error) {
-      toast({ title: errorMessage(error), tone: 'danger' });
-    } finally {
-      setReleasing(false);
-    }
+  const openRelease = () => {
+    setText('');
+    setWaive('');
+    setDialog('release');
   };
 
   const decision =
@@ -146,9 +150,25 @@ export function CreditPanel({
             <dd>{plural('credit.daysValue', credit.creditDays)}</dd>
           </div>
           <div>
-            <dt>{t('credit.exposure')}</dt>
-            <dd>{money(credit.manualExposurePaise)}</dd>
+            <dt>{t(live === null ? 'credit.exposure' : 'creditLive.exposure')}</dt>
+            <dd>{money(credit.exposurePaise)}</dd>
           </div>
+          {live !== null && (
+            <>
+              <div>
+                <dt>{t('creditLive.balance')}</dt>
+                <dd>{money(live.balancePaise)}</dd>
+              </div>
+              <div>
+                <dt>{t('creditLive.openOrders')}</dt>
+                <dd>{money(live.openOrdersPaise)}</dd>
+              </div>
+              <div>
+                <dt>{t('creditLive.advance')}</dt>
+                <dd>{money(live.advancePaise)}</dd>
+              </div>
+            </>
+          )}
           <div>
             <dt>{t('credit.available')}</dt>
             <dd>{money(check.availablePaise)}</dd>
@@ -176,6 +196,21 @@ export function CreditPanel({
             </dd>
           </div>
         </dl>
+        {credit.status === 'on_hold' && credit.holdKind === 'auto' && (
+          <p className="notice">{t('creditLive.autoHold')}</p>
+        )}
+        {credit.overdueWaivedUntil !== null && (
+          <p className="notice">
+            {t('creditLive.waived', { date: date(credit.overdueWaivedUntil) })}
+          </p>
+        )}
+        {pendingRelease !== null && (
+          <p className="notice">
+            <Link to={`/credit/approvals/${pendingRelease.id}`}>
+              {t('creditLive.pendingRelease', { number: pendingRelease.number })}
+            </Link>
+          </p>
+        )}
         {pendingRequest !== null && (
           <p className="notice">
             <Link to={`/credit-requests/${pendingRequest.id}`}>
@@ -208,7 +243,8 @@ export function CreditPanel({
               {t('credit.hold')}
             </Button>
           )}
-          {manage && (
+          {/* Read-only once billing is live: the ledger says what is owed (MVP 2 spec §4.7). */}
+          {manage && live === null && (
             <Button
               variant="secondary"
               onClick={() => {
@@ -219,19 +255,71 @@ export function CreditPanel({
             </Button>
           )}
           {approve && credit.status === 'on_hold' && (
+            <Button variant="secondary" onClick={openRelease}>
+              {t('credit.release')}
+            </Button>
+          )}
+          {manage && !approve && credit.status === 'on_hold' && pendingRelease === null && (
             <Button
               variant="secondary"
-              loading={releasing}
               onClick={() => {
-                void release();
+                setDialog('askRelease');
               }}
             >
-              {t('credit.release')}
+              {t('creditLive.askRelease')}
             </Button>
           )}
           {approve && pendingRequest !== null && <RequestDecision request={pendingRequest} />}
         </div>
+        {credit.status !== 'none' && (
+          <SiteAccountsSection
+            partyId={partyId}
+            partyLimitPaise={credit.limitPaise}
+            sites={credit.sites}
+            projects={projects}
+          />
+        )}
       </div>
+
+      <FormDialog
+        open={dialog === 'release'}
+        onClose={close}
+        title={t('creditLive.releaseTitle')}
+        description={t('creditLive.releaseHint')}
+        submitLabel={t('credit.release')}
+        onSubmit={async () => {
+          const reason = text.trim();
+          await api.credit.release(partyId, {
+            ...(reason === '' ? {} : { reason }),
+            ...(waive === '' ? {} : { waiveOverdueUntil: waive }),
+          });
+          await refreshApprovals(queryClient);
+          await done(t('credit.released'));
+          return undefined;
+        }}
+      >
+        <Field label={t('approvals.reasonOptional')}>
+          <Textarea
+            value={text}
+            onChange={(event) => {
+              setText(event.target.value);
+            }}
+          />
+        </Field>
+        <WaiverField value={waive} onChange={setWaive} />
+      </FormDialog>
+
+      <AskApprovalDialog
+        open={dialog === 'askRelease'}
+        onClose={close}
+        title={t('creditLive.askReleaseTitle')}
+        description={t('creditLive.askReleaseHint')}
+        request={{ kind: 'release', partyId }}
+        onAsked={async (approval) => {
+          await refreshApprovals(queryClient);
+          toast({ title: t('approvals.asked', { number: approval.number }), tone: 'success' });
+        }}
+      />
 
       <FormDialog
         open={dialog === 'request'}

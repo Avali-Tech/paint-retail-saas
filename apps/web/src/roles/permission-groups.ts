@@ -29,6 +29,7 @@ export const PERMISSION_LABELS: Record<Permission, MessageKey> = {
   'credit:read': 'permissions.credit.read',
   'credit:manage': 'permissions.credit.manage',
   'credit:approve': 'permissions.credit.approve',
+  'credit:approve_sale': 'permissions.credit.approveSale',
   'loyalty:read': 'permissions.loyalty.read',
   'loyalty:manage': 'permissions.loyalty.manage',
   'audit:read': 'permissions.audit.read',

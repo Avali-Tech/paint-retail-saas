@@ -58,11 +58,22 @@ export function posEndpoints(api: ApiClient) {
     updateDraft: (id: string, input: DraftInput) =>
       api.put<TaxDocumentView>(`/invoices/${id}`, input),
     discardDraft: (id: string) => api.delete<undefined>(`/invoices/${id}`),
-    /** Issues the draft and takes its payments in one transaction. */
-    issue: (id: string, payments: readonly IssuePaymentRequest[], idempotencyKey: string) =>
+    /**
+     * Issues the draft and takes its payments in one transaction; `creditOverride`
+     * approves leaving money on credit past the rules (MVP 3 spec §4.3).
+     */
+    issue: (
+      id: string,
+      payments: readonly IssuePaymentRequest[],
+      idempotencyKey: string,
+      creditOverride?: { readonly reason: string },
+    ) =>
       api.post<IssuedInvoiceView>(
         `/invoices/${id}/issue`,
-        payments.length === 0 ? {} : { payments },
+        {
+          ...(payments.length === 0 ? {} : { payments }),
+          ...(creditOverride === undefined ? {} : { creditOverride }),
+        },
         { headers: { 'Idempotency-Key': idempotencyKey } },
       ),
     /** The active ways to pay. */

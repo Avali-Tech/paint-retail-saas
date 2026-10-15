@@ -250,9 +250,11 @@ describe('CreditPanel', { timeout: 30_000 }, () => {
       },
     };
     const decisions: unknown[] = [];
+    const releaseBodies: unknown[] = [];
     const { user } = renderCredit(held, {
-      'POST /parties/:id/credit/release': () => {
+      'POST /parties/:id/credit/release': (request) => {
         releases += 1;
+        releaseBodies.push(request.body);
         return releases === 1 ? json({ message: 'This party is not on hold' }, 409) : json({});
       },
       'POST /credit-requests/:id/approve': (request) => {
@@ -274,10 +276,21 @@ describe('CreditPanel', { timeout: 30_000 }, () => {
     ).toHaveAttribute('href', `/credit-requests/${CREDIT_REQUEST.id}`);
     expect(within(credit).queryByRole('button', { name: 'Request credit' })).toBeNull();
 
+    // Releasing asks for an optional reason and how long overdue days are waived.
     await user.click(within(credit).getByRole('button', { name: 'Release hold' }));
-    expect(await screen.findByText('This party is not on hold')).toBeVisible();
-    await user.click(within(credit).getByRole('button', { name: 'Release hold' }));
+    expect(
+      within(dialog()).getByRole('heading', { name: 'Release the credit hold' }),
+    ).toBeVisible();
+    await user.click(within(dialog()).getByRole('button', { name: 'Release hold' }));
+    expect(await within(dialog()).findByText('This party is not on hold')).toBeVisible();
+    await user.type(within(dialog()).getByRole('textbox', { name: 'Reason (optional)' }), 'Paid');
+    await user.type(
+      within(dialog()).getByLabelText('Waive overdue days until (optional)'),
+      '2026-10-20',
+    );
+    await user.click(within(dialog()).getByRole('button', { name: 'Release hold' }));
     expect(await screen.findByText('Credit released')).toBeVisible();
+    expect(releaseBodies).toEqual([{}, { reason: 'Paid', waiveOverdueUntil: '2026-10-20' }]);
 
     await user.click(within(credit).getByRole('button', { name: 'Approve CR-000001' }));
     expect(

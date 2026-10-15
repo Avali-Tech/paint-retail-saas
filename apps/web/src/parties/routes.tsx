@@ -34,6 +34,19 @@ const NewCreditRequestPage = lazy(() =>
     default: module.NewCreditRequestPage,
   })),
 );
+const CreditApprovalsPage = lazy(() =>
+  import('../credit/CreditApprovalsPage.js').then((module) => ({
+    default: module.CreditApprovalsPage,
+  })),
+);
+const CreditApprovalPage = lazy(() =>
+  import('../credit/CreditApprovalPage.js').then((module) => ({
+    default: module.CreditApprovalPage,
+  })),
+);
+const SiteAccountPage = lazy(() =>
+  import('../credit/SiteAccountPage.js').then((module) => ({ default: module.SiteAccountPage })),
+);
 const EnrolPage = lazy(() =>
   import('../loyalty/EnrolPage.js').then((module) => ({ default: module.EnrolPage })),
 );
@@ -61,6 +74,9 @@ export function partyRoutes() {
       <Route path="credit-requests" element={guarded('credit:read', CreditRequestsPage)} />
       <Route path="credit-requests/new" element={guarded('credit:manage', NewCreditRequestPage)} />
       <Route path="credit-requests/:id" element={guarded('credit:read', CreditRequestPage)} />
+      <Route path="credit/approvals" element={guarded('credit:read', CreditApprovalsPage)} />
+      <Route path="credit/approvals/:id" element={guarded('credit:read', CreditApprovalPage)} />
+      <Route path="site-accounts/:id" element={guarded('credit:read', SiteAccountPage)} />
       <Route path="settings/credit" element={guarded('credit:read', CreditRulesPage)} />
       <Route path="settings/loyalty" element={guarded('loyalty:read', LoyaltySettingsPage)} />
       <Route path="loyalty/new" element={guarded('loyalty:manage', EnrolPage)} />

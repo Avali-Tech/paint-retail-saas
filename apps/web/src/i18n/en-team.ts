@@ -176,6 +176,7 @@ export const teamEn = {
       read: 'See credit limits and requests',
       manage: 'Ask for credit and put accounts on hold',
       approve: 'Approve credit, release holds and set the credit rules',
+      approveSale: 'Approve sales past the credit rules at manager level',
     },
     loyalty: { read: 'See loyalty points', manage: 'Enrol members, award and redeem points' },
     audit: { read: 'See the audit log' },
