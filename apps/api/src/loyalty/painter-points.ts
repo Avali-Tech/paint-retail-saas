@@ -41,7 +41,7 @@ const {
  * Called in the issuing or cancelling transaction.
  */
 
-/** Roles that earn painter points ([PO-13]: architects do not). */
+/** Roles that earn painter points ([PO-17]: architects do not). */
 export const EARNING_ROLES = ['painter', 'contractor'] as const;
 
 interface InvoiceRef {
