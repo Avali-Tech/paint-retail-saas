@@ -174,6 +174,7 @@ describe('accounts', () => {
       tier: null,
       nextTier: null,
       nextExpiry: null,
+      painterPoints: { earned: 0, takenBack: 0 },
       ledger: { items: [], total: 0 },
     });
   });

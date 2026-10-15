@@ -25,3 +25,4 @@ export {
   type CreditedLine,
   type WeightedLine,
 } from './reversal.js';
+export { ruleInForce, toEarnRule, type EarnRuleInput, type EarnRuleView } from './api.js';

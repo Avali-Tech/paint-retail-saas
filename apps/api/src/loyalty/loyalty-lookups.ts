@@ -1,6 +1,6 @@
 import { schema, type Transaction } from '@paint/db';
 import { pointLots, tierFor, type LoyaltyTier } from '@paint/shared';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 
 const { loyaltyAccounts, loyaltyLedger, loyaltySettings, organizationMembers, users } = schema;
 
@@ -57,6 +57,36 @@ export interface LoyaltySummary {
   readonly nextTier: (LoyaltyTier & { readonly pointsToGo: number }) | null;
   /** The next points to expire, if any. */
   readonly nextExpiry: { readonly points: number; readonly expiresOn: string } | null;
+  /**
+   * Painter points (P2-M36): earned as the influencer on other people's
+   * invoices, and taken back by their credit notes and cancellations.
+   */
+  readonly painterPoints: { readonly earned: number; readonly takenBack: number };
+}
+
+/** An account's painter points, earned and taken back. */
+export async function painterPointsOf(
+  tx: Transaction,
+  accountId: string,
+): Promise<LoyaltySummary['painterPoints']> {
+  // Take-backs name the invoice (cancelled) or one of its notes.
+  const result = await tx.execute<{ earned: string; taken_back: string }>(sql`
+    with earned as (
+      select tax_document_id from loyalty_ledger
+      where account_id = ${accountId} and kind = 'influencer'
+    )
+    select
+      coalesce(sum(points) filter (where kind = 'influencer'), 0) as earned,
+      coalesce(-sum(points) filter (where kind = 'adjust' and tax_document_id in (
+        select tax_document_id from earned
+        union all
+        select from_document_id from tax_document_links
+        where to_document_id in (select tax_document_id from earned)
+      )), 0) as taken_back
+    from loyalty_ledger
+    where account_id = ${accountId}`);
+  const [row] = result.rows as [{ earned: string; taken_back: string }];
+  return { earned: Number(row.earned), takenBack: Number(row.taken_back) };
 }
 
 /** The ledger of one account, oldest first; filtered by business explicitly for the worker. */
@@ -115,6 +145,7 @@ export async function loyaltySummaryOf(
     tier: current,
     nextTier: next,
     nextExpiry: pointLots(entries, today).nextExpiry,
+    painterPoints: row ? await painterPointsOf(tx, row.id) : { earned: 0, takenBack: 0 },
   };
 }
 

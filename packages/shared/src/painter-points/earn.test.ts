@@ -18,7 +18,7 @@ const BERGER = 'brand-berger';
 function rule(overrides: Partial<EarnRule> = {}): EarnRule {
   return {
     id: 'rule-1',
-    basis: 'per_rupee',
+    basis: 'value',
     points: 1,
     per: 10_000,
     brandId: null,
@@ -40,7 +40,7 @@ describe('lineMicroPoints', () => {
   });
 
   it('earns per litre of paint', () => {
-    const perLitre = rule({ basis: 'per_litre', points: 2, per: 1000 });
+    const perLitre = rule({ basis: 'litre', points: 2, per: 1000 });
     expect(lineMicroPoints(line({ millilitres: 20_000 }), perLitre)).toBe(40_000_000n);
     expect(lineMicroPoints(line({ millilitres: 900 }), perLitre)).toBe(1_800_000n);
     // Hardware has no litres, so a litre rule gives it nothing.
@@ -91,13 +91,13 @@ describe('bestRuleFor', () => {
 
   it('falls back to every-brand rules when the brand’s rules earn nothing on the line', () => {
     const general = rule({ id: 'general' });
-    const asianLitres = rule({ id: 'asian', brandId: ASIAN, basis: 'per_litre', per: 1000 });
+    const asianLitres = rule({ id: 'asian', brandId: ASIAN, basis: 'litre', per: 1000 });
     expect(bestRuleFor(line({ millilitres: 0 }), [general, asianLitres])?.rule).toBe(general);
   });
 
   it('takes the rule that earns most, then the lowest id', () => {
     const perRupee = rule({ id: 'b', points: 1 });
-    const perLitre = rule({ id: 'a', basis: 'per_litre', points: 1, per: 1000 });
+    const perLitre = rule({ id: 'a', basis: 'litre', points: 1, per: 1000 });
     // ₹1,000 = 10 points by value; 4 litres = 4 points by volume.
     expect(bestRuleFor(line({ millilitres: 4000 }), [perLitre, perRupee])?.rule).toBe(perRupee);
     // 20 litres = 20 points: volume wins.
@@ -188,7 +188,7 @@ describe('lineMillilitres', () => {
 describe('painter points exports', () => {
   it('are reachable from the package', () => {
     expect(shared.EARN_BASES).toBe(EARN_BASES);
-    expect(EARN_BASES).toEqual(['per_rupee', 'per_litre']);
+    expect(EARN_BASES).toEqual(['value', 'litre']);
     expect(typeof shared.earnInvoice).toBe('function');
     expect(typeof shared.reversalTarget).toBe('function');
   });

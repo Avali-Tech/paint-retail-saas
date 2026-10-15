@@ -36,6 +36,7 @@ import { idempotent } from './idempotency.js';
 import { indiaToday, loadDocument, type TaxDocumentRow } from './invoice-view.js';
 import { dispatchedByLine } from '../orders/dispatched.js';
 import { reverseLoyaltyForNote } from './loyalty-reversal.js';
+import { reverseInfluencerPointsForNote } from '../loyalty/painter-points.js';
 import { takeDocumentNumber } from './series.js';
 import type { CreditNoteInput, DebitNoteInput, SalesReturnInput } from './notes.schemas.js';
 import { adjustedSoFar, noteView, nth, salesReturnView } from './notes-view.js';
@@ -593,6 +594,13 @@ export class NoteIssueService {
         noteId: issued.id,
         noteNumber: number,
         creditedTaxablePaise: totals.taxablePaise,
+        memberId: auth.memberId,
+      });
+      await reverseInfluencerPointsForNote(tx, {
+        organizationId,
+        invoiceId: invoice.id,
+        noteId: issued.id,
+        noteNumber: number,
         memberId: auth.memberId,
       });
     }

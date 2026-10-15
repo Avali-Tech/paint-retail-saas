@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { Module } from '@nestjs/common';
+import { PointsNotices } from '../loyalty/points-notice.js';
 import { BillingSettingsController } from './billing-settings.controller.js';
 import { BillingSettingsService } from './billing-settings.service.js';
 import { InvoiceIssueService } from './invoice-issue.service.js';
@@ -21,6 +22,7 @@ import { NotesService } from './notes.service.js';
     BillingSettingsService,
     NoteIssueService,
     NotesService,
+    PointsNotices,
   ],
 })
 export class BillingModule {}

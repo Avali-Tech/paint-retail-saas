@@ -16,13 +16,13 @@ export const MICRO_POINTS = 1_000_000;
 /** A multiplier of ×1, in basis points. */
 export const MULTIPLIER_ONE_BPS = 10_000;
 
-export const EARN_BASES = ['per_rupee', 'per_litre'] as const;
+export const EARN_BASES = ['value', 'litre'] as const;
 export type EarnBasis = (typeof EARN_BASES)[number];
 
 /**
  * A rule: `points` for every `per` of the line's taxable value in paise
- * (`per_rupee`, e.g. 1 point per ₹100 is points 1, per 10,000) or of its paint
- * in millilitres (`per_litre`, e.g. 2 points per litre is points 2, per 1,000),
+ * (`value`, e.g. 1 point per ₹100 is points 1, per 10,000) or of its paint
+ * in millilitres (`litre`, e.g. 2 points per litre is points 2, per 1,000),
  * times the multiplier.
  */
 export interface EarnRule {
@@ -77,7 +77,7 @@ export function assertEarnRule(rule: EarnRule): void {
 export function lineMicroPoints(line: EarnLine, rule: EarnRule): bigint {
   assertPaise(line.taxablePaise);
   if (rule.brandId !== null && rule.brandId !== line.brandId) return 0n;
-  const amount = rule.basis === 'per_rupee' ? line.taxablePaise : line.millilitres;
+  const amount = rule.basis === 'value' ? line.taxablePaise : line.millilitres;
   if (amount <= 0) return 0n;
   return (
     (BigInt(amount) * BigInt(rule.points) * BigInt(rule.multiplierBps) * BigInt(MICRO_POINTS)) /

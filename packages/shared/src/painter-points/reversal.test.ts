@@ -26,7 +26,7 @@ describe('weighLines', () => {
 
   it('weighs each line by what it earned', () => {
     const earning = earnInvoice(lines, [
-      { id: 'r', basis: 'per_litre', points: 1, per: 1000, brandId: null, multiplierBps: 10_000 },
+      { id: 'r', basis: 'litre', points: 1, per: 1000, brandId: null, multiplierBps: 10_000 },
     ]);
     expect(weighLines(lines, earning)).toEqual([
       weighted('paint', 100_000, 20_000_000n),
@@ -144,7 +144,7 @@ function scenario(seed: number) {
   const brands = ['asian', 'berger', 'nerolac', null];
   const rules: EarnRule[] = Array.from({ length: r.int(1, 4) }, (_, i) => ({
     id: `rule-${String(i)}`,
-    basis: r.pick(['per_rupee', 'per_litre'] as const),
+    basis: r.pick(['value', 'litre'] as const),
     points: r.int(1, 5),
     per: r.pick([1, 100, 1000, 10_000, 30_000]),
     brandId: r.pick(brands),

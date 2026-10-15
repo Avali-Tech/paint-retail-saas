@@ -130,6 +130,8 @@ export async function reverseLoyaltyForNote(
     .from(loyaltyLedger)
     .where(
       and(
+        // This account's take-backs only: the influencer's (P2-M36) name the same notes.
+        eq(loyaltyLedger.accountId, earned.accountId),
         eq(loyaltyLedger.kind, 'adjust'),
         inArray(
           loyaltyLedger.taxDocumentId,
