@@ -7,6 +7,7 @@ import {
   sumTotals,
   type AgeingPage,
   type AgeingResult,
+  type MemberAccess,
   type ReceivablesSummaryView,
 } from '@paint/shared';
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
@@ -31,7 +32,7 @@ const salespeople = alias(organizationMembers, 'salesperson');
 const salespersonUsers = alias(users, 'salesperson_user');
 
 /** The scope's store filter, refused (404) for a store the member does not work at. */
-function checkedScope(auth: AuthContext, scope: AgeingScope): AgeingScope {
+function checkedScope(auth: MemberAccess, scope: AgeingScope): AgeingScope {
   if (scope.storeId !== undefined) storeScope(auth, stores.id, scope.storeId);
   return scope;
 }
@@ -39,7 +40,7 @@ function checkedScope(auth: AuthContext, scope: AgeingScope): AgeingScope {
 /** The ageing of every party in scope (store access checked), as of `scope.asOf`. */
 export async function ageBooks(
   tx: Transaction,
-  auth: AuthContext,
+  auth: MemberAccess,
   scope: AgeingScope,
 ): Promise<AgeingResult> {
   const input = await loadAgeing(tx, auth, checkedScope(auth, scope));

@@ -15,8 +15,9 @@ import {
   statementShareText,
   type PrintLanguage,
   type StatementData,
+  type StatementShareResult,
 } from '@paint/shared';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { errorMessage } from '../api/errors.js';
@@ -34,6 +35,145 @@ import { statementChoice, type StatementChoice } from './statement-logic.js';
 const FILTERS = ['from', 'to', 'lang'] as const;
 const LANGUAGES: readonly PrintLanguage[] = ['en', 'hi', 'te'];
 
+/**
+ * The statement's shared links (MVP 3 round 2a): when each was shared, whether it is
+ * still open and how often it was opened, and revoking one that should stop working.
+ */
+function SharedLinks({ partyId }: { readonly partyId: string }) {
+  const api = useApi();
+  const { t, label, date } = useI18n();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const links = useQuery({
+    queryKey: ['statement-links', partyId],
+    queryFn: ({ signal }) => api.messaging.statementLinks(partyId, signal),
+  });
+  const list = links.data ?? [];
+  return (
+    <div className="stack">
+      <h3 className="subheading">{t('statementShare.links')}</h3>
+      {list.length === 0 ? (
+        <p className="muted">{t('statementShare.noLinks')}</p>
+      ) : (
+        <ul className="record-list">
+          {list.slice(0, 5).map((link) => (
+            <li key={link.id}>
+              <span className="record-list__title">
+                {t('statementShare.linkMeta', {
+                  from: date(link.from),
+                  to: date(link.to),
+                  status: label('linkStatus', link.status),
+                  count: link.openedCount,
+                })}
+              </span>
+              {link.status === 'active' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t('statementShare.revokeName', {
+                    from: date(link.from),
+                    to: date(link.to),
+                  })}
+                  onClick={() => {
+                    void api.messaging
+                      .revokeStatementLink(link.id)
+                      .then(async () => {
+                        await queryClient.invalidateQueries({ queryKey: ['statement-links'] });
+                        toast({ title: t('statementShare.revoked'), tone: 'success' });
+                      })
+                      .catch((error: unknown) => {
+                        toast({ title: errorMessage(error), tone: 'danger' });
+                      });
+                  }}
+                >
+                  {t('statementShare.revoke')}
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * With a WhatsApp provider (MVP 3 round 2a): one click stores a link to the statement
+ * and queues the `statement_ready` message; without the customer's consent it offers
+ * WhatsApp with the link instead.
+ */
+function SendOnWhatsApp({
+  data,
+  choice,
+}: {
+  readonly data: StatementData;
+  readonly choice: StatementChoice;
+}) {
+  const api = useApi();
+  const { t } = useI18n();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [shared, setShared] = useState<StatementShareResult | null>(null);
+  const send = async () => {
+    setBusy(true);
+    try {
+      const result = await api.messaging.shareStatement(data.party.id, {
+        from: choice.from,
+        to: choice.to,
+        lang: choice.lang,
+        send: 'whatsapp',
+      });
+      await queryClient.invalidateQueries({ queryKey: ['statement-links'] });
+      if (result.message?.queued === true) {
+        setShared(null);
+        toast({ title: t('statementShare.sent'), tone: 'success' });
+      } else {
+        setShared(result);
+      }
+    } catch (error) {
+      toast({ title: errorMessage(error), tone: 'danger' });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <Button
+        loading={busy}
+        onClick={() => {
+          void send();
+        }}
+      >
+        {t('statementShare.send')}
+      </Button>
+      {shared !== null && (
+        <Alert
+          tone="warning"
+          action={
+            <a
+              {...buttonStyle('secondary', 'sm')}
+              href={
+                shared.waMeUrl ??
+                whatsappLink(null, statementShareText(data, choice.lang, shared.url))
+              }
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t('statementShare.open')}
+            </a>
+          }
+        >
+          {t('statementShare.notSent')}
+          <div>
+            {t('statementShare.link')}: <code>{shared.url}</code>
+          </div>
+        </Alert>
+      )}
+    </>
+  );
+}
+
 /** Download, print and the WhatsApp share: two clicks from the party, the second here. */
 function ShareCard({
   data,
@@ -47,6 +187,12 @@ function ShareCard({
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const period = { from: choice.from, to: choice.to };
+  // A server without a WhatsApp provider (or an older one) keeps the wa.me share.
+  const messaging = useQuery({
+    queryKey: ['messaging-status'],
+    queryFn: ({ signal }) => api.messaging.status(signal),
+  });
+  const provider = messaging.data?.whatsapp ?? null;
 
   /** The server's A4 PDF, saved through the browser; members only, no public link. */
   const download = async (after?: string) => {
@@ -68,19 +214,23 @@ function ShareCard({
         <p className="muted">{t('statement.shareHint')}</p>
         {data.party.phone === null && <Alert tone="info">{t('statement.noPhone')}</Alert>}
         <div className="row">
-          <a
-            {...buttonStyle('primary')}
-            href={whatsappLink(data.party.phone, statementShareText(data, choice.lang))}
-            target="_blank"
-            rel="noreferrer"
-            onClick={() => {
-              // WhatsApp opens through the link itself (no pop-up to block); the PDF to
-              // attach is saved at the same time.
-              void download(t('statement.saved'));
-            }}
-          >
-            {t('statement.whatsapp')}
-          </a>
+          {provider === null ? (
+            <a
+              {...buttonStyle('primary')}
+              href={whatsappLink(data.party.phone, statementShareText(data, choice.lang))}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => {
+                // WhatsApp opens through the link itself (no pop-up to block); the PDF to
+                // attach is saved at the same time.
+                void download(t('statement.saved'));
+              }}
+            >
+              {t('statement.whatsapp')}
+            </a>
+          ) : (
+            <SendOnWhatsApp data={data} choice={choice} />
+          )}
           <Button
             variant="secondary"
             loading={busy}
@@ -99,6 +249,7 @@ function ShareCard({
             {t('statement.print')}
           </Button>
         </div>
+        {provider !== null && <SharedLinks partyId={data.party.id} />}
       </div>
     </Card>
   );

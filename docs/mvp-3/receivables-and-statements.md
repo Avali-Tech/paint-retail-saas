@@ -41,14 +41,14 @@ day or more; "due this week" is the as-of day and the six after it.
 
 ## API and screens
 
-| Piece                                                  | Permission    | Notes                                                                                 |
-| ------------------------------------------------------ | ------------- | ------------------------------------------------------------------------------------- |
-| `GET /receivables/summary`                             | `credit:read` | Total outstanding, paid ahead, due today / this week, overdue, credit used, top 5     |
-| `GET /receivables/ageing`                              | `credit:read` | By customer, salesperson (`customer_profiles.assigned_member_id`) or store            |
-| Reports `receivables-ageing`, `receivables-open-bills` | `credit:read` | CSV through the reports framework, which now takes computed reports                   |
-| `GET /parties/:id/statement` and `.pdf`                | `sales:read`  | As the party ledger; opening, entries, closing, ageing and bills due on the last day  |
-| `/receivables`, dashboard tile                         | `credit:read` | Customer rows link to the ledger and the statement; salesperson and store rows narrow |
-| `/parties/:id/statement`                               | `sales:read`  | A4 preview, print, PDF, Share on WhatsApp                                             |
+| Piece                                                  | Permission         | Notes                                                                                 |
+| ------------------------------------------------------ | ------------------ | ------------------------------------------------------------------------------------- |
+| `GET /receivables/summary`                             | `receivables:read` | Total outstanding, paid ahead, due today / this week, overdue, credit used, top 5     |
+| `GET /receivables/ageing`                              | `receivables:read` | By customer, salesperson (`customer_profiles.assigned_member_id`) or store            |
+| Reports `receivables-ageing`, `receivables-open-bills` | `receivables:read` | CSV through the reports framework, which now takes computed reports                   |
+| `GET /parties/:id/statement` and `.pdf`                | `sales:read`       | As the party ledger; opening, entries, closing, ageing and bills due on the last day  |
+| `/receivables`, dashboard tile                         | `receivables:read` | Customer rows link to the ledger and the statement; salesperson and store rows narrow |
+| `/parties/:id/statement`                               | `sales:read`       | A4 preview, print, PDF, Share on WhatsApp                                             |
 
 Store scope: members not at every store see the parties they may see (`canSeeParty`: no home
 store, or one of theirs) with their whole balances; a store filter limits bills and payments
@@ -67,8 +67,8 @@ the PDF to attach. A link opens WhatsApp without a pop-up to block.
 
 ## Later
 
-- **Signed, expiring public statement link** so the WhatsApp message carries the PDF itself:
-  needs a token table (migration) and a public route; then a BSP (P2-M32) can send it.
-- A `receivables:read` permission, granted to owner, admin, branch manager and sales
-  executive by a data migration; until then receivables use `credit:read`.
+- ~~Signed, expiring public statement link~~ and ~~`receivables:read`~~: built in round 2a as a
+  stored, revocable link (`statement_links`, `GET /public/statements/:token`) and migration 0076;
+  see [credit-and-receivables.md](credit-and-receivables.md) §6.4. Until round 2a the permissions
+  in the table above were `credit:read`.
 - Web Share API (share the PDF file straight into WhatsApp on phones).

@@ -6,7 +6,9 @@ import { call, createBusiness, signInWithPassword, uniquePhone, type Business } 
 
 // Receivables and statements (roadmap P2-M10, P2-M12): what a contractor owes, aged,
 // with the way to the ledger; and the contractor's statement, produced and shared on
-// WhatsApp in two clicks from the customer record (short of WhatsApp itself).
+// WhatsApp from the customer record. The end-to-end API has a WhatsApp provider (log),
+// so sharing stores a link (round 2a); a customer who has not agreed to messages gets
+// it through wa.me (collections.spec.ts sends it to one who has).
 
 const TELANGANA_GSTIN = '36AABCS1429B1ZV';
 
@@ -89,9 +91,7 @@ async function signIn(page: Page, shop: Books) {
   await expect(page.locator('.shell__header')).toBeVisible();
 }
 
-test('a contractor’s statement is produced and shared on WhatsApp in two clicks', async ({
-  page,
-}) => {
+test('a contractor’s statement is produced and shared on WhatsApp as a link', async ({ page }) => {
   const shop = await books('Statement Paints');
   // WhatsApp itself stays out of the test: its page answers from here.
   await page
@@ -116,11 +116,13 @@ test('a contractor’s statement is produced and shared on WhatsApp in two click
   await expect(paper).toContainText('Over 90 days136.00');
   await expectUsable(page);
 
-  // Click 2: WhatsApp opens with the message, and the PDF to attach is saved.
-  const [whatsapp, pdf] = await Promise.all([
+  // Click 2: the link is stored; without the customer's consent to WhatsApp messages
+  // the message goes through wa.me, carrying the link to the PDF.
+  await page.getByRole('button', { name: 'Send on WhatsApp' }).click();
+  await expect(page.getByText(/has not agreed to WhatsApp messages/)).toBeVisible();
+  const [whatsapp] = await Promise.all([
     page.waitForEvent('popup'),
-    page.waitForEvent('download'),
-    page.getByRole('link', { name: 'Share on WhatsApp' }).click(),
+    page.getByRole('link', { name: 'Open WhatsApp with the link' }).click(),
   ]);
   const digits = shop.contractor.phone.replace(/\D/g, '').slice(-10);
   expect(whatsapp.url()).toMatch(new RegExp(`^https://wa\\.me/91${digits}\\?text=`));
@@ -128,7 +130,16 @@ test('a contractor’s statement is produced and shared on WhatsApp in two click
   expect(message).toMatch(
     /^Dear Deccan Contractors, your statement from Statement Paints for 01 Apr \d{4} to \d{2} \w{3} \d{4}: balance due ₹136\.00 as of/,
   );
-  expect(message).toContain('Of this, ₹136.00 is due now. The statement PDF is attached.');
+  expect(message).toMatch(
+    /Of this, ₹136\.00 is due now\. View the statement: http\S+\/api\/public\/statements\/[\w-]{43}$/,
+  );
+  await expect(page.getByText(/Active · opened 0 times/)).toBeVisible();
+
+  // The PDF still downloads for printing or attaching by hand.
+  const [pdf] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Download PDF' }).click(),
+  ]);
   expect(pdf.suggestedFilename()).toMatch(
     /^Statement-Deccan-Contractors-\d{4}-04-01-\d{4}-\d{2}-\d{2}\.pdf$/,
   );
@@ -137,7 +148,6 @@ test('a contractor’s statement is produced and shared on WhatsApp in two click
       .subarray(0, 5)
       .toString(),
   ).toBe('%PDF-');
-  await expect(page.getByText('PDF saved: attach it in WhatsApp')).toBeVisible();
 });
 
 test('the receivables screen ages what customers owe and leads to the ledger', async ({ page }) => {
@@ -182,6 +192,6 @@ test('receivables and the statement fit a phone @phone', async ({ page }) => {
   );
   await expectUsable(page);
   await page.goto(`/parties/${shop.contractor.id}/statement`);
-  await expect(page.getByRole('link', { name: 'Share on WhatsApp' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send on WhatsApp' })).toBeVisible();
   await expectUsable(page);
 });

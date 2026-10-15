@@ -11,7 +11,8 @@ import { CatalogModule } from './catalog/catalog.module.js';
 import { ContractsModule } from './contracts/contracts.module.js';
 import { CreditModule } from './credit/credit.module.js';
 import { authSettingsFrom } from './auth/auth.tokens.js';
-import { smsSenderFor, type SmsSender } from './auth/sms.js';
+import { LoggingSmsSender, smsSenderFor, type SmsSender } from './auth/sms.js';
+import { CollectionsModule } from './collections/collections.module.js';
 import type { AppConfig } from './config.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { DatabaseModule } from './database/database.module.js';
@@ -22,6 +23,8 @@ import { InventoryModule } from './inventory/inventory.module.js';
 import { LeadsModule } from './leads/leads.module.js';
 import { LoyaltyModule } from './loyalty/loyalty.module.js';
 import { MembersModule } from './members/members.module.js';
+import { messagingProviderFor } from './messaging/messaging-provider.js';
+import { MessagingModule } from './messaging/messaging.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { ObservabilityModule } from './observability/index.js';
 import { OnboardingModule } from './onboarding/onboarding.module.js';
@@ -46,13 +49,16 @@ import { TransfersModule } from './transfers/transfers.module.js';
 export interface AppModuleOptions {
   readonly config: AppConfig;
   readonly connection: DatabaseConnection;
-  /** Replaces the configured SMS sender (tests capture codes this way). */
+  /** Replaces the configured SMS sender (tests capture codes and messages this way). */
   readonly smsSender?: SmsSender;
 }
 
 @Module({})
 export class AppModule {
   static forRoot({ config, connection, smsSender }: AppModuleOptions): DynamicModule {
+    const whatsapp = messagingProviderFor(config.messagingProvider);
+    // Party SMS goes where sign-in codes go: the log in development, nowhere until a provider exists.
+    const sms = smsSender ?? (config.smsProvider === 'log' ? new LoggingSmsSender() : null);
     return {
       module: AppModule,
       imports: [
@@ -69,6 +75,7 @@ export class AppModule {
           smsSender: smsSender ?? smsSenderFor(config.smsProvider),
         }),
         CatalogModule,
+        CollectionsModule,
         ContractsModule,
         CreditModule,
         DocumentsModule.forRoot(config.documents),
@@ -78,10 +85,16 @@ export class AppModule {
         LeadsModule,
         LoyaltyModule,
         MembersModule,
+        MessagingModule.forRoot({
+          whatsapp: whatsapp?.name ?? null,
+          sms: sms !== null,
+          email: config.email !== null,
+        }),
         NotificationsModule.forRoot({
           appUrl: config.appUrl,
           email: config.email,
           workerIntervalSeconds: config.workerIntervalSeconds,
+          messaging: { whatsapp, sms },
         }),
         OnboardingModule,
         OrdersModule,
@@ -96,7 +109,7 @@ export class AppModule {
         ReorderModule,
         ReportsModule,
         SearchModule,
-        StatementsModule,
+        StatementsModule.forRoot({ publicApiUrl: config.publicApiUrl }),
         StockCountsModule,
         StoresModule,
         TaxModule,

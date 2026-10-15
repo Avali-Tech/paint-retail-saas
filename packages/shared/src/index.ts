@@ -444,6 +444,8 @@ export * from './invoice-print/index.js';
 export * from './tally/index.js';
 export * from './estimator/index.js';
 export * from './receivables/index.js';
+export * from './collections/index.js';
+export * from './messaging/index.js';
 export {
   assertPaise,
   formatINR,

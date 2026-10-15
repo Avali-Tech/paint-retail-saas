@@ -175,6 +175,7 @@ export const partyEnumsEn = {
     email: 'Email',
     follow_up: 'Follow-up',
     note: 'Note',
+    promise_to_pay: 'Promise to pay',
   },
   activityStatus: { scheduled: 'Scheduled', done: 'Done', cancelled: 'Cancelled' },
   documentCategories: {

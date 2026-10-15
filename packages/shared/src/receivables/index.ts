@@ -48,6 +48,14 @@ export {
   type TopCustomerView,
 } from './api.js';
 export {
+  STATEMENT_LINK_DAYS,
+  STATEMENT_TOKEN_PATTERN,
+  type ShareStatementBody,
+  type StatementLinkStatus,
+  type StatementLinkView,
+  type StatementShareResult,
+} from './links.js';
+export {
   STATEMENT_LABEL_KEYS,
   STATEMENT_LABELS,
   statementLabels,

@@ -5,10 +5,10 @@ import type { AgeingTotals, CreditUtilisation, DueSummary, ReceivableKind } from
 // The receivables and statement API (roadmap P2-M10, P2-M12). Amounts in paise.
 
 /**
- * Who sees receivables: the people who see credit. A dedicated `receivables:read`
- * would need a data migration to grant it to existing roles, so it waits for one.
+ * Who sees receivables and the collections worklist (MVP 3 round 2a, spec §6.4):
+ * granted to owners, admins, branch managers and sales executives (migration 0076).
  */
-export const RECEIVABLES_PERMISSION = 'credit:read' as const satisfies Permission;
+export const RECEIVABLES_PERMISSION = 'receivables:read' as const satisfies Permission;
 /** Who prints a party's statement: the people who see its ledger (GET /parties/:id/ledger). */
 export const STATEMENT_PERMISSION = 'sales:read' as const satisfies Permission;
 /** Entries one statement prints at most; a longer period is refused (pick a shorter one). */

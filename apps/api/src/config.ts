@@ -8,7 +8,10 @@ export type LogLevel = (typeof LOG_LEVELS)[number];
 
 export const SMS_PROVIDERS = ['disabled', 'log'] as const;
 export const EMAIL_PROVIDERS = ['disabled', 'smtp'] as const;
+/** WhatsApp to parties (P2-M32): a BSP adapter joins `log` when [PO-1] is answered. */
+export const MESSAGING_PROVIDERS = ['disabled', 'log'] as const;
 export type SmsProvider = (typeof SMS_PROVIDERS)[number];
+export type MessagingProvider = (typeof MESSAGING_PROVIDERS)[number];
 
 const environmentSchema = z
   .object({
@@ -44,10 +47,18 @@ const environmentSchema = z
     PLATFORM_BOOTSTRAP_TOKEN: z.string().min(32, 'must be at least 32 characters').optional(),
     /** The plan a business starts on when it signs itself up. */
     SIGNUP_PLAN: z.enum(PLAN_KEYS).default('trial'),
+    /** How WhatsApp messages to parties are sent; "log" prints them (not in production). */
+    MESSAGING_PROVIDER: z.enum(MESSAGING_PROVIDERS).default('disabled'),
+    /** The API's public address, for links sent to customers; default APP_URL + /api. */
+    PUBLIC_API_URL: z.url({ protocol: /^https?$/ }).optional(),
   })
   .refine((env) => !(env.NODE_ENV === 'production' && env.SMS_PROVIDER === 'log'), {
     path: ['SMS_PROVIDER'],
     message: '"log" prints sign-in codes to the console and is not allowed in production',
+  })
+  .refine((env) => !(env.NODE_ENV === 'production' && env.MESSAGING_PROVIDER === 'log'), {
+    path: ['MESSAGING_PROVIDER'],
+    message: '"log" prints customer messages to the console and is not allowed in production',
   })
   .refine((env) => env.NODE_ENV !== 'production' || env.STORAGE_BUCKET !== undefined, {
     path: ['STORAGE_BUCKET'],
@@ -94,6 +105,10 @@ export interface AppConfig {
   readonly platformBootstrapToken: string | null;
   /** The plan a business starts on when it signs itself up. */
   readonly signupPlan: PlanKey;
+  /** How WhatsApp messages to parties are sent. */
+  readonly messagingProvider: MessagingProvider;
+  /** The API's public address (no trailing slash), for links sent to customers. */
+  readonly publicApiUrl: string;
 }
 
 export interface DocumentsConfig {
@@ -120,6 +135,7 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
     throw new ConfigError(`Invalid environment variables:\n  ${problems.join('\n  ')}`);
   }
   const { data } = result;
+  const appUrl = data.APP_URL.replace(/\/$/, '');
   return {
     nodeEnv: data.NODE_ENV,
     host: data.HOST,
@@ -147,7 +163,7 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
             // Required with STORAGE_BUCKET (checked above).
             clamav: { host: String(data.CLAMAV_HOST), port: data.CLAMAV_PORT },
           },
-    appUrl: data.APP_URL.replace(/\/$/, ''),
+    appUrl,
     // Both are required with EMAIL_PROVIDER=smtp (checked above).
     email:
       data.EMAIL_PROVIDER === 'smtp'
@@ -156,5 +172,7 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
     workerIntervalSeconds: data.WORKER_INTERVAL_SECONDS,
     platformBootstrapToken: data.PLATFORM_BOOTSTRAP_TOKEN ?? null,
     signupPlan: data.SIGNUP_PLAN,
+    messagingProvider: data.MESSAGING_PROVIDER,
+    publicApiUrl: (data.PUBLIC_API_URL ?? `${appUrl}/api`).replace(/\/$/, ''),
   };
 }

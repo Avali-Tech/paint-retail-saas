@@ -1,4 +1,4 @@
-import type { StatementQuery } from '@paint/shared';
+import type { ShareStatementBody, StatementQuery } from '@paint/shared';
 import { z } from 'zod';
 
 const isoDate = z.iso.date('Use a date like 2026-04-01');
@@ -19,3 +19,17 @@ export const statementPdfQuerySchema = z
     path: ['to'],
   });
 export type StatementPdfQueryInput = z.output<typeof statementPdfQuerySchema>;
+
+/** Sharing a statement as a stored link (MVP 3 round 2a, spec §6.4). */
+export const shareStatementSchema = z
+  .object({
+    from: isoDate,
+    to: isoDate,
+    lang: z.enum(['en', 'hi', 'te']).default('en'),
+    send: z.literal('whatsapp').optional(),
+  })
+  .refine((body) => body.from <= body.to, {
+    message: 'The end date cannot be before the start date',
+    path: ['to'],
+  }) satisfies z.ZodType<ShareStatementBody>;
+export type ShareStatementInput = z.output<typeof shareStatementSchema>;

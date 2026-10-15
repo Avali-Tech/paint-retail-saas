@@ -1735,6 +1735,7 @@ export const notificationEvent = pgEnum('notification_event', [
   'credit_approval_requested',
   'credit_approval_decided',
   'credit_hold_applied',
+  'promise_broken',
 ]);
 
 /** An in-app notification for one member. */
@@ -2225,6 +2226,8 @@ export const activityType = pgEnum('activity_type', [
   'email',
   'follow_up',
   'note',
+  // A customer's promise to pay (P2-M11); the promise itself is in promises_to_pay.
+  'promise_to_pay',
 ]);
 
 /** Records an activity can be about; customers, contractors, dealers and suppliers are parties. */
@@ -2265,6 +2268,8 @@ export const activities = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    // For composite foreign keys (promises_to_pay.activity_id, MVP 3).
+    unique('activities_organization_id_id_unique').on(table.organizationId, table.id),
     index('activities_record_idx').on(table.organizationId, table.recordType, table.recordId),
     index('activities_assignee_open_idx')
       .on(table.assignedMemberId, table.dueAt)
@@ -2730,8 +2735,9 @@ export const loyaltyAccounts = pgTable(
 
 /**
  * Why points moved: a purchase recorded by hand (until billing exists), a
- * manual or campaign award, a redemption, an adjustment with a reason, or
- * expiry of unused points.
+ * manual or campaign award, a redemption, an adjustment with a reason, expiry
+ * of unused points, or points the influencer (painter) of an invoice earned by
+ * the earn rules (P2-M36).
  */
 export const loyaltyEntryKind = pgEnum('loyalty_entry_kind', [
   'purchase',
@@ -2740,6 +2746,7 @@ export const loyaltyEntryKind = pgEnum('loyalty_entry_kind', [
   'redeem',
   'adjust',
   'expire',
+  'influencer',
 ]);
 
 /**
@@ -2798,16 +2805,28 @@ export const loyaltyLedger = pgTable(
         when 'adjust' then ${table.points} <> 0
         else ${table.points} > 0 end`,
     ),
+    // `kind::text` where a rule names 'influencer': a value added to an enum cannot
+    // be cast to in the transaction that adds it, and migrations run in one.
     check(
       'loyalty_ledger_purchase',
       sql`(${table.kind} <> 'purchase' or num_nonnulls(${table.manualPurchasePaise}, ${table.taxDocumentId}) = 1)
         and (${table.manualPurchasePaise} is null or (${table.kind} = 'purchase' and ${table.manualPurchasePaise} > 0))
-        and (${table.taxDocumentId} is null or ${table.kind} in ('purchase', 'adjust'))`,
+        and (${table.taxDocumentId} is null or ${table.kind}::text in ('purchase', 'adjust', 'influencer'))`,
+    ),
+    // Influencer points always name the invoice they were earned on.
+    check(
+      'loyalty_ledger_influencer',
+      sql`${table.kind}::text <> 'influencer' or ${table.taxDocumentId} is not null`,
     ),
     // One purchase entry per invoice: issuing never earns twice.
     uniqueIndex('loyalty_ledger_invoice_purchase_unique')
       .on(table.taxDocumentId)
       .where(sql`${table.kind} = 'purchase' and ${table.taxDocumentId} is not null`),
+    // Nor does it earn its influencer twice. An index predicate must be immutable,
+    // which `kind::text` is not: migration 0072 defines loyalty_is_influencer().
+    uniqueIndex('loyalty_ledger_invoice_influencer_unique')
+      .on(table.taxDocumentId)
+      .where(sql`loyalty_is_influencer(${table.kind})`),
     index('loyalty_ledger_tax_document_idx')
       .on(table.organizationId, table.taxDocumentId)
       .where(sql`${table.taxDocumentId} is not null`),
@@ -2818,7 +2837,7 @@ export const loyaltyLedger = pgTable(
     }).onDelete('restrict'),
     check(
       'loyalty_ledger_reference',
-      sql`${table.kind} not in ('purchase', 'campaign') or ${table.reference} is not null`,
+      sql`${table.kind}::text not in ('purchase', 'campaign', 'influencer') or ${table.reference} is not null`,
     ),
     check(
       'loyalty_ledger_adjust_reason',
@@ -2830,6 +2849,88 @@ export const loyaltyLedger = pgTable(
       sql`(${table.kind} = 'expire') = (${table.createdByMemberId} is null)`,
     ),
     pgPolicy('loyalty_ledger_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** What an earn rule counts: taxable value (₹) or litres of paint. */
+export const loyaltyEarnBasis = pgEnum('loyalty_earn_basis', ['value', 'litre']);
+
+/**
+ * How the influencer (painter or contractor) of an invoice earns points (P2-M36,
+ * docs/mvp-3/credit-and-receivables.md §6.5): `points` for every `per_paise` of
+ * a line's taxable value, or for every `per_millilitres` of paint on it, times
+ * `multiplier_bps` ÷ 10,000. A rule with a brand applies to that brand's lines
+ * only; one without applies to every line. The best matching active rule per
+ * line wins (the earning code decides "best"). Audited.
+ */
+export const loyaltyEarnRules = pgTable(
+  'loyalty_earn_rules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    name: text('name').notNull(),
+    basis: loyaltyEarnBasis('basis').notNull(),
+    points: integer('points').notNull(),
+    /** Value basis: points per this many paise of taxable value (10,000 = per ₹100). */
+    perPaise: bigint('per_paise', { mode: 'number' }),
+    /** Litre basis: points per this many millilitres (1,000 = per litre). */
+    perMillilitres: integer('per_millilitres'),
+    /** Only lines of this brand; null = every brand. */
+    brandId: uuid('brand_id'),
+    /** Basis points: 10,000 = ×1, 20,000 = ×2 (a brand's double points). */
+    multiplierBps: integer('multiplier_bps').notNull().default(10_000),
+    /** India dates the rule applies on (by invoice date); null = open-ended. */
+    validFrom: date('valid_from', { mode: 'string' }),
+    validUntil: date('valid_until', { mode: 'string' }),
+    isActive: boolean('is_active').notNull().default(true),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique('loyalty_earn_rules_organization_id_id_unique').on(table.organizationId, table.id),
+    uniqueIndex('loyalty_earn_rules_organization_name_unique').on(
+      table.organizationId,
+      sql`lower(${table.name})`,
+    ),
+    index('loyalty_earn_rules_brand_idx').on(table.organizationId, table.brandId),
+    foreignKey({
+      name: 'loyalty_earn_rules_organization_fk',
+      columns: [table.organizationId],
+      foreignColumns: [organizations.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'loyalty_earn_rules_brand_fk',
+      columns: [table.organizationId, table.brandId],
+      foreignColumns: [brands.organizationId, brands.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'loyalty_earn_rules_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'loyalty_earn_rules_name',
+      sql`${table.name} = btrim(${table.name}) and char_length(${table.name}) between 1 and 100`,
+    ),
+    check('loyalty_earn_rules_points_positive', sql`${table.points} > 0`),
+    check(
+      'loyalty_earn_rules_basis',
+      sql`(${table.basis} = 'value') = (${table.perPaise} is not null)
+        and (${table.basis} = 'litre') = (${table.perMillilitres} is not null)
+        and (${table.perPaise} is null or ${table.perPaise} > 0)
+        and (${table.perMillilitres} is null or ${table.perMillilitres} > 0)`,
+    ),
+    check('loyalty_earn_rules_multiplier', sql`${table.multiplierBps} between 1 and 1000000`),
+    check(
+      'loyalty_earn_rules_period',
+      sql`${table.validFrom} is null or ${table.validUntil} is null or ${table.validFrom} <= ${table.validUntil}`,
+    ),
+    pgPolicy('loyalty_earn_rules_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,
@@ -5984,6 +6085,547 @@ export const creditHoldRuns = pgTable(
     }).onDelete('cascade'),
     check('credit_hold_runs_held_count', sql`${table.heldCount} >= 0`),
     pgPolicy('credit_hold_runs_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+// ---------------------------------------------------------------------------
+// MVP 3 round 2a: collections (P2-M11), party messaging (P2-M32) and stored
+// statement links (P2-M12); docs/mvp-3/credit-and-receivables.md §3.5.
+// ---------------------------------------------------------------------------
+
+/** Where a promise to pay stands: open until its date, then kept or broken. */
+export const promiseStatus = pgEnum('promise_status', ['open', 'kept', 'broken', 'cancelled']);
+
+/**
+ * A customer's promise to pay an amount by a date (P2-M11). Kept when payments
+ * received from the day it was made to its date, cheques not bounced, cover the
+ * amount; otherwise the nightly collections job marks it broken and escalates.
+ * One open promise per party. Moves forward only (trigger); audited.
+ */
+export const promisesToPay = pgTable(
+  'promises_to_pay',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    partyId: uuid('party_id').notNull(),
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
+    /** India date the money was promised for. */
+    promisedOn: date('promised_on', { mode: 'string' }).notNull(),
+    /** India date the promise was made; payments from this day count. */
+    madeOn: date('made_on', { mode: 'string' })
+      .notNull()
+      .default(sql`(now() at time zone 'Asia/Kolkata')::date`),
+    status: promiseStatus('status').notNull().default('open'),
+    note: text('note'),
+    /** The `promise_to_pay` activity on the party's timeline. */
+    activityId: uuid('activity_id'),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Payments counted when it was settled (kept or broken). */
+    paidPaise: bigint('paid_paise', { mode: 'number' }),
+    /** When it was kept, broken or cancelled; null while open. */
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    /** Who cancelled it; null for the job's kept / broken. */
+    closedByMemberId: uuid('closed_by_member_id'),
+    cancelReason: text('cancel_reason'),
+  },
+  (table) => [
+    unique('promises_to_pay_organization_id_id_unique').on(table.organizationId, table.id),
+    uniqueIndex('promises_to_pay_one_open_per_party')
+      .on(table.partyId)
+      .where(sql`${table.status} = 'open'`),
+    index('promises_to_pay_party_idx').on(table.organizationId, table.partyId, table.createdAt),
+    index('promises_to_pay_open_due_idx')
+      .on(table.organizationId, table.promisedOn)
+      .where(sql`${table.status} = 'open'`),
+    foreignKey({
+      name: 'promises_to_pay_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'promises_to_pay_activity_fk',
+      columns: [table.organizationId, table.activityId],
+      foreignColumns: [activities.organizationId, activities.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'promises_to_pay_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'promises_to_pay_closed_by_fk',
+      columns: [table.organizationId, table.closedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('promises_to_pay_amount_positive', sql`${table.amountPaise} > 0`),
+    check('promises_to_pay_dates', sql`${table.promisedOn} >= ${table.madeOn}`),
+    check(
+      'promises_to_pay_closed',
+      sql`(${table.status} = 'open') = (${table.closedAt} is null)
+        and (${table.status} in ('kept', 'broken')) = (${table.paidPaise} is not null)
+        and (${table.status} = 'cancelled') = (${table.cancelReason} is not null)
+        and (${table.status} = 'cancelled') = (${table.closedByMemberId} is not null)
+        and (${table.paidPaise} is null or ${table.paidPaise} >= 0)`,
+    ),
+    check(
+      'promises_to_pay_text_lengths',
+      sql`char_length(${table.note}) <= 1000 and char_length(${table.cancelReason}) between 1 and 500`,
+    ),
+    pgPolicy('promises_to_pay_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * A broken promise raised to the people who can act (P2-M11): the party's
+ * salesperson's branch managers and the party's store `credit:approve` holders.
+ * One per promise. Never edited except to acknowledge it, once (trigger); audited.
+ */
+export const collectionEscalations = pgTable(
+  'collection_escalations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    partyId: uuid('party_id').notNull(),
+    promiseId: uuid('promise_id').notNull(),
+    /** India date it was raised. */
+    raisedOn: date('raised_on', { mode: 'string' })
+      .notNull()
+      .default(sql`(now() at time zone 'Asia/Kolkata')::date`),
+    /** Members told, for the record. */
+    notifiedCount: integer('notified_count').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    acknowledgedByMemberId: uuid('acknowledged_by_member_id'),
+    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+    acknowledgeNote: text('acknowledge_note'),
+  },
+  (table) => [
+    unique('collection_escalations_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('collection_escalations_promise_unique').on(table.promiseId),
+    index('collection_escalations_open_idx')
+      .on(table.organizationId, table.createdAt)
+      .where(sql`${table.acknowledgedAt} is null`),
+    index('collection_escalations_party_idx').on(table.organizationId, table.partyId),
+    foreignKey({
+      name: 'collection_escalations_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'collection_escalations_promise_fk',
+      columns: [table.organizationId, table.promiseId],
+      foreignColumns: [promisesToPay.organizationId, promisesToPay.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'collection_escalations_acknowledged_by_fk',
+      columns: [table.organizationId, table.acknowledgedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('collection_escalations_notified_count', sql`${table.notifiedCount} >= 0`),
+    check(
+      'collection_escalations_acknowledged',
+      sql`(${table.acknowledgedAt} is null) = (${table.acknowledgedByMemberId} is null)
+        and (${table.acknowledgeNote} is null or ${table.acknowledgedAt} is not null)
+        and char_length(${table.acknowledgeNote}) between 1 and 1000`,
+    ),
+    pgPolicy('collection_escalations_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * One collections run per business per India day (P2-M11): promises settled,
+ * escalations raised and reminders queued. Append-only, like credit_hold_runs.
+ */
+export const collectionRuns = pgTable(
+  'collection_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    runOn: date('run_on', { mode: 'string' })
+      .notNull()
+      .default(sql`(now() at time zone 'Asia/Kolkata')::date`),
+    ranAt: timestamp('ran_at', { withTimezone: true }).notNull().defaultNow(),
+    keptCount: integer('kept_count').notNull(),
+    brokenCount: integer('broken_count').notNull(),
+    remindersQueued: integer('reminders_queued').notNull(),
+  },
+  (table) => [
+    unique('collection_runs_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('collection_runs_daily_unique').on(table.organizationId, table.runOn),
+    foreignKey({
+      name: 'collection_runs_organization_fk',
+      columns: [table.organizationId],
+      foreignColumns: [organizations.id],
+    }).onDelete('cascade'),
+    check(
+      'collection_runs_counts',
+      sql`${table.keptCount} >= 0 and ${table.brokenCount} >= 0 and ${table.remindersQueued} >= 0`,
+    ),
+    pgPolicy('collection_runs_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** How a message reaches a party. */
+export const messageChannel = pgEnum('message_channel', ['whatsapp', 'sms', 'email']);
+
+/** The languages messages and statements are written in. */
+export const messageLanguage = pgEnum('message_language', ['en', 'hi', 'te']);
+
+/**
+ * When payment reminders go out (P2-M11): `offset_days` from a bill's due date
+ * (negative = before it, 0 = on the day), on the channels listed. No rows = no
+ * reminders. Audited.
+ */
+export const reminderSchedules = pgTable(
+  'reminder_schedules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    offsetDays: integer('offset_days').notNull(),
+    channels: messageChannel('channels').array().notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique('reminder_schedules_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('reminder_schedules_offset_unique').on(table.organizationId, table.offsetDays),
+    foreignKey({
+      name: 'reminder_schedules_organization_fk',
+      columns: [table.organizationId],
+      foreignColumns: [organizations.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'reminder_schedules_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('reminder_schedules_offset', sql`${table.offsetDays} between -30 and 90`),
+    check(
+      'reminder_schedules_channels',
+      sql`cardinality(${table.channels}) between 1 and 3 and array_position(${table.channels}, null) is null`,
+    ),
+    pgPolicy('reminder_schedules_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const consentState = pgEnum('consent_state', ['granted', 'withdrawn']);
+
+/** How consent was given or withdrawn (spec §6.2, after draft PR #51 CN-2). */
+export const consentMethod = pgEnum('consent_method', [
+  'counter_with_notice',
+  'signed_form',
+  'web_form',
+  'whatsapp_reply',
+]);
+
+/**
+ * A party's consent to messages on one channel at one address (P2-M32, [CA-3],
+ * DPDP Act 2023 ss.5–7). Append-only: the current state is the latest row per
+ * (party, channel); a message is sent only when that row is `granted` for the
+ * address it goes to, checked when it is sent. Audited.
+ */
+export const messagingConsents = pgTable(
+  'messaging_consents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    partyId: uuid('party_id').notNull(),
+    channel: messageChannel('channel').notNull(),
+    /** E.164 mobile for WhatsApp and SMS, lowercase address for email. */
+    address: text('address').notNull(),
+    state: consentState('state').notNull(),
+    method: consentMethod('method').notNull(),
+    /** The notice shown, e.g. "2026-10"; and the language it was shown and messages go in. */
+    noticeVersion: text('notice_version').notNull(),
+    language: messageLanguage('language').notNull(),
+    /** Null when the party withdrew by replying (STOP). */
+    recordedByMemberId: uuid('recorded_by_member_id'),
+    /** Clock time, so two records in one transaction keep their order. */
+    recordedAt: timestamp('recorded_at', { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (table) => [
+    unique('messaging_consents_organization_id_id_unique').on(table.organizationId, table.id),
+    index('messaging_consents_party_idx').on(
+      table.organizationId,
+      table.partyId,
+      table.channel,
+      table.recordedAt,
+    ),
+    foreignKey({
+      name: 'messaging_consents_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'messaging_consents_recorded_by_fk',
+      columns: [table.organizationId, table.recordedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'messaging_consents_address',
+      sql`case ${table.channel} when 'email' then ${table.address} = lower(${table.address}) and ${table.address} ~ '^[^@[:space:]]+@[^@[:space:]]+$'
+        else ${table.address} ~ '^\\+[1-9][0-9]{7,14}$' end`,
+    ),
+    check(
+      'messaging_consents_member',
+      sql`${table.recordedByMemberId} is not null or ${table.method} = 'whatsapp_reply'`,
+    ),
+    check(
+      'messaging_consents_notice_version',
+      sql`char_length(${table.noticeVersion}) between 1 and 40`,
+    ),
+    pgPolicy('messaging_consents_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** The messages the product sends parties (spec §6.2); bodies take `{{variable}}`s. */
+export const messageTemplateKey = pgEnum('message_template_key', [
+  'invoice_issued',
+  'receipt_issued',
+  'statement_ready',
+  'payment_reminder_due',
+  'payment_reminder_overdue',
+  'promise_confirmed',
+  'order_ready',
+  'points_earned',
+]);
+
+/**
+ * A business's own wording of a message for one channel and language (P2-M32).
+ * No row = the product's default wording (@paint/shared). For WhatsApp the
+ * wording must match the template the BSP approved, named by
+ * `provider_template_name` ([PO-1]). Audited.
+ */
+export const messageTemplates = pgTable(
+  'message_templates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    key: messageTemplateKey('key').notNull(),
+    channel: messageChannel('channel').notNull(),
+    language: messageLanguage('language').notNull(),
+    body: text('body').notNull(),
+    providerTemplateName: text('provider_template_name'),
+    isActive: boolean('is_active').notNull().default(true),
+    updatedByMemberId: uuid('updated_by_member_id').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique('message_templates_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('message_templates_key_unique').on(
+      table.organizationId,
+      table.key,
+      table.channel,
+      table.language,
+    ),
+    foreignKey({
+      name: 'message_templates_organization_fk',
+      columns: [table.organizationId],
+      foreignColumns: [organizations.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'message_templates_updated_by_fk',
+      columns: [table.organizationId, table.updatedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('message_templates_body', sql`char_length(${table.body}) between 1 and 1000`),
+    check(
+      'message_templates_provider_name',
+      sql`${table.providerTemplateName} ~ '^[a-z0-9_]{1,200}$'`,
+    ),
+    pgPolicy('message_templates_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * Where a message stands: queued until the worker tries it; sent (and later,
+ * with a BSP, delivered and read); failed after its last attempt; skipped when
+ * it may not go (no consent, no provider). Forward only (trigger).
+ */
+export const messageStatus = pgEnum('message_status', [
+  'queued',
+  'sent',
+  'delivered',
+  'read',
+  'failed',
+  'skipped',
+]);
+
+/**
+ * Messages to parties waiting to be sent (P2-M32, the outbox pattern): written
+ * in the business transaction, sent by the worker afterwards with retries;
+ * the row id is the provider's idempotency key. `dedupe_key` makes a queued
+ * message once-only (e.g. one reminder per party, channel and day).
+ */
+export const messageOutbox = pgTable(
+  'message_outbox',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    partyId: uuid('party_id').notNull(),
+    channel: messageChannel('channel').notNull(),
+    templateKey: messageTemplateKey('template_key').notNull(),
+    language: messageLanguage('language').notNull(),
+    /** E.164 mobile or email address, as consented. */
+    toAddress: text('to_address').notNull(),
+    /** The template's variables, all strings. */
+    variables: jsonb('variables').$type<Record<string, string>>().notNull(),
+    /** The text rendered from the template when queued (subject line first for email). */
+    body: text('body').notNull(),
+    /** What it is about, e.g. ('tax_document', id) or ('statement_link', id). */
+    referenceType: text('reference_type'),
+    referenceId: uuid('reference_id'),
+    dedupeKey: text('dedupe_key'),
+    status: messageStatus('status').notNull().default('queued'),
+    skipReason: text('skip_reason'),
+    attempts: integer('attempts').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    lastError: text('last_error'),
+    /** The provider that sent it (log, a BSP) and its message id. */
+    provider: text('provider'),
+    providerRef: text('provider_ref'),
+    /** Null when queued by the system (reminders, the collections job). */
+    createdByMemberId: uuid('created_by_member_id'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+  },
+  (table) => [
+    unique('message_outbox_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('message_outbox_dedupe_unique').on(table.organizationId, table.dedupeKey),
+    index('message_outbox_due_idx')
+      .on(table.nextAttemptAt)
+      .where(sql`${table.status} = 'queued'`),
+    index('message_outbox_party_idx').on(table.organizationId, table.partyId, table.createdAt),
+    foreignKey({
+      name: 'message_outbox_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'message_outbox_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('message_outbox_attempts_not_negative', sql`${table.attempts} >= 0`),
+    check('message_outbox_variables_object', sql`jsonb_typeof(${table.variables}) = 'object'`),
+    check(
+      'message_outbox_states',
+      sql`(${table.status} in ('sent', 'delivered', 'read')) = (${table.sentAt} is not null)
+        and (${table.status} in ('sent', 'delivered', 'read')) = (${table.providerRef} is not null)
+        and (${table.status} = 'skipped') = (${table.skipReason} is not null)
+        and (${table.referenceType} is null) = (${table.referenceId} is null)`,
+    ),
+    check(
+      'message_outbox_text_lengths',
+      sql`char_length(${table.body}) between 1 and 2000 and char_length(${table.toAddress}) <= 320
+        and char_length(${table.skipReason}) <= 200 and char_length(${table.lastError}) <= 500
+        and char_length(${table.dedupeKey}) <= 200 and char_length(${table.referenceType}) <= 40`,
+    ),
+    pgPolicy('message_outbox_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * A stored, revocable link to a party's statement (P2-M12, spec §6.4): anyone
+ * with the token may open the PDF until it expires or is revoked. Only the
+ * SHA-256 of the token is kept. The PDF is rendered when opened, from the ledger
+ * of that day. Audited (creation and revocation).
+ */
+export const statementLinks = pgTable(
+  'statement_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    partyId: uuid('party_id').notNull(),
+    fromOn: date('from_on', { mode: 'string' }).notNull(),
+    toOn: date('to_on', { mode: 'string' }).notNull(),
+    language: messageLanguage('language').notNull(),
+    /** Hex SHA-256 of the token in the link; unique across businesses. */
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedByMemberId: uuid('revoked_by_member_id'),
+    openedCount: integer('opened_count').notNull().default(0),
+    lastOpenedAt: timestamp('last_opened_at', { withTimezone: true }),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('statement_links_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('statement_links_token_hash_unique').on(table.tokenHash),
+    index('statement_links_party_idx').on(table.organizationId, table.partyId, table.createdAt),
+    foreignKey({
+      name: 'statement_links_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'statement_links_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'statement_links_revoked_by_fk',
+      columns: [table.organizationId, table.revokedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('statement_links_period', sql`${table.fromOn} <= ${table.toOn}`),
+    check('statement_links_token_hash', sql`${table.tokenHash} ~ '^[0-9a-f]{64}$'`),
+    check('statement_links_expiry', sql`${table.expiresAt} > ${table.createdAt}`),
+    check(
+      'statement_links_revoked',
+      sql`(${table.revokedAt} is null) = (${table.revokedByMemberId} is null)`,
+    ),
+    check(
+      'statement_links_opened',
+      sql`${table.openedCount} >= 0 and (${table.openedCount} = 0) = (${table.lastOpenedAt} is null)`,
+    ),
+    pgPolicy('statement_links_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

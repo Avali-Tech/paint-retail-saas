@@ -245,6 +245,16 @@ describe('statementShareText', () => {
     };
     expect(statementShareText(notYet, 'en')).not.toContain('due now');
   });
+
+  it('points to a stored statement link instead of an attachment (MVP 3 round 2a)', () => {
+    const url = 'https://app.example.in/s/abc';
+    expect(statementShareText(DATA, 'en', url)).toMatch(
+      /is due now\. View the statement: https:\/\/app\.example\.in\/s\/abc$/,
+    );
+    expect(statementShareText(DATA, 'hi', url)).toContain(`खाता विवरण देखें: ${url}`);
+    expect(statementShareText(DATA, 'te', url)).toContain(`ఖాతా వివరణ చూడండి: ${url}`);
+    expect(statementShareText(DATA, 'en', url)).not.toContain('attached');
+  });
 });
 
 describe('statementFileName', () => {

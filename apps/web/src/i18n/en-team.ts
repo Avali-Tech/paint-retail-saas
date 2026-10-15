@@ -140,6 +140,7 @@ export const teamEn = {
       payments: 'Payments',
       register: 'Cash register',
       accounting: 'Accounting',
+      receivables: 'Receivables',
     },
     organization: {
       manage: 'Run the business: settings, appearance, sign-in rules and support access',
@@ -201,5 +202,6 @@ export const teamEn = {
       export: 'Set Tally ledgers and export the books',
       reconcile: 'See the nightly reconciliation of the books and run it now',
     },
+    receivables: { read: 'See what customers owe, the ageing and the collections worklist' },
   },
 };

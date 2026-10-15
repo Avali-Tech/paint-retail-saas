@@ -1,6 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { schema, type Transaction } from '@paint/db';
-import { canAccessStore, type Permission } from '@paint/shared';
+import { canAccessStore, type MemberAccess, type Permission } from '@paint/shared';
 import { and, eq, inArray, or, type AnyColumn, type SQL } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { canSeeParty } from '../parties/party-access.js';
@@ -87,7 +87,7 @@ export async function requireSalesperson(
 
 /** Limits a list to the member's stores, or one of them. */
 export function storeScope(
-  auth: AuthContext,
+  auth: MemberAccess,
   column: AnyColumn,
   storeId?: string,
 ): SQL | undefined {

@@ -242,6 +242,9 @@ describe('merging a duplicate', () => {
       'project_parties.party_id': 1,
       'loyalty_accounts.party_id': 0,
       'estimates.party_id': 1,
+      'message_outbox.party_id': 0,
+      'messaging_consents.party_id': 0,
+      'statement_links.party_id': 0,
       activities: 1,
       documents: 1,
     });
@@ -486,6 +489,130 @@ describe('merge rules', () => {
       'This party has an imported opening balance; merge the other way, or import it for the other party',
     ]);
     expect((await merge(b, a)).statusCode).toBe(200);
+  });
+
+  it('refuses a duplicate with promises to pay; withdraws consent, stops messages and links (round 2a)', async () => {
+    const a = await party('Messages A');
+    const b = await party('Messages B');
+    const [owned] = await t.connection.db
+      .select({
+        organizationId: schema.parties.organizationId,
+        memberId: schema.organizationMembers.id,
+        phone: schema.parties.phone,
+      })
+      .from(schema.parties)
+      .innerJoin(
+        schema.organizationMembers,
+        eq(schema.organizationMembers.organizationId, schema.parties.organizationId),
+      )
+      .where(eq(schema.parties.id, a))
+      .limit(1);
+    const organizationId = String(owned?.organizationId);
+    const memberId = String(owned?.memberId);
+    const [promise] = await t.connection.db
+      .insert(schema.promisesToPay)
+      .values({
+        organizationId,
+        partyId: a,
+        amountPaise: 1_000,
+        promisedOn: istDate(5),
+        madeOn: istDate(0),
+        createdByMemberId: memberId,
+      })
+      .returning({ id: schema.promisesToPay.id });
+
+    const refused = await merge(a, b);
+    expect([refused.statusCode, message(refused)]).toEqual([
+      409,
+      'This party has promises to pay; merge the other way',
+    ]);
+
+    // Without the promise: A said STOP on WhatsApp and yes to SMS; B said yes to WhatsApp.
+    const c = await party('Messages C');
+    const phoneOf = async (id: string) =>
+      String(
+        (await t.connection.db.select().from(schema.parties).where(eq(schema.parties.id, id)))[0]
+          ?.phone,
+      );
+    const consent = (
+      partyId: string,
+      address: string,
+      channel: 'whatsapp' | 'sms',
+      state: 'granted' | 'withdrawn',
+    ) => ({
+      organizationId,
+      partyId,
+      channel,
+      address,
+      state,
+      method: 'counter_with_notice' as const,
+      noticeVersion: '2026-10',
+      language: 'en' as const,
+      recordedByMemberId: memberId,
+    });
+    const cPhone = await phoneOf(c);
+    const bPhone = await phoneOf(b);
+    await t.connection.db
+      .insert(schema.messagingConsents)
+      .values([consent(c, cPhone, 'whatsapp', 'granted'), consent(c, cPhone, 'sms', 'granted')]);
+    await t.connection.db
+      .insert(schema.messagingConsents)
+      .values([
+        consent(c, cPhone, 'whatsapp', 'withdrawn'),
+        consent(b, bPhone, 'whatsapp', 'granted'),
+      ]);
+    const [queued] = await t.connection.db
+      .insert(schema.messageOutbox)
+      .values({
+        organizationId,
+        partyId: c,
+        channel: 'sms',
+        templateKey: 'order_ready',
+        language: 'en',
+        toAddress: cPhone,
+        variables: { number: 'SO-1' },
+        body: 'Your order is ready',
+      })
+      .returning({ id: schema.messageOutbox.id });
+    await t.connection.db.insert(schema.statementLinks).values({
+      organizationId,
+      partyId: c,
+      fromOn: istDate(-30),
+      toOn: istDate(0),
+      language: 'en',
+      tokenHash: 'a'.repeat(64),
+      expiresAt: new Date(Date.now() + 86_400_000),
+      createdByMemberId: memberId,
+    });
+
+    const merged = (await merge(c, b)).json<MergeResult>();
+
+    expect(merged.moved).toMatchObject({
+      'message_outbox.party_id': 1,
+      'messaging_consents.party_id': 1,
+      'statement_links.party_id': 1,
+    });
+    const survivorConsents = await t.connection.db
+      .select({ channel: schema.messagingConsents.channel, state: schema.messagingConsents.state })
+      .from(schema.messagingConsents)
+      .where(eq(schema.messagingConsents.partyId, b))
+      .orderBy(schema.messagingConsents.recordedAt);
+    // The STOP carried over; the SMS grant did not.
+    expect(survivorConsents).toEqual([
+      { channel: 'whatsapp', state: 'granted' },
+      { channel: 'whatsapp', state: 'withdrawn' },
+    ]);
+    const [skipped] = await t.connection.db
+      .select({ status: schema.messageOutbox.status, reason: schema.messageOutbox.skipReason })
+      .from(schema.messageOutbox)
+      .where(eq(schema.messageOutbox.id, String(queued?.id)));
+    expect(skipped).toEqual({ status: 'skipped', reason: 'party_merged' });
+    const [link] = await t.connection.db
+      .select({ revokedAt: schema.statementLinks.revokedAt })
+      .from(schema.statementLinks)
+      .where(eq(schema.statementLinks.partyId, c));
+    expect(link?.revokedAt).not.toBeNull();
+    expect(promise?.id).toBeDefined();
   });
 
   it('merges parties with nothing but their roles', async () => {

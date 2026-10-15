@@ -505,6 +505,41 @@
       "when": 1791704746120,
       "tag": "0071_grant_credit_approve_sale",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1792099838727,
+      "tag": "0072_loyalty_earn_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1792099840122,
+      "tag": "0073_loyalty_earn_rules_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1792100784567,
+      "tag": "0074_collections_and_messaging",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1792100803516,
+      "tag": "0075_collections_and_messaging_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1792100862190,
+      "tag": "0076_grant_receivables_read",
+      "breakpoints": true
     }
   ]
 }

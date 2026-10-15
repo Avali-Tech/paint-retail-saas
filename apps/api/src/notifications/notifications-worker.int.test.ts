@@ -162,6 +162,11 @@ describe('low stock', () => {
       // Every business in the test database, reconciled once today.
       reconciliations: expect.any(Number),
       creditHolds: 0,
+      // Collections and messages run only by day (India time); nothing is due here either way.
+      promisesSettled: 0,
+      remindersQueued: 0,
+      messagesSent: 0,
+      messagesFailed: 0,
       emailsSent: 1,
       emailsFailed: 0,
     });
@@ -172,6 +177,10 @@ describe('low stock', () => {
       loyaltyExpiries: 0,
       reconciliations: 0,
       creditHolds: 0,
+      promisesSettled: 0,
+      remindersQueued: 0,
+      messagesSent: 0,
+      messagesFailed: 0,
       emailsSent: 0,
       emailsFailed: 0,
     });
