@@ -74,7 +74,7 @@ test('the owner sets an earn rule and a tagged invoice credits the painter', asy
   await expect(rules.getByRole('row').nth(1)).toContainText('× 2');
   await expectUsable(page);
 
-  // Two 20 L packs: ₹10,000 taxable, paid in cash, brought in by the painter.
+  // Two 20 L packs: ₹10,000 taxable, paid by UPI, brought in by the painter.
   const modes = await call<{ id: string; kind: string }[]>('GET', '/payment-modes', { token });
   const draft = await call<{ id: string }>('POST', '/invoices', {
     token,
@@ -88,7 +88,7 @@ test('the owner sets an earn rule and a tagged invoice credits the painter', asy
   const invoice = await call<{ number: string }>('POST', `/invoices/${draft.id}/issue`, {
     token,
     body: {
-      payments: [{ modeId: modes.find((m) => m.kind === 'cash')?.id, amountPaise: 11_800_00 }],
+      payments: [{ modeId: modes.find((m) => m.kind === 'upi')?.id, amountPaise: 11_800_00 }],
     },
   });
 
