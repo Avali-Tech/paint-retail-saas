@@ -94,6 +94,7 @@ describe('LoyaltyPanel', { timeout: 30_000 }, () => {
     expect(within(loyalty).getByText('Gold in 3,500 points')).toBeVisible();
     expect(within(loyalty).getByText('200 points on 31 Mar 2027')).toBeVisible();
     expect(within(loyalty).getByText('Sunita Rao')).toBeVisible();
+    expect(within(loyalty).getByText('200 (240 earned, 40 taken back)')).toBeVisible();
 
     const history = await within(loyalty).findByRole('table', { name: 'Points history' });
     const rows = within(history).getAllByRole('row');
@@ -294,6 +295,39 @@ describe('LoyaltyPanel', { timeout: 30_000 }, () => {
     expect(within(panel()).getAllByText('—')).toHaveLength(4);
     expect(within(panel()).queryByRole('button', { name: 'Award points' })).toBeNull();
     expect(within(panel()).getByRole('button', { name: 'Reopen account' })).toBeVisible();
+  });
+
+  it('shows no painter points for a member who was never tagged on a bill', async () => {
+    renderLoyalty({ ...LOYALTY, painterPoints: { earned: 0, takenBack: 0 } });
+    await screen.findByRole('heading', { name: 'Apex Builders', level: 1 });
+    const fact = within(panel()).getByText('Painter points').closest('div');
+    expect(fact).toHaveTextContent('Painter points—');
+  });
+
+  it('names painter points in the history', async () => {
+    renderLoyalty(LOYALTY, {
+      'GET /parties/:id/loyalty': () =>
+        json(
+          loyaltyView([
+            {
+              id: 'l9',
+              kind: 'influencer',
+              points: 24,
+              manualPurchasePaise: null,
+              reference: 'AMP/26-27/000012',
+              note: null,
+              expiresOn: null,
+              createdBy: { memberId: 'm1', name: 'Sunita Rao' },
+              createdAt: '2026-10-16T06:00:00.000Z',
+            },
+          ]),
+        ),
+    });
+    await screen.findByRole('heading', { name: 'Apex Builders', level: 1 });
+    const history = await within(panel()).findByRole('table', { name: 'Points history' });
+    expect(within(history).getAllByRole('row')[1]).toHaveTextContent(
+      'Painter pointsAMP/26-27/000012+24Sunita Rao',
+    );
   });
 
   it('hides enrolling from read-only roles', async () => {

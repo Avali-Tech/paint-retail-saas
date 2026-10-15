@@ -167,6 +167,7 @@ export const reportsTe: Translation<typeof reportsEn> = {
         lastBilled: 'చివరి బిల్',
         taxable: 'పన్ను విధించదగిన విలువ (₹)',
         total: 'నికర అమ్మకాలు (₹)',
+        points: 'పెయింటర్ పాయింట్లు',
       },
       'sales-by-site': {
         number: 'ప్రాజెక్ట్',

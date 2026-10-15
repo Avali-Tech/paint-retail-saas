@@ -164,6 +164,7 @@ export const reportsHi: Translation<typeof reportsEn> = {
         lastBilled: 'आखिरी बिल',
         taxable: 'टैक्स योग्य कीमत (₹)',
         total: 'नेट बिक्री (₹)',
+        points: 'पेंटर पॉइंट',
       },
       'sales-by-site': {
         number: 'प्रोजेक्ट',

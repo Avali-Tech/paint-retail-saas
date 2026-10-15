@@ -124,6 +124,7 @@ export const LOYALTY: LoyaltySummary = {
   tier: { name: 'Silver', minPoints: 1000 },
   nextTier: { name: 'Gold', minPoints: 5000, pointsToGo: 3500 },
   nextExpiry: { points: 200, expiresOn: '2027-03-31' },
+  painterPoints: { earned: 240, takenBack: 40 },
 };
 
 export const NOT_ENROLLED: LoyaltySummary = {
@@ -134,6 +135,7 @@ export const NOT_ENROLLED: LoyaltySummary = {
   tier: null,
   nextTier: null,
   nextExpiry: null,
+  painterPoints: { earned: 0, takenBack: 0 },
 };
 
 export const LEDGER: LedgerEntry[] = [

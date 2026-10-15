@@ -31,4 +31,11 @@ export const CUSTOMER_NAV_ITEMS: readonly NavItem[] = [
     icon: 'settings',
     permission: 'loyalty:manage',
   },
+  {
+    key: 'painterPoints',
+    label: 'earnRules.title',
+    path: '/settings/painter-points',
+    icon: 'settings',
+    permission: 'loyalty:manage',
+  },
 ];

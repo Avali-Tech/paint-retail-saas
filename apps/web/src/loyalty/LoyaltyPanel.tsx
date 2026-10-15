@@ -188,6 +188,16 @@ export function LoyaltyPanel({
     [t('loyalty.earned'), number(loyalty.totalEarned)],
     [t('loyalty.redeemed'), number(loyalty.totalRedeemed)],
     [
+      t('loyalty.painterPoints'),
+      loyalty.painterPoints.earned === 0
+        ? t('common.none')
+        : t('loyalty.painterPointsValue', {
+            net: number(loyalty.painterPoints.earned - loyalty.painterPoints.takenBack),
+            earned: number(loyalty.painterPoints.earned),
+            takenBack: number(loyalty.painterPoints.takenBack),
+          }),
+    ],
+    [
       t('loyalty.nextExpiry'),
       loyalty.nextExpiry === null
         ? t('common.none')
