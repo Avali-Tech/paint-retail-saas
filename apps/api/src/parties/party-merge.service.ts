@@ -18,6 +18,7 @@ import { PartiesService, type PartyView } from './parties.service.js';
 
 const {
   activities,
+  creditApprovals,
   creditProfiles,
   creditRequests,
   customerProfiles,
@@ -33,6 +34,7 @@ const {
   quotations,
   salesOrders,
   taxDocuments,
+  siteCreditAccounts,
 } = schema;
 
 /** Records that simply move to the surviving party: table and column. */
@@ -62,8 +64,11 @@ export const MERGE_HANDLED: readonly string[] = [
   // Moved unless the survivor already has the same row.
   'supplier_products.supplier_party_id',
   'project_parties.party_id',
-  // See creditProfile() and loyalty() below.
+  // See creditProfile() and loyalty() below. Site accounts go with the credit profile;
+  // credit approvals are decisions about the party they name, so creditProfile() refuses them.
   'credit_profiles.party_id',
+  'site_credit_accounts.party_id',
+  'credit_approvals.party_id',
   'loyalty_accounts.party_id',
   // Billing history is permanent: see billing() below. Drafts move.
   'tax_documents.party_id',
@@ -280,8 +285,10 @@ export class PartyMergeService {
   /**
    * Credit: refused when both parties have a request waiting, or both have a
    * profile and the duplicate's gives credit (merge the other way, or end one's
-   * credit first). The duplicate's profile moves when the survivor has none; a
-   * duplicate profile without credit stays with the duplicate.
+   * credit first), or the duplicate has credit approvals (a decision about the
+   * party it names). The duplicate's profile, and its site accounts, move when
+   * the survivor has none; a duplicate profile without credit stays with the
+   * duplicate, and then it may have no site accounts.
    */
   private async creditProfile(
     tx: Transaction,
@@ -312,16 +319,39 @@ export class PartyMergeService {
         'Both parties have a credit profile; merge the other way or end one’s credit first',
       );
     }
-    counts['credit_profiles.party_id'] =
-      duplicate && !survivor
-        ? (
-            await tx
-              .update(creditProfiles)
-              .set({ partyId: survivorId, updatedAt: sql`now()` })
-              .where(eq(creditProfiles.partyId, duplicateId))
-              .returning({ id: creditProfiles.id })
-          ).length
-        : 0;
+    const [approval] = await tx
+      .select({ id: creditApprovals.id })
+      .from(creditApprovals)
+      .where(eq(creditApprovals.partyId, duplicateId))
+      .limit(1);
+    if (approval) {
+      throw new ConflictException('This party has credit approvals; merge the other way');
+    }
+    const moves = duplicate !== undefined && survivor === undefined;
+    const [site] = await tx
+      .select({ id: siteCreditAccounts.id })
+      .from(siteCreditAccounts)
+      .where(eq(siteCreditAccounts.partyId, duplicateId))
+      .limit(1);
+    if (site && !moves) {
+      throw new ConflictException('This party has site accounts; merge the other way');
+    }
+    counts['credit_profiles.party_id'] = moves
+      ? (
+          await tx
+            .update(creditProfiles)
+            .set({ partyId: survivorId, updatedAt: sql`now()` })
+            .where(eq(creditProfiles.partyId, duplicateId))
+            .returning({ id: creditProfiles.id })
+        ).length
+      : 0;
+    counts['site_credit_accounts.party_id'] = (
+      await tx
+        .update(siteCreditAccounts)
+        .set({ partyId: survivorId, updatedAt: sql`now()` })
+        .where(eq(siteCreditAccounts.partyId, duplicateId))
+        .returning({ id: siteCreditAccounts.id })
+    ).length;
   }
 
   /** The survivor gains the duplicate's roles; the duplicate keeps them for its history. */

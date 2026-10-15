@@ -1,9 +1,12 @@
 import type {
+  CreditApprovalLevel,
+  CreditApprovalRefusal,
   IssuedInvoiceView,
   LatestReconciliation,
   PaymentModeView,
   TaxDocumentView,
 } from '@paint/shared';
+import { DemoApiError } from './api-client.js';
 import type { StoreKey } from './plan.js';
 import { must, type SeedContext, type SeededParty } from './seed-context.js';
 
@@ -117,10 +120,83 @@ export async function sell(
             amountPaise: basketTotal(context, options.lines),
           },
         ];
-  const issued = await api.post<IssuedInvoiceView>(`/invoices/${draft.id}/issue`, { payments });
+  const issue = (body: object) => api.post<IssuedInvoiceView>(`/invoices/${draft.id}/issue`, body);
+  let issued: IssuedInvoiceView;
+  try {
+    issued = await issue({ payments });
+  } catch (error) {
+    // Bills on account are checked against the credit rules (MVP 3 spec §4.2–§4.3).
+    const next = creditFollowUp(error);
+    const totalPaise = basketTotal(context, options.lines);
+    if (next === 'pay') {
+      issued = await issue({
+        payments: [{ modeId: await paymentMode(context, 'upi'), amountPaise: totalPaise }],
+      });
+      context.count('bills paid when credit was blocked');
+    } else {
+      const approval = await api.post('/credit-approvals', {
+        invoiceId: draft.id,
+        amountPaise: totalPaise,
+        reason: 'Regular customer, pays every fortnight',
+      });
+      await context
+        .as(approverFor(next.approve, context.managerOf(store)))
+        .post(`/credit-approvals/${approval.id}/approve`, { reason: 'Known account' });
+      issued = await issue({ payments });
+      context.count('credit approvals');
+    }
+  }
   for (const line of options.lines) context.move(store, line.variantId, -line.quantity);
   context.count('invoices');
   return issued;
+}
+
+/** What the seed does when a bill on account is refused: get it approved, or take the money. */
+export type CreditFollowUp = { readonly approve: CreditApprovalLevel } | 'pay';
+
+/**
+ * Reads a refused issue: past the rules it needs an approval at the level the
+ * check names; blocked (on hold, overdue) the customer pays at the counter.
+ * Anything else is a real failure and is thrown again.
+ */
+export function creditFollowUp(error: unknown): CreditFollowUp {
+  if (error instanceof DemoApiError && error.statusCode === 409) {
+    const refusal = JSON.parse(error.body) as Partial<CreditApprovalRefusal>;
+    if (refusal.code === 'credit_blocked') return 'pay';
+    if (refusal.code === 'credit_approval_required' || refusal.code === 'credit_approval_stale') {
+      return { approve: refusal.credit?.approval as CreditApprovalLevel };
+    }
+  }
+  throw error;
+}
+
+/** Who approves a sale at `level`: the store's branch manager, or the owner. */
+export function approverFor(level: CreditApprovalLevel, managerKey: string): string {
+  return level === 'owner' ? 'owner' : managerKey;
+}
+
+/**
+ * A bill held for a credit approval nobody has decided yet: the draft, and the
+ * request the seller sends, waiting in the approvers' queue.
+ */
+export async function billAwaitingApproval(
+  context: SeedContext,
+  store: StoreKey,
+  party: SeededParty,
+  lines: readonly BasketLine[],
+): Promise<void> {
+  const api = context.as(context.salesOf(store));
+  const draft = await api.post<TaxDocumentView>('/invoices', {
+    storeId: context.storeId(store),
+    partyId: party.id,
+    lines,
+  });
+  await api.post('/credit-approvals', {
+    invoiceId: draft.id,
+    amountPaise: basketTotal(context, lines),
+    reason: 'Site needs it before the weekend; pays on the 1st',
+  });
+  context.count('credit approvals waiting');
 }
 
 /** Throws unless the latest reconciliation found the books in balance. */

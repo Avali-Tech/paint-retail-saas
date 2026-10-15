@@ -18,4 +18,7 @@ export const EVENT_TITLES: Record<NotificationEvent, string> = {
   cheque_bounced: 'A cheque taken at your store bounces',
   register_variance: 'A register at your store closes with cash over or short',
   reconciliation_mismatch: 'The nightly check finds the books out of balance',
+  credit_approval_requested: 'A sale on credit or a hold release needs your approval',
+  credit_approval_decided: 'Your credit approval request is approved or rejected',
+  credit_hold_applied: 'A customer is put on credit hold for overdue bills',
 };

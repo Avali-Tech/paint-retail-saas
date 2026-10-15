@@ -312,6 +312,24 @@ describe('preferences', () => {
         inApp: true,
         email: true,
       },
+      {
+        event: 'credit_approval_requested',
+        title: 'A sale on credit or a hold release needs your approval',
+        inApp: true,
+        email: true,
+      },
+      {
+        event: 'credit_approval_decided',
+        title: 'Your credit approval request is approved or rejected',
+        inApp: true,
+        email: true,
+      },
+      {
+        event: 'credit_hold_applied',
+        title: 'A customer is put on credit hold for overdue bills',
+        inApp: true,
+        email: true,
+      },
     ]);
     expect(saved.statusCode).toBe(200);
     expect(
@@ -332,6 +350,9 @@ describe('preferences', () => {
       ['cheque_bounced', true, true],
       ['register_variance', true, true],
       ['reconciliation_mismatch', true, true],
+      ['credit_approval_requested', true, true],
+      ['credit_approval_decided', true, true],
+      ['credit_hold_applied', true, true],
     ]);
     const duplicate = await api(hydManager).put('/notifications/preferences', {
       preferences: [

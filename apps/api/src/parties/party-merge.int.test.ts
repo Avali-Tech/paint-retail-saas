@@ -226,6 +226,7 @@ describe('merging a duplicate', () => {
       'goods_receipts.supplier_party_id': 1,
       'credit_requests.party_id': 2,
       'credit_profiles.party_id': 1,
+      'site_credit_accounts.party_id': 0,
       'party_roles.party_id': 2,
       // The survivor already has a customer profile; the duplicate never had a supplier one.
       'customer_profiles.party_id': 0,
@@ -368,6 +369,64 @@ describe('merge rules', () => {
     expect(
       (await api().get(`/parties/${duplicate}/loyalty`)).json<LoyaltyView>().account?.status,
     ).toBe('closed');
+  });
+
+  it('moves site accounts with the credit profile; refuses them, or credit approvals, otherwise', async () => {
+    const withCredit = async (name: string) => {
+      const id = await party(name);
+      const request = await idOf(
+        api().post('/credit-requests', { partyId: id, limitPaise: 100_000, creditDays: 7 }),
+      );
+      await api().post(`/credit-requests/${request}/approve`);
+      const project = await idOf(
+        api().post('/projects', { storeId: hyd, customerPartyId: id, name: `${name} site` }),
+      );
+      await idOf(api().post(`/parties/${id}/sites`, { projectId: project, limitPaise: 50_000 }));
+      return id;
+    };
+    const duplicate = await withCredit('Site Twin');
+    const survivor = await party('Site Twin Two');
+    const moved = (await merge(duplicate, survivor)).json<MergeResult>();
+    expect(moved.moved).toMatchObject({
+      'credit_profiles.party_id': 1,
+      'site_credit_accounts.party_id': 1,
+      'projects.customer_party_id': 1,
+    });
+    const sites = (await api().get(`/parties/${survivor}/sites`)).json<{ limitPaise: number }[]>();
+    expect(sites.map((site) => site.limitPaise)).toEqual([50_000]);
+
+    // Credit ended on the duplicate, the survivor has a profile: the sites cannot follow.
+    const ended = await withCredit('Ended Twin');
+    await t.connection.db
+      .update(schema.creditProfiles)
+      .set({ status: 'none' })
+      .where(eq(schema.creditProfiles.partyId, ended));
+    const profiled = await party('Ended Twin Two');
+    await t.app.inject({
+      method: 'PATCH',
+      url: `/parties/${profiled}/credit`,
+      headers: bearer(owner),
+      payload: { risk: 'medium' },
+    });
+    const refusedSites = await merge(ended, profiled);
+    expect([refusedSites.statusCode, message(refusedSites)]).toEqual([
+      409,
+      'This party has site accounts; merge the other way',
+    ]);
+
+    // An account on hold with a release asked for: the approval names it.
+    const held = await party('Held Twin');
+    const request = await idOf(
+      api().post('/credit-requests', { partyId: held, limitPaise: 100_000, creditDays: 7 }),
+    );
+    await api().post(`/credit-requests/${request}/approve`);
+    await api().post(`/parties/${held}/credit/hold`, { reason: 'Bounced cheque' });
+    await idOf(api().post('/credit-approvals', { kind: 'release', partyId: held, reason: 'Paid' }));
+    const refusedApprovals = await merge(held, await party('Held Twin Two'));
+    expect([refusedApprovals.statusCode, message(refusedApprovals)]).toEqual([
+      409,
+      'This party has credit approvals; merge the other way',
+    ]);
   });
 
   it('refuses when both parties have a credit request waiting, or both have credit', async () => {

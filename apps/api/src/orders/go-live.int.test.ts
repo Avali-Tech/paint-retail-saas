@@ -327,6 +327,14 @@ describe('after go-live', () => {
   });
 
   it('earns loyalty points on invoices and takes them back on returns and cancellations', async () => {
+    // Bills on account after go-live are credit (MVP 3 spec §4.2): this regular buys on credit.
+    await t.connection.db.insert(creditProfiles).values({
+      organizationId: b.organizationId,
+      partyId: b.parties.homeowner,
+      status: 'active',
+      limitPaise: 10_000_000,
+      creditDays: 30,
+    });
     // Points that never expire while the programme has no expiry.
     await invoice(b.parties.homeowner, 1);
     // Matched by content, not position: entries are ordered by the database clock.

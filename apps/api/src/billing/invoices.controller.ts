@@ -12,7 +12,12 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import type { IssuedInvoiceView, TaxDocumentPage, TaxDocumentView } from '@paint/shared';
+import type {
+  IssuedInvoiceView,
+  SaleCreditView,
+  TaxDocumentPage,
+  TaxDocumentView,
+} from '@paint/shared';
 import type { AuthContext } from '../auth/auth-context.js';
 import { CurrentAuth, RequirePermissions } from '../auth/decorators.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
@@ -20,6 +25,7 @@ import {
   cancelInvoiceSchema,
   draftInvoiceSchema,
   idempotencyKeySchema,
+  invoiceCreditCheckSchema,
   issueInvoiceSchema,
   listInvoicesSchema,
   type CancelInvoiceInput,
@@ -49,6 +55,17 @@ export class InvoicesController {
     @IdempotencyKey(new ZodValidationPipe(idempotencyKeySchema)) key: string | undefined,
   ): Promise<TaxDocumentView> {
     return this.invoices.create(auth, body, key);
+  }
+
+  /** Where the customer stands for issuing this draft with `unpaidPaise` left on credit (MVP 3 §4.2). */
+  @Get(':id/credit-check')
+  @RequirePermissions('billing:issue')
+  creditCheck(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', id()) documentId: string,
+    @Query(new ZodValidationPipe(invoiceCreditCheckSchema)) query: { unpaidPaise: number },
+  ): Promise<SaleCreditView> {
+    return this.issuing.creditCheck(auth, documentId, query.unpaidPaise);
   }
 
   @Get()

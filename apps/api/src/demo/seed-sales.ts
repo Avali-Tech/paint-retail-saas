@@ -2,7 +2,14 @@ import { toCsv, type IssuedInvoiceView, type PartyLedgerView } from '@paint/shar
 import { indiaDate } from './history-clock.js';
 import { STORE_KEYS, type StoreKey } from './plan.js';
 import { creditStories, type CreditStory } from './seed-accounts.js';
-import { basket, paymentMode, sell, type BasketLine, type PayBy } from './seed-billing.js';
+import {
+  basket,
+  billAwaitingApproval,
+  paymentMode,
+  sell,
+  type BasketLine,
+  type PayBy,
+} from './seed-billing.js';
 import { must, type SeedContext, type SeededParty, type Timeline } from './seed-context.js';
 
 const COUNTER_MODES: readonly PayBy[] = ['cash', 'cash', 'upi', 'upi', 'card'];
@@ -56,6 +63,49 @@ export function scheduleSales(context: SeedContext, timeline: Timeline): void {
   });
   scheduleNotes(context, timeline, creditBills);
   scheduleOrders(context, timeline);
+  scheduleCreditChecks(context, timeline, stories);
+}
+
+/**
+ * The credit rules at work (MVP 3 spec §4.2–§4.3): the account near its limit
+ * buys on account with the owner's approval, then asks again on the last day
+ * and waits in the queue; the account on hold is refused credit and pays.
+ */
+function scheduleCreditChecks(
+  context: SeedContext,
+  timeline: Timeline,
+  stories: readonly CreditStory[],
+): void {
+  const near = must(
+    stories.find((story) => story.nearLimit),
+    'account near its limit',
+  ).party;
+  const held = must(
+    stories.find((story) => story.onHold),
+    'account on hold',
+  ).party;
+  timeline.at(3, async () => {
+    const store = homeOf(near);
+    await sell(context, store, {
+      by: context.salesOf(store),
+      party: near,
+      payBy: 'credit',
+      lines: basket(context, store, 12_000_00),
+    });
+  });
+  timeline.at(2, async () => {
+    const store = homeOf(held);
+    await sell(context, store, {
+      by: context.salesOf(store),
+      party: held,
+      payBy: 'credit',
+      lines: basket(context, store, 6_000_00),
+    });
+  });
+  timeline.at(1, () => {
+    const store = homeOf(near);
+    return billAwaitingApproval(context, store, near, basket(context, store, 9_000_00));
+  });
 }
 
 /** The opening balances from the old books, imported, then the cut-over itself. */
@@ -64,7 +114,9 @@ async function goLive(context: SeedContext, stories: readonly CreditStory[]): Pr
   const goLiveDay = context.plan.historyDays;
   const rows = stories.map((story) => {
     const owedPaise = Math.round(story.limitRupees * (story.nearLimit ? 0.94 : story.used)) * 100;
-    const overdueDays = story.onHold ? 75 : story.overdueDays;
+    // Overdue at go-live: the account on hold (75 days) and the late payers; the account near
+    // its limit pays on time (it buys with approvals, see scheduleCreditChecks).
+    const overdueDays = story.onHold ? 75 : story.nearLimit ? 0 : story.overdueDays;
     return [
       story.party.phone,
       '',
@@ -140,8 +192,14 @@ async function receive(
   const store = homeOf(story.party);
   const manager = context.as(context.managerOf(store));
   const ledger = await manager.get<PartyLedgerView>(`/parties/${story.party.id}/ledger`);
-  const amountPaise =
-    Math.round((ledger.balancePaise * context.random.int(40, 80)) / 100 / 100) * 100;
+  // Part of what is owed, and at least what is left of the old books' balance, so a
+  // late payer's opening balance does not linger overdue (and the account on credit hold).
+  const opening =
+    ledger.openDocuments.find((item) => item.kind === 'opening')?.outstandingPaise ?? 0;
+  const amountPaise = Math.max(
+    Math.round((ledger.balancePaise * context.random.int(40, 80)) / 100 / 100) * 100,
+    opening,
+  );
   const cheque = first && index < 2;
   const payment = await manager.post('/payments', {
     storeId: context.storeId(store),

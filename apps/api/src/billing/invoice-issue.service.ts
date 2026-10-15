@@ -31,6 +31,7 @@ import {
   type Invoice,
   type InvoicePrintSettings,
   type IssuedInvoiceView,
+  type SaleCreditView,
   type TaxDocumentView,
 } from '@paint/shared';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
@@ -62,6 +63,8 @@ import { documentView, indiaToday, loadDocument, type TaxDocumentRow } from './i
 import { invoicePrintSettings } from './print-settings.js';
 import { takeDocumentNumber } from './series.js';
 import { walkInParty } from './walk-in.js';
+import { invoiceCreditSubject } from './invoice-credit.js';
+import { gateSale, saleCredit } from '../credit/credit-gate.js';
 
 const {
   allocations,
@@ -242,6 +245,37 @@ export class InvoiceIssueService {
     });
   }
 
+  /** Where the customer stands for issuing the draft with `unpaidPaise` left unpaid (MVP 3 spec §4.2). */
+  creditCheck(auth: AuthContext, id: string, unpaidPaise: number): Promise<SaleCreditView> {
+    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      const document = await loadDocument(tx, auth, id);
+      if (document.status !== 'draft') {
+        throw new ConflictException(`This invoice is already ${document.status}`);
+      }
+      if (document.partyId === null) {
+        throw new ConflictException('A walk-in bill is paid in full: pick the customer first');
+      }
+      const subject = await invoiceCreditSubject(tx, document, unpaidPaise, {
+        payments: [],
+        allocateAdvances: false,
+      });
+      return saleCredit(
+        tx,
+        auth.organization.id,
+        subject ?? {
+          type: 'tax_document',
+          id,
+          partyId: document.partyId,
+          projectId: document.projectId,
+          storeId: document.storeId,
+          amountPaise: unpaidPaise,
+          excludeOrderId: null,
+        },
+        subject !== null,
+      );
+    });
+  }
+
   private async issueIn(
     tx: Transaction,
     auth: AuthContext,
@@ -409,6 +443,9 @@ export class InvoiceIssueService {
     }
     if (problems.length > 0) throw unprocessable(problems);
 
+    // Money left unpaid is credit: checked against the rules once billing is live (MVP 3 spec §4.2).
+    const credit = await this.creditGate(tx, auth, document, invoice.totals.payablePaise, input);
+
     // A bill from a sales order bills its lines (and consumes or keeps their reservations).
     const order: OrderIssue | null =
       document.salesOrderId === null ? null : await issueAgainstOrder(tx, auth, document, today);
@@ -486,6 +523,8 @@ export class InvoiceIssueService {
         totalPaise: totals.payablePaise,
         dueOn: order?.dueOn ?? sql`coalesce(${taxDocuments.dueOn}, ${today}::date)`,
         stockPosting: order?.postStock === false ? 'on_dispatch' : 'on_issue',
+        creditCheck: credit === null ? null : { ...credit.view },
+        creditApprovalId: credit?.approvalId ?? null,
         irn: input.einvoice?.irn,
         ackNo: input.einvoice?.ackNo,
         ackAt: input.einvoice?.ackAt,
@@ -550,6 +589,27 @@ export class InvoiceIssueService {
       );
     }
     return view;
+  }
+
+  /**
+   * Whether issuing leaves money on credit, and if so the credit check and the
+   * approval that lets it through (MVP 3 spec §4.2–§4.3); null when the bill is
+   * not credit: before go-live, a walk-in bill, a bill of a postpaid order
+   * (checked at confirm) or one paid in full with the issue.
+   */
+  private async creditGate(
+    tx: Transaction,
+    auth: AuthContext,
+    document: TaxDocumentRow,
+    totalPaise: number,
+    input: IssueInvoiceInput,
+  ): Promise<{ view: SaleCreditView; approvalId: string | null } | null> {
+    const subject = await invoiceCreditSubject(tx, document, totalPaise, input);
+    if (subject === null) return null;
+    await lockParty(tx, auth.organization.id, subject.partyId);
+    const view = await saleCredit(tx, auth.organization.id, subject, true);
+    const approvalId = await gateSale(tx, auth, subject, view, input.creditOverride);
+    return { view, approvalId };
   }
 
   /**
