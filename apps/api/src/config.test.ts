@@ -23,6 +23,8 @@ describe('loadConfig', () => {
       workerIntervalSeconds: 60,
       platformBootstrapToken: null,
       signupPlan: 'trial',
+      messagingProvider: 'disabled',
+      publicApiUrl: 'http://localhost:5173/api',
     });
   });
 
@@ -52,6 +54,8 @@ describe('loadConfig', () => {
         WORKER_INTERVAL_SECONDS: '0',
         PLATFORM_BOOTSTRAP_TOKEN: 'bootstrap-token-of-at-least-32-characters',
         SIGNUP_PLAN: 'standard',
+        MESSAGING_PROVIDER: 'disabled',
+        PUBLIC_API_URL: 'https://api.paintsaas.in/',
       }),
     ).toEqual({
       nodeEnv: 'production',
@@ -78,6 +82,8 @@ describe('loadConfig', () => {
       workerIntervalSeconds: 0,
       platformBootstrapToken: 'bootstrap-token-of-at-least-32-characters',
       signupPlan: 'standard',
+      messagingProvider: 'disabled',
+      publicApiUrl: 'https://api.paintsaas.in',
     });
   });
 
@@ -92,6 +98,10 @@ describe('loadConfig', () => {
       credentials: null,
       clamav: { host: 'clamav', port: 3310 },
     });
+  });
+
+  it('prints WhatsApp messages with the log provider outside production', () => {
+    expect(loadConfig({ ...required, MESSAGING_PROVIDER: 'log' }).messagingProvider).toBe('log');
   });
 
   it('accepts port 0 (pick any free port)', () => {
@@ -111,6 +121,12 @@ describe('loadConfig', () => {
     [{ ...required, SESSION_TTL_DAYS: '0' }, /SESSION_TTL_DAYS/],
     [{ ...required, SMS_PROVIDER: 'msg91' }, /SMS_PROVIDER/],
     [{ ...required, NODE_ENV: 'production', SMS_PROVIDER: 'log' }, /SMS_PROVIDER: "log"/],
+    [{ ...required, MESSAGING_PROVIDER: 'gupshup' }, /MESSAGING_PROVIDER/],
+    [
+      { ...required, NODE_ENV: 'production', MESSAGING_PROVIDER: 'log' },
+      /MESSAGING_PROVIDER: "log"/,
+    ],
+    [{ ...required, PUBLIC_API_URL: 'ftp://api' }, /PUBLIC_API_URL/],
     [{ ...required, PORT: 'abc' }, /PORT/],
     [{ ...required, PORT: '70000' }, /PORT/],
     [{ ...required, PORT: '80.5' }, /PORT/],

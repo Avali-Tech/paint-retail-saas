@@ -154,7 +154,14 @@ export function buildStatementView(
 const SHARE_TEXTS: Readonly<
   Record<
     PrintLanguage,
-    { due: string; advance: string; settled: string; dueNow: string; attached: string }
+    {
+      due: string;
+      advance: string;
+      settled: string;
+      dueNow: string;
+      attached: string;
+      linked: string;
+    }
   >
 > = {
   en: {
@@ -165,6 +172,7 @@ const SHARE_TEXTS: Readonly<
       'Dear {name}, your statement from {business} for {from} to {to}: nothing is due as of {to}.',
     dueNow: ' Of this, {amount} is due now.',
     attached: ' The statement PDF is attached.',
+    linked: ' View the statement: {url}',
   },
   hi: {
     due: 'नमस्ते {name}, {business} से {from} से {to} तक का आपका खाता विवरण: {to} को देय बकाया {amount} है।',
@@ -174,6 +182,7 @@ const SHARE_TEXTS: Readonly<
       'नमस्ते {name}, {business} से {from} से {to} तक का आपका खाता विवरण: {to} को कोई बकाया नहीं है।',
     dueNow: ' इसमें से {amount} अभी देय है।',
     attached: ' खाता विवरण की PDF साथ में है।',
+    linked: ' खाता विवरण देखें: {url}',
   },
   te: {
     due: 'నమస్తే {name}, {business} నుండి {from} నుండి {to} వరకు మీ ఖాతా వివరణ: {to} నాటికి చెల్లించాల్సిన బకాయి {amount}.',
@@ -183,15 +192,21 @@ const SHARE_TEXTS: Readonly<
       'నమస్తే {name}, {business} నుండి {from} నుండి {to} వరకు మీ ఖాతా వివరణ: {to} నాటికి బకాయి ఏమీ లేదు.',
     dueNow: ' ఇందులో {amount} ఇప్పుడే చెల్లించాలి.',
     attached: ' ఖాతా వివరణ PDF జత చేశాం.',
+    linked: ' ఖాతా వివరణ చూడండి: {url}',
   },
 };
 
 /**
  * The short WhatsApp message sent with the statement PDF, in the statement's language:
  * the balance on the last day and how much of it is due now. A wa.me link carries
- * text only, so it says the PDF is attached (by hand, until a WhatsApp provider sends it).
+ * text only, so it says the PDF is attached (by hand), or, given a stored statement
+ * link (MVP 3 round 2a, spec §6.4), where to open it.
  */
-export function statementShareText(data: StatementData, language: PrintLanguage): string {
+export function statementShareText(
+  data: StatementData,
+  language: PrintLanguage,
+  linkUrl: string | null = null,
+): string {
   const texts = SHARE_TEXTS[language];
   const { ageing } = data;
   const params = {
@@ -206,7 +221,8 @@ export function statementShareText(data: StatementData, language: PrintLanguage)
   const dueNow = ageing.outstandingPaise - ageing.buckets.not_due;
   const tail =
     ageing.netPaise > 0 && dueNow > 0 ? fillLabel(texts.dueNow, { amount: formatINR(dueNow) }) : '';
-  return `${fillLabel(head, params)}${tail}${texts.attached}`;
+  const attachment = linkUrl === null ? texts.attached : fillLabel(texts.linked, { url: linkUrl });
+  return `${fillLabel(head, params)}${tail}${attachment}`;
 }
 
 /** "Statement-Deccan-Contractors-2026-04-01-2026-10-11.pdf" (ASCII only, for every browser). */

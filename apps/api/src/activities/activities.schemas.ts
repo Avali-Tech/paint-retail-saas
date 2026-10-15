@@ -2,6 +2,11 @@ import { schema } from '@paint/db';
 import { z } from 'zod';
 
 export const ACTIVITY_TYPES = schema.activityType.enumValues;
+/** Types staff log or schedule; a promise to pay is recorded through /parties/:id/promises. */
+export const LOGGED_ACTIVITY_TYPES = ACTIVITY_TYPES.filter((type) => type !== 'promise_to_pay') as [
+  Exclude<(typeof ACTIVITY_TYPES)[number], 'promise_to_pay'>,
+  ...Exclude<(typeof ACTIVITY_TYPES)[number], 'promise_to_pay'>[],
+];
 export const ACTIVITY_RECORD_TYPES = schema.activityRecordType.enumValues;
 export const FOLLOW_UP_WINDOWS = ['overdue', 'today', 'upcoming', 'open'] as const;
 
@@ -18,7 +23,7 @@ const record = { recordType: z.enum(ACTIVITY_RECORD_TYPES), recordId: z.uuid() }
 export const createActivitySchema = z
   .object({
     ...record,
-    type: z.enum(ACTIVITY_TYPES),
+    type: z.enum(LOGGED_ACTIVITY_TYPES),
     subject,
     notes: longText.optional(),
     outcome: longText.optional(),
@@ -54,7 +59,7 @@ export const completeActivitySchema = z.object({
     .object({
       dueAt: moment,
       subject: subject.optional(),
-      type: z.enum(ACTIVITY_TYPES).default('follow_up'),
+      type: z.enum(LOGGED_ACTIVITY_TYPES).default('follow_up'),
     })
     .optional(),
 });

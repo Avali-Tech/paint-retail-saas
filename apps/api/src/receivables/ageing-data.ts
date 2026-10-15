@@ -1,7 +1,6 @@
 import { schema, type Transaction } from '@paint/db';
-import type { Credit, DatedAmount, Receivable } from '@paint/shared';
+import type { Credit, DatedAmount, MemberAccess, Receivable } from '@paint/shared';
 import { sql, type SQL } from 'drizzle-orm';
-import type { AuthContext } from '../auth/auth-context.js';
 import { containsPattern, phoneSearchDigits } from '../parties/party-access.js';
 
 /**
@@ -50,7 +49,7 @@ export interface AgeingInput {
  * The parties the member may see (`canSeeParty`): business-wide parties, and those
  * whose home store is one of the member's. Narrowed by the scope's filters.
  */
-function partyScope(auth: AuthContext, scope: AgeingScope): SQL {
+function partyScope(auth: MemberAccess, scope: AgeingScope): SQL {
   const conditions: SQL[] = [sql`true`];
   if (!auth.allStores) {
     const stores = `{${[...auth.storeIds].join(',')}}`;
@@ -77,7 +76,7 @@ function partyScope(auth: AuthContext, scope: AgeingScope): SQL {
 /** What every party in scope owes and has paid ahead, as of `scope.asOf`. */
 export async function loadAgeing(
   tx: Transaction,
-  auth: AuthContext,
+  auth: MemberAccess,
   scope: AgeingScope,
 ): Promise<AgeingInput> {
   const asOf = sql`${scope.asOf}::date`;

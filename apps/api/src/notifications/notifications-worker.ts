@@ -7,14 +7,18 @@ import {
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { schema, type DatabaseConnection } from '@paint/db';
-import { variantName } from '@paint/shared';
+import { isMessagingHour, variantName } from '@paint/shared';
 import { and, asc, eq, isNull, lt, lte, notExists, or, sql } from 'drizzle-orm';
 import { RECORD_PATHS, recordLabel } from '../activities/activity-records.js';
+import type { SmsSender } from '../auth/sms.js';
+import { runCollectionsForBusinesses } from '../collections/collections-job.js';
 import { todayInIndia } from '../contracts/contract-dates.js';
 import { todayIst } from '../contracts/contract-sql.js';
 import { holdOverdueBusinesses } from '../credit/credit-holds.js';
 import { DATABASE } from '../database/database.module.js';
 import { expireAccount } from '../loyalty/loyalty-lookups.js';
+import type { MessagingProvider } from '../messaging/messaging-provider.js';
+import { sendDueMessages } from '../messaging/outbox.js';
 import { reconcileDueBusinesses } from '../reconciliation/reconciler.js';
 import type { EmailSender } from './email-sender.js';
 import { Notifier } from './notifier.js';
@@ -39,6 +43,13 @@ export interface WorkerSettings {
   readonly intervalMs: number;
   /** Null when email is off: queued emails then wait. */
   readonly sender: EmailSender | null;
+  /** Senders of messages to parties (P2-M32); null where a channel is off. */
+  readonly messaging: {
+    readonly whatsapp: MessagingProvider | null;
+    readonly sms: SmsSender | null;
+  };
+  /** The time now (runOnce takes another, so tests can fix the time of day). */
+  readonly clock: () => Date;
 }
 
 /** Give up on an email after this many failed attempts. */
@@ -61,6 +72,13 @@ export interface WorkerRun {
   readonly reconciliations: number;
   /** Credit accounts put on hold for overdue bills (MVP 3 spec §4.4). */
   readonly creditHolds: number;
+  /** Promises to pay kept or broken by the daily collections run (P2-M11). */
+  readonly promisesSettled: number;
+  /** Payment reminders queued by the daily collections run. */
+  readonly remindersQueued: number;
+  /** Messages to parties sent, and failed attempts (P2-M32). */
+  readonly messagesSent: number;
+  readonly messagesFailed: number;
   readonly emailsSent: number;
   readonly emailsFailed: number;
 }
@@ -69,8 +87,10 @@ export interface WorkerRun {
  * Background work for notifications, across every business: announces stock
  * that has fallen to its reorder level, reminds people of what is due,
  * expires loyalty points, reconciles each business's books once a day (the
- * nightly reconciliation), puts overdue credit accounts on hold once a day and
- * sends queued emails with retries. Safe to run on several servers at once.
+ * nightly reconciliation), puts overdue credit accounts on hold once a day,
+ * sends queued emails with retries and, between 09:00 and 20:00 India time, runs
+ * the daily collections (promises, escalations, reminders) and sends messages to
+ * parties. Safe to run on several servers at once.
  */
 @Injectable()
 export class NotificationsWorker implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -101,7 +121,7 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
   }
 
   /** Runs every job once; one failing does not stop the others. */
-  async runOnce(): Promise<WorkerRun> {
+  async runOnce(now: Date = this.settings.clock()): Promise<WorkerRun> {
     const lowStock = await this.attempt('Low stock check', () => this.checkLowStock(), 0);
     const followUps = await this.attempt('Follow-up reminders', () => this.remindFollowUps(), 0);
     const contractRenewals = await this.attempt(
@@ -124,6 +144,26 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
       () => holdOverdueBusinesses(this.connection.db, this.notifier),
       0,
     );
+    // Parties are never messaged at night (spec MSG-6); both jobs wait for the morning.
+    const messagingHour = isMessagingHour(now);
+    const collections = messagingHour
+      ? await this.attempt(
+          'Collections',
+          () => runCollectionsForBusinesses(this.connection.db, this.notifier),
+          { kept: 0, broken: 0, remindersQueued: 0 },
+        )
+      : { kept: 0, broken: 0, remindersQueued: 0 };
+    const messages = messagingHour
+      ? await this.attempt(
+          'Sending messages',
+          () =>
+            sendDueMessages(this.connection.db, {
+              ...this.settings.messaging,
+              email: this.settings.sender,
+            }),
+          { sent: 0, failed: 0, skipped: 0 },
+        )
+      : { sent: 0, failed: 0, skipped: 0 };
     const { sent, failed } = await this.attempt('Sending email', () => this.sendDueEmails(), {
       sent: 0,
       failed: 0,
@@ -135,6 +175,10 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
       loyaltyExpiries,
       reconciliations,
       creditHolds,
+      promisesSettled: collections.kept + collections.broken,
+      remindersQueued: collections.remindersQueued,
+      messagesSent: messages.sent,
+      messagesFailed: messages.failed,
       emailsSent: sent,
       emailsFailed: failed,
     };

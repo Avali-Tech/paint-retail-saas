@@ -1,5 +1,7 @@
 import 'reflect-metadata';
 import { Global, Module, type DynamicModule } from '@nestjs/common';
+import type { SmsSender } from '../auth/sms.js';
+import type { MessagingProvider } from '../messaging/messaging-provider.js';
 import { SmtpEmailSender } from './email-sender.js';
 import { NotificationsController } from './notifications.controller.js';
 import { NotificationsService } from './notifications.service.js';
@@ -14,6 +16,11 @@ export interface NotificationsOptions {
   readonly appUrl: string;
   readonly email: { readonly smtpUrl: string; readonly from: string } | null;
   readonly workerIntervalSeconds: number;
+  /** Who sends WhatsApp and SMS messages to parties; null where off. */
+  readonly messaging: {
+    readonly whatsapp: MessagingProvider | null;
+    readonly sms: SmsSender | null;
+  };
 }
 
 /** Global, so any module can inject the Notifier to report events. */
@@ -28,6 +35,8 @@ export class NotificationsModule {
     const worker: WorkerSettings = {
       intervalMs: options.workerIntervalSeconds * 1000,
       sender: options.email && new SmtpEmailSender(options.email.smtpUrl, options.email.from),
+      messaging: options.messaging,
+      clock: () => new Date(),
     };
     return {
       module: NotificationsModule,
