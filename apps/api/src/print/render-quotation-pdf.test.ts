@@ -211,24 +211,29 @@ describe('renderQuotationPdf', () => {
     expect(text).not.toContain('Rangoli Paints & Hardware');
   });
 
-  it('continues a long quotation on numbered pages in Telugu, each with the column headings', async () => {
-    const lines = Array.from({ length: 70 }, (_, index) =>
-      line({
-        id: `ql-${String(index)}`,
-        lineNo: index + 1,
-        description: `Item ${String(index + 1)}`,
-      }),
-    );
-    const { totalPages, pages, text } = await read(
-      await renderQuotationPdf({ ...QUOTE, lines, note: 'Long note\n'.repeat(40) }, STORE, 'te'),
-    );
-    expect(totalPages).toBeGreaterThan(1);
-    expect(pages[1]).toContain('Rangoli Paints & Hardware · Quotation QT-000042 v2 · Continued');
-    expect(pages[1]).toContain('Description');
-    // Text extraction splits some Telugu clusters; these come back whole.
-    expect(text).toContain('తేదీ');
-    expect(text).toContain('పేజీ 2 /');
-    expect(text).toContain(`Page 2 of ${String(totalPages)}`);
-    expect(text).toContain('Item 70');
-  });
+  // 70 lines in Telugu take a few seconds alone and more under load: room as for the invoice PDF.
+  it(
+    'continues a long quotation on numbered pages in Telugu, each with the column headings',
+    { timeout: 30_000 },
+    async () => {
+      const lines = Array.from({ length: 70 }, (_, index) =>
+        line({
+          id: `ql-${String(index)}`,
+          lineNo: index + 1,
+          description: `Item ${String(index + 1)}`,
+        }),
+      );
+      const { totalPages, pages, text } = await read(
+        await renderQuotationPdf({ ...QUOTE, lines, note: 'Long note\n'.repeat(40) }, STORE, 'te'),
+      );
+      expect(totalPages).toBeGreaterThan(1);
+      expect(pages[1]).toContain('Rangoli Paints & Hardware · Quotation QT-000042 v2 · Continued');
+      expect(pages[1]).toContain('Description');
+      // Text extraction splits some Telugu clusters; these come back whole.
+      expect(text).toContain('తేదీ');
+      expect(text).toContain('పేజీ 2 /');
+      expect(text).toContain(`Page 2 of ${String(totalPages)}`);
+      expect(text).toContain('Item 70');
+    },
+  );
 });
