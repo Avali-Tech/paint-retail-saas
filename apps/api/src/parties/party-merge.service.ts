@@ -27,6 +27,10 @@ const {
   goLiveOpenings,
   loyaltyAccounts,
   loyaltyLedger,
+  messageOutbox,
+  messagingConsents,
+  promisesToPay,
+  statementLinks,
   parties,
   partyLedger,
   salesSettings,
@@ -92,6 +96,15 @@ export const MERGE_HANDLED: readonly string[] = [
   'go_live_openings.party_id',
   // What a reconciliation found is a record of that day, never rewritten.
   'reconciliation_findings.party_id',
+  // Collections and messages (MVP 3 round 2a): see collections() below. Promises (and
+  // the escalations of broken ones) are records of what that party said: refused.
+  'promises_to_pay.party_id',
+  'collection_escalations.party_id',
+  // Messages stay as sent; queued ones are not sent. Consent is never carried over,
+  // but a withdrawal is (the stricter choice wins). Shared statement links are revoked.
+  'message_outbox.party_id',
+  'messaging_consents.party_id',
+  'statement_links.party_id',
 ];
 
 export interface MergeResult {
@@ -140,6 +153,7 @@ export class PartyMergeService {
       const counts: Record<string, number> = {};
       await this.billing(tx, duplicateId, survivorId, counts);
       await this.creditProfile(tx, duplicateId, survivorId, counts);
+      await this.collections(tx, auth, duplicateId, survivorId, counts);
       for (const [table, column] of MOVED) {
         const moved = await tx.execute(
           sql`update ${sql.identifier(table)} set ${sql.identifier(column)} = ${survivorId} where ${sql.identifier(column)} = ${duplicateId}`,
@@ -351,6 +365,90 @@ export class PartyMergeService {
         .set({ partyId: survivorId, updatedAt: sql`now()` })
         .where(eq(siteCreditAccounts.partyId, duplicateId))
         .returning({ id: siteCreditAccounts.id })
+    ).length;
+  }
+
+  /**
+   * Collections and messages (MVP 3 round 2a). A promise to pay (and its escalation)
+   * is what that party said and never changes, so a duplicate with any is refused:
+   * merge the other way. The duplicate's messages stay its own record; those still
+   * queued are not sent. Consent to messages is the person's choice at an address, so
+   * a grant is never carried over (the survivor is asked again), but a withdrawal is,
+   * when the survivor's own consent on that channel is still a grant. The duplicate's
+   * shared statement links stop working.
+   */
+  private async collections(
+    tx: Transaction,
+    auth: AuthContext,
+    duplicateId: string,
+    survivorId: string,
+    counts: Record<string, number>,
+  ): Promise<void> {
+    const [promise] = await tx
+      .select({ id: promisesToPay.id })
+      .from(promisesToPay)
+      .where(eq(promisesToPay.partyId, duplicateId))
+      .limit(1);
+    if (promise) {
+      throw new ConflictException('This party has promises to pay; merge the other way');
+    }
+    counts['message_outbox.party_id'] = (
+      await tx
+        .update(messageOutbox)
+        .set({ status: 'skipped', skipReason: 'party_merged' })
+        .where(and(eq(messageOutbox.partyId, duplicateId), eq(messageOutbox.status, 'queued')))
+        .returning({ id: messageOutbox.id })
+    ).length;
+    const latest = await tx.execute<{
+      party_id: string;
+      channel: 'whatsapp' | 'sms' | 'email';
+      address: string;
+      state: 'granted' | 'withdrawn';
+      method: 'counter_with_notice' | 'signed_form' | 'web_form' | 'whatsapp_reply';
+      notice_version: string;
+      language: 'en' | 'hi' | 'te';
+    }>(sql`
+      select distinct on (party_id, channel) party_id, channel, address, state, method,
+        notice_version, language
+      from messaging_consents
+      where party_id in (${duplicateId}, ${survivorId})
+      order by party_id, channel, recorded_at desc`);
+    const withdrawals = latest.rows.filter(
+      (row) =>
+        row.party_id === duplicateId &&
+        row.state === 'withdrawn' &&
+        latest.rows.some(
+          (other) =>
+            other.party_id === survivorId &&
+            other.channel === row.channel &&
+            other.state === 'granted',
+        ),
+    );
+    for (const withdrawal of withdrawals) {
+      const granted = latest.rows.find(
+        (row) => row.party_id === survivorId && row.channel === withdrawal.channel,
+      ) as { address: string };
+      await tx.insert(messagingConsents).values({
+        organizationId: auth.organization.id,
+        partyId: survivorId,
+        channel: withdrawal.channel,
+        address: granted.address,
+        state: 'withdrawn',
+        method: withdrawal.method,
+        noticeVersion: withdrawal.notice_version,
+        language: withdrawal.language,
+        recordedByMemberId: auth.memberId,
+      });
+    }
+    counts['messaging_consents.party_id'] = withdrawals.length;
+    counts['statement_links.party_id'] = (
+      await tx
+        .update(statementLinks)
+        .set({ revokedAt: sql`now()`, revokedByMemberId: auth.memberId })
+        .where(
+          and(eq(statementLinks.partyId, duplicateId), sql`${statementLinks.revokedAt} is null`),
+        )
+        .returning({ id: statementLinks.id })
     ).length;
   }
 

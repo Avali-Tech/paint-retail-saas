@@ -121,6 +121,21 @@ describe('what the server can send on', () => {
       email: false,
     });
   });
+
+  it('sends party SMS through the sign-in SMS provider when it prints to the log', async () => {
+    const printing = await startTestApp(
+      database.connectionString,
+      { SMS_PROVIDER: 'log' },
+      { fakeSms: false },
+    );
+    try {
+      expect(
+        ok(await api(printing, b.owner).get('/messaging/status')).json<MessagingStatus>().sms,
+      ).toBe(true);
+    } finally {
+      await printing.close();
+    }
+  });
 });
 
 describe('consent', () => {
