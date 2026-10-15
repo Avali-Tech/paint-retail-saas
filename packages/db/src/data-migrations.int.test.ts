@@ -106,6 +106,7 @@ describe.each([
   ['0059_grant_payment_permissions', '0058_payment_rules', 'billing:notes'],
   ['0059_grant_payment_permissions', '0058_payment_rules', 'accounting:'],
   ['0062_grant_order_permissions', '0061_order_rules', 'sales:manage'],
+  ['0071_grant_credit_approve_sale', '0070_credit_enforcement_rules', 'credit:approve_sale'],
 ])('%s', (_migration, before, prefix) => {
   it("gives existing organisations' standard roles exactly the permissions new ones get", async () => {
     const permissions = await permissionsAfterBackfill(before, prefix);
@@ -449,6 +450,47 @@ describe('0068_backfills: allocation reversal reasons', () => {
           [ids.org, ids.party, ids.upi],
         ),
       ).rejects.toThrow('allocations_reversal_reason');
+    });
+  });
+});
+
+describe('0069_credit_enforcement: hold kinds', () => {
+  it('marks every hold already on as put on by a person, and keeps the new rule', async () => {
+    const { connectionString: url } = await freshDatabase();
+    await migrateDatabase(url, migrationsUpTo('0068_backfills'));
+    const ids = await withPgClient(url, async (client) => {
+      // Rows as MVP 1 left them; foreign keys set aside to keep the setup short.
+      await client.query("SET session_replication_role = 'replica'");
+      const profile = async (held: boolean) => {
+        const result = await client.query<{ id: string }>(
+          `INSERT INTO credit_profiles (organization_id, party_id, status, limit_paise, hold_reason,
+             held_at, held_by_member_id)
+           VALUES (gen_random_uuid(), gen_random_uuid(), $1, 100000, $2, $3, $4) RETURNING id`,
+          held
+            ? ['on_hold', 'Cheque bounced', new Date(), crypto.randomUUID()]
+            : ['active', null, null, null],
+        );
+        return String(result.rows[0]?.id);
+      };
+      return { held: await profile(true), active: await profile(false) };
+    });
+
+    await migrateDatabase(url);
+
+    await withPgClient(url, async (client) => {
+      const rows = await client.query<{ id: string; kind: string | null }>(
+        'SELECT id, hold_kind::text AS kind FROM credit_profiles',
+      );
+      const kind = new Map(rows.rows.map((row) => [row.id, row.kind]));
+      expect([kind.get(ids.held), kind.get(ids.active)]).toEqual(['manual', null]);
+      // An automatic hold has no member; a person's always has one.
+      await expect(
+        client.query("UPDATE credit_profiles SET hold_kind = 'auto' WHERE id = $1", [ids.held]),
+      ).rejects.toThrow('credit_profiles_hold_complete');
+      await client.query(
+        "UPDATE credit_profiles SET hold_kind = 'auto', held_by_member_id = NULL WHERE id = $1",
+        [ids.held],
+      );
     });
   });
 });

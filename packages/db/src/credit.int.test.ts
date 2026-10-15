@@ -162,6 +162,9 @@ describe('credit profiles', () => {
           credit_days: 7,
           hold_reason: null,
           opening_overdue_since: null,
+          // MVP 3 (P2-M09): who held it, and how long an overdue block is waived.
+          hold_kind: null,
+          overdue_waived_until: null,
         },
       },
       { action: 'update', newValues: { limit_paise: 200 } },

@@ -484,6 +484,27 @@
       "when": 1791582842369,
       "tag": "0068_backfills",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1791704715078,
+      "tag": "0069_credit_enforcement",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1791704745404,
+      "tag": "0070_credit_enforcement_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1791704746120,
+      "tag": "0071_grant_credit_approve_sale",
+      "breakpoints": true
     }
   ]
 }

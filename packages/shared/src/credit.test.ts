@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AGEING_BUCKETS,
   DEFAULT_CREDIT_RULES,
+  ageingBucket,
   checkCredit,
+  levelCovers,
+  stricterCheck,
   type CreditPosition,
   type CreditRules,
 } from './index.js';
@@ -145,5 +149,67 @@ describe('checkCredit with configured rules', () => {
 
   it('refuses amounts that are not whole paise', () => {
     expect(() => checkCredit(DEFAULT_CREDIT_RULES, raj, 1.5)).toThrow(RangeError);
+  });
+});
+
+describe('an overdue block waived by an approved release (P2-M09)', () => {
+  it('decides by utilisation while the waiver lasts, and still blocks a hold', () => {
+    const late = at(18_000_00, 45);
+    expect(checkCredit(DEFAULT_CREDIT_RULES, late).blockedBecause).toBe('overdue');
+    expect(checkCredit(DEFAULT_CREDIT_RULES, { ...late, overdueWaived: false }).decision).toBe(
+      'blocked',
+    );
+    expect(
+      checkCredit(DEFAULT_CREDIT_RULES, { ...late, overdueWaived: true }, 15_000_00),
+    ).toMatchObject({ decision: 'owner_approval', utilizationPercent: 110 });
+    expect(
+      checkCredit(DEFAULT_CREDIT_RULES, { ...late, status: 'on_hold', overdueWaived: true })
+        .blockedBecause,
+    ).toBe('on_hold');
+  });
+});
+
+describe('stricterCheck and levelCovers', () => {
+  const check = (exposure: number, overdueDays = 0) =>
+    checkCredit(DEFAULT_CREDIT_RULES, at(exposure, overdueDays));
+
+  it('orders allowed < manager < owner < blocked, keeping the first on a tie', () => {
+    const allowed = check(0);
+    const manager = check(25_000_00);
+    const owner = check(31_000_00);
+    const blocked = check(0, 31);
+    expect(stricterCheck(allowed, manager)).toBe(manager);
+    expect(stricterCheck(owner, manager)).toBe(owner);
+    expect(stricterCheck(owner, blocked)).toBe(blocked);
+    const another = check(1);
+    expect(stricterCheck(allowed, another)).toBe(allowed);
+  });
+
+  it('lets an owner approval cover a manager-level sale, never the reverse', () => {
+    expect(levelCovers('owner', 'manager')).toBe(true);
+    expect(levelCovers('owner', 'owner')).toBe(true);
+    expect(levelCovers('manager', 'manager')).toBe(true);
+    expect(levelCovers('manager', 'owner')).toBe(false);
+  });
+});
+
+describe('ageingBucket (spec §2.2)', () => {
+  it.each([
+    [-1, 'not_due'],
+    [-400, 'not_due'],
+    [0, 'd0_30'],
+    [30, 'd0_30'],
+    [31, 'd31_60'],
+    [60, 'd31_60'],
+    [61, 'd61_90'],
+    [90, 'd61_90'],
+    [91, 'd90_plus'],
+    [10_000, 'd90_plus'],
+  ] as const)('puts %i days past due in %s', (days, bucket) => {
+    expect(ageingBucket(days)).toBe(bucket);
+  });
+
+  it('lists the buckets oldest last', () => {
+    expect(AGEING_BUCKETS).toEqual(['not_due', 'd0_30', 'd31_60', 'd61_90', 'd90_plus']);
   });
 });

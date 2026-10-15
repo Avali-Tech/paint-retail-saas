@@ -1732,6 +1732,9 @@ export const notificationEvent = pgEnum('notification_event', [
   'cheque_bounced',
   'register_variance',
   'reconciliation_mismatch',
+  'credit_approval_requested',
+  'credit_approval_decided',
+  'credit_hold_applied',
 ]);
 
 /** An in-app notification for one member. */
@@ -2436,6 +2439,9 @@ export const contracts = pgTable(
 /** Whether a party buys on credit (roadmap P1-M25). */
 export const creditStatus = pgEnum('credit_status', ['none', 'active', 'on_hold']);
 
+/** Who put an account on hold: a person, or the nightly overdue check (P2-M09). */
+export const creditHoldKind = pgEnum('credit_hold_kind', ['manual', 'auto']);
+
 /** How risky the business judges a credit customer to be. */
 export const creditRisk = pgEnum('credit_risk', ['low', 'medium', 'high']);
 
@@ -2468,7 +2474,15 @@ export const creditProfiles = pgTable(
     openingOverdueSince: date('opening_overdue_since', { mode: 'string' }),
     holdReason: text('hold_reason'),
     heldAt: timestamp('held_at', { withTimezone: true }),
+    /** Who held the account; null for an automatic hold (P2-M09). */
     heldByMemberId: uuid('held_by_member_id'),
+    /** Put on hold by a person, or by the nightly overdue check (P2-M09). */
+    holdKind: creditHoldKind('hold_kind'),
+    /**
+     * Released from an automatic hold with approval: until this India date the
+     * overdue block is waived and the nightly check leaves the account alone.
+     */
+    overdueWaivedUntil: date('overdue_waived_until', { mode: 'string' }),
     notes: text('notes'),
     /** Who approved the current limit and days. */
     approvedByMemberId: uuid('approved_by_member_id'),
@@ -2514,7 +2528,7 @@ export const creditProfiles = pgTable(
     ),
     check(
       'credit_profiles_hold_complete',
-      sql`(${table.holdReason} is null) = (${table.heldAt} is null) and (${table.heldAt} is null) = (${table.heldByMemberId} is null)`,
+      sql`(${table.holdReason} is null) = (${table.heldAt} is null) and (${table.heldAt} is null) = (${table.holdKind} is null) and (${table.heldByMemberId} is not null) = (${table.holdKind} is not distinct from 'manual')`,
     ),
     pgPolicy('credit_profiles_tenant_isolation', {
       for: 'all',
@@ -3271,6 +3285,10 @@ export const taxDocuments = pgTable(
     schemeReference: text('scheme_reference'),
     /** The sales order an invoice bills (round 4a); its lines carry the order lines. */
     salesOrderId: uuid('sales_order_id'),
+    /** checkCredit's figures when an invoice was issued on credit (P2-M09). */
+    creditCheck: jsonb('credit_check').$type<Record<string, unknown>>(),
+    /** The approval that let it be issued past the credit rules (P2-M09). */
+    creditApprovalId: uuid('credit_approval_id'),
     stockPosting: stockPosting('stock_posting').notNull().default('on_issue'),
     itcReversalStatus: itcReversalStatus('itc_reversal_status'),
     // E-invoice (Release 2.3; entered by hand from the government portal until then).
@@ -3285,7 +3303,7 @@ export const taxDocuments = pgTable(
     issuedByMemberId: uuid('issued_by_member_id'),
     ...timestamps,
   },
-  (table) => [
+  (table): PgTableExtraConfigValue[] => [
     unique('tax_documents_organization_id_id_unique').on(table.organizationId, table.id),
     // Lets an allocation point at a document of its own party only (round 3a).
     unique('tax_documents_organization_id_party_unique').on(
@@ -3362,6 +3380,11 @@ export const taxDocuments = pgTable(
       name: 'tax_documents_sales_order_fk',
       columns: [table.organizationId, table.salesOrderId],
       foreignColumns: [salesOrders.organizationId, salesOrders.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'tax_documents_credit_approval_fk',
+      columns: [table.organizationId, table.creditApprovalId],
+      foreignColumns: [creditApprovals.organizationId, creditApprovals.id],
     }).onDelete('restrict'),
     foreignKey({
       name: 'tax_documents_cancelled_by_fk',
@@ -4806,6 +4829,8 @@ export const salesOrders = pgTable(
     creditOverrideByMemberId: uuid('credit_override_by_member_id'),
     creditOverrideReason: text('credit_override_reason'),
     creditOverriddenAt: timestamp('credit_overridden_at', { withTimezone: true }),
+    /** The approval the confirm used (P2-M09); the override columns are filled from it. */
+    creditApprovalId: uuid('credit_approval_id'),
     confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
     confirmedByMemberId: uuid('confirmed_by_member_id'),
     cancelReason: text('cancel_reason'),
@@ -4869,6 +4894,11 @@ export const salesOrders = pgTable(
       name: 'sales_orders_credit_override_by_fk',
       columns: [table.organizationId, table.creditOverrideByMemberId],
       foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'sales_orders_credit_approval_fk',
+      columns: [table.organizationId, table.creditApprovalId],
+      foreignColumns: [creditApprovals.organizationId, creditApprovals.id],
     }).onDelete('restrict'),
     foreignKey({
       name: 'sales_orders_cancelled_by_fk',
@@ -5709,6 +5739,251 @@ export const reconciliationFindings = pgTable(
         and (${table.advancePaise} is null) = (${table.unallocatedPaise} is null)`,
     ),
     pgPolicy('reconciliation_findings_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+// Credit enforcement (MVP 3 round 1a, P2-M09; docs/mvp-3/credit-and-receivables.md §3.2) --------
+
+/** A sale past the credit rules, or the release of a hold. */
+export const creditApprovalKind = pgEnum('credit_approval_kind', ['sale', 'release']);
+
+/** Who must approve a sale: a manager (credit:approve_sale) or the owner. */
+export const creditApprovalLevel = pgEnum('credit_approval_level', ['manager', 'owner']);
+
+export const creditApprovalStatus = pgEnum('credit_approval_status', [
+  'pending',
+  'approved',
+  'rejected',
+  'cancelled',
+  /** An approved sale that went ahead. */
+  'used',
+]);
+
+/**
+ * A request to let a sale go past the credit rules (an order confirmed or an
+ * invoice issued on credit) or to release a hold, decided by a manager or the
+ * owner as checkCredit's result says (spec §4.3). It replaces MVP 2's
+ * in-dialog override; approving in the dialog writes one already approved.
+ */
+export const creditApprovals = pgTable(
+  'credit_approvals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** Gap-free, e.g. AP-000004. */
+    number: text('number').notNull(),
+    kind: creditApprovalKind('kind').notNull(),
+    partyId: uuid('party_id').notNull(),
+    /** The site (project) of the sale, when it has one. */
+    projectId: uuid('project_id'),
+    /** The store selling; its managers approve a manager-level sale. */
+    storeId: uuid('store_id'),
+    salesOrderId: uuid('sales_order_id'),
+    taxDocumentId: uuid('tax_document_id'),
+    level: creditApprovalLevel('level'),
+    /** The sale amount checked (0 for a release). */
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull().default(0),
+    /** The credit view (checkCredit and position, party and site) when asked. */
+    check: jsonb('check').$type<Record<string, unknown>>(),
+    /** Why the requester asks. */
+    reason: text('reason').notNull(),
+    status: creditApprovalStatus('status').notNull().default('pending'),
+    requestedByMemberId: uuid('requested_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Who approved, rejected or cancelled it. */
+    decidedByMemberId: uuid('decided_by_member_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    /** Required to reject. */
+    decisionReason: text('decision_reason'),
+    /** A release may waive the overdue block until this India date. */
+    waiveOverdueUntil: date('waive_overdue_until', { mode: 'string' }),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+  },
+  (table): PgTableExtraConfigValue[] => [
+    unique('credit_approvals_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('credit_approvals_organization_number_unique').on(table.organizationId, table.number),
+    uniqueIndex('credit_approvals_one_pending_per_order')
+      .on(table.salesOrderId)
+      .where(sql`${table.status} = 'pending'`),
+    uniqueIndex('credit_approvals_one_pending_per_invoice')
+      .on(table.taxDocumentId)
+      .where(sql`${table.status} = 'pending'`),
+    uniqueIndex('credit_approvals_one_pending_release')
+      .on(table.partyId)
+      .where(sql`${table.status} = 'pending' and ${table.kind} = 'release'`),
+    index('credit_approvals_status_idx').on(table.organizationId, table.status, table.createdAt),
+    index('credit_approvals_party_idx').on(table.organizationId, table.partyId),
+    foreignKey({
+      name: 'credit_approvals_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'credit_approvals_project_fk',
+      columns: [table.organizationId, table.projectId],
+      foreignColumns: [projects.organizationId, projects.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'credit_approvals_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    // A discarded draft takes its approvals with it (the audit log keeps them).
+    foreignKey({
+      name: 'credit_approvals_sales_order_fk',
+      columns: [table.organizationId, table.salesOrderId],
+      foreignColumns: [salesOrders.organizationId, salesOrders.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'credit_approvals_tax_document_fk',
+      columns: [table.organizationId, table.taxDocumentId],
+      foreignColumns: [taxDocuments.organizationId, taxDocuments.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'credit_approvals_requested_by_fk',
+      columns: [table.organizationId, table.requestedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'credit_approvals_decided_by_fk',
+      columns: [table.organizationId, table.decidedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('credit_approvals_number_format', sql`${table.number} ~ '^AP-[0-9]{6,}$'`),
+    check(
+      'credit_approvals_subject',
+      sql`case when ${table.kind} = 'sale'
+        then num_nonnulls(${table.salesOrderId}, ${table.taxDocumentId}) = 1
+          and ${table.level} is not null and ${table.check} is not null and ${table.storeId} is not null
+          and ${table.waiveOverdueUntil} is null
+        else ${table.salesOrderId} is null and ${table.taxDocumentId} is null
+          and ${table.level} is null and ${table.projectId} is null and ${table.amountPaise} = 0
+      end`,
+    ),
+    check('credit_approvals_amount_not_negative', sql`${table.amountPaise} >= 0`),
+    check(
+      'credit_approvals_decided',
+      sql`(${table.status} = 'pending') = (${table.decidedAt} is null)
+        and (${table.decidedAt} is null) = (${table.decidedByMemberId} is null)`,
+    ),
+    check(
+      'credit_approvals_rejection_reason',
+      sql`${table.status} <> 'rejected' or ${table.decisionReason} is not null`,
+    ),
+    check('credit_approvals_used', sql`(${table.status} = 'used') = (${table.usedAt} is not null)`),
+    check(
+      'credit_approvals_text_lengths',
+      sql`char_length(${table.reason}) between 1 and 1000 and char_length(${table.decisionReason}) <= 1000`,
+    ),
+    pgPolicy('credit_approvals_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const siteAccountStatus = pgEnum('site_account_status', ['active', 'on_hold', 'closed']);
+
+/**
+ * A site (job) sub-account under a contractor (spec §3.3): its own limit and
+ * status on one project, rolling up to the contractor's exposure. It holds no
+ * ledger of its own: its figures come from the party's documents with that
+ * project.
+ */
+export const siteCreditAccounts = pgTable(
+  'site_credit_accounts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    partyId: uuid('party_id').notNull(),
+    projectId: uuid('project_id').notNull(),
+    limitPaise: bigint('limit_paise', { mode: 'number' }).notNull(),
+    status: siteAccountStatus('status').notNull().default('active'),
+    holdReason: text('hold_reason'),
+    heldAt: timestamp('held_at', { withTimezone: true }),
+    heldByMemberId: uuid('held_by_member_id'),
+    notes: text('notes'),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique('site_credit_accounts_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('site_credit_accounts_party_project_unique').on(
+      table.organizationId,
+      table.partyId,
+      table.projectId,
+    ),
+    index('site_credit_accounts_project_idx').on(table.organizationId, table.projectId),
+    foreignKey({
+      name: 'site_credit_accounts_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'site_credit_accounts_project_fk',
+      columns: [table.organizationId, table.projectId],
+      foreignColumns: [projects.organizationId, projects.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'site_credit_accounts_held_by_fk',
+      columns: [table.organizationId, table.heldByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'site_credit_accounts_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('site_credit_accounts_limit_positive', sql`${table.limitPaise} > 0`),
+    check(
+      'site_credit_accounts_hold',
+      sql`(${table.status} = 'on_hold') = (${table.holdReason} is not null)
+        and (${table.holdReason} is null) = (${table.heldAt} is null)
+        and (${table.heldAt} is null) = (${table.heldByMemberId} is null)`,
+    ),
+    check(
+      'site_credit_accounts_text_lengths',
+      sql`char_length(${table.holdReason}) <= 500 and char_length(${table.notes}) <= 4000`,
+    ),
+    pgPolicy('site_credit_accounts_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** One nightly overdue check per business per India day (spec §4.4); append-only. */
+export const creditHoldRuns = pgTable(
+  'credit_hold_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    runOn: date('run_on', { mode: 'string' })
+      .notNull()
+      .default(sql`(now() at time zone 'Asia/Kolkata')::date`),
+    ranAt: timestamp('ran_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Accounts put on hold by this run. */
+    heldCount: integer('held_count').notNull(),
+  },
+  (table) => [
+    unique('credit_hold_runs_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('credit_hold_runs_daily_unique').on(table.organizationId, table.runOn),
+    foreignKey({
+      name: 'credit_hold_runs_organization_fk',
+      columns: [table.organizationId],
+      foreignColumns: [organizations.id],
+    }).onDelete('cascade'),
+    check('credit_hold_runs_held_count', sql`${table.heldCount} >= 0`),
+    pgPolicy('credit_hold_runs_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,
