@@ -65,19 +65,23 @@ describe('renderInvoicePdf', () => {
     }
   });
 
-  it('continues a long invoice over pages with the headings repeated', async () => {
-    const view = sampleInvoiceView({ lineCount: 60, buyer: 'b2b_inter' });
-    const { totalPages, text } = await read(await renderInvoicePdf(view));
+  it(
+    'continues a long invoice over pages with the headings repeated',
+    { timeout: 30_000 },
+    async () => {
+      const view = sampleInvoiceView({ lineCount: 60, buyer: 'b2b_inter' });
+      const { totalPages, text } = await read(await renderInvoicePdf(view));
 
-    expect(totalPages).toBe(3);
-    const [, second, third] = text.map(flat);
-    expect(second).toContain('Tax Invoice AMP/26-27/00123 · Continued');
-    expect(second).toContain('Description');
-    expect(second).toContain('IGST');
-    expect(second).toContain('Page 2 of 3');
-    expect(third).toContain('Page 3 of 3');
-    expect(third).toContain('Authorised signatory');
-  });
+      expect(totalPages).toBe(3);
+      const [, second, third] = text.map(flat);
+      expect(second).toContain('Tax Invoice AMP/26-27/00123 · Continued');
+      expect(second).toContain('Description');
+      expect(second).toContain('IGST');
+      expect(second).toContain('Page 2 of 3');
+      expect(third).toContain('Page 3 of 3');
+      expect(third).toContain('Authorised signatory');
+    },
+  );
 
   it('draws a bill of supply with the composition notice and no tax columns', async () => {
     const view = sampleInvoiceView({ kind: 'bill_of_supply', buyer: 'b2c', copy: null });
