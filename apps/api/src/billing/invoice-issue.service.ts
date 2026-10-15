@@ -62,7 +62,7 @@ import {
   earnInfluencerPoints,
   reverseInfluencerPointsForCancel,
 } from '../loyalty/painter-points.js';
-import { PointsNotices } from '../loyalty/points-notice.js';
+import { queuePointsEarned } from '../loyalty/points-notice.js';
 import { idempotent } from './idempotency.js';
 import { documentView, indiaToday, loadDocument, type TaxDocumentRow } from './invoice-view.js';
 import { invoicePrintSettings } from './print-settings.js';
@@ -132,10 +132,7 @@ interface DraftLine {
  */
 @Injectable()
 export class InvoiceIssueService {
-  constructor(
-    @Inject(DATABASE) private readonly connection: DatabaseConnection,
-    @Inject(PointsNotices) private readonly pointsNotices: PointsNotices,
-  ) {}
+  constructor(@Inject(DATABASE) private readonly connection: DatabaseConnection) {}
 
   issue(
     auth: AuthContext,
@@ -593,7 +590,7 @@ export class InvoiceIssueService {
       issuedOn: today,
       memberId: auth.memberId,
     });
-    if (painterPoints !== null) await this.pointsNotices.pointsEarned(tx, painterPoints);
+    if (painterPoints !== null) await queuePointsEarned(tx, painterPoints, auth.memberId);
     const view = await this.takePayments(
       tx,
       auth,

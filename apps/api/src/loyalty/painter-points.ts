@@ -109,7 +109,7 @@ export async function earnInfluencerPoints(
   const liveOn = await billingLiveOn(tx);
   if (liveOn === null || invoice.issuedOn < liveOn) return null;
   const [painter] = await tx
-    .select({ id: parties.id, name: parties.displayName, phone: parties.phone })
+    .select({ id: parties.id })
     .from(parties)
     .where(
       and(
@@ -151,8 +151,6 @@ export async function earnInfluencerPoints(
   return {
     organizationId: invoice.organizationId,
     partyId: painter.id,
-    partyName: painter.name,
-    phone: painter.phone,
     invoiceId: invoice.invoiceId,
     invoiceNumber: invoice.invoiceNumber,
     points: earning.points,

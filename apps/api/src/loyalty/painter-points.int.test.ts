@@ -2,7 +2,7 @@ import { migrateDatabase, postStockMovements, schema, withTenant } from '@paint/
 import type { EarnRuleView, IssuedInvoiceView, TaxDocumentView } from '@paint/shared';
 import { createIsolatedDatabase, type TestDatabase } from '@paint/testing';
 import { and, eq, sql } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, inject, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import {
   api,
   billingBusiness,
@@ -18,7 +18,7 @@ import {
   reverseInfluencerPointsForCancel,
   reverseInfluencerPointsForNote,
 } from './painter-points.js';
-import { PointsNotices } from './points-notice.js';
+import { queuePointsEarned } from './points-notice.js';
 
 const { creditProfiles, loyaltyLedger } = schema;
 
@@ -52,6 +52,11 @@ const owner = () => api(t, b.owner);
 const loyalty = async (partyId: string) =>
   ok(await owner().get(`/parties/${partyId}/loyalty?limit=50`)).json<LoyaltyView>();
 const balance = async (partyId: string) => (await loyalty(partyId)).balance;
+const outboxFor = (partyId: string) =>
+  t.connection.db
+    .select()
+    .from(schema.messageOutbox)
+    .where(eq(schema.messageOutbox.partyId, partyId));
 const issuerOf = async (documentId: string) => {
   const [row] = await t.connection.db
     .select({ memberId: schema.taxDocuments.issuedByMemberId })
@@ -260,7 +265,16 @@ describe('painter points on invoices', () => {
   });
 
   it('earns the influencer points by the best rule per line, and queues the notice', async () => {
-    const notices = vi.spyOn(t.app.get(PointsNotices), 'pointsEarned');
+    // The painter agreed to WhatsApp messages; the contractor did not.
+    ok(
+      await owner().post(`/parties/${painter}/consents`, {
+        channel: 'whatsapp',
+        state: 'granted',
+        method: 'counter_with_notice',
+        language: 'en',
+        noticeVersion: '2026-10',
+      }),
+    );
     // Apex: ₹1,000 at the Asian double = 20; Berger: ₹400 at every brand = 4.
     const invoice = await sale(painter, { apex: 10, berger: 1 });
     const view = await loyalty(painter);
@@ -272,17 +286,40 @@ describe('painter points on invoices', () => {
       reference: invoice.number,
       expiresOn: null,
     });
-    expect(notices).toHaveBeenCalledWith(
-      expect.anything(),
+    const queued = await outboxFor(painter);
+    expect(queued).toEqual([
       expect.objectContaining({
-        partyId: painter,
-        partyName: 'Ravi Painter',
-        invoiceNumber: invoice.number,
-        points: 24,
-        balance: 24,
+        channel: 'whatsapp',
+        templateKey: 'points_earned',
+        variables: expect.objectContaining({
+          name: 'Ravi Painter',
+          points: '24',
+          number: invoice.number,
+          balance: '24',
+        }),
+        referenceType: 'tax_document',
+        referenceId: invoice.id,
+        dedupeKey: `points_earned:${invoice.id}`,
       }),
+    ]);
+    // A retry queues nothing more.
+    const memberId = await issuerOf(invoice.id);
+    const again = await withTenant(t.connection.db, b.organizationId, (tx) =>
+      queuePointsEarned(
+        tx,
+        {
+          organizationId: b.organizationId,
+          partyId: painter,
+          invoiceId: invoice.id,
+          invoiceNumber: String(invoice.number),
+          points: 24,
+          balance: 24,
+        },
+        memberId,
+      ),
     );
-    notices.mockRestore();
+    expect(again).toEqual({ queued: false, reason: 'duplicate' });
+    expect(await outboxFor(painter)).toHaveLength(1);
   });
 
   it('takes back proportionally over returns and credit notes, netting to zero', async () => {
@@ -356,8 +393,9 @@ describe('painter points on invoices', () => {
   it('takes everything back on a same-day cancellation, once', async () => {
     const start = await balance(contractor);
     const invoice = await sale(contractor, { berger: 2 });
-    // Berger ₹800 at every brand: 8.
+    // Berger ₹800 at every brand: 8, but no message: the contractor never agreed to one.
     expect(await balance(contractor)).toBe(start + 8);
+    expect(await outboxFor(contractor)).toEqual([]);
     ok(await owner().post(`/invoices/${invoice.id}/cancel`, { reason: 'Wrong party' }));
     const view = await loyalty(contractor);
     expect(view.balance).toBe(start);

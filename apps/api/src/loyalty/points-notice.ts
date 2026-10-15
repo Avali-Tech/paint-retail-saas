@@ -1,14 +1,12 @@
-import 'reflect-metadata';
-import { Injectable, Logger } from '@nestjs/common';
 import type { Transaction } from '@paint/db';
+import type { QueueResult } from '@paint/shared';
+import { queueMessage } from '../messaging/outbox.js';
 
 /** What the painter is told when an invoice earns them points (spec §6.5, template points_earned). */
 export interface PointsEarnedNotice {
   readonly organizationId: string;
   /** The painter or contractor. */
   readonly partyId: string;
-  readonly partyName: string;
-  readonly phone: string | null;
   readonly invoiceId: string;
   readonly invoiceNumber: string;
   readonly points: number;
@@ -17,23 +15,27 @@ export interface PointsEarnedNotice {
 }
 
 /**
- * Queues the points-earned message in the issuing transaction, so it is sent
- * only if the invoice is. This is the seam for the messaging outbox.
- *
- * TODO(P2-M32, round 2a): replace this logging implementation with one that
- * inserts a `message_outbox` row (channel whatsapp, template `points_earned`,
- * variables name / points / invoice / balance) in `tx`, once 2a's outbox,
- * templates and consents are merged; skip parties without a WhatsApp opt-in.
+ * Queues the `points_earned` WhatsApp message in the issuing transaction, so it
+ * goes only if the invoice is issued (P2-M32 outbox). Nothing is queued without
+ * the painter's consent; one message per invoice, so a retry never sends twice.
  */
-@Injectable()
-export class PointsNotices {
-  private readonly logger = new Logger('PointsNotices');
-
-  pointsEarned(_tx: Transaction, notice: PointsEarnedNotice): Promise<void> {
-    this.logger.log(
-      `points_earned to ${notice.phone ?? 'no mobile'}: ${notice.partyName} earned ` +
-        `${String(notice.points)} points on ${notice.invoiceNumber} (balance ${String(notice.balance)})`,
-    );
-    return Promise.resolve();
-  }
+export function queuePointsEarned(
+  tx: Transaction,
+  notice: PointsEarnedNotice,
+  memberId: string,
+): Promise<QueueResult> {
+  return queueMessage(tx, {
+    organizationId: notice.organizationId,
+    partyId: notice.partyId,
+    channel: 'whatsapp',
+    templateKey: 'points_earned',
+    variables: {
+      points: String(notice.points),
+      number: notice.invoiceNumber,
+      balance: String(notice.balance),
+    },
+    reference: { type: 'tax_document', id: notice.invoiceId },
+    dedupeKey: `points_earned:${notice.invoiceId}`,
+    memberId,
+  });
 }
