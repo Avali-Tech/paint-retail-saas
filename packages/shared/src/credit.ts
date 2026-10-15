@@ -1,4 +1,5 @@
 import { assertPaise } from './money.js';
+import type { AgeingBucket } from './receivables/ageing.js';
 
 /**
  * A business's credit rules (spec §3.22). Utilisation is what the party would
@@ -29,6 +30,8 @@ export interface CreditPosition {
   readonly limitPaise: number;
   readonly exposurePaise: number;
   readonly overdueDays: number;
+  /** Released from a hold with approval: overdue days do not block (P2-M09). */
+  readonly overdueWaived?: boolean;
 }
 
 export interface CreditCheck {
@@ -69,7 +72,9 @@ export function checkCredit(
   });
   if (position.status === 'none') return blocked('no_credit');
   if (position.status === 'on_hold') return blocked('on_hold');
-  if (position.overdueDays > rules.holdAfterOverdueDays) return blocked('overdue');
+  if (position.overdueWaived !== true && position.overdueDays > rules.holdAfterOverdueDays) {
+    return blocked('overdue');
+  }
   // Exact integer comparison: projected / limit <= percent / 100.
   const within = (percent: number) =>
     BigInt(projected) * 100n <= BigInt(position.limitPaise) * BigInt(percent);
@@ -79,4 +84,37 @@ export function checkCredit(
       ? 'manager_approval'
       : 'owner_approval';
   return { decision, blockedBecause: null, ...figures };
+}
+
+// Credit enforcement (P2-M09, docs/mvp-3/credit-and-receivables.md §4) ---------
+
+const DECISION_RANK: Readonly<Record<CreditDecision, number>> = {
+  allowed: 0,
+  manager_approval: 1,
+  owner_approval: 2,
+  blocked: 3,
+};
+
+/** The stricter of two checks (allowed < manager < owner < blocked); the first on a tie. */
+export function stricterCheck(first: CreditCheck, second: CreditCheck): CreditCheck {
+  return DECISION_RANK[second.decision] > DECISION_RANK[first.decision] ? second : first;
+}
+
+/** Who must approve a sale past the rules. */
+export type CreditApprovalLevel = 'manager' | 'owner';
+
+const LEVEL_RANK: Readonly<Record<CreditApprovalLevel, number>> = { manager: 1, owner: 2 };
+
+/** Whether an approval at `approved` is enough for a sale needing `needed`. */
+export function levelCovers(approved: CreditApprovalLevel, needed: CreditApprovalLevel): boolean {
+  return LEVEL_RANK[approved] >= LEVEL_RANK[needed];
+}
+
+/** The ageing bucket (receivables/ageing.ts) for a number of days past the due date. */
+export function ageingBucket(daysPastDue: number): AgeingBucket {
+  if (daysPastDue < 0) return 'not_due';
+  if (daysPastDue <= 30) return 'days_0_30';
+  if (daysPastDue <= 60) return 'days_31_60';
+  if (daysPastDue <= 90) return 'days_61_90';
+  return 'days_90_plus';
 }

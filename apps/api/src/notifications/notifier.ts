@@ -12,6 +12,7 @@ const {
   notifications,
   organizationMembers,
   rolePermissions,
+  roles,
   users,
 } = schema;
 
@@ -28,7 +29,9 @@ export interface Notice {
   /** Everyone with the permission at the store (null = anywhere), or particular members… */
   readonly to:
     | { readonly storeId: string | null; readonly permission: Permission }
-    | { readonly memberIds: readonly string[] };
+    | { readonly memberIds: readonly string[] }
+    /** …or everyone with a role (the Owner, for an owner-level credit approval). */
+    | { readonly roleKey: string };
   /** …except the person who caused it. */
   readonly actorMemberId?: string;
   readonly title: string;
@@ -116,6 +119,12 @@ export class Notifier {
 
   private audience(tx: Transaction, to: Notice['to']): SQL | undefined {
     if ('memberIds' in to) return inArray(organizationMembers.id, [...to.memberIds]);
+    if ('roleKey' in to) {
+      return inArray(
+        organizationMembers.roleId,
+        tx.select({ id: roles.id }).from(roles).where(eq(roles.key, to.roleKey)),
+      );
+    }
     return and(
       exists(
         tx

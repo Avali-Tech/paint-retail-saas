@@ -106,8 +106,18 @@ export const issueInvoiceSchema = z.object({
   payments: z.array(issuePaymentSchema).max(10).optional(),
   /** Use the customer's unallocated payments (oldest first) before the new ones. */
   allocateAdvances: z.boolean().default(false),
+  /**
+   * Issue on credit past the rules with the member's own approval (MVP 3 spec
+   * §4.3), recorded as a credit approval; refused when they may not give it.
+   */
+  creditOverride: z.object({ reason: z.string().trim().min(3).max(1000) }).optional(),
 });
 export type IssueInvoiceInput = z.output<typeof issueInvoiceSchema>;
+
+/** GET /invoices/:id/credit-check: what would stay unpaid at issue. */
+export const invoiceCreditCheckSchema = z.object({
+  unpaidPaise: z.coerce.number().int().min(0).max(100_000_000_000_00),
+});
 
 export const cancelInvoiceSchema = z.object({ reason: z.string().trim().min(3).max(500) });
 export type CancelInvoiceInput = z.output<typeof cancelInvoiceSchema>;

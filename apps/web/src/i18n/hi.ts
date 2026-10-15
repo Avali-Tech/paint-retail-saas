@@ -5,6 +5,7 @@ import { booksHi, booksEnumsHi } from './hi-books.js';
 import { brandingHi } from './hi-branding.js';
 import { catalogEnumsHi, catalogHi } from './hi-catalog.js';
 import { contractsHi } from './hi-contracts.js';
+import { approvalsEnumsHi, approvalsHi } from './hi-approvals.js';
 import { creditEnumsHi, creditHi } from './hi-credit.js';
 import { documentsHi } from './hi-documents.js';
 import { followUpEnumsHi, followUpsHi } from './hi-followups.js';
@@ -316,6 +317,7 @@ export const hi: Messages = {
   // Each feature keeps its messages in its own file.
   ...partiesHi,
   ...creditHi,
+  ...approvalsHi,
   ...loyaltyHi,
   ...catalogHi,
   ...stockHi,
@@ -363,6 +365,7 @@ export const hi: Messages = {
     },
     ...partyEnumsHi,
     ...creditEnumsHi,
+    ...approvalsEnumsHi,
     ...loyaltyEnumsHi,
     ...catalogEnumsHi,
     ...stockEnumsHi,

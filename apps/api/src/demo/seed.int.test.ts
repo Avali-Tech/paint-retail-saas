@@ -232,6 +232,20 @@ describe('the demo business', () => {
     expect(pending.total).toBe(2);
   });
 
+  it('has bills approved past the credit rules, and one waiting in the approval queue', async () => {
+    const waiting = await get<{ items: { kind: string; subject: { type: string } | null }[] }>(
+      '/credit-approvals?status=pending',
+    );
+    expect(waiting.items).toEqual([
+      expect.objectContaining({
+        kind: 'sale',
+        subject: expect.objectContaining({ type: 'tax_document' }),
+      }),
+    ]);
+    const used = await get<{ total: number }>('/credit-approvals?status=used');
+    expect(used.total).toBeGreaterThan(0);
+  });
+
   it('has painters earning loyalty points, some in a higher tier', async () => {
     const accounts = await get<{ items: { balance: number; tier: { name: string } | null }[] }>(
       '/loyalty-accounts?limit=200',

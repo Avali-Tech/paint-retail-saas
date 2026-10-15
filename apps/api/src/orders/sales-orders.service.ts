@@ -11,13 +11,11 @@ import {
 import {
   OPEN_ORDER_STATUSES,
   canAccessStore,
-  canOverrideCredit,
   formatINR,
   minimumAdvancePaise,
   openQuantity,
   orderStatusFor,
   type AdvanceRequiredRefusal,
-  type CreditApprovalRefusal,
   type CreditCheck,
   type OrderAvailabilityView,
   type OrderCreditView,
@@ -42,7 +40,8 @@ import {
 import { DATABASE } from '../database/database.module.js';
 import { containsPattern } from '../parties/party-access.js';
 import { fieldError } from '../tax/tax-lookups.js';
-import { orderCredit } from './order-credit.js';
+import { gateSale } from '../credit/credit-gate.js';
+import { orderCredit, orderSubject } from './order-credit.js';
 import { heldByLine, holdStock } from './order-stock.js';
 import {
   loadOrder,
@@ -69,6 +68,7 @@ import type {
 } from './orders.schemas.js';
 
 const {
+  creditApprovals,
   partyBalances,
   parties,
   productVariants,
@@ -301,39 +301,29 @@ export class SalesOrdersService {
             check,
             exposureSource: credit.exposureSource,
             position: credit.position,
+            site: credit.site,
           };
           changes.creditCheck = { ...stored };
-          if (credit.approval !== 'none') {
-            const refuse = (code: CreditApprovalRefusal['code'], message: string) => {
-              const refusal: CreditApprovalRefusal = { statusCode: 409, code, message, credit };
-              return new ConflictException(refusal);
-            };
-            if (credit.approval === 'blocked') {
-              throw refuse(
-                'credit_blocked',
-                `Credit is blocked for this customer (${String(check.blockedBecause).replaceAll('_', ' ')})`,
-              );
-            }
-            const who = credit.approval === 'owner' ? 'the owner' : 'a manager';
-            if (input.creditOverride === undefined) {
-              throw refuse(
-                'credit_approval_required',
-                `This order takes the customer to ${String(check.utilizationPercent)}% of their limit: ${who} must approve`,
-              );
-            }
-            if (
-              !canOverrideCredit(credit.approval, {
-                permissions: auth.permissions,
-                roleKey: auth.role.key,
-              })
-            ) {
-              throw refuse('credit_override_not_allowed', `Only ${who} can approve this order`);
-            }
+          // Past the rules only with an approval (MVP 3 spec §4.3); the 2.0
+          // override columns are filled from it, so old and new orders read alike.
+          const approvalId = await gateSale(
+            tx,
+            auth,
+            orderSubject(order),
+            credit,
+            input.creditOverride,
+          );
+          if (approvalId !== null) {
+            const [approval] = (await tx
+              .select()
+              .from(creditApprovals)
+              .where(eq(creditApprovals.id, approvalId))) as [typeof creditApprovals.$inferSelect];
             Object.assign(changes, {
-              creditOverrideApproval: credit.approval,
-              creditOverrideByMemberId: auth.memberId,
-              creditOverrideReason: input.creditOverride.reason,
-              creditOverriddenAt: sql`now()`,
+              creditApprovalId: approvalId,
+              creditOverrideApproval: approval.level,
+              creditOverrideByMemberId: approval.decidedByMemberId,
+              creditOverrideReason: approval.decisionReason ?? approval.reason,
+              creditOverriddenAt: approval.decidedAt,
             });
           }
         } else if (order.paymentTerms === 'partial') {

@@ -162,6 +162,7 @@ export const ORDER: SalesOrderView = {
   note: null,
   creditCheck: null,
   creditOverride: null,
+  creditApproval: null,
   confirmedAt: null,
   confirmedByMemberId: null,
   cancelledAt: null,
@@ -249,6 +250,7 @@ export const OVER_LIMIT: OrderCreditView = {
     availablePaise: -3_000_00,
     utilizationPercent: 110,
   },
+  site: null,
   approval: 'owner',
 };
 

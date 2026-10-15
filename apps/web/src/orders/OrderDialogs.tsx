@@ -81,7 +81,7 @@ export function ConfirmDialog({
   const api = useApi();
   const { t, number, money, label } = useI18n();
   const queryClient = useQueryClient();
-  const canOverride = useCanOverride();
+  const canOverride = useCanOverride(order.storeId);
   const [reason, setReason] = useState('');
   const [key] = useState(() => crypto.randomUUID());
   const override = (approval === 'manager' || approval === 'owner') && canOverride(approval);

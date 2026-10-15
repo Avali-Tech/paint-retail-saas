@@ -91,6 +91,9 @@ test('a branch manager asks for credit, the owner approves it, holds and release
   await owner.goto(`/parties/${party.id}`);
   const ownerCredit = owner.getByRole('region', { name: 'Credit' });
   await ownerCredit.getByRole('button', { name: 'Release hold' }).click();
+  const release = owner.getByRole('dialog', { name: 'Release the credit hold' });
+  await release.getByRole('textbox', { name: 'Reason (optional)' }).fill('Cheque cleared');
+  await release.getByRole('button', { name: 'Release hold' }).click();
   await expect(owner.getByText('Credit released')).toBeVisible();
   await expect(ownerCredit).toContainText('Needs manager approval');
   await expectUsable(owner);

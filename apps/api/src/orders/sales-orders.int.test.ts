@@ -214,7 +214,14 @@ describe('confirm: credit check (spec §4.4, §6.3)', () => {
     expect(preview).toEqual({
       required: true,
       exposureSource: 'manual',
-      position: { status: 'active', limitPaise: LIMIT, exposurePaise: OWED, overdueDays: 0 },
+      position: {
+        status: 'active',
+        limitPaise: LIMIT,
+        exposurePaise: OWED,
+        overdueDays: 0,
+        overdueWaived: false,
+      },
+      site: null,
       check: {
         decision: 'owner_approval',
         blockedBecause: null,

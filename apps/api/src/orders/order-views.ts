@@ -12,6 +12,7 @@ import {
 } from '@paint/shared';
 import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
+import { latestApprovalOf } from '../credit/credit-gate.js';
 import { lineTints, withTint } from '../paint/line-tints.js';
 
 const {
@@ -42,6 +43,8 @@ export interface StoredCreditCheck {
     readonly exposurePaise: number;
     readonly overdueDays: number;
   };
+  /** The site account's check too, when the order is on one (MVP 3 spec §3.3). */
+  readonly site?: unknown;
 }
 
 const iso = (date: Date | null) => (date ? date.toISOString() : null);
@@ -307,6 +310,7 @@ export async function salesOrderView(tx: Transaction, row: SalesOrderRow): Promi
             reason: String(row.creditOverrideReason),
             at: String(iso(row.creditOverriddenAt)),
           },
+    creditApproval: await latestApprovalOf(tx, { type: 'sales_order', id: row.id }),
     confirmedAt: iso(row.confirmedAt),
     confirmedByMemberId: row.confirmedByMemberId,
     cancelledAt: iso(row.cancelledAt),

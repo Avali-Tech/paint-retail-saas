@@ -69,7 +69,12 @@ export const CREDIT: CreditSummary = {
   creditDays: 30,
   risk: 'medium',
   manualExposurePaise: 10_000_00,
+  exposurePaise: 10_000_00,
+  exposureSource: 'manual',
+  exposure: null,
   overdueDays: 0,
+  holdKind: null,
+  overdueWaivedUntil: null,
   check: {
     decision: 'allowed',
     blockedBecause: null,
@@ -78,6 +83,8 @@ export const CREDIT: CreditSummary = {
     utilizationPercent: 20,
   },
   pendingRequest: null,
+  pendingRelease: null,
+  sites: [],
 };
 
 export const NO_CREDIT: CreditSummary = {
@@ -86,7 +93,12 @@ export const NO_CREDIT: CreditSummary = {
   creditDays: 0,
   risk: 'low',
   manualExposurePaise: 0,
+  exposurePaise: 0,
+  exposureSource: 'manual',
+  exposure: null,
   overdueDays: 0,
+  holdKind: null,
+  overdueWaivedUntil: null,
   check: {
     decision: 'blocked',
     blockedBecause: 'no_credit',
@@ -95,6 +107,8 @@ export const NO_CREDIT: CreditSummary = {
     utilizationPercent: null,
   },
   pendingRequest: null,
+  pendingRelease: null,
+  sites: [],
 };
 
 export const LOYALTY: LoyaltySummary = {

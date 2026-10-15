@@ -215,7 +215,9 @@ function Overview({
       )}
       <div className="detail-grid">
         <Contact party={party} />
-        {credit !== null && <CreditPanel partyId={party.id} credit={credit} />}
+        {credit !== null && (
+          <CreditPanel partyId={party.id} credit={credit} projects={projects?.items} />
+        )}
         {loyalty !== null && <LoyaltyPanel partyId={party.id} loyalty={loyalty} />}
         <Section
           title={t('parties.detail.activities')}

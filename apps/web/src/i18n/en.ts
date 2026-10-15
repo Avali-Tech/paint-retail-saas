@@ -2,6 +2,7 @@ import { booksEn, booksEnumsEn } from './en-books.js';
 import { brandingEn } from './en-branding.js';
 import { catalogEn, catalogEnumsEn } from './en-catalog.js';
 import { contractsEn } from './en-contracts.js';
+import { approvalsEn, approvalsEnumsEn } from './en-approvals.js';
 import { creditEn, creditEnumsEn } from './en-credit.js';
 import { documentsEn } from './en-documents.js';
 import { followUpEnumsEn, followUpsEn } from './en-followups.js';
@@ -318,6 +319,7 @@ export const en = {
   // Each feature keeps its messages in its own file.
   ...partiesEn,
   ...creditEn,
+  ...approvalsEn,
   ...loyaltyEn,
   ...catalogEn,
   ...stockEn,
@@ -367,6 +369,7 @@ export const en = {
     },
     ...partyEnumsEn,
     ...creditEnumsEn,
+    ...approvalsEnumsEn,
     ...loyaltyEnumsEn,
     ...catalogEnumsEn,
     ...stockEnumsEn,

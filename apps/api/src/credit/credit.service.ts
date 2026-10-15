@@ -21,18 +21,22 @@ import {
   type CreditRules,
 } from '@paint/shared';
 import { and, count, desc, eq, ilike, ne, sql } from 'drizzle-orm';
-import { alias, type PgUpdateSetSource } from 'drizzle-orm/pg-core';
+import { alias } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
 import { only } from '../common/only.js';
 import { DATABASE } from '../database/database.module.js';
 import { requireParty } from '../leads/crm-lookups.js';
 import { Notifier } from '../notifications/notifier.js';
 import { canSeeParty, containsPattern } from '../parties/party-access.js';
+import type { ReleaseInput } from './credit-approvals.schemas.js';
+import { releaseHold } from './credit-holds.js';
 import {
+  NO_CREDIT,
   billingLiveOn,
   creditRulesOf,
   creditSummaryOf,
   exposureOf,
+  positionOf,
   visibleParties,
   type CreditSummary,
 } from './credit-lookups.js';
@@ -44,6 +48,7 @@ import type {
 } from './credit.schemas.js';
 
 const {
+  creditApprovals,
   creditProfiles,
   creditRequests,
   creditRules,
@@ -135,15 +140,14 @@ export class CreditService {
   check(auth: AuthContext, partyId: string, amountPaise: number): Promise<CreditCheck> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
       await this.party(tx, auth, partyId);
-      const summary = await creditSummaryOf(tx, auth.organization.id, partyId);
+      const [row] = await tx
+        .select()
+        .from(creditProfiles)
+        .where(eq(creditProfiles.partyId, partyId));
+      const profile = row ?? NO_CREDIT;
       return checkCredit(
         await creditRulesOf(tx, auth.organization.id),
-        {
-          status: summary.status,
-          limitPaise: summary.limitPaise,
-          exposurePaise: summary.exposurePaise,
-          overdueDays: summary.overdueDays,
-        },
+        positionOf(profile, await exposureOf(tx, partyId, profile)),
         amountPaise,
       );
     });
@@ -197,12 +201,7 @@ export class CreditService {
           exposurePaise: exposure.exposurePaise,
           exposureSource: exposure.source,
           overdueDays: exposure.overdueDays,
-          check: checkCredit(rules, {
-            status: profile.status,
-            limitPaise: profile.limitPaise,
-            exposurePaise: exposure.exposurePaise,
-            overdueDays: exposure.overdueDays,
-          }),
+          check: checkCredit(rules, positionOf(profile, exposure)),
         });
       }
       return { items, total: Number(totals?.total) };
@@ -239,21 +238,51 @@ export class CreditService {
 
   /** Stops credit for a party that has it, with a reason. */
   hold(auth: AuthContext, partyId: string, reason: string): Promise<CreditView> {
-    return this.changeStatus(auth, partyId, 'active', {
-      status: 'on_hold',
-      holdReason: reason,
-      heldAt: sql`now()`,
-      heldByMemberId: auth.memberId,
+    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      await this.party(tx, auth, partyId, true);
+      const updated = await tx
+        .update(creditProfiles)
+        .set({
+          status: 'on_hold',
+          holdKind: 'manual',
+          holdReason: reason,
+          heldAt: sql`now()`,
+          heldByMemberId: auth.memberId,
+          updatedAt: sql`now()`,
+        })
+        .where(and(eq(creditProfiles.partyId, partyId), eq(creditProfiles.status, 'active')))
+        .returning({ id: creditProfiles.id });
+      if (updated.length === 0) throw new ConflictException('This party has no credit to hold');
+      return this.view(tx, auth, partyId);
     });
   }
 
-  /** Lets a party on hold buy on credit again. */
-  release(auth: AuthContext, partyId: string): Promise<CreditView> {
-    return this.changeStatus(auth, partyId, 'on_hold', {
-      status: 'active',
-      holdReason: null,
-      heldAt: null,
-      heldByMemberId: null,
+  /**
+   * Lets a party on hold buy on credit again (an approver; MVP 3 spec §4.4),
+   * optionally waiving the overdue block until a date. A release waiting for
+   * approval is approved by this.
+   */
+  release(auth: AuthContext, partyId: string, input: ReleaseInput): Promise<CreditView> {
+    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      await this.party(tx, auth, partyId, true);
+      await releaseHold(tx, partyId, input.waiveOverdueUntil ?? null);
+      await tx
+        .update(creditApprovals)
+        .set({
+          status: 'approved',
+          decidedByMemberId: auth.memberId,
+          decidedAt: sql`now()`,
+          decisionReason: input.reason ?? null,
+          waiveOverdueUntil: input.waiveOverdueUntil ?? null,
+        })
+        .where(
+          and(
+            eq(creditApprovals.partyId, partyId),
+            eq(creditApprovals.kind, 'release'),
+            eq(creditApprovals.status, 'pending'),
+          ),
+        );
+      return this.view(tx, auth, partyId);
     });
   }
 
@@ -404,30 +433,6 @@ export class CreditService {
     const [party] = lock ? await query.for('update') : await query;
     if (!party || !canSeeParty(auth, party)) throw new NotFoundException('Party not found');
     return party;
-  }
-
-  private changeStatus(
-    auth: AuthContext,
-    partyId: string,
-    from: 'active' | 'on_hold',
-    changes: PgUpdateSetSource<typeof creditProfiles> & {
-      status: 'active' | 'on_hold';
-    },
-  ): Promise<CreditView> {
-    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
-      await this.party(tx, auth, partyId, true);
-      const updated = await tx
-        .update(creditProfiles)
-        .set({ ...changes, updatedAt: sql`now()` })
-        .where(and(eq(creditProfiles.partyId, partyId), eq(creditProfiles.status, from)))
-        .returning({ id: creditProfiles.id });
-      if (updated.length === 0) {
-        throw new ConflictException(
-          from === 'active' ? 'This party has no credit to hold' : 'This party is not on hold',
-        );
-      }
-      return this.view(tx, auth, partyId);
-    });
   }
 
   /** Locks a pending request, checks the member can see its party, applies it and tells the requester. */

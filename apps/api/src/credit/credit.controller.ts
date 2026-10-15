@@ -32,6 +32,7 @@ import {
   type UpdateCreditInput,
 } from './credit.schemas.js';
 import { CreditService, type CreditRequestView, type CreditView } from './credit.service.js';
+import { releaseSchema, type ReleaseInput } from './credit-approvals.schemas.js';
 
 const id = () => new ParseUUIDPipe();
 
@@ -82,8 +83,9 @@ export class CreditController {
   release(
     @CurrentAuth() auth: AuthContext,
     @Param('id', id()) partyId: string,
+    @Body(new ZodValidationPipe(releaseSchema)) body: ReleaseInput,
   ): Promise<CreditView> {
-    return this.credit.release(auth, partyId);
+    return this.credit.release(auth, partyId, body);
   }
 
   @Get('credit-profiles')

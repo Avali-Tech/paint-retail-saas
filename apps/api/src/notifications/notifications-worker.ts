@@ -12,6 +12,7 @@ import { and, asc, eq, isNull, lt, lte, notExists, or, sql } from 'drizzle-orm';
 import { RECORD_PATHS, recordLabel } from '../activities/activity-records.js';
 import { todayInIndia } from '../contracts/contract-dates.js';
 import { todayIst } from '../contracts/contract-sql.js';
+import { holdOverdueBusinesses } from '../credit/credit-holds.js';
 import { DATABASE } from '../database/database.module.js';
 import { expireAccount } from '../loyalty/loyalty-lookups.js';
 import { reconcileDueBusinesses } from '../reconciliation/reconciler.js';
@@ -58,6 +59,8 @@ export interface WorkerRun {
   readonly loyaltyExpiries: number;
   /** Businesses whose books were reconciled for the day. */
   readonly reconciliations: number;
+  /** Credit accounts put on hold for overdue bills (MVP 3 spec §4.4). */
+  readonly creditHolds: number;
   readonly emailsSent: number;
   readonly emailsFailed: number;
 }
@@ -66,8 +69,8 @@ export interface WorkerRun {
  * Background work for notifications, across every business: announces stock
  * that has fallen to its reorder level, reminds people of what is due,
  * expires loyalty points, reconciles each business's books once a day (the
- * nightly reconciliation) and sends queued emails with retries. Safe to run on
- * several servers at once.
+ * nightly reconciliation), puts overdue credit accounts on hold once a day and
+ * sends queued emails with retries. Safe to run on several servers at once.
  */
 @Injectable()
 export class NotificationsWorker implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -116,6 +119,11 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
       () => reconcileDueBusinesses(this.connection.db, this.notifier),
       0,
     );
+    const creditHolds = await this.attempt(
+      'Overdue credit holds',
+      () => holdOverdueBusinesses(this.connection.db, this.notifier),
+      0,
+    );
     const { sent, failed } = await this.attempt('Sending email', () => this.sendDueEmails(), {
       sent: 0,
       failed: 0,
@@ -126,6 +134,7 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
       contractRenewals,
       loyaltyExpiries,
       reconciliations,
+      creditHolds,
       emailsSent: sent,
       emailsFailed: failed,
     };

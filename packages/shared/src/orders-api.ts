@@ -11,6 +11,7 @@
  */
 import type { ListPageInfo } from './list-page.js';
 import type { CreditCheck, CreditDecision, CreditStatus } from './credit.js';
+import type { CreditApprovalSummary, SiteCreditPosition } from './credit-api.js';
 import type { Discount } from './gst/types.js';
 import type { LineTintRequest, LineTintView } from './paint-api.js';
 import type { Permission } from './permissions.js';
@@ -66,8 +67,11 @@ export type StockReservationStatus = (typeof STOCK_RESERVATION_STATUSES)[number]
 
 /** Who may write quotations and orders (spec §3.5). Reading needs `sales:read`. */
 export const ORDERS_PERMISSION: Permission = 'sales:manage';
-/** Who may confirm an order past the credit rules (spec §4.4). */
-export const CREDIT_OVERRIDE_PERMISSION: Permission = 'credit:approve';
+/**
+ * Who may approve a sale past the credit rules at manager level (MVP 3 spec
+ * §4.3); an owner-level approval also needs the Owner role.
+ */
+export const CREDIT_OVERRIDE_PERMISSION: Permission = 'credit:approve_sale';
 /** Who may run the go-live cut-over (spec §4.7). */
 export const GO_LIVE_PERMISSION: Permission = 'organization:manage';
 
@@ -478,6 +482,9 @@ export interface OrderCreditView {
   };
   /** checkCredit(rules, position, order total); null when not required. */
   readonly check: CreditCheck | null;
+  /** The site account the sale is on, checked too (MVP 3 spec §3.3); null without one. */
+  readonly site: SiteCreditPosition | null;
+  /** What the stricter of the party's and the site's checks needs. */
   readonly approval: CreditApproval;
 }
 
@@ -518,7 +525,10 @@ export interface SalesOrderView extends SalesTotalsView {
   readonly note: string | null;
   /** The credit check as it stood at confirm; null before, and for prepaid / partial orders. */
   readonly creditCheck: CreditCheck | null;
+  /** Who approved the sale past the credit rules (from its approval since MVP 3). */
   readonly creditOverride: CreditOverrideView | null;
+  /** The order's newest credit approval (pending, approved, used…); null when it never needed one. */
+  readonly creditApproval: CreditApprovalSummary | null;
   readonly confirmedAt: string | null;
   readonly confirmedByMemberId: string | null;
   readonly cancelledAt: string | null;
@@ -582,9 +592,21 @@ export interface OrderAvailabilityView {
 /** 409 body when confirm needs a credit approval the request did not carry, or the party is blocked. */
 export interface CreditApprovalRefusal {
   readonly statusCode: 409;
-  readonly code: 'credit_approval_required' | 'credit_blocked' | 'credit_override_not_allowed';
+  /**
+   * `credit_approval_required`: ask for an approval (POST /credit-approvals) or
+   * approve in the dialog; `credit_approval_pending`: one is waiting;
+   * `credit_approval_stale`: the approval given no longer covers the sale.
+   */
+  readonly code:
+    | 'credit_approval_required'
+    | 'credit_approval_pending'
+    | 'credit_approval_stale'
+    | 'credit_blocked'
+    | 'credit_override_not_allowed';
   readonly message: string;
   readonly credit: OrderCreditView;
+  /** The sale's latest pending or approved approval, if any. */
+  readonly approval: CreditApprovalSummary | null;
 }
 
 /** 409 body when a store does not have the stock to reserve (spec §4.3: line by line). */
