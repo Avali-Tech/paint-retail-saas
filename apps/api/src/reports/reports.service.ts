@@ -78,15 +78,18 @@ export class ReportsService {
     const filters = parse(report.filters, query);
     const { limit, offset } = parse(paging, query);
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      const header = { kind: report.kind, title: report.title, columns: columnsOf(report) };
+      if ('rows' in report) {
+        const rows = await report.rows(tx, auth, filters);
+        return { ...header, rows: rows.slice(offset, offset + limit), total: rows.length };
+      }
       const base = report.query(tx, auth, filters);
       const records = (await base.limit(limit).offset(offset)) as Record<string, unknown>[];
       const [totals] = await tx
         .select({ total: count() })
         .from(report.query(tx, auth, filters).as('report'));
       return {
-        kind: report.kind,
-        title: report.title,
-        columns: columnsOf(report),
+        ...header,
         rows: records.map((record) => report.toRow(record)),
         total: Number(totals?.total),
       };
@@ -102,8 +105,12 @@ export class ReportsService {
     const report = this.report(auth, kind);
     const filters = parse(report.filters, query);
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
-      const records = (await report.query(tx, auth, filters)) as Record<string, unknown>[];
-      const rows = records.map((record) => report.toRow(record));
+      const rows =
+        'rows' in report
+          ? await report.rows(tx, auth, filters)
+          : ((await report.query(tx, auth, filters)) as Record<string, unknown>[]).map((record) =>
+              report.toRow(record),
+            );
       const body = toCsv([
         report.columns.map((column) => column.header),
         ...rows.map((row) => report.columns.map((column) => cell(row[column.key]))),

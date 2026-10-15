@@ -62,13 +62,11 @@ export {
 } from './catalog.js';
 export { normalizeEmail, normalizePhone } from './contact.js';
 export {
-  AGEING_BUCKETS,
   DEFAULT_CREDIT_RULES,
   ageingBucket,
   checkCredit,
   levelCovers,
   stricterCheck,
-  type AgeingBucket,
   type CreditApprovalLevel,
   type CreditBlock,
   type CreditCheck,
@@ -445,6 +443,7 @@ export * from './gst/index.js';
 export * from './invoice-print/index.js';
 export * from './tally/index.js';
 export * from './estimator/index.js';
+export * from './receivables/index.js';
 export {
   assertPaise,
   formatINR,

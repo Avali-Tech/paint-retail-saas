@@ -197,19 +197,25 @@ describe('ageingBucket (spec §2.2)', () => {
   it.each([
     [-1, 'not_due'],
     [-400, 'not_due'],
-    [0, 'd0_30'],
-    [30, 'd0_30'],
-    [31, 'd31_60'],
-    [60, 'd31_60'],
-    [61, 'd61_90'],
-    [90, 'd61_90'],
-    [91, 'd90_plus'],
-    [10_000, 'd90_plus'],
+    [0, 'days_0_30'],
+    [30, 'days_0_30'],
+    [31, 'days_31_60'],
+    [60, 'days_31_60'],
+    [61, 'days_61_90'],
+    [90, 'days_61_90'],
+    [91, 'days_90_plus'],
+    [10_000, 'days_90_plus'],
   ] as const)('puts %i days past due in %s', (days, bucket) => {
     expect(ageingBucket(days)).toBe(bucket);
   });
 
   it('lists the buckets oldest last', () => {
-    expect(AGEING_BUCKETS).toEqual(['not_due', 'd0_30', 'd31_60', 'd61_90', 'd90_plus']);
+    expect(AGEING_BUCKETS).toEqual([
+      'not_due',
+      'days_0_30',
+      'days_31_60',
+      'days_61_90',
+      'days_90_plus',
+    ]);
   });
 });

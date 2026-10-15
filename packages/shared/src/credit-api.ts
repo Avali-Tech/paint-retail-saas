@@ -4,14 +4,9 @@
  * approval rules both apply. Amounts are integer paise, dates India-time
  * `YYYY-MM-DD`, instants ISO timestamps.
  */
-import type {
-  AgeingBucket,
-  CreditApprovalLevel,
-  CreditCheck,
-  CreditRules,
-  CreditStatus,
-} from './credit.js';
+import type { CreditApprovalLevel, CreditCheck, CreditRules, CreditStatus } from './credit.js';
 import { levelCovers } from './credit.js';
+import type { AgeingBucket } from './receivables/ageing.js';
 import type { ListPageInfo } from './list-page.js';
 import type { CreditApproval, OrderCreditView } from './orders-api.js';
 import type { Permission } from './permissions.js';

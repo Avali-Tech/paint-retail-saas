@@ -18,6 +18,7 @@ import { errorMessage } from '../api/errors.js';
 import type { Dashboard, StageCount } from '../api/types.js';
 import { useApi } from '../app/services.js';
 import { stageLabel, useI18n } from '../i18n/i18n.js';
+import { ReceivablesTile } from '../receivables/ReceivablesTile.js';
 
 export const dashboardKey = (storeId: string | null) => ['dashboard', storeId ?? 'all'] as const;
 
@@ -152,6 +153,7 @@ function Tiles({
         </Tile>
       )}
       <FollowUpTile followUps={dashboard.followUps} storeId={storeId} />
+      <ReceivablesTile storeId={storeId} />
     </section>
   );
 }

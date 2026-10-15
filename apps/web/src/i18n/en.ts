@@ -15,6 +15,7 @@ import { printEn } from './en-print.js';
 import { projectsEn } from './en-projects.js';
 import { ordersEn, ordersEnumsEn } from './en-orders.js';
 import { estimatorEn, estimatorEnumsEn } from './en-estimator.js';
+import { receivablesEn, receivablesEnumsEn } from './en-receivables.js';
 import { posEn } from './en-pos.js';
 import { tintEn } from './en-tint.js';
 import { purchasingEn, purchasingEnumsEn } from './en-purchasing.js';
@@ -345,6 +346,7 @@ export const en = {
   ...ordersEn,
   ...booksEn,
   ...estimatorEn,
+  ...receivablesEn,
   /** Names of API values, for label(group, value). */
   enums: {
     /** Quick actions offered with search, by the API's key. */
@@ -382,6 +384,7 @@ export const en = {
     ...ordersEnumsEn,
     ...booksEnumsEn,
     ...estimatorEnumsEn,
+    ...receivablesEnumsEn,
   },
   pages: {
     notFound: 'This address does not lead to a screen. Check the link, or use the menu or search.',

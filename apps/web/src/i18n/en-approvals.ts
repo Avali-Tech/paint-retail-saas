@@ -154,10 +154,10 @@ export const approvalsEnumsEn = {
   siteAccountStatus: { active: 'Active', on_hold: 'On hold', closed: 'Closed' },
   ageingBucket: {
     not_due: 'Not yet due',
-    d0_30: 'Up to 30 days',
-    d31_60: '31–60 days',
-    d61_90: '61–90 days',
-    d90_plus: 'Over 90 days',
+    days_0_30: 'Up to 30 days',
+    days_31_60: '31–60 days',
+    days_61_90: '61–90 days',
+    days_90_plus: 'Over 90 days',
   },
   siteLedgerKind: {
     invoice: 'Invoice',

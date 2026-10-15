@@ -1,4 +1,5 @@
 import { assertPaise } from './money.js';
+import type { AgeingBucket } from './receivables/ageing.js';
 
 /**
  * A business's credit rules (spec §3.22). Utilisation is what the party would
@@ -109,17 +110,11 @@ export function levelCovers(approved: CreditApprovalLevel, needed: CreditApprova
   return LEVEL_RANK[approved] >= LEVEL_RANK[needed];
 }
 
-/**
- * Ageing buckets by days past the due date (spec §2.2): not yet due, 0–30,
- * 31–60, 61–90 and over 90 days.
- */
-export const AGEING_BUCKETS = ['not_due', 'd0_30', 'd31_60', 'd61_90', 'd90_plus'] as const;
-export type AgeingBucket = (typeof AGEING_BUCKETS)[number];
-
+/** The ageing bucket (receivables/ageing.ts) for a number of days past the due date. */
 export function ageingBucket(daysPastDue: number): AgeingBucket {
   if (daysPastDue < 0) return 'not_due';
-  if (daysPastDue <= 30) return 'd0_30';
-  if (daysPastDue <= 60) return 'd31_60';
-  if (daysPastDue <= 90) return 'd61_90';
-  return 'd90_plus';
+  if (daysPastDue <= 30) return 'days_0_30';
+  if (daysPastDue <= 60) return 'days_31_60';
+  if (daysPastDue <= 90) return 'days_61_90';
+  return 'days_90_plus';
 }

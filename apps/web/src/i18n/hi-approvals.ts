@@ -155,10 +155,10 @@ export const approvalsEnumsHi: Translation<typeof approvalsEnumsEn> = {
   siteAccountStatus: { active: 'सक्रिय', on_hold: 'होल्ड पर', closed: 'बंद' },
   ageingBucket: {
     not_due: 'अभी देय नहीं',
-    d0_30: '30 दिन तक',
-    d31_60: '31–60 दिन',
-    d61_90: '61–90 दिन',
-    d90_plus: '90 दिन से ज्यादा',
+    days_0_30: '30 दिन तक',
+    days_31_60: '31–60 दिन',
+    days_61_90: '61–90 दिन',
+    days_90_plus: '90 दिन से ज्यादा',
   },
   siteLedgerKind: {
     invoice: 'इनवॉइस',

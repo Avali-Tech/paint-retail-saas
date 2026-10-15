@@ -155,10 +155,10 @@ export const approvalsEnumsTe: Translation<typeof approvalsEnumsEn> = {
   siteAccountStatus: { active: 'యాక్టివ్', on_hold: 'హోల్డ్‌లో', closed: 'మూసివేయబడింది' },
   ageingBucket: {
     not_due: 'ఇంకా గడువు రాలేదు',
-    d0_30: '30 రోజుల వరకు',
-    d31_60: '31–60 రోజులు',
-    d61_90: '61–90 రోజులు',
-    d90_plus: '90 రోజులకు పైగా',
+    days_0_30: '30 రోజుల వరకు',
+    days_31_60: '31–60 రోజులు',
+    days_61_90: '61–90 రోజులు',
+    days_90_plus: '90 రోజులకు పైగా',
   },
   siteLedgerKind: {
     invoice: 'ఇన్‌వాయిస్',

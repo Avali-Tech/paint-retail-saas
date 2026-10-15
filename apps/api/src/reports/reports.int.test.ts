@@ -42,6 +42,8 @@ describe('report list', () => {
       'projects',
       'sales-by-influencer',
       'sales-by-site',
+      'receivables-ageing',
+      'receivables-open-bills',
     ]);
     // Each filter says what input it takes, so the app builds them without copying enums.
     expect(owner[0]?.filters).toEqual([

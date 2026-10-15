@@ -19,6 +19,7 @@ import { posRoutes } from '../pos/routes.js';
 import { printRoutes } from '../print/routes.js';
 import { projectRoutes } from '../projects/routes.js';
 import { purchasingRoutes } from '../purchasing/routes.js';
+import { receivablesRoutes } from '../receivables/routes.js';
 import { reportRoutes } from '../reports/routes.js';
 import { salesRoutes } from '../sales/routes.js';
 import { AppShell } from '../shell/AppShell.js';
@@ -98,6 +99,7 @@ export function AppRoutes() {
         {orderRoutes()}
         {salesRoutes()}
         {booksRoutes()}
+        {receivablesRoutes()}
         {documentRoutes()}
         {reportRoutes()}
         {teamRoutes()}

@@ -134,5 +134,5 @@ export const SITE_DETAIL: SiteAccountDetail = {
       bucket: 'not_due',
     },
   ],
-  ageing: { not_due: 2_000_00, d0_30: 0, d31_60: 0, d61_90: 0, d90_plus: 0 },
+  ageing: { not_due: 2_000_00, days_0_30: 0, days_31_60: 0, days_61_90: 0, days_90_plus: 0 },
 };

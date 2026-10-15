@@ -530,7 +530,7 @@ describe('site accounts under a contractor (spec §3.3)', () => {
       exposurePaise: 700_000,
       availablePaise: 300_000,
       utilizationPercent: 70,
-      ageing: { not_due: 0, d0_30: 200_000, d31_60: 0, d61_90: 0, d90_plus: 0 },
+      ageing: { not_due: 0, days_0_30: 200_000, days_31_60: 0, days_61_90: 0, days_90_plus: 0 },
     });
     expect(detail.ledger).toEqual([
       expect.objectContaining({
@@ -553,7 +553,7 @@ describe('site accounts under a contractor (spec §3.3)', () => {
         documentId: bill.id,
         outstandingPaise: 200_000,
         daysPastDue: 0,
-        bucket: 'd0_30',
+        bucket: 'days_0_30',
       }),
     ]);
   });
