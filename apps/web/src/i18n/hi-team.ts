@@ -143,6 +143,7 @@ export const teamHi: Translation<typeof teamEn> = {
       payments: 'भुगतान',
       register: 'कैश रजिस्टर',
       accounting: 'लेखा',
+      receivables: 'बकाया',
     },
     organization: {
       manage: 'बिजनेस चलाएं: सेटिंग, दिखावट, लॉगिन नियम और सपोर्ट एक्सेस',
@@ -210,5 +211,6 @@ export const teamHi: Translation<typeof teamEn> = {
       export: 'Tally लेजर तय करें और खाते एक्सपोर्ट करें',
       reconcile: 'खातों का रात का मिलान देखें और अभी चलाएँ',
     },
+    receivables: { read: 'ग्राहकों का बकाया, उसकी उम्र और वसूली सूची देखें' },
   },
 };

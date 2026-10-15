@@ -330,6 +330,12 @@ describe('preferences', () => {
         inApp: true,
         email: true,
       },
+      {
+        event: 'promise_broken',
+        title: 'A customer breaks a promise to pay',
+        inApp: true,
+        email: true,
+      },
     ]);
     expect(saved.statusCode).toBe(200);
     expect(
@@ -353,6 +359,7 @@ describe('preferences', () => {
       ['credit_approval_requested', true, true],
       ['credit_approval_decided', true, true],
       ['credit_hold_applied', true, true],
+      ['promise_broken', true, true],
     ]);
     const duplicate = await api(hydManager).put('/notifications/preferences', {
       preferences: [

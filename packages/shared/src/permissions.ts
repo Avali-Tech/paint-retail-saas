@@ -41,6 +41,7 @@ export const PERMISSIONS = [
   'register:manage',
   'accounting:export',
   'accounting:reconcile',
+  'receivables:read',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -94,6 +95,7 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'billing:notes',
       'payments:manage',
       'register:manage',
+      'receivables:read',
     ],
     allStores: false,
   },
@@ -135,6 +137,7 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'sales:manage',
       'billing:issue',
       'payments:manage',
+      'receivables:read',
     ],
     allStores: false,
   },
