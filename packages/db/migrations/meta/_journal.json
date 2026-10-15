@@ -505,6 +505,20 @@
       "when": 1791704746120,
       "tag": "0071_grant_credit_approve_sale",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1792099838727,
+      "tag": "0072_loyalty_earn_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1792099840122,
+      "tag": "0073_loyalty_earn_rules_audit",
+      "breakpoints": true
     }
   ]
 }

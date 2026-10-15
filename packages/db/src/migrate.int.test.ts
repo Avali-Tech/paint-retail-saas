@@ -59,6 +59,7 @@ describe('migrateDatabase', () => {
       'ledger_mappings',
       'low_stock_alerts',
       'loyalty_accounts',
+      'loyalty_earn_rules',
       'loyalty_ledger',
       'loyalty_settings',
       'member_stores',

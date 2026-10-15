@@ -2730,8 +2730,9 @@ export const loyaltyAccounts = pgTable(
 
 /**
  * Why points moved: a purchase recorded by hand (until billing exists), a
- * manual or campaign award, a redemption, an adjustment with a reason, or
- * expiry of unused points.
+ * manual or campaign award, a redemption, an adjustment with a reason, expiry
+ * of unused points, or points the influencer (painter) of an invoice earned by
+ * the earn rules (P2-M36).
  */
 export const loyaltyEntryKind = pgEnum('loyalty_entry_kind', [
   'purchase',
@@ -2740,6 +2741,7 @@ export const loyaltyEntryKind = pgEnum('loyalty_entry_kind', [
   'redeem',
   'adjust',
   'expire',
+  'influencer',
 ]);
 
 /**
@@ -2798,16 +2800,28 @@ export const loyaltyLedger = pgTable(
         when 'adjust' then ${table.points} <> 0
         else ${table.points} > 0 end`,
     ),
+    // `kind::text` where a rule names 'influencer': a value added to an enum cannot
+    // be cast to in the transaction that adds it, and migrations run in one.
     check(
       'loyalty_ledger_purchase',
       sql`(${table.kind} <> 'purchase' or num_nonnulls(${table.manualPurchasePaise}, ${table.taxDocumentId}) = 1)
         and (${table.manualPurchasePaise} is null or (${table.kind} = 'purchase' and ${table.manualPurchasePaise} > 0))
-        and (${table.taxDocumentId} is null or ${table.kind} in ('purchase', 'adjust'))`,
+        and (${table.taxDocumentId} is null or ${table.kind}::text in ('purchase', 'adjust', 'influencer'))`,
+    ),
+    // Influencer points always name the invoice they were earned on.
+    check(
+      'loyalty_ledger_influencer',
+      sql`${table.kind}::text <> 'influencer' or ${table.taxDocumentId} is not null`,
     ),
     // One purchase entry per invoice: issuing never earns twice.
     uniqueIndex('loyalty_ledger_invoice_purchase_unique')
       .on(table.taxDocumentId)
       .where(sql`${table.kind} = 'purchase' and ${table.taxDocumentId} is not null`),
+    // Nor does it earn its influencer twice. An index predicate must be immutable,
+    // which `kind::text` is not: migration 0072 defines loyalty_is_influencer().
+    uniqueIndex('loyalty_ledger_invoice_influencer_unique')
+      .on(table.taxDocumentId)
+      .where(sql`loyalty_is_influencer(${table.kind})`),
     index('loyalty_ledger_tax_document_idx')
       .on(table.organizationId, table.taxDocumentId)
       .where(sql`${table.taxDocumentId} is not null`),
@@ -2818,7 +2832,7 @@ export const loyaltyLedger = pgTable(
     }).onDelete('restrict'),
     check(
       'loyalty_ledger_reference',
-      sql`${table.kind} not in ('purchase', 'campaign') or ${table.reference} is not null`,
+      sql`${table.kind}::text not in ('purchase', 'campaign', 'influencer') or ${table.reference} is not null`,
     ),
     check(
       'loyalty_ledger_adjust_reason',
@@ -2830,6 +2844,88 @@ export const loyaltyLedger = pgTable(
       sql`(${table.kind} = 'expire') = (${table.createdByMemberId} is null)`,
     ),
     pgPolicy('loyalty_ledger_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** What an earn rule counts: taxable value (₹) or litres of paint. */
+export const loyaltyEarnBasis = pgEnum('loyalty_earn_basis', ['value', 'litre']);
+
+/**
+ * How the influencer (painter or contractor) of an invoice earns points (P2-M36,
+ * docs/mvp-3/credit-and-receivables.md §6.5): `points` for every `per_paise` of
+ * a line's taxable value, or for every `per_millilitres` of paint on it, times
+ * `multiplier_bps` ÷ 10,000. A rule with a brand applies to that brand's lines
+ * only; one without applies to every line. The best matching active rule per
+ * line wins (the earning code decides "best"). Audited.
+ */
+export const loyaltyEarnRules = pgTable(
+  'loyalty_earn_rules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    name: text('name').notNull(),
+    basis: loyaltyEarnBasis('basis').notNull(),
+    points: integer('points').notNull(),
+    /** Value basis: points per this many paise of taxable value (10,000 = per ₹100). */
+    perPaise: bigint('per_paise', { mode: 'number' }),
+    /** Litre basis: points per this many millilitres (1,000 = per litre). */
+    perMillilitres: integer('per_millilitres'),
+    /** Only lines of this brand; null = every brand. */
+    brandId: uuid('brand_id'),
+    /** Basis points: 10,000 = ×1, 20,000 = ×2 (a brand's double points). */
+    multiplierBps: integer('multiplier_bps').notNull().default(10_000),
+    /** India dates the rule applies on (by invoice date); null = open-ended. */
+    validFrom: date('valid_from', { mode: 'string' }),
+    validUntil: date('valid_until', { mode: 'string' }),
+    isActive: boolean('is_active').notNull().default(true),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique('loyalty_earn_rules_organization_id_id_unique').on(table.organizationId, table.id),
+    uniqueIndex('loyalty_earn_rules_organization_name_unique').on(
+      table.organizationId,
+      sql`lower(${table.name})`,
+    ),
+    index('loyalty_earn_rules_brand_idx').on(table.organizationId, table.brandId),
+    foreignKey({
+      name: 'loyalty_earn_rules_organization_fk',
+      columns: [table.organizationId],
+      foreignColumns: [organizations.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'loyalty_earn_rules_brand_fk',
+      columns: [table.organizationId, table.brandId],
+      foreignColumns: [brands.organizationId, brands.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'loyalty_earn_rules_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'loyalty_earn_rules_name',
+      sql`${table.name} = btrim(${table.name}) and char_length(${table.name}) between 1 and 100`,
+    ),
+    check('loyalty_earn_rules_points_positive', sql`${table.points} > 0`),
+    check(
+      'loyalty_earn_rules_basis',
+      sql`(${table.basis} = 'value') = (${table.perPaise} is not null)
+        and (${table.basis} = 'litre') = (${table.perMillilitres} is not null)
+        and (${table.perPaise} is null or ${table.perPaise} > 0)
+        and (${table.perMillilitres} is null or ${table.perMillilitres} > 0)`,
+    ),
+    check('loyalty_earn_rules_multiplier', sql`${table.multiplierBps} between 1 and 1000000`),
+    check(
+      'loyalty_earn_rules_period',
+      sql`${table.validFrom} is null or ${table.validUntil} is null or ${table.validFrom} <= ${table.validUntil}`,
+    ),
+    pgPolicy('loyalty_earn_rules_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

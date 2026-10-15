@@ -11,7 +11,9 @@ import {
 
 const {
   auditLog,
+  brands,
   loyaltyAccounts,
+  loyaltyEarnRules,
   loyaltyLedger,
   loyaltySettings,
   organizationMembers,
@@ -216,5 +218,132 @@ describe('loyalty settings', () => {
       expiryDays: null,
       minRedemptionPoints: 0,
     });
+  });
+});
+
+describe('influencer points (P2-M36)', () => {
+  // The invoice is not created here: foreign keys are set aside (replica mode)
+  // so only the ledger's own rules are exercised.
+  const influencer = (values: Partial<typeof loyaltyLedger.$inferInsert>) =>
+    connection.db.transaction(async (tx) => {
+      await tx.execute(sql`set local session_replication_role = replica`);
+      return tx
+        .insert(loyaltyLedger)
+        .values({
+          organizationId: org,
+          accountId: account,
+          kind: 'influencer',
+          points: 40,
+          reference: 'INV-000001',
+          createdByMemberId: member,
+          ...values,
+        })
+        .returning();
+    });
+
+  it('names the invoice and its number, earns positive points, once per invoice', async () => {
+    const invoice = crypto.randomUUID();
+
+    expect(await failureMessage(influencer({}))).toMatch(/loyalty_ledger_influencer/);
+    expect(await failureMessage(influencer({ taxDocumentId: invoice, reference: null }))).toMatch(
+      /loyalty_ledger_reference/,
+    );
+    expect(await failureMessage(influencer({ taxDocumentId: invoice, points: -5 }))).toMatch(
+      /loyalty_ledger_points_sign/,
+    );
+    expect(
+      await failureMessage(influencer({ taxDocumentId: invoice, manualPurchasePaise: 100 })),
+    ).toMatch(/loyalty_ledger_purchase/);
+    const [row] = await influencer({ taxDocumentId: invoice, expiresOn: '2027-10-16' });
+    expect(row).toMatchObject({ kind: 'influencer', points: 40, taxDocumentId: invoice });
+    expect(await failureMessage(influencer({ taxDocumentId: invoice }))).toMatch(
+      /loyalty_ledger_invoice_influencer_unique/,
+    );
+    // The bill-to party's purchase on the same invoice is a separate entry.
+    await influencer({ kind: 'purchase', taxDocumentId: invoice });
+  });
+});
+
+describe('loyalty earn rules (P2-M36)', () => {
+  let brand: string;
+  beforeAll(async () => {
+    brand = id(
+      await connection.db
+        .insert(brands)
+        .values({ organizationId: org, name: 'Asian Paints' })
+        .returning(),
+    );
+  });
+
+  const rule = (values: Partial<typeof loyaltyEarnRules.$inferInsert> = {}) =>
+    connection.db
+      .insert(loyaltyEarnRules)
+      .values({
+        organizationId: org,
+        name: `Rule ${crypto.randomUUID()}`,
+        basis: 'value',
+        points: 1,
+        perPaise: 10_000,
+        createdByMemberId: member,
+        ...values,
+      })
+      .returning();
+
+  it.each([
+    [{ name: ' Padded ' }, /loyalty_earn_rules_name/],
+    [{ name: '' }, /loyalty_earn_rules_name/],
+    [{ points: 0 }, /loyalty_earn_rules_points_positive/],
+    [{ perPaise: null }, /loyalty_earn_rules_basis/],
+    [{ perPaise: 0 }, /loyalty_earn_rules_basis/],
+    [{ perMillilitres: 1_000 }, /loyalty_earn_rules_basis/],
+    [{ basis: 'litre' as const, perPaise: null }, /loyalty_earn_rules_basis/],
+    [{ basis: 'litre' as const, perPaise: null, perMillilitres: 0 }, /loyalty_earn_rules_basis/],
+    [{ multiplierBps: 0 }, /loyalty_earn_rules_multiplier/],
+    [{ multiplierBps: 1_000_001 }, /loyalty_earn_rules_multiplier/],
+    [{ validFrom: '2026-10-02', validUntil: '2026-10-01' }, /loyalty_earn_rules_period/],
+    [{ brandId: crypto.randomUUID() }, /loyalty_earn_rules_brand_fk/],
+  ])('refuse inconsistent rules: %o', async (values, constraint) => {
+    expect(await failureMessage(rule(values))).toMatch(constraint);
+  });
+
+  it('count value or litres, per brand or for all, with unique names, private to their business', async () => {
+    const [byValue] = await rule({ name: 'Every ₹100' });
+    const [byLitre] = await rule({
+      name: 'Asian Paints double points per litre',
+      basis: 'litre',
+      perPaise: null,
+      perMillilitres: 1_000,
+      brandId: brand,
+      multiplierBps: 20_000,
+      validFrom: '2026-10-01',
+      validUntil: '2026-12-31',
+    });
+
+    expect(byValue).toMatchObject({ multiplierBps: 10_000, isActive: true, brandId: null });
+    expect(byLitre).toMatchObject({ basis: 'litre', perMillilitres: 1_000, brandId: brand });
+    expect(await failureMessage(rule({ name: 'EVERY ₹100' }))).toMatch(
+      /loyalty_earn_rules_organization_name_unique/,
+    );
+    expect(
+      await withTenant(connection.db, otherOrg, (tx) => tx.select().from(loyaltyEarnRules)),
+    ).toEqual([]);
+  });
+
+  it('are audited', async () => {
+    const [created] = await rule({ name: 'Audited rule' });
+    const ruleId = String(created?.id);
+    await connection.db
+      .update(loyaltyEarnRules)
+      .set({ points: 2, updatedAt: new Date() })
+      .where(eq(loyaltyEarnRules.id, ruleId));
+    await connection.db.delete(loyaltyEarnRules).where(eq(loyaltyEarnRules.id, ruleId));
+
+    const entries = await connection.db
+      .select({ action: auditLog.action, newValues: auditLog.newValues })
+      .from(auditLog)
+      .where(sql`${auditLog.tableName} = 'loyalty_earn_rules' and ${auditLog.recordId} = ${ruleId}`)
+      .orderBy(auditLog.id);
+    expect(entries.map((entry) => entry.action)).toEqual(['insert', 'update', 'delete']);
+    expect(entries[1]?.newValues).toEqual({ points: 2 });
   });
 });
