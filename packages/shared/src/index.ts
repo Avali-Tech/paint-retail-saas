@@ -405,6 +405,7 @@ export * from './gst/index.js';
 export * from './invoice-print/index.js';
 export * from './tally/index.js';
 export * from './estimator/index.js';
+export * from './receivables/index.js';
 export {
   assertPaise,
   formatINR,

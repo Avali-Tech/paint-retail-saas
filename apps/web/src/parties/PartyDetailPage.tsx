@@ -163,9 +163,15 @@ function Overview({
             <span className="row">
               {/* The account: behind the permission the ledger API asks for. */}
               {can('sales:read') && (
-                <Link to={`/parties/${party.id}/ledger`} {...buttonStyle('secondary')}>
-                  {t('parties.ledger.open')}
-                </Link>
+                <>
+                  <Link to={`/parties/${party.id}/ledger`} {...buttonStyle('secondary')}>
+                    {t('parties.ledger.open')}
+                  </Link>
+                  {/* The statement to print or send: the first of its two clicks. */}
+                  <Link to={`/parties/${party.id}/statement`} {...buttonStyle('secondary')}>
+                    {t('statement.open')}
+                  </Link>
+                </>
               )}
               {can('parties:manage') && (
                 <Link to={`/parties/${party.id}/edit`} {...buttonStyle('secondary')}>

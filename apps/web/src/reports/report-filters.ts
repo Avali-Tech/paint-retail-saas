@@ -23,6 +23,8 @@ function choiceLabel(i18n: I18n, filter: string, value: string): string {
       return stageLabel(t, value);
     case 'source':
       return label('reportLeadSources', value);
+    case 'groupBy':
+      return label('ageingGroups', value);
     default:
       return humanize(value);
   }

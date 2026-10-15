@@ -32,10 +32,12 @@ import { PaymentsModule } from './payments/payments.module.js';
 import { PlatformModule } from './platform/platform.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { PurchasingModule } from './purchasing/purchasing.module.js';
+import { ReceivablesModule } from './receivables/receivables.module.js';
 import { ReconciliationModule } from './reconciliation/reconciliation.module.js';
 import { ReorderModule } from './reorder/reorder.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { SearchModule } from './search/search.module.js';
+import { StatementsModule } from './statements/statements.module.js';
 import { StockCountsModule } from './stock-counts/stock-counts.module.js';
 import { StoresModule } from './stores/stores.module.js';
 import { TaxModule } from './tax/tax.module.js';
@@ -89,10 +91,12 @@ export class AppModule {
         PlatformModule.forRoot({ bootstrapToken: config.platformBootstrapToken }),
         ProjectsModule,
         PurchasingModule,
+        ReceivablesModule,
         ReconciliationModule,
         ReorderModule,
         ReportsModule,
         SearchModule,
+        StatementsModule,
         StockCountsModule,
         StoresModule,
         TaxModule,

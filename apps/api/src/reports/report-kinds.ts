@@ -16,6 +16,7 @@ import {
   type ReportFilter,
 } from './report-filters.js';
 import { ist, quantity, rupees, text } from './report-values.js';
+import { receivablesAgeing, receivablesOpenBills } from '../receivables/receivables-reports.js';
 import { salesByInfluencer, salesBySite } from './sales-reports.js';
 
 const {
@@ -45,7 +46,7 @@ export interface ReportColumn {
   readonly header: string;
 }
 
-export interface ReportKind<F> {
+interface ReportBase<F> {
   readonly kind: string;
   readonly title: string;
   readonly permission: Permission;
@@ -54,10 +55,22 @@ export interface ReportKind<F> {
   readonly filters: z.ZodType<F, Record<string, unknown>>;
   /** The same filters described for the web app (GET /reports). */
   readonly filterInfo: readonly ReportFilter[];
+}
+
+/** A report that is one SQL query, paged by the database. */
+export interface QueryReportKind<F> extends ReportBase<F> {
   /** The rows, newest or most relevant first; `select` turns a query into rows. */
   query(tx: Transaction, auth: AuthContext, filters: F): PgSelect;
   toRow(record: Record<string, unknown>): ReportRow;
 }
+
+/** A report computed in the API (e.g. receivables ageing, from the shared engine). */
+export interface ComputedReportKind<F> extends ReportBase<F> {
+  /** Every row, most relevant first. */
+  rows(tx: Transaction, auth: AuthContext, filters: F): Promise<ReportRow[]>;
+}
+
+export type ReportKind<F> = QueryReportKind<F> | ComputedReportKind<F>;
 
 const store = { storeId: storeFilter };
 const dateRange = { from: dateFilter, to: dateFilter };
@@ -482,4 +495,6 @@ export const REPORT_KINDS: readonly ReportKind<unknown>[] = [
   projectReport,
   salesByInfluencer,
   salesBySite,
+  receivablesAgeing,
+  receivablesOpenBills,
 ];

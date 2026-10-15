@@ -176,7 +176,8 @@ describe('sales by site', () => {
 
   it('is for members who may read sales', async () => {
     const list = ok(await api(t, b.owner).get('/reports')).json<ReportSummary[]>();
-    expect(list.slice(-2).map((r) => [r.kind, r.filters.map((f) => f.name)])).toEqual([
+    const sales = list.filter((r) => r.kind.startsWith('sales-by-'));
+    expect(sales.map((r) => [r.kind, r.filters.map((f) => f.name)])).toEqual([
       ['sales-by-influencer', ['storeId', 'from', 'to']],
       ['sales-by-site', ['storeId', 'from', 'to']],
     ]);
