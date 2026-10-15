@@ -294,7 +294,7 @@ export class PartyOverviewService {
       .select({ activity: activities, label: recordLabel, at: when })
       .from(activities)
       .where(records)
-      .orderBy(desc(when), desc(activities.createdAt));
+      .orderBy(desc(when), desc(activities.createdAt), desc(activities.id));
     const [next] = await tx
       .select({
         id: activities.id,
