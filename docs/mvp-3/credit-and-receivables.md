@@ -215,6 +215,12 @@ statements on WhatsApp (round 2 with P2-M12's share).
 | `activity_type` (changed)      | add `promise_to_pay`                                                                                                                                                                                                                                                                                       | Written only by `POST /parties/:id/promises`; the activities API refuses it as a logged or scheduled type                                                                                                                                                                                  |
 | Permissions                    | add `receivables:read`                                                                                                                                                                                                                                                                                     | Receivables dashboard, ageing, reports and the collections worklist (it replaces `credit:read` there); the statement stays on `sales:read`                                                                                                                                                 |
 
+**Party merge.** A duplicate with promises to pay (and so escalations) is refused: merge the
+other way. Its queued messages are skipped (`party_merged`) and its statement links revoked; a
+consent grant is never carried to the survivor (it is asked again), but a withdrawal is, when the
+survivor's own latest consent on that channel is a grant (the stricter choice wins, after draft PR
+#51 CN-7).
+
 **For session 2b (P2-M36).** `loyalty-reversal.ts` sums the `adjust` entries of an invoice's
 notes across every account; once influencer entries exist, a reversal must filter by the account
 it takes points from, or a painter's reversal would count against the bill-to party's. Queue the
