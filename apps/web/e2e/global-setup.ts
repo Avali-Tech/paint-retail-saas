@@ -154,6 +154,8 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       AUTH_SECRET: 'end-to-end-test-secret-of-at-least-32-characters',
       // Prints one-time codes to the log, where the OTP test reads them.
       SMS_PROVIDER: 'log',
+      // Prints WhatsApp messages to parties instead of sending them (P2-M32).
+      MESSAGING_PROVIDER: 'log',
       LOG_LEVEL: 'log',
       WORKER_INTERVAL_SECONDS: '0',
       SIGNUP_PLAN: 'enterprise',

@@ -176,6 +176,7 @@ export const partyEnumsHi: Translation<typeof partyEnumsEn> = {
     email: 'ईमेल',
     follow_up: 'फॉलो-अप',
     note: 'नोट',
+    promise_to_pay: 'भुगतान का वादा',
   },
   activityStatus: { scheduled: 'तय', done: 'हो गया', cancelled: 'रद्द' },
   documentCategories: {

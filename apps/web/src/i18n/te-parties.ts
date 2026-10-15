@@ -175,6 +175,7 @@ export const partyEnumsTe: Translation<typeof partyEnumsEn> = {
     email: 'ఈమెయిల్',
     follow_up: 'ఫాలో-అప్',
     note: 'నోట్',
+    promise_to_pay: 'చెల్లింపు మాట',
   },
   activityStatus: { scheduled: 'షెడ్యూల్ అయింది', done: 'పూర్తయింది', cancelled: 'రద్దయింది' },
   documentCategories: {

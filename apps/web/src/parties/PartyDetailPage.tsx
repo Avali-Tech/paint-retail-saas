@@ -1,3 +1,4 @@
+import { RECEIVABLES_PERMISSION } from '@paint/shared';
 import { Alert, Badge, Button, Card, PageHeader, buttonStyle } from '@paint/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -7,6 +8,8 @@ import { useApi } from '../app/services.js';
 import { useCurrentProfile, usePermissions } from '../auth/session.js';
 import { stageLabel, useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
+import { CollectionsPanel } from '../collections/CollectionsPanel.js';
+import { MessagingPanel } from '../collections/MessagingPanel.js';
 import { CreditPanel } from '../credit/CreditPanel.js';
 import { DocumentsPanel } from '../documents/DocumentsPanel.js';
 import { timelinePath } from '../followups/activity-helpers.js';
@@ -218,6 +221,10 @@ function Overview({
         {credit !== null && (
           <CreditPanel partyId={party.id} credit={credit} projects={projects?.items} />
         )}
+        {can(RECEIVABLES_PERMISSION) && (
+          <CollectionsPanel party={{ id: party.id, name: party.displayName }} />
+        )}
+        <MessagingPanel partyId={party.id} />
         {loyalty !== null && <LoyaltyPanel partyId={party.id} loyalty={loyalty} />}
         <Section
           title={t('parties.detail.activities')}
