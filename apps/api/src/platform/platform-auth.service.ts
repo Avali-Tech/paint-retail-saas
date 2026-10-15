@@ -27,6 +27,8 @@ const { platformAdmins, platformSessions, users } = schema;
 export const PLATFORM_SETTINGS = Symbol('PLATFORM_SETTINGS');
 export interface PlatformSettings {
   readonly bootstrapToken: string | null;
+  /** Days of free trial a business onboarded on the trial plan gets. */
+  readonly trialDays: number;
 }
 
 /** A signed-in platform operator. */

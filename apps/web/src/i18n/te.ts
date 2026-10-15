@@ -23,6 +23,7 @@ import { purchasingEnumsTe, purchasingTe } from './te-purchasing.js';
 import { reportEnumsTe, reportsTe } from './te-reports.js';
 import { stockCountEnumsTe, stockCountsTe } from './te-stock-counts.js';
 import { stockEnumsTe, stockTe } from './te-stock.js';
+import { billingTe } from './te-billing.js';
 import { supportAccessTe } from './te-support-access.js';
 import { taxTe, taxEnumsTe } from './te-tax.js';
 import { teamTe } from './te-team.js';
@@ -340,6 +341,7 @@ export const te: Messages = {
   ...platformTe,
   ...printTe,
   ...supportAccessTe,
+  ...billingTe,
   ...brandingTe,
   ...taxTe,
   ...salesTe,

@@ -55,6 +55,26 @@ beforeAll(async () => {
       LOG_LEVEL: 'error',
       RUN_MIGRATIONS: 'true',
       AUTH_SECRET: 'dist-test-secret-of-at-least-32-characters',
+      // Production refuses the fake gateway and placeholder GST details (none are contacted here).
+      PAYMENT_GATEWAY: 'razorpay',
+      RAZORPAY_KEY_ID: 'rzp_test_dist',
+      RAZORPAY_KEY_SECRET: 'razorpay-key-secret-for-tests',
+      RAZORPAY_WEBHOOK_SECRET: 'razorpay-webhook-secret-for-tests',
+      RAZORPAY_PLAN_IDS: JSON.stringify(
+        Object.fromEntries(
+          ['starter', 'standard', 'enterprise'].flatMap((plan) =>
+            ['monthly', 'annual'].map((interval) => [
+              `${plan}_${interval}`,
+              `plan_${plan}${interval}`,
+            ]),
+          ),
+        ),
+      ),
+      PLATFORM_LEGAL_NAME: 'Platform Test Private Limited',
+      PLATFORM_GSTIN: '36AAACP0000P1ZP',
+      PLATFORM_ADDRESS: '1 Test Road',
+      PLATFORM_CITY: 'Hyderabad',
+      PLATFORM_PINCODE: '500001',
       STORAGE_BUCKET: 'dist-test-documents',
       STORAGE_ENDPOINT: inject('objectStorageEndpoint'),
       CLAMAV_HOST: inject('virusScannerAddress').split(':')[0],

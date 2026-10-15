@@ -6,6 +6,7 @@ import { AuthGuard } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
 import { AUTH_SETTINGS, SMS_SENDER, type AuthSettings } from './auth.tokens.js';
 import { PermissionsGuard } from './permissions.guard.js';
+import { ReadOnlyGuard } from '../subscriptions/read-only.guard.js';
 import { TwoFactorController } from './two-factor.controller.js';
 import { TwoFactorService } from './two-factor.service.js';
 import type { SmsSender } from './sms.js';
@@ -23,9 +24,11 @@ export class AuthModule {
         TwoFactorService,
         { provide: AUTH_SETTINGS, useValue: options.settings },
         { provide: SMS_SENDER, useValue: options.smsSender },
-        // Order matters: AuthGuard identifies the user, then PermissionsGuard checks them.
+        // Order matters: AuthGuard identifies the user, then PermissionsGuard checks them,
+        // then ReadOnlyGuard holds back changes while the subscription does not allow them.
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_GUARD, useClass: PermissionsGuard },
+        { provide: APP_GUARD, useClass: ReadOnlyGuard },
       ],
       exports: [AuthService, TwoFactorService],
     };

@@ -11,6 +11,8 @@ import {
 } from '@paint/db';
 import {
   isValidGstin,
+  type SubscriptionInvoiceView,
+  type SubscriptionView,
   type GoLivePreview,
   type GstRegistrations,
   type LatestReconciliation,
@@ -121,6 +123,32 @@ describe('the demo business', () => {
     );
     const page = await t.app.inject({ method: 'GET', url: '/public/branding/sharma-paints' });
     expect(page.json<{ branding: { appName: string } }>().branding.appName).toBe('Sharma Paints');
+  });
+
+  it('pays for the Standard plan, with the platform’s GST invoice; a second business is on its trial', async () => {
+    const subscription = await get<SubscriptionView>('/subscription');
+    expect(subscription).toMatchObject({
+      plan: 'standard',
+      status: 'active',
+      interval: 'monthly',
+      quantity: 3,
+      gateway: 'fake',
+      readOnly: false,
+    });
+    const invoices = await get<SubscriptionInvoiceView[]>('/subscription/invoices');
+    expect(invoices).toMatchObject([{ plan: 'standard', quantity: 3, totalPaise: 5_306_46 }]);
+    const sheet = readFileSync(credentialsFile, 'utf8');
+    expect(sheet).toContain('pays for the Standard, monthly plan');
+    expect(sheet).toContain('Reddy Colour Centre');
+    const [trial] = (
+      await withPgClient(demoUrl, (client) =>
+        client.query<{ status: string; plan: string }>(
+          `SELECT s.status, o.plan FROM subscriptions s JOIN organizations o ON o.id = s.organization_id
+            WHERE o.name = 'Reddy Colour Centre'`,
+        ),
+      )
+    ).rows;
+    expect(trial).toEqual({ status: 'trialing', plan: 'trial' });
   });
 
   it('asks the demo admin for an authenticator code from the fixed secret', async () => {

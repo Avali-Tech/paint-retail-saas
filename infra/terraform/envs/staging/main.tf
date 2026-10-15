@@ -80,4 +80,5 @@ module "stack" {
   db_password_version        = var.db_password_version
   auth_secret_version        = var.auth_secret_version
   platform_bootstrap_enabled = var.platform_bootstrap_enabled
+  subscriptions              = var.subscriptions
 }

@@ -12,7 +12,15 @@ data "aws_caller_identity" "current" {}
 locals {
   region      = data.aws_region.current.region
   clamav_host = "clamav.${aws_service_discovery_private_dns_namespace.this.name}"
-  api_secrets = merge(var.secret_arns, { AUTH_SECRET = aws_secretsmanager_secret.auth_secret.arn }, var.platform_bootstrap_enabled ? { PLATFORM_BOOTSTRAP_TOKEN = aws_secretsmanager_secret.platform_bootstrap[0].arn } : {})
+  api_secrets = merge(
+    var.secret_arns,
+    {
+      AUTH_SECRET             = aws_secretsmanager_secret.auth_secret.arn
+      RAZORPAY_KEY_SECRET     = aws_secretsmanager_secret.razorpay["key-secret"].arn
+      RAZORPAY_WEBHOOK_SECRET = aws_secretsmanager_secret.razorpay["webhook-secret"].arn
+    },
+    var.platform_bootstrap_enabled ? { PLATFORM_BOOTSTRAP_TOKEN = aws_secretsmanager_secret.platform_bootstrap[0].arn } : {},
+  )
   secret_arns = values(local.api_secrets)
   api_environment = merge(
     {
@@ -33,7 +41,18 @@ locals {
       SIGNUP_PLAN             = var.signup_plan
       SENTRY_ENVIRONMENT      = var.environment
       SENTRY_RELEASE          = var.image_tag
+      PAYMENT_GATEWAY         = "razorpay"
+      RAZORPAY_KEY_ID         = var.subscriptions.razorpay_key_id
+      RAZORPAY_PLAN_IDS       = jsonencode(var.subscriptions.razorpay_plan_ids)
+      SUBSCRIPTION_TRIAL_DAYS = tostring(var.subscriptions.trial_days)
+      SUBSCRIPTION_GRACE_DAYS = tostring(var.subscriptions.grace_days)
+      PLATFORM_LEGAL_NAME     = var.subscriptions.platform.legal_name
+      PLATFORM_GSTIN          = var.subscriptions.platform.gstin
+      PLATFORM_ADDRESS        = var.subscriptions.platform.address
+      PLATFORM_CITY           = var.subscriptions.platform.city
+      PLATFORM_PINCODE        = var.subscriptions.platform.pincode
     },
+    var.subscriptions.platform.email == null ? {} : { PLATFORM_EMAIL = var.subscriptions.platform.email },
     var.sentry_dsn == "" ? {} : { SENTRY_DSN = var.sentry_dsn },
     var.extra_environment,
   )
@@ -77,6 +96,17 @@ resource "aws_secretsmanager_secret_version" "platform_bootstrap" {
   secret_id                = aws_secretsmanager_secret.platform_bootstrap[0].id
   secret_string_wo         = ephemeral.random_password.platform_bootstrap[0].result
   secret_string_wo_version = 1
+}
+
+# Razorpay's API key secret and webhook secret (P2-M08). Terraform creates the
+# secrets but never sees their values: put them in once with
+#   aws secretsmanager put-secret-value --secret-id <name>/razorpay-key-secret --secret-string ...
+# The API refuses to start without them.
+resource "aws_secretsmanager_secret" "razorpay" {
+  for_each                = toset(["key-secret", "webhook-secret"])
+  name                    = "${var.name}/razorpay-${each.value}"
+  description             = "Razorpay ${each.value} for SaaS subscriptions; set by hand, never in Terraform state"
+  recovery_window_in_days = 7
 }
 
 # ---- Logs ----

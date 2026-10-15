@@ -103,6 +103,7 @@ export class AuthService {
           name: input.organizationName,
           ownerUserId: userId,
           plan: this.settings.signupPlan,
+          trialDays: this.settings.trialDays,
         });
         return this.issueSession(tx, userId, organizationId);
       });

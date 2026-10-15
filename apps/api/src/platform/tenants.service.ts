@@ -2,16 +2,32 @@ import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import { schema, withTenant, type DatabaseConnection } from '@paint/db';
-import { PLANS, resolveFeatures, type FeatureFlag, type PlanKey } from '@paint/shared';
+import {
+  PLANS,
+  resolveFeatures,
+  subscriptionState,
+  type FeatureFlag,
+  type PlanKey,
+  type TenantSubscriptionView,
+} from '@paint/shared';
 import { and, count, desc, eq, ilike, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { setUpOrganization } from '../auth/organization-setup.js';
 import { only } from '../common/only.js';
 import { DATABASE } from '../database/database.module.js';
 import { containsPattern } from '../parties/party-access.js';
+import {
+  subscriptionRecord,
+  SubscriptionsService,
+} from '../subscriptions/subscriptions.service.js';
+import {
+  SUBSCRIPTION_SETTINGS,
+  type SubscriptionSettings,
+} from '../subscriptions/subscriptions.tokens.js';
+import { PLATFORM_SETTINGS, type PlatformSettings } from './platform-auth.service.js';
 import type { CreateTenantInput, ListTenantsQuery, UpdateTenantInput } from './platform.schemas.js';
 
-const { organizationMembers, organizations, roles, sessions, users } = schema;
+const { organizationMembers, organizations, roles, sessions, subscriptions, users } = schema;
 
 export interface PlanView {
   readonly key: PlanKey;
@@ -41,6 +57,7 @@ export interface TenantView {
   readonly features: Record<FeatureFlag, boolean>;
   readonly featureOverrides: Partial<Record<FeatureFlag, boolean>>;
   readonly usage: TenantUsage;
+  readonly subscription: TenantSubscriptionView;
   readonly createdAt: string;
 }
 
@@ -69,7 +86,12 @@ const usageColumns = {
 /** The platform's view of every business (roadmap P1-M23). Platform scope. */
 @Injectable()
 export class TenantsService {
-  constructor(@Inject(DATABASE) private readonly connection: DatabaseConnection) {}
+  constructor(
+    @Inject(DATABASE) private readonly connection: DatabaseConnection,
+    @Inject(PLATFORM_SETTINGS) private readonly settings: PlatformSettings,
+    @Inject(SUBSCRIPTION_SETTINGS) private readonly subscriptionSettings: SubscriptionSettings,
+    @Inject(SubscriptionsService) private readonly subscriptions: SubscriptionsService,
+  ) {}
 
   async list(query: ListTenantsQuery): Promise<{ items: TenantView[]; total: number }> {
     const where = and(
@@ -128,6 +150,7 @@ export class TenantsService {
         name: input.organizationName,
         ownerUserId,
         plan: input.plan,
+        trialDays: this.settings.trialDays,
       });
     });
     return this.get(organizationId);
@@ -147,7 +170,11 @@ export class TenantsService {
     return created.id;
   }
 
-  async update(tenantId: string, input: UpdateTenantInput): Promise<TenantDetail> {
+  async update(
+    tenantId: string,
+    input: UpdateTenantInput,
+    operatorUserId: string,
+  ): Promise<TenantDetail> {
     const current = await this.get(tenantId);
     // null drops an override, so the plan's default applies again.
     const overrides = Object.fromEntries(
@@ -155,15 +182,32 @@ export class TenantsService {
         ([, value]) => value !== null,
       ),
     );
-    await this.connection.db
-      .update(organizations)
-      .set({
-        ...(input.name ? { name: input.name } : {}),
-        ...(input.plan ? { plan: input.plan } : {}),
-        featureFlags: overrides,
-        updatedAt: sql`now()`,
-      })
-      .where(eq(organizations.id, tenantId));
+    await this.connection.db.transaction(async (tx) => {
+      await tx
+        .update(organizations)
+        .set({
+          ...(input.name ? { name: input.name } : {}),
+          ...(input.plan ? { plan: input.plan } : {}),
+          featureFlags: overrides,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(organizations.id, tenantId));
+      if (input.plan && input.plan !== current.plan.key) {
+        await this.subscriptions.recordOperatorChange(tx, {
+          organizationId: tenantId,
+          from: current.plan.key,
+          to: input.plan,
+          operatorUserId,
+        });
+      }
+    });
+    return this.get(tenantId);
+  }
+
+  /** More days of free trial, also after it ended (support for a business deciding). */
+  async extendTrial(tenantId: string, days: number): Promise<TenantDetail> {
+    await this.get(tenantId);
+    await this.subscriptions.extendTrial(tenantId, days);
     return this.get(tenantId);
   }
 
@@ -229,13 +273,24 @@ export class TenantsService {
 
   private rows() {
     return this.connection.db
-      .select({ organization: organizations, ...usageColumns })
+      .select({
+        organization: organizations,
+        ...usageColumns,
+        subscription: subscriptions,
+        now: sql<number>`(extract(epoch from now()) * 1000)::float8`.mapWith(Number),
+      })
       .from(organizations)
+      .innerJoin(subscriptions, eq(subscriptions.organizationId, organizations.id))
       .$dynamic();
   }
 
   private toView(row: Awaited<ReturnType<TenantsService['rows']>>[number]): TenantView {
-    const { organization } = row;
+    const { organization, subscription } = row;
+    const state = subscriptionState(
+      subscriptionRecord(subscription),
+      new Date(row.now),
+      this.subscriptionSettings.graceDays,
+    );
     const overrides = organization.featureFlags as Partial<Record<FeatureFlag, boolean>>;
     return {
       id: organization.id,
@@ -254,6 +309,14 @@ export class TenantsService {
         documents: row.documents,
         documentBytes: Number(row.documentBytes),
         lastSignInAt: row.lastSignInAt ? new Date(row.lastSignInAt).toISOString() : null,
+      },
+      subscription: {
+        status: state.status,
+        readOnly: state.readOnly,
+        trialEndsAt: subscription.trialEndsAt?.toISOString() ?? null,
+        currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() ?? null,
+        interval: subscription.billingInterval,
+        gateway: subscription.gateway,
       },
       createdAt: organization.createdAt.toISOString(),
     };

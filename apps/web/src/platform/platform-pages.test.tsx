@@ -276,6 +276,122 @@ describe('a business', () => {
   });
 });
 
+describe('a business’s subscription in the console', () => {
+  it('lists each business’s subscription, flagging read-only ones', async () => {
+    renderConsole('/platform/tenants', {
+      'GET /platform/tenants': () =>
+        json({
+          items: [
+            tenant(),
+            tenant({
+              id: 'tenant-3',
+              name: 'Late Paints',
+              subscription: {
+                status: 'past_due',
+                readOnly: true,
+                trialEndsAt: null,
+                currentPeriodEnd: '2026-10-01T04:30:00.000Z',
+                interval: 'monthly',
+                gateway: 'razorpay',
+              },
+            }),
+          ],
+          total: 2,
+        }),
+    });
+    const table = await screen.findByRole('table', { name: 'Businesses' });
+    const [, sharma, late] = within(table).getAllByRole('row');
+    expect(sharma).toHaveTextContent('Free trial');
+    expect(sharma).not.toHaveTextContent('Read-only');
+    expect(late).toHaveTextContent('Payment overdueRead-only');
+  });
+
+  it('extends a trial, also an expired one', async () => {
+    let current = tenant({
+      subscription: { ...tenant().subscription, status: 'expired', readOnly: true },
+    });
+    const { user, requests } = renderConsole(`/platform/tenants/${TENANT_ID}`, {
+      'GET /platform/tenants/:id': () => json(current),
+      'GET /platform/support-grants': () => json([]),
+      'POST /platform/tenants/:id/extend-trial': () => {
+        current = tenant({
+          subscription: { ...tenant().subscription, trialEndsAt: '2026-10-27T04:30:00.000Z' },
+        });
+        return json(current);
+      },
+    });
+    const card = await screen.findByRole('region', { name: 'Subscription' });
+    expect(card).toHaveTextContent('Trial endedRead-only');
+    expect(card).toHaveTextContent('Trial ends20 Oct 2026');
+    expect(card).not.toHaveTextContent('Payment');
+    await user.click(within(card).getByRole('button', { name: 'Extend trial' }));
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Extend the free trial of Sharma Paints',
+    });
+    const days = within(dialog).getByRole('spinbutton', { name: /Days to add/ });
+    expect(days).toHaveValue(14);
+    await user.clear(days);
+    await user.type(days, '120');
+    await user.click(within(dialog).getByRole('button', { name: 'Extend trial' }));
+    expect(await within(dialog).findByText('Enter a number of days from 1 to 90')).toBeVisible();
+    await user.clear(days);
+    await user.type(days, '7');
+    await user.click(within(dialog).getByRole('button', { name: 'Extend trial' }));
+    expect(await screen.findByText('Trial extended to 27 Oct 2026')).toBeVisible();
+    expect(
+      requests.filter((request) => request.method === 'POST').map((request) => request.body),
+    ).toEqual([{ days: 7 }]);
+    expect(
+      await within(screen.getByRole('region', { name: 'Subscription' })).findByText('Free trial'),
+    ).toBeVisible();
+  });
+
+  it('shows how a paying business pays, without offering a trial', async () => {
+    const { unmount } = renderConsole(`/platform/tenants/${TENANT_ID}`, {
+      'GET /platform/tenants/:id': () =>
+        json(
+          tenant({
+            subscription: {
+              status: 'active',
+              readOnly: false,
+              trialEndsAt: null,
+              currentPeriodEnd: '2026-11-16T04:30:00.000Z',
+              interval: 'annual',
+              gateway: 'razorpay',
+            },
+          }),
+        ),
+      'GET /platform/support-grants': () => json([]),
+    });
+    const card = await screen.findByRole('region', { name: 'Subscription' });
+    expect(card).toHaveTextContent('Paid until16 Nov 2026');
+    expect(card).toHaveTextContent('BillingYearly');
+    expect(card).toHaveTextContent('PaymentOnline (razorpay)');
+    expect(within(card).queryByRole('button')).toBeNull();
+    unmount();
+
+    renderConsole(`/platform/tenants/${TENANT_ID}`, {
+      'GET /platform/tenants/:id': () =>
+        json(
+          tenant({
+            subscription: {
+              status: 'active',
+              readOnly: false,
+              trialEndsAt: null,
+              currentPeriodEnd: null,
+              interval: null,
+              gateway: null,
+            },
+          }),
+        ),
+      'GET /platform/support-grants': () => json([]),
+    });
+    expect(await screen.findByRole('region', { name: 'Subscription' })).toHaveTextContent(
+      'PaymentSet by our team',
+    );
+  });
+});
+
 describe('support access from the console', () => {
   it('asks a business for access with a reason and a length', async () => {
     let grants = [grant({ status: 'declined', declinedAt: '2026-10-01T05:00:00.000Z' })];

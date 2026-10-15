@@ -15,6 +15,7 @@ const settings = authSettingsFrom({
   authSecret: 's'.repeat(32),
   sessionTtlDays: 30,
   signupPlan: 'trial',
+  subscriptions: { trialDays: 14 },
 });
 const service = (connection: DatabaseConnection) =>
   new AuthService(

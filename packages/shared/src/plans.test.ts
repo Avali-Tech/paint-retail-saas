@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { FEATURE_FLAG_KEYS, PLAN_KEYS, PLANS, resolveFeatures } from './plans.js';
+import { FEATURE_FLAG_KEYS, PAID_PLAN_KEYS, PLAN_KEYS, PLANS, resolveFeatures } from './plans.js';
 
 describe('plans', () => {
-  it('lists trial, standard and enterprise, with growing limits', () => {
-    expect(PLAN_KEYS).toEqual(['trial', 'standard', 'enterprise']);
+  it('lists the free trial, then paid plans with growing limits', () => {
+    expect(PLAN_KEYS).toEqual(['trial', 'starter', 'standard', 'enterprise']);
+    expect(PAID_PLAN_KEYS).toEqual(['starter', 'standard', 'enterprise']);
+    expect(PLANS.starter.maxStores).toBeLessThan(PLANS.standard.maxStores);
     expect(PLANS.trial.maxStores).toBeLessThan(PLANS.standard.maxStores);
     expect(PLANS.enterprise).toMatchObject({ maxStores: null, maxMembers: null });
+  });
+
+  it('prices every paid plan per store in whole rupees, annual at ten months', () => {
+    expect(PLANS.trial.prices).toBeNull();
+    for (const key of PAID_PLAN_KEYS) {
+      const { monthly, annual } = PLANS[key].prices;
+      expect(monthly % 100).toBe(0);
+      expect(annual).toBe(monthly * 10);
+    }
   });
 });
 

@@ -20,6 +20,7 @@ import { purchasingEn, purchasingEnumsEn } from './en-purchasing.js';
 import { reportEnumsEn, reportsEn } from './en-reports.js';
 import { stockCountEnumsEn, stockCountsEn } from './en-stock-counts.js';
 import { stockEn, stockEnumsEn } from './en-stock.js';
+import { billingEn } from './en-billing.js';
 import { supportAccessEn } from './en-support-access.js';
 import { taxEn, taxEnumsEn } from './en-tax.js';
 import { teamEn } from './en-team.js';
@@ -335,6 +336,7 @@ export const en = {
   ...platformEn,
   ...printEn,
   ...supportAccessEn,
+  ...billingEn,
   ...brandingEn,
   ...taxEn,
   ...salesEn,

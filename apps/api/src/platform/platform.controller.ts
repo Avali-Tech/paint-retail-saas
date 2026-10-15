@@ -36,6 +36,10 @@ import {
 } from './platform.schemas.js';
 import { TenantsService, type TenantDetail, type TenantView } from './tenants.service.js';
 import { pendingCodeSchema, pendingSchema } from '../auth/two-factor.schemas.js';
+import {
+  extendTrialSchema,
+  type ExtendTrialInput,
+} from '../subscriptions/subscriptions.schemas.js';
 import type { Enrolment } from '../auth/two-factor.service.js';
 
 const id = () => new ParseUUIDPipe();
@@ -118,8 +122,18 @@ export class TenantsController {
   update(
     @Param('id', id()) tenantId: string,
     @Body(new ZodValidationPipe(updateTenantSchema)) body: UpdateTenantInput,
+    @CurrentOperator() operator: Operator,
   ): Promise<TenantDetail> {
-    return this.tenants.update(tenantId, body);
+    return this.tenants.update(tenantId, body, operator.userId);
+  }
+
+  @Post(':id/extend-trial')
+  @HttpCode(200)
+  extendTrial(
+    @Param('id', id()) tenantId: string,
+    @Body(new ZodValidationPipe(extendTrialSchema)) body: ExtendTrialInput,
+  ): Promise<TenantDetail> {
+    return this.tenants.extendTrial(tenantId, body.days);
   }
 
   @Post(':id/suspend')

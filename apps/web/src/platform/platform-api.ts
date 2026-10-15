@@ -1,4 +1,10 @@
-import type { FeatureFlag, PendingSignIn, PlanKey, SessionGrant } from '@paint/shared';
+import type {
+  FeatureFlag,
+  PendingSignIn,
+  PlanKey,
+  SessionGrant,
+  TenantSubscriptionView,
+} from '@paint/shared';
 import type { ApiClient } from '../api/client.js';
 import type { TwoFactorEnrolment } from '../api/types.js';
 
@@ -42,6 +48,8 @@ export interface TenantView {
   readonly features: Record<FeatureFlag, boolean>;
   readonly featureOverrides: Partial<Record<FeatureFlag, boolean>>;
   readonly usage: TenantUsage;
+  /** How the business pays: its trial, or the paid plan's status. */
+  readonly subscription: TenantSubscriptionView;
   readonly createdAt: string;
 }
 
@@ -109,6 +117,8 @@ export function platformEndpoints(api: ApiClient) {
     suspend: (id: string, reason: string) =>
       api.post<TenantDetail>(`/platform/tenants/${id}/suspend`, { reason }),
     reactivate: (id: string) => api.post<TenantDetail>(`/platform/tenants/${id}/reactivate`),
+    extendTrial: (id: string, days: number) =>
+      api.post<TenantDetail>(`/platform/tenants/${id}/extend-trial`, { days }),
     requestSupport: (tenantId: string, input: { reason: string; minutes: number }) =>
       api.post<GrantView>(`/platform/tenants/${tenantId}/support-requests`, input),
     grants: (tenantId?: string, signal?: AbortSignal) =>

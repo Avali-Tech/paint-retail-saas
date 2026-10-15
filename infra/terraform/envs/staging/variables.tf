@@ -39,3 +39,21 @@ variable "platform_bootstrap_enabled" {
   type    = bool
   default = false
 }
+
+variable "subscriptions" {
+  description = "SaaS subscriptions (P2-M08): the Razorpay key id and one Razorpay plan id per paid plan and interval (e.g. standard_monthly), trial and grace days, and the platform's own GST details printed on its invoices. The Razorpay key secret and webhook secret are Secrets Manager secrets the api module creates; put their values in by hand (docs/mvp-2/subscriptions.md)."
+  type = object({
+    razorpay_key_id   = string
+    razorpay_plan_ids = map(string)
+    trial_days        = optional(number, 14)
+    grace_days        = optional(number, 7)
+    platform = object({
+      legal_name = string
+      gstin      = string
+      address    = string
+      city       = string
+      pincode    = string
+      email      = optional(string)
+    })
+  })
+}

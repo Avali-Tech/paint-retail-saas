@@ -143,7 +143,8 @@ async function seed(settings: Settings, largeScale: LargeScale): Promise<SeedRes
     LOG_LEVEL: 'error',
     // The running API's worker sends the emails and reminders; the seed runs it once itself.
     WORKER_INTERVAL_SECONDS: '0',
-    SIGNUP_PLAN: 'standard',
+    // The business starts on the free trial and pays for its plan at the end (seed.ts).
+    SIGNUP_PLAN: 'trial',
     PLATFORM_BOOTSTRAP_TOKEN: platformBootstrapToken,
   });
   const sms = new CapturingSmsSender();

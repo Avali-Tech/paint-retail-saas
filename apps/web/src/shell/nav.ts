@@ -1,6 +1,7 @@
 import type { Permission } from '@paint/shared';
 import type { IconName } from '@paint/ui';
 import type { MessageKey } from '../i18n/i18n.js';
+import { BILLING_NAV_ITEMS } from '../billing/nav.js';
 import { BOOKS_NAV_ITEMS } from '../books/nav.js';
 import { DOCUMENT_NAV_ITEMS } from '../documents/nav.js';
 import { ESTIMATE_NAV_ITEMS } from '../estimator/nav.js';
@@ -106,6 +107,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: 'organization:manage',
   },
   ...SUPPORT_ACCESS_NAV_ITEMS,
+  ...BILLING_NAV_ITEMS,
 ];
 
 export const BOTTOM_BAR_SIZE = 4;

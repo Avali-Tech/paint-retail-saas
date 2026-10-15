@@ -38,6 +38,7 @@ import { ReportsModule } from './reports/reports.module.js';
 import { SearchModule } from './search/search.module.js';
 import { StockCountsModule } from './stock-counts/stock-counts.module.js';
 import { StoresModule } from './stores/stores.module.js';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module.js';
 import { TaxModule } from './tax/tax.module.js';
 import { TransfersModule } from './transfers/transfers.module.js';
 
@@ -86,7 +87,10 @@ export class AppModule {
         PaintModule,
         PartiesModule,
         PaymentsModule,
-        PlatformModule.forRoot({ bootstrapToken: config.platformBootstrapToken }),
+        PlatformModule.forRoot({
+          bootstrapToken: config.platformBootstrapToken,
+          trialDays: config.subscriptions.trialDays,
+        }),
         ProjectsModule,
         PurchasingModule,
         ReconciliationModule,
@@ -95,6 +99,7 @@ export class AppModule {
         SearchModule,
         StockCountsModule,
         StoresModule,
+        SubscriptionsModule.forRoot(config.subscriptions),
         TaxModule,
         TransfersModule,
       ],

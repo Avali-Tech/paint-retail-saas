@@ -3,6 +3,7 @@ import { Suspense, useRef, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import { useCurrentProfile, usePermissions, useSignOut } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
+import { SubscriptionBanner } from '../billing/SubscriptionBanner.js';
 import { SupportBanner } from '../support-access/SupportBanner.js';
 import { BrandMark } from '../theme/BrandMark.js';
 import { useBranding } from '../theme/BrandingProvider.js';
@@ -120,6 +121,7 @@ export function AppShell() {
 
       <main className="shell__main" id="main" tabIndex={-1}>
         <SupportBanner />
+        <SubscriptionBanner />
         <Suspense
           fallback={
             <div className="query-state">

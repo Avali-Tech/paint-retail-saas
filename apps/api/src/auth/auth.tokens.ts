@@ -19,12 +19,15 @@ export interface AuthSettings {
   readonly otpMaxPerHour: number;
   /** The plan a business starts on when it signs itself up. */
   readonly signupPlan: PlanKey;
+  /** Days of free trial a business on the trial plan gets. */
+  readonly trialDays: number;
 }
 
 export function authSettingsFrom(config: {
   authSecret: string;
   sessionTtlDays: number;
   signupPlan: PlanKey;
+  subscriptions: { trialDays: number };
 }): AuthSettings {
   return {
     secret: config.authSecret,
@@ -34,5 +37,6 @@ export function authSettingsFrom(config: {
     otpResendCooldownMs: 30 * 1000,
     otpMaxPerHour: 5,
     signupPlan: config.signupPlan,
+    trialDays: config.subscriptions.trialDays,
   };
 }
