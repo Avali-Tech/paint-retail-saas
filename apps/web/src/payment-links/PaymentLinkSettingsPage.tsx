@@ -46,7 +46,7 @@ export function parseRules(form: {
   if (Object.keys(problems).length > 0) return { ok: false, problems };
   return {
     ok: true,
-    input: { validityMinutes: minutes, capPaise: cap as number, amountBasis: form.amountBasis },
+    input: { validityMinutes: minutes, capPaise: Number(cap), amountBasis: form.amountBasis },
   };
 }
 
@@ -243,7 +243,8 @@ function ConnectForm({ connected }: { readonly connected: boolean }) {
   );
 }
 
-const masked = (hint: string | null) => (hint === null ? '—' : `••••${hint}`);
+/** A connected account has every hint. */
+const masked = (hint: string | null) => `••••${String(hint)}`;
 
 function AccountCard({ account }: { readonly account: GatewayAccountView }) {
   const api = useApi();
@@ -364,7 +365,7 @@ function GatewaySection({ settings }: { readonly settings: PaymentLinkSettings }
   }
   return (
     <QueryState query={account} error="paymentLinkSettings.error">
-      {(data) => (data === null ? null : <AccountCard account={data} />)}
+      {(data) => <AccountCard account={data} />}
     </QueryState>
   );
 }

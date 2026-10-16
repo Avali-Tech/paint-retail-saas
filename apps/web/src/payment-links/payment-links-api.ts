@@ -31,9 +31,9 @@ export function paymentLinkEndpoints(api: ApiClient) {
     /** Owners and admins: link validity, cap and amount basis ([PO-41] – [PO-43]). */
     saveSettings: (body: UpdatePaymentLinkSettingsRequest) =>
       api.put<PaymentLinkSettings>('/payment-links/settings', body),
-    /** The business's own Razorpay account, never with a secret; null without Razorpay. */
+    /** The business's own Razorpay account, never with a secret (asked only with Razorpay). */
     gatewayAccount: (signal?: AbortSignal) =>
-      api.get<GatewayAccountView | null>('/payment-links/gateway-account', { signal }),
+      api.get<GatewayAccountView>('/payment-links/gateway-account', { signal }),
     connectGateway: (body: ConnectGatewayRequest) =>
       api.put<GatewayAccountView>('/payment-links/gateway-account', body),
     testGateway: () => api.post<GatewayTestResult>('/payment-links/gateway-account/test'),
