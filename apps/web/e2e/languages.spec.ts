@@ -45,6 +45,141 @@ async function chooseLanguage(page: Page, language: (typeof LANGUAGES)[number]) 
   await expect(page.locator('html')).toHaveAttribute('lang', language.lang);
 }
 
+/** An India date `days` from today, as YYYY-MM-DD. */
+const indiaDay = (days: number) =>
+  new Date(Date.now() + days * 86_400_000).toLocaleDateString('en-CA', {
+    timeZone: 'Asia/Kolkata',
+  });
+
+/**
+ * Brand money for the round 5 screens (P2-M33, P2-M35): a registered store selling a
+ * brand's 10 L pack, a GRN of the brand today, a running scheme with a filed claim,
+ * and a bill today (this quarter's profitability). Signed in as the owner.
+ */
+async function brandMoneyBusiness(page: Page, name: string): Promise<string> {
+  const business = await createBusiness(name, [['AMP', 'Ameerpet']]);
+  const { token } = business;
+  const storeId = String(business.stores[0]?.id);
+  await call('PUT', '/gst-registrations/business', { token, body: { legalName: `${name} LLP` } });
+  await call('PUT', `/gst-registrations/stores/${storeId}`, {
+    token,
+    body: { registrationType: 'regular', stateCode: '36', gstin: '36AABCS1429B1ZV' },
+  });
+  const { categories } = await call<{ categories: { id: string; key: string | null }[] }>(
+    'GET',
+    '/tax-categories/options',
+    { token },
+  );
+  const brand = await call<{ id: string }>('POST', '/brands', {
+    token,
+    body: { name: 'Asian Paints' },
+  });
+  const product = await call<{ variants: { id: string }[] }>('POST', '/products', {
+    token,
+    body: {
+      brandId: brand.id,
+      name: 'Apex Ultima',
+      type: 'exterior_paint',
+      hsnCode: '3209',
+      taxCategoryId: categories.find((option) => option.key === 'paints')?.id,
+      variants: [{ sku: 'APX-10L', packSize: 10, unit: 'l', sellingPricePaise: 5_900_00 }],
+    },
+  });
+  const variantId = String(product.variants[0]?.id);
+  const supplier = await call<{ id: string }>('POST', '/parties', {
+    token,
+    body: { kind: 'organization', displayName: 'Deccan Distributors', roles: ['supplier'] },
+  });
+  await call('POST', '/goods-receipts', {
+    token,
+    body: {
+      storeId,
+      supplierId: supplier.id,
+      supplierInvoiceNumber: 'INV-1',
+      lines: [{ variantId, quantity: 10, freeQuantity: 1, unitCostPaise: 4_000_00 }],
+    },
+  });
+  const scheme = await call<{ id: string }>('POST', '/brand-schemes', {
+    token,
+    body: {
+      brandId: brand.id,
+      name: 'Festive slab',
+      startsOn: indiaDay(-10),
+      endsOn: indiaDay(19),
+      measure: 'value',
+      slabs: [
+        { target: 30_000_00, benefits: [{ kind: 'rebate', basisPoints: 100 }] },
+        { target: 60_000_00, benefits: [{ kind: 'points', label: 'Goa trip', points: 1 }] },
+      ],
+    },
+  });
+  await call('POST', `/brand-schemes/${scheme.id}/activate`, { token });
+  await call('POST', `/brand-schemes/${scheme.id}/claims`, {
+    token,
+    body: { filedOn: indiaDay(0) },
+  });
+  const party = await call<{ id: string }>('POST', '/parties', {
+    token,
+    body: { displayName: 'Suresh Reddy', roles: ['customer'] },
+  });
+  const draft = await call<{ id: string }>('POST', '/invoices', {
+    token,
+    body: { storeId, partyId: party.id, lines: [{ variantId, quantity: 2 }] },
+  });
+  await call('POST', `/invoices/${draft.id}/issue`, { token, body: {} });
+  await signInWithPassword(page, business.ownerPhone);
+  await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+  return scheme.id;
+}
+
+/** Brand schemes, a scheme with its dialogs, claims, the planner and brand profitability. */
+async function brandMoneyScreens(page: Page, schemeId: string, messages: typeof hi) {
+  const { schemes, priceHike, brandProfitability } = messages;
+  await page.goto('/brand-schemes');
+  await expect(page.getByRole('heading', { name: schemes.title, level: 1 })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Asian Paints · Festive slab' })).toBeVisible();
+  await expectUsable(page);
+  await page.goto(`/brand-schemes/${schemeId}`);
+  await expect(
+    page.getByRole('heading', { name: 'Asian Paints · Festive slab', level: 1 }),
+  ).toBeVisible();
+  await expectUsable(page);
+  await page.getByRole('button', { name: schemes.receipt.title }).click();
+  await expect(page.getByRole('dialog', { name: schemes.receipt.title })).toBeVisible();
+  await expectUsable(page);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: schemes.receipt.title })).toBeHidden();
+  await page.goto(`/brand-schemes/${schemeId}/edit`);
+  await expect(
+    page.getByRole('heading', { name: schemes.editor.editTitle, level: 1 }),
+  ).toBeVisible();
+  await expectUsable(page);
+  await page.goto('/brand-schemes/claims');
+  await expect(page.getByRole('heading', { name: schemes.claims.title, level: 1 })).toBeVisible();
+  await expect(page.getByRole('table', { name: schemes.claims.schemes })).toContainText(
+    'Festive slab',
+  );
+  await expectUsable(page);
+  await page.goto('/brand-schemes/price-hike');
+  await expect(page.getByRole('heading', { name: priceHike.title, level: 1 })).toBeVisible();
+  await page.getByRole('combobox', { name: schemes.brand }).selectOption({ label: 'Asian Paints' });
+  await page.getByRole('textbox', { name: priceHike.hike }).fill('5');
+  await page.getByRole('button', { name: priceHike.plan }).click();
+  await expect(page.getByRole('table', { name: priceHike.table })).toContainText('APX-10L');
+  await expectUsable(page);
+  await page.goto('/reports/brand-profitability?period=thisQuarter&groupBy=product');
+  await expect(
+    page.getByRole('heading', { name: brandProfitability.title, level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByRole('region', { name: brandProfitability.headline.label })).toContainText(
+    'Asian Paints',
+  );
+  await expectUsable(page);
+  await page.getByRole('button', { name: brandProfitability.settings.open }).click();
+  await expect(page.getByRole('dialog', { name: brandProfitability.settings.title })).toBeVisible();
+  await expectUsable(page);
+}
+
 test('the sign-in page switches language and remembers it', async ({ page }) => {
   await page.goto('/sign-in');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en-IN');
@@ -211,6 +346,21 @@ for (const language of LANGUAGES) {
     ).toBeVisible();
     await expectUsable(page);
   });
+
+  // Round 5's brand screens: on a desktop and on a phone, in the language.
+  for (const phone of [false, true]) {
+    test(`brand schemes, the planner and brand profitability in ${language.code}${phone ? ' @phone' : ', on a desktop'}`, async ({
+      page,
+    }) => {
+      test.setTimeout(90_000);
+      const schemeId = await brandMoneyBusiness(
+        page,
+        `Brand ${language.code} ${phone ? 'Phone' : 'Desk'} Paints`,
+      );
+      await chooseLanguage(page, language);
+      await brandMoneyScreens(page, schemeId, language.messages);
+    });
+  }
 
   test(`the phone menu fits in ${language.code} @phone`, async ({ page }) => {
     await signedInBusiness(page, `Phone Menu ${language.code} Paints`);

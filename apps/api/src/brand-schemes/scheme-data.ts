@@ -64,6 +64,17 @@ const millilitres = (quantity: AnyColumn | SQL) =>
 const indiaDay = (moment: AnyColumn | SQL) =>
   sql<string>`((${moment} at time zone 'Asia/Kolkata')::date)::text`;
 
+/** Items by key, each list in the items' order: none for a key no item has. */
+function groupBy<T>(items: readonly T[], key: (item: T) => string): (of: string) => readonly T[] {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const list = groups.get(key(item));
+    if (list === undefined) groups.set(key(item), [item]);
+    else list.push(item);
+  }
+  return (of) => groups.get(of) ?? [];
+}
+
 /** Schemes matching `where` (in the tenant's transaction), newest period first. */
 export async function loadSchemes(tx: Transaction, where?: SQL): Promise<SchemeRecord[]> {
   const rows = await tx
@@ -113,16 +124,15 @@ export async function loadSchemes(tx: Transaction, where?: SQL): Promise<SchemeR
     .where(inArray(brandSchemeBenefits.schemeId, ids))
     .orderBy(asc(brandSchemeBenefits.position));
 
+  const itemsOf = groupBy(items, (item) => item.schemeId);
+  const slabsOf = groupBy(slabs, (slab) => slab.schemeId);
+  const benefitsOf = groupBy(benefits, (row) => row.benefit.slabId);
   return rows.map(({ scheme, brandName }) => {
-    const own = items.filter((item) => item.schemeId === scheme.id);
-    const ownSlabs = slabs
-      .filter((slab) => slab.schemeId === scheme.id)
-      .map((slab) => {
-        const ownBenefits = benefits
-          .filter((row) => row.benefit.slabId === slab.id)
-          .map((row) => benefitView(row));
-        return { id: slab.id, position: slab.position, target: slab.target, benefits: ownBenefits };
-      });
+    const own = itemsOf(scheme.id);
+    const ownSlabs = slabsOf(scheme.id).map((slab) => {
+      const ownBenefits = benefitsOf(slab.id).map((row) => benefitView(row));
+      return { id: slab.id, position: slab.position, target: slab.target, benefits: ownBenefits };
+    });
     const productIds = own.flatMap((item) => (item.productId ? [item.productId] : []));
     const categoryIds = own.flatMap((item) => (item.categoryId ? [item.categoryId] : []));
     const view: SchemeView = {
@@ -385,15 +395,18 @@ export function countedOn(line: GrnLineRecord, basis: SchemeDateBasis): string {
     : line.view.receivedOn;
 }
 
-/** The lines a scheme counts as of a day, for the engine and for the screen. */
+/**
+ * The lines a scheme counts as of a day, for the engine and for the screen. `lines`
+ * are its brand's, each with its place among every line loaded (its id's suffix).
+ */
 export function schemeLines(
   record: SchemeRecord,
-  lines: readonly GrnLineRecord[],
+  lines: readonly (readonly [GrnLineRecord, number])[],
   asOf: string,
 ): { readonly engine: SchemeGrnLine[]; readonly views: SchemeGrnLineView[] } {
   const engine: SchemeGrnLine[] = [];
   const views: SchemeGrnLineView[] = [];
-  lines.forEach((line, index) => {
+  lines.forEach(([line, index]) => {
     const day = countedOn(line, record.view.dateBasis);
     const counted: SchemeGrnLine = {
       id: `${line.view.sourceId}:${String(index)}`,
@@ -540,9 +553,16 @@ export async function evaluateSchemes(
     tx,
     records.map((record) => record.view.id),
   );
+  // Each scheme reads its own brand's lines and receipts only: matching every scheme
+  // against every line loaded took 2 s for 100 schemes of 20 brands (performance.md).
+  const linesOf = groupBy(
+    lines.map((line, index) => [line, index] as const),
+    ([line]) => line.brandId,
+  );
+  const receiptsOf = groupBy(receipts, (receipt) => receipt.schemeId);
   return records.map((record) => {
-    const counted = schemeLines(record, lines, asOf);
-    const own = receipts.filter((receipt) => receipt.schemeId === record.view.id);
+    const counted = schemeLines(record, linesOf(record.view.brand.id), asOf);
+    const own = receiptsOf(record.view.id);
     const received = own.map((receipt) => toReceived(record.view.id, receipt.view));
     return {
       record,

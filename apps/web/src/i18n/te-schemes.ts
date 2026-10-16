@@ -134,6 +134,7 @@ export const schemesTe = {
       update: 'అప్‌డేట్ చేయండి',
       grns: 'లెక్కించిన GRN లు',
       noGrns: 'బ్రాండ్ కొనుగోలు ఇంకా ఏదీ లెక్కించలేదు.',
+      grnPages: 'GRN పంక్తుల పేజీలు',
       grn: 'GRN',
       countedOn: 'లెక్కించిన తేదీ',
       pack: 'ప్యాక్',

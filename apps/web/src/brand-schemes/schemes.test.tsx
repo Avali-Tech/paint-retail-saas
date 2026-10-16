@@ -367,6 +367,31 @@ describe('SchemeDetailPage', { timeout: 60_000 }, () => {
     ]);
   });
 
+  it('shows a busy scheme’s GRN lines a hundred at a time', async () => {
+    const detail = schemeDetail(MONSOON, '2026-08-15');
+    const [line] = detail.grnLines;
+    const grnLines = Array.from({ length: 150 }, (_, index) => ({
+      ...found(line),
+      sourceId: `grn-${String(index + 1)}`,
+      number: `GRN-${String(index + 1).padStart(6, '0')}`,
+    }));
+    const { user } = renderApp({
+      path: '/brand-schemes/scheme-monsoon',
+      routes: {
+        'GET /auth/me': () => json(BUYER),
+        'GET /brand-schemes/:id': () => json({ ...detail, grnLines }),
+      },
+    });
+    const grns = await screen.findByRole('table', { name: 'GRNs counted' });
+    expect(within(grns).getAllByRole('row')).toHaveLength(101);
+    const pages = screen.getByRole('navigation', { name: 'GRN line pages' });
+    expect(pages).toHaveTextContent('1–100 of 150');
+    await user.click(within(pages).getByRole('button', { name: 'Next' }));
+    expect(within(grns).getAllByRole('row')).toHaveLength(51);
+    expect(within(grns).getAllByRole('row')[1]).toHaveTextContent('GRN-000101');
+    expect(pages).toHaveTextContent('101–150 of 150');
+  });
+
   it('shows a finished scheme with nothing counted, nothing received and no claims', async () => {
     const closed = {
       ...LITRES,

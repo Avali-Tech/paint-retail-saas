@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, dayNumber, daysBetween } from './dates.js';
+import { DAY_CACHE_LIMIT, addDays, dayNumber, daysBetween } from './dates.js';
 
 describe('business-date arithmetic', () => {
   it('counts days between dates across months, years and leap days', () => {
@@ -21,5 +21,15 @@ describe('business-date arithmetic', () => {
     for (const bad of ['2026-02-30', '2026-13-01', '11-10-2026', '2026-10-1', '', 'today']) {
       expect(() => dayNumber(bad)).toThrow(RangeError);
     }
+  });
+
+  it('answers the same from its cache, and after the cache fills and starts again', () => {
+    expect(dayNumber('2026-10-11')).toBe(dayNumber('2026-10-11'));
+    // More distinct dates than the cache keeps: each is still worked out right.
+    for (let day = 0; day <= DAY_CACHE_LIMIT; day += 1) {
+      expect(dayNumber(addDays('2000-01-01', day))).toBe(10_957 + day);
+    }
+    expect(dayNumber('2026-10-11')).toBe(20_737);
+    expect(() => dayNumber('2026-02-30')).toThrow(RangeError);
   });
 });

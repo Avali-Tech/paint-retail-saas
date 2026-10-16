@@ -1,5 +1,15 @@
 import { variantTitle, type BrandClaimView, type SchemeDetail } from '@paint/shared';
-import { Alert, Badge, Button, Card, PageHeader, Table, buttonStyle, useToast } from '@paint/ui';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  PageHeader,
+  Pagination,
+  Table,
+  buttonStyle,
+  useToast,
+} from '@paint/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
@@ -264,9 +274,13 @@ function Claims({
   );
 }
 
+/** GRN lines shown at a time: a year's scheme of a busy brand counts thousands. */
+export const GRN_LINES_PER_PAGE = 100;
+
 function GrnLines({ detail }: { readonly detail: SchemeDetail }) {
   const { t, money, number, date } = useI18n();
   const { amount } = useSchemeText();
+  const [offset, setOffset] = useState(0);
   return (
     <Card title={t('schemes.detail.grns')}>
       {detail.grnLines.length === 0 ? (
@@ -284,8 +298,8 @@ function GrnLines({ detail }: { readonly detail: SchemeDetail }) {
             </tr>
           </thead>
           <tbody>
-            {detail.grnLines.map((line, index) => (
-              <tr key={`${line.sourceId}:${line.variantId}:${String(index)}`}>
+            {detail.grnLines.slice(offset, offset + GRN_LINES_PER_PAGE).map((line, index) => (
+              <tr key={`${line.sourceId}:${line.variantId}:${String(offset + index)}`}>
                 <th scope="row">
                   {line.kind === 'return'
                     ? t('schemes.detail.return', { number: line.number })
@@ -308,6 +322,16 @@ function GrnLines({ detail }: { readonly detail: SchemeDetail }) {
           </tbody>
         </Table>
       )}
+      <Pagination
+        offset={offset}
+        limit={GRN_LINES_PER_PAGE}
+        total={detail.grnLines.length}
+        onChange={setOffset}
+        label={t('schemes.detail.grnPages')}
+        range={(from, to, total) => t('common.range', { from, to, total })}
+        previousLabel={t('common.previous')}
+        nextLabel={t('common.next')}
+      />
     </Card>
   );
 }

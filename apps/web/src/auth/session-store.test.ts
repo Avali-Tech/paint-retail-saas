@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GRANT } from '../test-support/fake-api.js';
-import { SESSION_KEY, createSessionStore } from './session-store.js';
+import { ENDED_KEY, SESSION_KEY, createSessionStore } from './session-store.js';
 
 describe('createSessionStore', () => {
   it('starts signed out, keeps a started session and tells listeners', () => {
@@ -20,6 +20,24 @@ describe('createSessionStore', () => {
     expect(listener).toHaveBeenCalledOnce();
     expect(store.getState()).toEqual({ session: null, ended: 'signed-out' });
     expect(localStorage.getItem(SESSION_KEY)).toBeNull();
+  });
+
+  it('still says why the last session ended after a reload, until the next one starts', () => {
+    const first = createSessionStore(localStorage);
+    first.start(GRANT);
+    first.end('expired');
+    const reloaded = createSessionStore(localStorage);
+    expect(reloaded.getState()).toEqual({ session: null, ended: 'expired' });
+    reloaded.start(GRANT);
+    expect(localStorage.getItem(ENDED_KEY)).toBeNull();
+    expect(createSessionStore(localStorage).getState()).toEqual({ session: GRANT, ended: null });
+    // A saved session wins over a stale reason; an unknown reason is none.
+    localStorage.setItem(ENDED_KEY, 'signed-out');
+    expect(createSessionStore(localStorage).getState().ended).toBeNull();
+    localStorage.removeItem(SESSION_KEY);
+    expect(createSessionStore(localStorage).getState().ended).toBe('signed-out');
+    localStorage.setItem(ENDED_KEY, 'bored');
+    expect(createSessionStore(localStorage).getState().ended).toBeNull();
   });
 
   it('picks up a saved session after a reload', () => {
@@ -45,6 +63,7 @@ describe('createSessionStore', () => {
     expect(store.getToken()).toBeNull();
     expect(store.getState().ended).toBe('expired');
     expect(localStorage.getItem(SESSION_KEY)).toBeNull();
+    expect(createSessionStore(localStorage).getState().ended).toBe('expired');
   });
 
   it('follows sign-in and sign-out in other tabs', () => {

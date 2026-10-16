@@ -439,6 +439,7 @@ function Counter({
             lineCount={bill.lines.length}
             exclusive={bill.priceMode === 'exclusive'}
             holding={holding}
+            payReady={!modes.isPending}
             onHold={() => {
               void hold();
             }}

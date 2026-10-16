@@ -306,7 +306,7 @@ Two candidates for the migrations session, if the daily jobs grow slow:
 period's sale lines, the units its credit notes put back, the costed receipts behind the average
 cost, every bill owed during it with its dated allocations, the points its documents earned, the
 painter earn rules), then three name lookups. The integration test checks the count does not grow
-as invoices are added. It was not measured on the large demo this round.
+as invoices are added. Round 6b measured it at large-shop volume: see the next section.
 
 ### To watch as data grows
 
@@ -316,3 +316,129 @@ as invoices are added. It was not measured on the large demo this round.
   would bound it.
 - **Credit cost reads every bill owed during the period**, settled ones included when they were
   settled inside it; like ageing, a "settled on" date per bill would let it skip the rest.
+
+## Release 2.1: brand schemes, the planner and brand profitability (round 6b)
+
+MVP 3 round 6b measured round 5's brand screens at a large shop's volume. **Verdict:** every read
+is within budget after three fixes:
+
+- each scheme was matched against every brand's GRN lines;
+- the engines parsed the same dates millions of times;
+- a scheme's page drew thousands of GRN lines at once.
+
+Listing 100 schemes went from 1.8 s to 0.27 s, and brand profitability for a quarter from 1.2 s
+to 0.6 s.
+
+### Dataset
+
+`apps/api/src/brand-schemes/brand-money-scale.int.test.ts` builds it in bulk
+(`apps/api/src/test-support/brand-money-books.ts`), inside the tenant scope with the stock and
+tax-document rules on. The large demo has no sale invoices with lines and no schemes, so it
+could not be used as it is.
+
+| What                                                                          |                    How many |
+| ----------------------------------------------------------------------------- | --------------------------: |
+| Brands / products / packs                                                     |            20 / 500 / 1,000 |
+| GRNs / GRN lines over a year (the first brand bought most, the 20th least)    |              3,000 / 18,000 |
+| Sale invoices / their lines / credit notes                                    |        9,919 / 29,558 / 245 |
+| Stock movements (receipts, sales, returns)                                    |                      49,342 |
+| Schemes: per brand three finished quarters, the running one and a yearly one  | 100 (80 running), 60 claims |
+| Credit customers' books (`bulk-receivables.ts`), bills with dated allocations | 600 customers, ~3,600 bills |
+
+The sale invoices are not paid, so brand profitability's credit cost reads every one of them as
+owed: a worst case for its bills query. There are no loyalty points.
+
+### Method
+
+As for round 4b: the API in-process (`createApp`, `jit=off`), requests by `app.inject` as the
+owner, one warm-up call, the median of five timed calls, and queries counted on the `pg` client
+(the fewest of three calls). Each count includes about 7 queries of sign-in and tenant set-up.
+"Before" is commit `1227c66`; "after" is `8585e8e`, measured back to back on the same 8 GB Mac
+running other work, so compare the columns rather than the absolute numbers.
+
+The scale test keeps these reads in CI with generous limits: 4 s for the scheme lists, 3 s for a
+scheme and the planner, 6 s and 10 s for profitability over a quarter and a year. It also fails
+if the query count grows:
+
+- 100 schemes of 20 brands must run the queries of one brand's 5;
+- the busiest brand's yearly scheme, those of the quietest brand's;
+- the planner for the brand with the most packs, those for the brand with the fewest;
+- profitability for a year, those for a quarter.
+
+Set `BRAND_MONEY_SCALE_REPORT` to a file to get the times.
+
+### Results (ms)
+
+| Request                                                         | Budget | Before | After | Queries | Response |
+| --------------------------------------------------------------- | -----: | -----: | ----: | ------: | -------: |
+| `/brand-schemes` (100 schemes)                                  |    300 |   1832 |   268 |      15 |   193 KB |
+| `/brand-schemes?brandId=` (the busiest brand, 5 schemes)        |    300 |    165 |   105 |      15 |    10 KB |
+| `/brand-schemes?status=active` (80)                             |    300 |   1276 |   221 |      15 |   153 KB |
+| `/brand-schemes/overview` (the dashboard tile)                  |    300 |   1290 |   205 |      15 |     1 KB |
+| `/brand-schemes/claims`                                         |    300 |   1832 |   269 |      16 |    74 KB |
+| `/brand-schemes/:id` (the busiest brand's yearly scheme)        |    300 |    119 |    97 |      16 |  2058 KB |
+| `/brand-schemes/:id` (the quietest brand's yearly scheme)       |    300 |     57 |    54 |      16 |    96 KB |
+| `POST /brand-schemes/price-hike-plan` (50 packs)                |    300 |     12 |    15 |      14 |    23 KB |
+| `/reports/brand-profitability` (last quarter, by brand)         |   1000 |   1466 |   765 |      27 |     9 KB |
+| `/reports/brand-profitability?from&to` (90 days)                |   1000 |   1231 |   610 |      26 |     9 KB |
+| `/reports/brand-profitability?from&to` (a year)                 |   1000 |   2478 |   987 |      26 |     9 KB |
+| `/reports/brand-profitability?groupBy=product`                  |   1000 |   1445 |   847 |      27 |   214 KB |
+| `/reports/brand-profitability?groupBy=store`                    |   1000 |   1477 |   624 |      27 |    25 KB |
+| `/reports/brand-profitability?from&to&groupBy=product` (a year) |   1000 |   2451 |   811 |      26 |   217 KB |
+| `/reports/brand-schemes?format=csv`                             |   1000 |   1795 |   227 |      15 |    12 KB |
+| `/reports/brand-scheme-claims?format=csv`                       |   1000 |   1816 |   226 |      16 |    11 KB |
+| `/reports/brand-profitability?format=csv&groupBy=product`       |   1000 |   1458 |   663 |      27 |    54 KB |
+
+A second run of the same code was within about 20 % of these, apart from one CSV call that met a
+busy moment on the machine.
+
+After the fixes, a quarter's profitability spends its time like this:
+
+- the six reads of the books, about 420 ms: the bills owed with their dated allocations 210 ms,
+  the costed receipts 106 ms, the period's lines 82 ms;
+- attributing them to brand, product and store, about 75 ms;
+- the scheme money, about 150 ms: the GRN lines of every brand with a scheme in the period.
+
+### What was slow, and the fixes
+
+1. **Every scheme was matched against every brand's GRN lines.** `evaluateSchemes` loads the GRN
+   lines of all the schemes' brands in one query, as before, but then ran each scheme over all of
+   them: 100 schemes × 18,000 lines. It now groups the lines by brand and the receipts by scheme
+   first. `loadSchemes` groups slabs, benefits and what each scheme covers the same way
+   (`apps/api/src/brand-schemes/scheme-data.ts`). The list, claims, dashboard tile and CSVs went
+   from 1.3–1.8 s to about 0.5 s, and brand profitability's scheme money gained the same.
+2. **The engines parsed the same dates over and over.** A scheme checks each GRN line's day
+   against its period twice: when choosing its lines and again in `schemeProgress`. Each check
+   parsed and validated four ISO dates. `dayNumber` (`packages/shared/src/receivables/dates.ts`)
+   now remembers the dates it has worked out, in a cache cleared at 20,000 entries. Lists went from
+   about 0.5 s to 0.2–0.27 s, and a quarter's profitability from 0.86 s to 0.61 s. Ageing, the
+   worklist and the credit check use the same function.
+3. **A scheme's page drew every GRN line.** The busiest brand's yearly scheme counts about 4,500
+   GRN lines (a 2 MB answer, 97 ms at the API). The page now shows 100 at a time with the usual
+   pager (`apps/web/src/brand-schemes/SchemeDetailPage.tsx`), as stock counts do.
+
+Checked and fine: the price-hike planner reads stock, sales and last costs in three grouped
+queries (13–15 ms for 50 packs), and brand profitability's query count is the same for a year as
+for a quarter.
+
+### Indexes
+
+None are needed at this volume, and none were added (this round has no migrations). The scheme
+GRN query filters goods receipts by India date, which no index serves, but at 3,000 GRNs reading
+them all takes a few milliseconds.
+
+For the migrations session, if a shop's GRNs grow past about 100,000: add
+`goods_receipts (organization_id, received_at)`, and rewrite the scheme query's date filter as a
+range on `received_at` (the India day's start and end) or the supplier invoice date.
+
+### To watch as data grows
+
+- **A scheme's page receives all its GRN lines.** The page shows 100 at a time, but the API still
+  answers with every line counted: 2 MB for a busy brand's year. Paging in the API, or totals per
+  GRN, would cut it.
+- **The scheme lists load every GRN line of the period** for the brands listed, to work out
+  progress (14,500 lines and about 145 ms here). Summing per brand, product and day in SQL would
+  cut the rows; a stored progress per scheme, updated with each GRN, would need a migration.
+- **Brand profitability's bills query** reads every bill owed during the period with its dated
+  allocations and lines (210 ms at 11,800 bills, every sale invoice unpaid here). As for ageing, a
+  "settled on" date per bill would let it skip what was settled before the period.
