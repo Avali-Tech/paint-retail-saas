@@ -1,12 +1,13 @@
 import { schema, type Transaction } from '@paint/db';
-import { canAccessStore, panFromGstin } from '@paint/shared';
-import { eq, inArray, or, sql } from 'drizzle-orm';
+import { canAccessStore, formatINR, panFromGstin, type Permission } from '@paint/shared';
+import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AuthContext } from '../auth/auth-context.js';
 import { email, phone } from '../auth/auth.schemas.js';
+import { MAX_CREDIT_DAYS, MAX_CREDIT_LIMIT_PAISE, setCreditTerms } from '../credit/credit-terms.js';
 import { canSeeParty } from '../parties/party-access.js';
 import { CUSTOMER_TYPES, gstin, PARTY_ROLES, pan, pincode } from '../parties/parties.schemas.js';
-import { choice, list, optional, required, text } from './import-cells.js';
+import { choice, decimal, list, optional, required, rupees, text } from './import-cells.js';
 import {
   FirstSeen,
   unique,
@@ -15,7 +16,15 @@ import {
   type RowPlan,
 } from './import-types.js';
 
-const { customerProfiles, parties, partyRoles, stores } = schema;
+const { creditProfiles, creditRequests, customerProfiles, parties, partyRoles, stores } = schema;
+
+/** Who may set credit by import: approvers, as approving a credit request does (PO-101). */
+export const IMPORT_CREDIT_PERMISSION: Permission = 'credit:approve';
+
+interface CreditTerms {
+  readonly limitPaise: number;
+  readonly creditDays: number;
+}
 
 type PartyRole = (typeof PARTY_ROLES)[number];
 type PartyRow = z.output<typeof row>;
@@ -44,6 +53,23 @@ const row = z
       z.array(z.string().toLowerCase().max(30, 'Tags have at most 30 characters')).max(20),
     ),
     notes: optional(text(1, 2000)),
+    credit_limit: optional(
+      rupees.pipe(
+        z
+          .number()
+          .positive('Must be more than zero')
+          .max(MAX_CREDIT_LIMIT_PAISE, 'At most ₹10,00,00,000'),
+      ),
+    ),
+    credit_days: optional(
+      decimal.pipe(
+        z
+          .number()
+          .int('Enter whole days')
+          .min(0, 'Cannot be negative')
+          .max(MAX_CREDIT_DAYS, `At most ${String(MAX_CREDIT_DAYS)} days`),
+      ),
+    ),
   })
   .refine((cells) => cells.phone !== undefined || cells.gstin !== undefined, {
     path: ['phone'],
@@ -66,6 +92,8 @@ interface PlannedParty {
     readonly type: (typeof CUSTOMER_TYPES)[number];
     readonly isNew: boolean;
   } | null;
+  /** Credit limit and days to give, when new or changed. */
+  readonly credit: CreditTerms | null;
 }
 
 export const partiesImporter: Importer<PartyRow> = {
@@ -141,6 +169,19 @@ export const partiesImporter: Importer<PartyRow> = {
     },
     { name: 'tags', required: false, description: 'Labels; separate with ;', example: 'vip' },
     { name: 'notes', required: false, description: 'Anything else', example: '' },
+    {
+      name: 'credit_limit',
+      required: false,
+      description:
+        'Credit limit in rupees, for customers; credit approvers only. Blank keeps the current limit',
+      example: '100000',
+    },
+    {
+      name: 'credit_days',
+      required: false,
+      description: `Days to pay, 0 to ${String(MAX_CREDIT_DAYS)}; needed with a party's first limit. Blank keeps the current days`,
+      example: '30',
+    },
   ],
   row,
 
@@ -195,6 +236,64 @@ export const partiesImporter: Importer<PartyRow> = {
           .where(inArray(customerProfiles.partyId, ids))
       ).map((profile) => [profile.partyId, profile.type]),
     );
+    const creditOf = new Map(
+      (
+        await tx
+          .select({
+            partyId: creditProfiles.partyId,
+            status: creditProfiles.status,
+            limitPaise: creditProfiles.limitPaise,
+            creditDays: creditProfiles.creditDays,
+          })
+          .from(creditProfiles)
+          .where(inArray(creditProfiles.partyId, ids))
+      ).map((profile) => [profile.partyId, profile]),
+    );
+    const pendingRequests = new Map(
+      (
+        await tx
+          .select({ partyId: creditRequests.partyId, number: creditRequests.number })
+          .from(creditRequests)
+          .where(and(inArray(creditRequests.partyId, ids), eq(creditRequests.status, 'pending')))
+      ).map((request) => [request.partyId, request.number]),
+    );
+
+    /**
+     * The credit a row gives (null for none or no change), or why it cannot:
+     * blank cells keep the party's current limit and days; a party without
+     * credit needs both.
+     */
+    const creditFor = (
+      value: PartyRow,
+      existing: PartyRecord | undefined,
+      isCustomer: boolean,
+    ): CreditTerms | null | [string, string] => {
+      if (value.credit_limit === undefined && value.credit_days === undefined) return null;
+      if (!auth.permissions.has(IMPORT_CREDIT_PERMISSION)) {
+        return [
+          'credit_limit',
+          'Only credit approvers can set credit by import; ask for credit on the customer page',
+        ];
+      }
+      if (!isCustomer) return ['credit_limit', 'Credit is for customers: add the customer role'];
+      const pending = existing ? pendingRequests.get(existing.id) : undefined;
+      if (pending) {
+        return ['credit_limit', `${pending} is waiting for approval: approve or reject it first`];
+      }
+      const current = existing ? creditOf.get(existing.id) : undefined;
+      const has = current !== undefined && current.status !== 'none';
+      const limitPaise = value.credit_limit ?? (has ? current.limitPaise : undefined);
+      const creditDays = value.credit_days ?? (has ? current.creditDays : undefined);
+      if (limitPaise === undefined) {
+        return ['credit_limit', 'Enter a credit limit: this party has no credit yet'];
+      }
+      if (creditDays === undefined) {
+        return ['credit_days', 'Enter the credit days: this party has no credit yet'];
+      }
+      const unchanged =
+        has && current.limitPaise === limitPaise && current.creditDays === creditDays;
+      return unchanged ? null : { limitPaise, creditDays };
+    };
 
     const planned: PlannedParty[] = [];
     for (const { row: rowNumber, value } of checked) {
@@ -268,20 +367,27 @@ export const partiesImporter: Importer<PartyRow> = {
         isCustomer && (currentType === undefined || customerType !== currentType)
           ? { type: customerType, isNew: currentType === undefined }
           : null;
+      const credit = creditFor(value, existing, isCustomer);
+      if (Array.isArray(credit)) {
+        fail(rowNumber, credit[0], credit[1]);
+        continue;
+      }
 
       const action: ImportAction = !existing
         ? 'create'
-        : Object.keys(fields).length > 0 || newRoles.length > 0 || customer
+        : Object.keys(fields).length > 0 || newRoles.length > 0 || customer || credit
           ? 'update'
           : 'unchanged';
-      planned.push({ row: rowNumber, value, action, existing, fields, newRoles, customer });
+      planned.push({ row: rowNumber, value, action, existing, fields, newRoles, customer, credit });
     }
 
     return {
-      rows: planned.map(({ row: rowNumber, value, action }): RowPlan => ({
+      rows: planned.map(({ row: rowNumber, value, action, credit }): RowPlan => ({
         row: rowNumber,
         action,
-        label: value.name,
+        label: credit
+          ? `${value.name} · credit ${formatINR(credit.limitPaise)}, ${String(credit.creditDays)} days`
+          : value.name,
       })),
       apply: (applyTx) => apply(applyTx, auth, planned),
     };
@@ -290,7 +396,7 @@ export const partiesImporter: Importer<PartyRow> = {
 
 async function apply(tx: Transaction, auth: AuthContext, planned: PlannedParty[]): Promise<void> {
   const organizationId = auth.organization.id;
-  for (const { action, existing, fields, newRoles, customer, value } of planned) {
+  for (const { action, existing, fields, newRoles, customer, credit, value } of planned) {
     if (action === 'unchanged') continue;
     let partyId: string;
     if (existing) {
@@ -322,5 +428,6 @@ async function apply(tx: Transaction, auth: AuthContext, planned: PlannedParty[]
         .set({ customerType: customer.type, updatedAt: sql`now()` })
         .where(eq(customerProfiles.partyId, partyId));
     }
+    if (credit) await setCreditTerms(tx, organizationId, partyId, credit, auth.memberId);
   }
 }
