@@ -229,6 +229,7 @@ test('Settings → Payment link settings: the business’s link rules, on deskto
     const context = await browser.newContext({ ...devices['Pixel 5'] });
     const phone = await context.newPage();
     await signInWithPassword(phone, books.business.ownerPhone);
+    await expect(phone.locator('.shell__header')).toBeVisible();
     await phone.goto('/settings/security');
     await phone.getByRole('group', { name: 'Language' }).getByRole('button', { name }).click();
     await expect(
