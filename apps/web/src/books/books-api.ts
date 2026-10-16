@@ -10,6 +10,7 @@ import type {
   LedgerMappingView,
   OpenRegisterRequest,
   PaymentDirection,
+  PaymentModeKind,
   PaymentModeView,
   PaymentPage,
   ReconciliationRunView,
@@ -35,6 +36,8 @@ export interface RegisterQuery {
 
 export interface PaymentQuery {
   readonly direction?: PaymentDirection | undefined;
+  /** One way of paying, e.g. `upi_link` for what payment links brought in. */
+  readonly modeKind?: PaymentModeKind | undefined;
   readonly from?: string | undefined;
   readonly to?: string | undefined;
   readonly q?: string | undefined;

@@ -15,6 +15,7 @@ import { opportunityRoutes } from '../opportunities/routes.js';
 import { estimatorRoutes } from '../estimator/routes.js';
 import { orderRoutes } from '../orders/routes.js';
 import { partyRoutes } from '../parties/routes.js';
+import { paymentLinkRoutes, publicPaymentLinkRoutes } from '../payment-links/routes.js';
 import { platformRoutes } from '../platform/routes.js';
 import { posRoutes } from '../pos/routes.js';
 import { printRoutes } from '../print/routes.js';
@@ -73,6 +74,7 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/sign-in" element={<SignInPage />} />
+      {publicPaymentLinkRoutes()}
       {platformRoutes()}
       <Route
         element={
@@ -100,6 +102,7 @@ export function AppRoutes() {
         {orderRoutes()}
         {salesRoutes()}
         {booksRoutes()}
+        {paymentLinkRoutes()}
         {receivablesRoutes()}
         {documentRoutes()}
         {reportRoutes()}

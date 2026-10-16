@@ -88,7 +88,7 @@ export interface TallySalesDocument {
 
 /** How money came in (`payment_modes`): ledgers resolve by `name`, then by `kind`. */
 export interface TallyPaymentMode {
-  readonly kind: 'cash' | 'upi' | 'card' | 'bank_transfer' | 'cheque' | 'other';
+  readonly kind: 'cash' | 'upi' | 'card' | 'bank_transfer' | 'cheque' | 'other' | 'upi_link';
   readonly name: string;
 }
 

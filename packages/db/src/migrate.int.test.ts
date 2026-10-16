@@ -81,6 +81,8 @@ describe('migrateDatabase', () => {
       'party_ledger',
       'party_roles',
       'payment_gateway_events',
+      'payment_link_documents',
+      'payment_links',
       'payment_modes',
       'payments',
       'platform_admins',

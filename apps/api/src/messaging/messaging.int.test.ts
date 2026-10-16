@@ -191,13 +191,13 @@ describe('consent', () => {
 describe('templates', () => {
   it('list every message in every channel and language, and are reworded or reset by the owner', async () => {
     const all = ok(await api(t, b.owner).get('/message-templates')).json<TemplateView[]>();
-    expect(all).toHaveLength(8 * 3 * 3);
+    expect(all).toHaveLength(9 * 3 * 3);
     expect(all[0]).toEqual({
       key: 'invoice_issued',
       channel: 'whatsapp',
       language: 'en',
-      body: 'Dear {{name}}, thank you for shopping at {{business}}. Invoice {{number}} for {{amount}}.',
-      variables: ['name', 'business', 'number', 'amount'],
+      body: 'Dear {{name}}, thank you for shopping at {{business}}. Invoice {{number}} for {{amount}}.{{payLink}}',
+      variables: ['name', 'business', 'number', 'amount', 'payLink'],
       custom: false,
       providerTemplateName: null,
     });

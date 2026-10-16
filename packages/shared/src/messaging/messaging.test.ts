@@ -7,8 +7,10 @@ import {
   TEMPLATE_VARIABLES,
   consentFor,
   consentNotice,
+  PAY_LINK_TEXTS,
   emailParts,
   isPermission,
+  payLinkText,
   renderTemplate,
   templateProblems,
   variablesIn,
@@ -40,6 +42,28 @@ describe('the template catalogue', () => {
       '{{amount}} is not a variable of this message',
       '{{gstin}} is not a variable of this message',
     ]);
+  });
+
+  it('writes a payment link as a sentence in the language, or nothing without one', () => {
+    expect(payLinkText(null, 'hi')).toBe('');
+    expect(payLinkText('https://pay.example/pl', 'en')).toBe(' Pay by UPI: https://pay.example/pl');
+    expect(payLinkText('https://pay.example/pl', 'hi')).toBe(
+      ' UPI से भुगतान करें: https://pay.example/pl',
+    );
+    for (const language of MESSAGE_LANGUAGES) {
+      expect(PAY_LINK_TEXTS[language]).toContain('{url}');
+    }
+    expect(
+      renderTemplate(DEFAULT_TEMPLATES.payment_reminder_overdue.en, {
+        name: 'Ravi',
+        business: 'Rangoli Paints',
+        amount: '₹1,180.00',
+        days: '7',
+        payLink: payLinkText('https://pay.example/pl', 'en'),
+      }),
+    ).toBe(
+      'Dear Ravi, ₹1,180.00 owed to Rangoli Paints is overdue by 7 days. Please pay at the earliest. Pay by UPI: https://pay.example/pl',
+    );
   });
 
   it('fills variables and leaves unknown ones as written', () => {

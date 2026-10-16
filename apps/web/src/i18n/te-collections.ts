@@ -165,6 +165,7 @@ export const collectionsEnumsTe = {
     promise_confirmed: 'మాట నమోదైంది',
     order_ready: 'ఆర్డర్ సిద్ధం',
     points_earned: 'పాయింట్లు వచ్చాయి',
+    payment_request: 'చెల్లింపు అభ్యర్థన',
   },
   linkStatus: { active: 'చెల్లుతుంది', expired: 'గడువు ముగిసింది', revoked: 'రద్దయింది' },
 };

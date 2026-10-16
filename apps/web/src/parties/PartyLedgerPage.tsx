@@ -8,6 +8,7 @@ import { useUrlFilters } from '../lib/hooks.js';
 import { isDate } from '../lib/india-time.js';
 import { ListPager, ListRefreshing } from '../lib/ListPager.js';
 import { QueryState } from '../lib/QueryState.js';
+import { SendPaymentLinkButton } from '../payment-links/PaymentLinks.js';
 
 export const LEDGER_PAGE_SIZE = 50;
 const FILTERS = ['from', 'to'] as const;
@@ -142,6 +143,7 @@ export function PartyLedgerPage() {
             <Link to={`/parties/${id}/statement`} {...buttonStyle('secondary')}>
               {t('statement.open')}
             </Link>
+            {name !== undefined && <SendPaymentLinkButton party={{ id, name }} />}
             {name !== undefined && (
               <Link to={`/parties/${id}`} {...buttonStyle('secondary')}>
                 {t('parties.ledger.back', { name })}

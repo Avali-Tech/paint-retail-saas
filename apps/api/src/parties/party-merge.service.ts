@@ -29,6 +29,7 @@ const {
   loyaltyLedger,
   messageOutbox,
   messagingConsents,
+  paymentLinks,
   promisesToPay,
   statementLinks,
   parties,
@@ -105,6 +106,9 @@ export const MERGE_HANDLED: readonly string[] = [
   'message_outbox.party_id',
   'messaging_consents.party_id',
   'statement_links.party_id',
+  // A payment link asked that party for money, and the gateway may still pay it (round
+  // 4a): see collections() below, which refuses a duplicate with any.
+  'payment_links.party_id',
 ];
 
 export interface MergeResult {
@@ -391,6 +395,14 @@ export class PartyMergeService {
       .limit(1);
     if (promise) {
       throw new ConflictException('This party has promises to pay; merge the other way');
+    }
+    const [link] = await tx
+      .select({ id: paymentLinks.id })
+      .from(paymentLinks)
+      .where(eq(paymentLinks.partyId, duplicateId))
+      .limit(1);
+    if (link) {
+      throw new ConflictException('This party has payment links; merge the other way');
     }
     counts['message_outbox.party_id'] = (
       await tx

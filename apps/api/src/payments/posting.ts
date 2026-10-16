@@ -47,6 +47,15 @@ const {
 
 export type PaymentRow = typeof payments.$inferSelect;
 
+/**
+ * Who records money: a member, or a gateway's webhook for a payment link (no member;
+ * P2-M32). An AuthContext is one.
+ */
+export interface Poster {
+  readonly organization: { readonly id: string };
+  readonly memberId: string | null;
+}
+
 /** A refusal naming the field at fault, shaped like the validation pipe's answers. */
 export const refusal = (path: string, message: string) =>
   new UnprocessableEntityException({
@@ -131,7 +140,7 @@ export interface PaymentMode {
   readonly name: string;
 }
 
-/** An active payment mode of the business. */
+/** An active payment mode of the business a member may take money by. */
 export async function activeMode(
   tx: Transaction,
   modeId: string,
@@ -142,6 +151,10 @@ export async function activeMode(
     .from(paymentModes)
     .where(and(eq(paymentModes.id, modeId), eq(paymentModes.isActive, true)));
   if (!mode) throw fieldError(path, 'Choose an active payment mode');
+  // Only a gateway's webhook records a payment link's money (P2-M32).
+  if (mode.kind === 'upi_link') {
+    throw fieldError(path, 'Payments by UPI link are recorded when the customer pays the link');
+  }
   return mode;
 }
 
@@ -340,7 +353,7 @@ export async function planAllocations(
 /** Writes the allocations from a payment; returns how much they took. */
 export async function insertAllocations(
   tx: Transaction,
-  auth: AuthContext,
+  auth: Poster,
   partyId: string,
   paymentId: string,
   plan: readonly PlannedAllocation[],
@@ -371,6 +384,8 @@ export interface NewPayment {
   readonly registerSessionId: string | null;
   /** Take a GST voucher number of this kind (an advance's receipt voucher, its refund voucher). */
   readonly voucherKind: 'receipt_voucher' | 'refund_voucher' | null;
+  /** The payment link it pays, when a gateway reported it. */
+  readonly paymentLinkId?: string;
 }
 
 /**
@@ -380,7 +395,7 @@ export interface NewPayment {
  */
 export async function insertPayment(
   tx: Transaction,
-  auth: AuthContext,
+  auth: Poster,
   payment: NewPayment,
 ): Promise<PaymentRow> {
   const organizationId = auth.organization.id;
@@ -423,6 +438,7 @@ export async function insertPayment(
       chequeStatus: cheque ? 'pending' : null,
       registerSessionId: payment.registerSessionId,
       gatewayReference: details.gatewayReference,
+      paymentLinkId: payment.paymentLinkId,
       note: details.note,
       voucherNumber: voucher?.number,
       voucherFy: voucher?.fy,
@@ -442,7 +458,7 @@ export async function insertPayment(
       referenceType: 'payment',
       referenceId: row.id,
       note: number,
-      createdByMemberId: auth.memberId,
+      ...(auth.memberId === null ? {} : { createdByMemberId: auth.memberId }),
     },
   ]);
   return row;
@@ -455,7 +471,7 @@ export async function insertPayment(
  */
 export async function receivePayment(
   tx: Transaction,
-  auth: AuthContext,
+  auth: Poster,
   payment: Omit<NewPayment, 'direction' | 'voucherKind'>,
   plan: readonly PlannedAllocation[],
 ): Promise<PaymentRow> {

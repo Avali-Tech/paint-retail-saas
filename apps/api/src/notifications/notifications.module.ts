@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { Global, Module, type DynamicModule } from '@nestjs/common';
 import type { SmsSender } from '../auth/sms.js';
 import type { MessagingProvider } from '../messaging/messaging-provider.js';
+import type { PaymentLinkSettings } from '../payment-links/links.js';
 import { SmtpEmailSender } from './email-sender.js';
 import { NotificationsController } from './notifications.controller.js';
 import { NotificationsService } from './notifications.service.js';
@@ -21,6 +22,8 @@ export interface NotificationsOptions {
     readonly whatsapp: MessagingProvider | null;
     readonly sms: SmsSender | null;
   };
+  /** Payment links for the reminders the collections run sends (P2-M32). */
+  readonly paymentLinks: PaymentLinkSettings;
 }
 
 /** Global, so any module can inject the Notifier to report events. */
@@ -36,6 +39,7 @@ export class NotificationsModule {
       intervalMs: options.workerIntervalSeconds * 1000,
       sender: options.email && new SmtpEmailSender(options.email.smtpUrl, options.email.from),
       messaging: options.messaging,
+      paymentLinks: options.paymentLinks,
       clock: () => new Date(),
     };
     return {

@@ -131,7 +131,8 @@ test('a contractor’s statement is produced and shared on WhatsApp as a link', 
     /^Dear Deccan Contractors, your statement from Statement Paints for 01 Apr \d{4} to \d{2} \w{3} \d{4}: balance due ₹136\.00 as of/,
   );
   expect(message).toMatch(
-    /Of this, ₹136\.00 is due now\. View the statement: http\S+\/api\/public\/statements\/[\w-]{43}$/,
+    // With payment links on (round 4a), the share also says where to pay by UPI.
+    /Of this, ₹136\.00 is due now\. View the statement: http\S+\/api\/public\/statements\/[\w-]{43} Pay by UPI: http\S+\/pay\/plink_log_[\w-]{22}$/,
   );
   await expect(page.getByText(/Active · opened 0 times/)).toBeVisible();
 

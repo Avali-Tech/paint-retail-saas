@@ -20,6 +20,8 @@ export const PAYMENT_MODE_KINDS = [
   'bank_transfer',
   'cheque',
   'other',
+  /** Paid through a payment link (P2-M32): only the gateway's webhook records these. */
+  'upi_link',
 ] as const;
 export type PaymentModeKind = (typeof PAYMENT_MODE_KINDS)[number];
 
@@ -212,7 +214,10 @@ export interface PaymentView {
   /** Money in: amount less live allocations (an advance). Refunds: 0. */
   readonly unallocatedPaise: number;
   readonly allocations: readonly AllocationView[];
-  readonly createdByMemberId: string;
+  /** Null when a gateway reported the payment (a payment link): no member took it. */
+  readonly createdByMemberId: string | null;
+  /** The payment link it paid, when a gateway reported it. */
+  readonly paymentLinkId: string | null;
   readonly createdAt: string;
 }
 
@@ -487,7 +492,8 @@ export interface ReceiptView {
   readonly unallocatedPaise: number;
   /** The party's balance now (positive: they owe). */
   readonly partyBalancePaise: number;
-  readonly receivedBy: string;
+  /** Null when a gateway reported the payment (a payment link). */
+  readonly receivedBy: string | null;
   readonly note: string | null;
 }
 

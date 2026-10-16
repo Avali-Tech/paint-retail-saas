@@ -156,6 +156,8 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       SMS_PROVIDER: 'log',
       // Prints WhatsApp messages to parties instead of sending them (P2-M32).
       MESSAGING_PROVIDER: 'log',
+      // Pretend UPI payment links, paid on a page of the web app by a signed webhook (P2-M32).
+      PAYMENT_LINK_PROVIDER: 'log',
       LOG_LEVEL: 'log',
       WORKER_INTERVAL_SECONDS: '0',
       SIGNUP_PLAN: 'enterprise',

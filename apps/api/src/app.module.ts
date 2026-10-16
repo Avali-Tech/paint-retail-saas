@@ -31,6 +31,8 @@ import { OnboardingModule } from './onboarding/onboarding.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { PaintModule } from './paint/paint.module.js';
 import { PartiesModule } from './parties/parties.module.js';
+import { paymentLinkProviderFor } from './payment-links/payment-link-provider.js';
+import { PaymentLinksModule } from './payment-links/payment-links.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
 import { PlatformModule } from './platform/platform.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
@@ -58,6 +60,7 @@ export interface AppModuleOptions {
 export class AppModule {
   static forRoot({ config, connection, smsSender }: AppModuleOptions): DynamicModule {
     const whatsapp = messagingProviderFor(config.messagingProvider);
+    const paymentLinks = paymentLinkProviderFor(config.paymentLinks.provider, config.appUrl);
     // Party SMS goes where sign-in codes go: the log in development, nowhere until a provider exists.
     const sms = smsSender ?? (config.smsProvider === 'log' ? new LoggingSmsSender() : null);
     return {
@@ -96,12 +99,20 @@ export class AppModule {
           email: config.email,
           workerIntervalSeconds: config.workerIntervalSeconds,
           messaging: { whatsapp, sms },
+          paymentLinks: {
+            provider: paymentLinks,
+            expiryDays: config.paymentLinks.expiryDays,
+          },
         }),
         OnboardingModule,
         OrdersModule,
         PaintModule,
         PartiesModule,
         PaymentsModule,
+        PaymentLinksModule.forRoot({
+          provider: paymentLinks,
+          expiryDays: config.paymentLinks.expiryDays,
+        }),
         PlatformModule.forRoot({
           bootstrapToken: config.platformBootstrapToken,
           trialDays: config.subscriptions.trialDays,

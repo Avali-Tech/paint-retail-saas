@@ -2,8 +2,14 @@ import { schema, withTenant, type Database, type Transaction } from '@paint/db';
 import { formatINR, promiseKept, reminderTemplate } from '@paint/shared';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { indiaToday } from '../credit/credit-lookups.js';
-import { queueMessage } from '../messaging/outbox.js';
+import { canMessage, queueMessage } from '../messaging/outbox.js';
 import type { Notifier } from '../notifications/notifier.js';
+import {
+  createLink,
+  planLink,
+  reusableLink,
+  type PaymentLinkSettings,
+} from '../payment-links/links.js';
 import { PROMISE, paidTowards } from './promises.js';
 
 const {
@@ -15,6 +21,9 @@ const {
   promisesToPay,
   reminderSchedules,
 } = schema;
+
+/** Payment links off: reminders go out without one. */
+const NO_LINKS: PaymentLinkSettings = { provider: null, expiryDays: 7 };
 
 /** Businesses run per pass of the daily job; the next pass takes the rest. */
 const DAILY_BATCH = 200;
@@ -38,6 +47,7 @@ export async function runCollections(
   tx: Transaction,
   notifier: Notifier,
   organizationId: string,
+  links: PaymentLinkSettings = NO_LINKS,
 ): Promise<CollectionsRun | null> {
   const [lock] = (
     await tx.execute<{ locked: boolean }>(
@@ -54,7 +64,7 @@ export async function runCollections(
   if (done) return null;
 
   const { kept, broken } = await settlePromises(tx, notifier, organizationId);
-  const remindersQueued = await queueReminders(tx, organizationId);
+  const remindersQueued = await queueReminders(tx, organizationId, links);
   await tx
     .insert(collectionRuns)
     .values({ organizationId, keptCount: kept, brokenCount: broken, remindersQueued });
@@ -157,9 +167,16 @@ async function branchManagersOf(
  * due date is `offset_days` before today with something still owed, one message per
  * party and channel per day, summing its bills; never while the party has an open
  * promise not yet due (CO-7), and only with consent (MSG-1). Opening balances are
- * left out until [CA-7] says when they fall due.
+ * left out until [CA-7] says when they fall due. With a payment-link provider, each
+ * reminder carries a UPI link for its bills (rule PL-12): one per party and day,
+ * shared by its channels, made only when a channel would send, and an open link for
+ * the same bills and amount is sent again instead of a new one.
  */
-async function queueReminders(tx: Transaction, organizationId: string): Promise<number> {
+async function queueReminders(
+  tx: Transaction,
+  organizationId: string,
+  links: PaymentLinkSettings,
+): Promise<number> {
   const schedules = await tx
     .select({ offsetDays: reminderSchedules.offsetDays, channels: reminderSchedules.channels })
     .from(reminderSchedules)
@@ -176,10 +193,19 @@ async function queueReminders(tx: Transaction, organizationId: string): Promise<
   ).rows as [{ today: string }];
   let queued = 0;
   for (const schedule of schedules) {
-    const owing = await tx.execute<{ party_id: string; due_on: string; outstanding: string }>(sql`
+    const owing = await tx.execute<{
+      party_id: string;
+      due_on: string;
+      outstanding: string;
+      document_ids: string[];
+      store_id: string;
+    }>(sql`
       select d.party_id, d.due_on::text,
-        sum(d.total_paise - coalesce((select sum(a.amount_paise) from allocations a where a.document_id = d.id), 0)) as outstanding
+        sum(d.total_paise - coalesce((select sum(a.amount_paise) from allocations a where a.document_id = d.id), 0)) as outstanding,
+        array_agg(d.id::text order by d.issued_on, d.issued_at, d.id) as document_ids,
+        coalesce(min(p.home_store_id::text), (array_agg(d.store_id::text order by d.issued_on, d.issued_at, d.id))[1]) as store_id
       from tax_documents d
+      join parties p on p.id = d.party_id
       where d.organization_id = ${organizationId} and d.status = 'issued'
         and d.kind in ('invoice', 'bill_of_supply', 'debit_note')
         and d.due_on = ${today}::date - ${schedule.offsetDays}::int
@@ -193,6 +219,7 @@ async function queueReminders(tx: Transaction, organizationId: string): Promise<
       order by d.party_id`);
     const templateKey = reminderTemplate(schedule.offsetDays);
     for (const party of owing.rows) {
+      const payLinkUrl = await reminderLink(tx, links, organizationId, party, schedule.channels);
       for (const channel of schedule.channels) {
         const result = await queueMessage(tx, {
           organizationId,
@@ -209,12 +236,56 @@ async function queueReminders(tx: Transaction, organizationId: string): Promise<
           reference: { type: 'party', id: party.party_id },
           dedupeKey: `reminder:${party.party_id}:${today}:${channel}`,
           memberId: null,
+          payLinkUrl,
         });
         if (result.queued) queued += 1;
       }
     }
   }
   return queued;
+}
+
+/** The UPI link a reminder carries, or null without a provider or anyone to send to. */
+async function reminderLink(
+  tx: Transaction,
+  links: PaymentLinkSettings,
+  organizationId: string,
+  party: { party_id: string; document_ids: string[]; store_id: string },
+  channels: readonly ('whatsapp' | 'sms' | 'email')[],
+): Promise<string | null> {
+  if (links.provider === null) return null;
+  let reachable = false;
+  for (const channel of channels) {
+    if (await canMessage(tx, { organizationId, partyId: party.party_id, channel })) {
+      reachable = true;
+      break;
+    }
+  }
+  if (!reachable) return null;
+  const plan = await planLink(tx, {
+    partyId: party.party_id,
+    purpose: 'bills',
+    documentIds: party.document_ids,
+  });
+  // The party's advance covers the bills: the reminder goes without a link.
+  if (!plan.ok) return null;
+  const link = {
+    organizationId,
+    partyId: party.party_id,
+    storeId: party.store_id,
+    purpose: 'bills' as const,
+    origin: 'reminder' as const,
+    targets: plan.targets,
+    amountPaise: plan.amountPaise,
+    memberId: null,
+  };
+  const id =
+    (await reusableLink(tx, link)) ??
+    (await createLink(tx, { provider: links.provider, expiryDays: links.expiryDays }, link));
+  const [row] = (
+    await tx.execute<{ url: string }>(sql`select url from payment_links where id = ${id}`)
+  ).rows as [{ url: string }];
+  return row.url;
 }
 
 /**
@@ -225,6 +296,7 @@ async function queueReminders(tx: Transaction, organizationId: string): Promise<
 export async function runCollectionsForBusinesses(
   db: Database,
   notifier: Notifier,
+  links: PaymentLinkSettings = NO_LINKS,
 ): Promise<CollectionsRun> {
   const due = await db
     .select({ id: organizations.id })
@@ -239,7 +311,7 @@ export async function runCollectionsForBusinesses(
     .limit(DAILY_BATCH);
   const total = { kept: 0, broken: 0, remindersQueued: 0 };
   for (const { id } of due) {
-    const run = await withTenant(db, id, (tx) => runCollections(tx, notifier, id));
+    const run = await withTenant(db, id, (tx) => runCollections(tx, notifier, id, links));
     if (run === null) continue;
     total.kept += run.kept;
     total.broken += run.broken;

@@ -79,7 +79,7 @@ export function posEndpoints(api: ApiClient) {
     /** The active ways to pay. */
     paymentModes: async (signal?: AbortSignal): Promise<PaymentModeView[]> =>
       (await api.get<PaymentModeView[]>('/payment-modes', { signal })).filter(
-        (mode) => mode.isActive,
+        (mode) => mode.isActive && mode.kind !== 'upi_link',
       ),
     /** The store's open register session (register:manage; other roles do not see it). */
     register: async (storeId: string, signal?: AbortSignal): Promise<RegisterState> => {

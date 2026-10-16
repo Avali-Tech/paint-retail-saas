@@ -1,11 +1,12 @@
 import {
   BILLING_INTERVALS,
+  DEFAULT_PAYMENT_LINK_DAYS,
   isValidGstin,
   isValidIfsc,
   isValidPincode,
   PAID_PLAN_KEYS,
-  PAYMENT_GATEWAYS,
   PLAN_KEYS,
+  SUBSCRIPTION_GATEWAYS,
   type BillingInterval,
   type PaidPlanKey,
   type PaymentInstructions,
@@ -22,8 +23,11 @@ export const SMS_PROVIDERS = ['disabled', 'log'] as const;
 export const EMAIL_PROVIDERS = ['disabled', 'smtp'] as const;
 /** WhatsApp to parties (P2-M32): a BSP adapter joins `log` when [PO-1] is answered. */
 export const MESSAGING_PROVIDERS = ['disabled', 'log'] as const;
+/** UPI payment links (P2-M32): a gateway adapter joins `log` when [PO-2] is answered. */
+export const PAYMENT_LINK_PROVIDERS = ['disabled', 'log'] as const;
 export type SmsProvider = (typeof SMS_PROVIDERS)[number];
 export type MessagingProvider = (typeof MESSAGING_PROVIDERS)[number];
+export type PaymentLinkProviderName = (typeof PAYMENT_LINK_PROVIDERS)[number];
 
 /** Every paid plan and interval the gateway must know, e.g. "standard_monthly". */
 export const PLAN_ID_KEYS = PAID_PLAN_KEYS.flatMap((plan) =>
@@ -81,13 +85,25 @@ const environmentSchema = z
     SIGNUP_PLAN: z.enum(PLAN_KEYS).default('trial'),
     /** How WhatsApp messages to parties are sent; "log" prints them (not in production). */
     MESSAGING_PROVIDER: z.enum(MESSAGING_PROVIDERS).default('disabled'),
+    /**
+     * How UPI payment links are made: "log" makes pretend links paid on a page of the web
+     * app through a signed webhook (development, tests and demos; not in production).
+     */
+    PAYMENT_LINK_PROVIDER: z.enum(PAYMENT_LINK_PROVIDERS).default('disabled'),
+    /** Days a payment link stays payable. */
+    PAYMENT_LINK_EXPIRY_DAYS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(30)
+      .default(DEFAULT_PAYMENT_LINK_DAYS),
     /** The API's public address, for links sent to customers; default APP_URL + /api. */
     PUBLIC_API_URL: z.url({ protocol: /^https?$/ }).optional(),
     /**
      * How subscriptions are collected: "manual" (our invoices, paid by bank transfer or
      * UPI and recorded by an operator), "razorpay", or "fake" (tests; not in production).
      */
-    SUBSCRIPTION_GATEWAY: z.enum(PAYMENT_GATEWAYS).default('manual'),
+    SUBSCRIPTION_GATEWAY: z.enum(SUBSCRIPTION_GATEWAYS).default('manual'),
     RAZORPAY_KEY_ID: z.string().min(8).optional(),
     RAZORPAY_KEY_SECRET: z.string().min(8).optional(),
     RAZORPAY_WEBHOOK_SECRET: z.string().min(8).optional(),
@@ -148,6 +164,10 @@ const environmentSchema = z
   .refine((env) => !(env.NODE_ENV === 'production' && env.MESSAGING_PROVIDER === 'log'), {
     path: ['MESSAGING_PROVIDER'],
     message: '"log" prints customer messages to the console and is not allowed in production',
+  })
+  .refine((env) => !(env.NODE_ENV === 'production' && env.PAYMENT_LINK_PROVIDER === 'log'), {
+    path: ['PAYMENT_LINK_PROVIDER'],
+    message: '"log" makes payment links that take no money and is not allowed in production',
   })
   .refine((env) => env.NODE_ENV !== 'production' || env.STORAGE_BUCKET !== undefined, {
     path: ['STORAGE_BUCKET'],
@@ -262,6 +282,11 @@ export interface AppConfig {
   readonly signupPlan: PlanKey;
   /** How WhatsApp messages to parties are sent. */
   readonly messagingProvider: MessagingProvider;
+  /** How UPI payment links are made, and how long they stay payable. */
+  readonly paymentLinks: {
+    readonly provider: PaymentLinkProviderName;
+    readonly expiryDays: number;
+  };
   /** The API's public address (no trailing slash), for links sent to customers. */
   readonly publicApiUrl: string;
   readonly subscriptions: SubscriptionsConfig;
@@ -364,6 +389,10 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
     platformBootstrapToken: data.PLATFORM_BOOTSTRAP_TOKEN ?? null,
     signupPlan: data.SIGNUP_PLAN,
     messagingProvider: data.MESSAGING_PROVIDER,
+    paymentLinks: {
+      provider: data.PAYMENT_LINK_PROVIDER,
+      expiryDays: data.PAYMENT_LINK_EXPIRY_DAYS,
+    },
     publicApiUrl: (data.PUBLIC_API_URL ?? `${appUrl}/api`).replace(/\/$/, ''),
     subscriptions: {
       // Every Razorpay setting is required with SUBSCRIPTION_GATEWAY=razorpay (checked above).

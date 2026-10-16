@@ -54,6 +54,7 @@ const result = (overrides: Partial<StatementShareResult>): StatementShareResult 
   url: URL,
   waMeUrl: null,
   message: null,
+  paymentLink: null,
   ...overrides,
 });
 

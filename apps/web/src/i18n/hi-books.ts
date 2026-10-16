@@ -96,6 +96,9 @@ export const booksHi: Translation<typeof booksEn> = {
       pdf: 'पीडीएफ़',
       pdfOf: 'रसीद पीडीएफ़ {number}',
       pages: 'पेमेंट के पेज',
+      modeKind: 'मोड',
+      allModes: 'सभी मोड',
+      links: 'भुगतान लिंक',
     },
     accounting: {
       title: 'टैली एक्सपोर्ट',
@@ -217,6 +220,7 @@ export const booksEnumsHi: Translation<typeof booksEnumsEn> = {
     bank_transfer: 'बैंक ट्रांसफ़र',
     cheque: 'चेक',
     other: 'अन्य',
+    upi_link: 'UPI लिंक',
   },
   taxNatures: {
     taxable: 'टैक्स योग्य',

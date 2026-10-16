@@ -60,6 +60,7 @@ describe('loadConfig', () => {
       platformBootstrapToken: null,
       signupPlan: 'trial',
       messagingProvider: 'disabled',
+      paymentLinks: { provider: 'disabled', expiryDays: 7 },
       publicApiUrl: 'http://localhost:5173/api',
       subscriptions: {
         gateway: { name: 'manual' },
@@ -114,6 +115,8 @@ describe('loadConfig', () => {
         PLATFORM_BOOTSTRAP_TOKEN: 'bootstrap-token-of-at-least-32-characters',
         SIGNUP_PLAN: 'standard',
         MESSAGING_PROVIDER: 'disabled',
+        PAYMENT_LINK_PROVIDER: 'disabled',
+        PAYMENT_LINK_EXPIRY_DAYS: '3',
         PUBLIC_API_URL: 'https://api.paintsaas.in/',
         SUBSCRIPTION_GATEWAY: 'razorpay',
         RAZORPAY_KEY_ID: 'rzp_live_key',
@@ -160,6 +163,7 @@ describe('loadConfig', () => {
       platformBootstrapToken: 'bootstrap-token-of-at-least-32-characters',
       signupPlan: 'standard',
       messagingProvider: 'disabled',
+      paymentLinks: { provider: 'disabled', expiryDays: 3 },
       publicApiUrl: 'https://api.paintsaas.in',
       subscriptions: {
         gateway: {
@@ -211,6 +215,13 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...required, MESSAGING_PROVIDER: 'log' }).messagingProvider).toBe('log');
   });
 
+  it('makes pretend payment links with the log provider outside production', () => {
+    expect(loadConfig({ ...required, PAYMENT_LINK_PROVIDER: 'log' }).paymentLinks).toEqual({
+      provider: 'log',
+      expiryDays: 7,
+    });
+  });
+
   it('invoices by hand in production with the platform bank account and no Razorpay keys', () => {
     const config = loadConfig({ ...production, ...bank });
     expect(config.subscriptions.gateway).toEqual({ name: 'manual' });
@@ -246,6 +257,13 @@ describe('loadConfig', () => {
       { ...required, NODE_ENV: 'production', MESSAGING_PROVIDER: 'log' },
       /MESSAGING_PROVIDER: "log"/,
     ],
+    [{ ...required, PAYMENT_LINK_PROVIDER: 'razorpay' }, /PAYMENT_LINK_PROVIDER/],
+    [
+      { ...required, NODE_ENV: 'production', PAYMENT_LINK_PROVIDER: 'log' },
+      /PAYMENT_LINK_PROVIDER: "log"/,
+    ],
+    [{ ...required, PAYMENT_LINK_EXPIRY_DAYS: '0' }, /PAYMENT_LINK_EXPIRY_DAYS/],
+    [{ ...required, PAYMENT_LINK_EXPIRY_DAYS: '31' }, /PAYMENT_LINK_EXPIRY_DAYS/],
     [{ ...required, PUBLIC_API_URL: 'ftp://api' }, /PUBLIC_API_URL/],
     [{ ...required, PORT: 'abc' }, /PORT/],
     [{ ...required, PORT: '70000' }, /PORT/],

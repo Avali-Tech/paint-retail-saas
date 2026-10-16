@@ -93,6 +93,9 @@ export const booksEn = {
       pdf: 'PDF',
       pdfOf: 'Receipt PDF {number}',
       pages: 'Payment pages',
+      modeKind: 'Mode',
+      allModes: 'All modes',
+      links: 'Payment links',
     },
     accounting: {
       title: 'Tally export',
@@ -215,6 +218,7 @@ export const booksEnumsEn = {
     bank_transfer: 'Bank transfer',
     cheque: 'Cheque',
     other: 'Other',
+    upi_link: 'UPI link',
   },
   taxNatures: {
     taxable: 'Taxable',

@@ -97,6 +97,9 @@ export const booksTe: Translation<typeof booksEn> = {
       pdf: 'పీడీఎఫ్',
       pdfOf: 'రసీదు పీడీఎఫ్ {number}',
       pages: 'చెల్లింపుల పేజీలు',
+      modeKind: 'విధానం',
+      allModes: 'అన్ని విధానాలు',
+      links: 'చెల్లింపు లింకులు',
     },
     accounting: {
       title: 'టాలీ ఎగుమతి',
@@ -220,6 +223,7 @@ export const booksEnumsTe: Translation<typeof booksEnumsEn> = {
     bank_transfer: 'బ్యాంక్ బదిలీ',
     cheque: 'చెక్కు',
     other: 'ఇతర',
+    upi_link: 'UPI లింక్',
   },
   taxNatures: {
     taxable: 'పన్ను విధించదగినది',
