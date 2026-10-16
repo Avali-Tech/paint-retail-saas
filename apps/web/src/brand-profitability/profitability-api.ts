@@ -1,4 +1,9 @@
-import type { BrandProfitabilityView, ProfitabilityGroup } from '@paint/shared';
+import type {
+  BrandProfitabilityView,
+  ProfitabilityGroup,
+  ProfitabilitySettings,
+  ProfitabilitySettingsInput,
+} from '@paint/shared';
 import type { ApiClient } from '../api/client.js';
 
 // Brand profitability (apps/api/src/brand-profitability). Shapes come from @paint/shared.
@@ -19,6 +24,9 @@ export function brandProfitabilityEndpoints(api: ApiClient) {
         query: { ...filters },
         signal,
       }),
+    /** The business's cost of money and point value (owners and admins). */
+    saveSettings: (input: ProfitabilitySettingsInput) =>
+      api.put<ProfitabilitySettings>('/reports/brand-profitability/settings', input),
     /** The same figures as CSV, through the reports framework, named by the server. */
     csv: (filters: ProfitabilityFilters) =>
       api.download('/reports/brand-profitability', { query: { ...filters, format: 'csv' } }),

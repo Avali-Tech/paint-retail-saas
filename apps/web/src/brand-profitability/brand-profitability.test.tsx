@@ -11,7 +11,8 @@ import { HYD, STORES } from '../test-support/inventory-fixtures.js';
 import { found } from '../test-support/found.js';
 import { renderApp } from '../test-support/render-app.js';
 import { todayInIndia } from '../lib/india-time.js';
-import { costOfMoneyBps, groupOf, periodDays, periodOf } from './BrandProfitabilityPage.js';
+import { groupOf, periodDays, periodOf } from './BrandProfitabilityPage.js';
+import { costOfMoneyBps, hundredths, pointValuePaise } from './profitability-input.js';
 
 const location = () => screen.getByTestId('location').textContent;
 
@@ -63,6 +64,7 @@ const VIEW: BrandProfitabilityView = {
   groupBy: 'brand',
   costOfMoneyBps: 1_200,
   pointValuePaise: 100,
+  settings: { costOfMoneyBps: 1_200, pointValuePaise: 100 },
   schemesCounted: false,
   brands: [asian, dulux],
   total: figures({ netSalesPaise: 1_818_00, contributionPaise: 742_61, marginBps: 4_085 }),
@@ -154,6 +156,13 @@ describe('helpers', () => {
     expect(costOfMoneyBps('100.01')).toBeUndefined();
     expect(costOfMoneyBps('')).toBeUndefined();
     expect(costOfMoneyBps('12%')).toBeUndefined();
+    expect(pointValuePaise('1')).toBe(100);
+    expect(pointValuePaise('0.5')).toBe(50);
+    expect(pointValuePaise('1000')).toBe(100_000);
+    expect(pointValuePaise('1000.01')).toBeUndefined();
+    expect(pointValuePaise('-1')).toBeUndefined();
+    expect(hundredths(1_200)).toBe('12');
+    expect(hundredths(950)).toBe('9.5');
   });
 
   it('asks for the days of the period, or none for the last quarter', () => {
@@ -329,6 +338,58 @@ describe('BrandProfitabilityPage', { timeout: 30_000 }, () => {
     });
     await user.click(button);
     expect(await screen.findByText('Could not download the report')).toBeVisible();
+  });
+
+  it('lets owners change the business’s cost of money and point value', async () => {
+    let saved: unknown = null;
+    const { user, requests } = renderApp({
+      path: '/reports/brand-profitability',
+      routes: {
+        ...routes(),
+        'PUT /reports/brand-profitability/settings': (request: { body: unknown }) => {
+          saved = request.body;
+          return json({ costOfMoneyBps: 1_500, pointValuePaise: 50 });
+        },
+      },
+    });
+    await screen.findByRole('table', { name: 'Contribution by brand' });
+    expect(screen.getByLabelText('Cost of money (% a year)')).toHaveAttribute('placeholder', '12');
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Profitability settings' });
+    const money = within(dialog).getByLabelText('Cost of money (% a year)');
+    const point = within(dialog).getByLabelText('Value of one point (₹)');
+    expect(money).toHaveValue('12');
+    expect(point).toHaveValue('1');
+    await user.clear(money);
+    await user.type(money, '150');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(
+      await within(dialog).findByText(
+        'Enter a cost of money from 0 to 100 % and a point value from ₹0 to ₹1,000',
+      ),
+    ).toBeVisible();
+    await user.clear(money);
+    await user.type(money, '15');
+    await user.clear(point);
+    await user.type(point, '0.5');
+    const before = requests.filter((r) => r.path === '/reports/brand-profitability').length;
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Settings saved')).toBeVisible();
+    expect(saved).toEqual({ costOfMoneyBps: 1_500, pointValuePaise: 50 });
+    await waitFor(() => {
+      expect(requests.filter((r) => r.path === '/reports/brand-profitability').length).toBe(
+        before + 1,
+      );
+    });
+  });
+
+  it('shows the settings only to owners and admins', async () => {
+    renderApp({
+      path: '/reports/brand-profitability',
+      routes: { ...routes(), 'GET /auth/me': () => json(profile(['accounting:export'])) },
+    });
+    await screen.findByRole('table', { name: 'Contribution by brand' });
+    expect(screen.queryByRole('button', { name: 'Settings' })).toBeNull();
   });
 
   it('is only for those who see the books', async () => {

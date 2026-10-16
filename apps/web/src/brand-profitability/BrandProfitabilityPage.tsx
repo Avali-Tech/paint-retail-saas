@@ -14,6 +14,7 @@ import {
 } from '@paint/ui';
 import {
   PROFITABILITY_GROUPS,
+  PROFITABILITY_SETTINGS_PERMISSION,
   currentQuarter,
   type BrandProfitabilityRow,
   type BrandProfitabilityView,
@@ -25,6 +26,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { errorMessage } from '../api/errors.js';
 import { useApi } from '../app/services.js';
+import { usePermissions } from '../auth/session.js';
 import { useI18n, type I18n } from '../i18n/i18n.js';
 import { saveFile } from '../lib/download.js';
 import { useUrlFilters } from '../lib/hooks.js';
@@ -33,6 +35,8 @@ import { ListRefreshing } from '../lib/ListPager.js';
 import { QueryState } from '../lib/QueryState.js';
 import { StoreSelect } from '../stock/StoreSelect.js';
 import type { ProfitabilityFilters } from './profitability-api.js';
+import { costOfMoneyBps, hundredths } from './profitability-input.js';
+import { SettingsDialog } from './SettingsDialog.js';
 import '../styles/brand-profitability.css';
 
 const FILTERS = [
@@ -57,13 +61,6 @@ export function periodOf(value: string): Period {
 /** The split the address asks for; brand only when it asks for none or an unknown one. */
 export function groupOf(value: string): ProfitabilityGroup {
   return PROFITABILITY_GROUPS.find((group) => group === value) ?? 'brand';
-}
-
-/** A percentage a year as basis points, when it is one (0 to 100, two decimals at most). */
-export function costOfMoneyBps(value: string): number | undefined {
-  if (!/^\d{1,3}(\.\d{1,2})?$/.test(value.trim())) return undefined;
-  const bps = Math.round(Number(value) * 100);
-  return bps <= 10_000 ? bps : undefined;
 }
 
 /** The days to ask for: none for the last quarter (the API's default). */
@@ -337,11 +334,18 @@ export function BrandProfitabilityPage() {
     queryFn: ({ signal }) => api.brandProfitability.view(query, signal),
     placeholderData: keepPreviousData,
   });
+  const can = usePermissions();
+  const settings = view.data?.settings;
   return (
     <>
       <PageHeader
         title={t('brandProfitability.title')}
         description={t('brandProfitability.description')}
+        actions={
+          settings !== undefined && can(PROFITABILITY_SETTINGS_PERMISSION) ? (
+            <SettingsDialog settings={settings} />
+          ) : undefined
+        }
       />
       <Card title={t('brandProfitability.filters')} actions={<CsvButton filters={query} />}>
         <div className="filters">
@@ -413,7 +417,7 @@ export function BrandProfitabilityPage() {
             <Input
               inputMode="decimal"
               value={values.costOfMoney}
-              placeholder="12"
+              placeholder={settings === undefined ? '' : hundredths(settings.costOfMoneyBps)}
               onChange={(event) => {
                 filters.set('costOfMoney', event.target.value);
               }}
