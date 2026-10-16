@@ -442,3 +442,67 @@ range on `received_at` (the India day's start and end) or the supplier invoice d
 - **Brand profitability's bills query** reads every bill owed during the period with its dated
   allocations and lines (210 ms at 11,800 bills, every sale invoice unpaid here). As for ageing, a
   "settled on" date per bill would let it skip what was settled before the period.
+
+## Release 2.1: sales reports and the GST summary (round 7b)
+
+MVP 3 round 7b added the dashboard's sales tile, eight sales reports and the GST summary. Every
+one is a single grouped query over the period's document lines, plus the report's count; the
+tile is a single query of one row per day. No fix was needed. **Verdict:** every read is within
+budget at the round 6b volume, with large room to spare.
+
+### Method
+
+`apps/api/src/brand-schemes/brand-money-scale.int.test.ts` reuses round 6b's dataset: about
+9,900 sale invoices with 29,600 lines and 245 credit notes over a year, plus 600 credit
+customers' books with payments. The same method as round 6b applies: one warm-up call, the
+median of five timed calls, and queries counted on the `pg` client. Each count includes about
+7 queries of sign-in and tenant set-up. The machine was an 8 GB Mac running other work.
+
+The test fails on three things:
+
+- a report that runs more queries over a year (page of 200) than over a quarter (page of 50);
+- a report slower than 4 s, or the tile slower than 2 s;
+- the year's net sales by store, by brand and in the GST summary that do not agree.
+
+### Results (ms)
+
+| Request                                            | Budget | Time | Queries | Response |
+| -------------------------------------------------- | -----: | ---: | ------: | -------: |
+| `/dashboard/sales`                                 |   1000 |    6 |       9 |     2 KB |
+| `/dashboard/sales?storeId=` (one store)            |   1000 |    6 |       9 |     2 KB |
+| `/reports/sales-by-period?limit=50` (a quarter)    |   1000 |   51 |       9 |     7 KB |
+| `/reports/sales-by-period?limit=200` (a year)      |   1000 |  104 |       9 |    27 KB |
+| `/reports/sales-by-period?interval=month` (a year) |   1000 |  102 |       9 |     2 KB |
+| `/reports/sales-by-store` (a year)                 |   1000 |  103 |       9 |     1 KB |
+| `/reports/sales-by-product?limit=200` (a year)     |   1000 |  131 |       9 |    47 KB |
+| `/reports/sales-by-product?format=csv` (a year)    |   1000 |   93 |       8 |    92 KB |
+| `/reports/sales-by-brand` (a year)                 |   1000 |  125 |       9 |     4 KB |
+| `/reports/sales-by-category` (a year)              |   1000 |  116 |       9 |     1 KB |
+| `/reports/sales-by-salesperson` (a year)           |   1000 |  114 |       9 |     1 KB |
+| `/reports/sales-by-customer?limit=200` (a year)    |   1000 |  112 |       9 |    48 KB |
+| `/reports/payments-by-mode?limit=200` (a year)     |   1000 |   14 |       9 |    36 KB |
+| `/reports/gst-summary` (a quarter)                 |   1000 |   69 |       9 |     1 KB |
+| `/reports/gst-summary` (a year)                    |   1000 |  197 |       9 |     1 KB |
+| `/reports/gst-hsn-summary` (a year)                |   1000 |   73 |       9 |     1 KB |
+
+### Indexes
+
+None were added (this round has no migrations). The reports filter `tax_documents` by
+organisation, status, kind and `issued_on`, then join each document's lines through
+`tax_document_lines`' foreign key. For an owner with every store, the existing
+`tax_documents_store_issued_idx (organization_id, store_id, issued_on)` cannot serve an
+`issued_on` range on its own, so PostgreSQL reads the business's documents. That takes a few
+milliseconds at 15,000 documents.
+
+One candidate for the migrations session, if a shop passes a few hundred thousand documents:
+`tax_documents (organization_id, issued_on) WHERE status = 'issued'`. It would serve the tile's
+seven weeks and short report ranges across every store. The line join already has an index:
+`tax_document_lines_document_line_unique (document_id, line_no)`.
+
+### To watch as data grows
+
+- Without a date range the reports cover the business's whole history: about 200 ms a year at
+  this volume, so about 1 s after five years. The screen sends no default range today. Defaulting
+  `from` to the start of the financial year would bound it.
+- Each page's count runs the grouped query again. That is cheap here, since there are few
+  groups, but it doubles the time of a whole-history report.
