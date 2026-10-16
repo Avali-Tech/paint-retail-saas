@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { GatewayError, hmacHex, signatureMatches } from './payment-gateway.js';
+import { GatewayError } from '../payments-gateway/payment-gateway.js';
+import { hmacHex } from '../payments-gateway/signatures.js';
 import { RazorpayGateway, type RazorpayConfig } from './razorpay-gateway.js';
 
 const CONFIG: RazorpayConfig = {
@@ -233,13 +234,5 @@ describe('RazorpayGateway webhooks', () => {
       periodStart: null,
       periodEnd: null,
     });
-  });
-});
-
-describe('signatureMatches', () => {
-  it('compares HMACs in constant time and refuses anything but a string', () => {
-    const body = Buffer.from('{}');
-    expect(signatureMatches('s', body, hmacHex('s', body))).toBe(true);
-    expect(signatureMatches('s', body, ['x'])).toBe(false);
   });
 });

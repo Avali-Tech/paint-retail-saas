@@ -8,7 +8,7 @@ CREATE TABLE "payment_gateway_events" (
 	"gateway" "payment_gateway" NOT NULL,
 	"event_id" text NOT NULL,
 	"type" text NOT NULL,
-	"gateway_subscription_id" text,
+	"object_id" text,
 	"organization_id" uuid,
 	"received_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "payment_gateway_events_gateway_event_id_pk" PRIMARY KEY("gateway","event_id")

@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, inject, it, vi } from 'vitest';
 import { api, ok } from '../test-support/billing-business.js';
 import { startTestApp, uniquePhone, type TestApp } from '../test-support/test-app.js';
-import { hmacHex } from './payment-gateway.js';
+import { hmacHex } from '../payments-gateway/signatures.js';
 
 // The API with the Razorpay adapter, end to end, against a stand-in for Razorpay's
 // API (global fetch is replaced before the app is built): no network.

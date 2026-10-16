@@ -1,15 +1,15 @@
 import type { BillingInterval, PaidPlanKey } from '@paint/shared';
 import type { GatewayConfig } from '../config.js';
+import { GatewayError } from '../payments-gateway/payment-gateway.js';
+import { signatureMatches } from '../payments-gateway/signatures.js';
 import {
-  GatewayError,
-  signatureMatches,
   type CreatedGatewaySubscription,
-  type GatewayEvent,
-  type GatewayEventType,
+  type SubscriptionGatewayEvent,
+  type SubscriptionEventType,
   type GatewaySubscriptionStatus,
   type NewGatewaySubscription,
-  type PaymentGateway,
-} from './payment-gateway.js';
+  type SubscriptionGateway,
+} from './subscription-gateway.js';
 
 export type RazorpayConfig = Extract<GatewayConfig, { name: 'razorpay' }>;
 type Fetch = typeof globalThis.fetch;
@@ -18,7 +18,7 @@ type Fetch = typeof globalThis.fetch;
 const TOTAL_COUNT: Record<BillingInterval, number> = { monthly: 120, annual: 10 };
 
 /** Razorpay's webhook events and what each means for us. */
-const EVENT_TYPES: Readonly<Record<string, GatewayEventType>> = {
+const EVENT_TYPES: Readonly<Record<string, SubscriptionEventType>> = {
   'subscription.activated': 'activated',
   'subscription.charged': 'charged',
   // A renewal failed and Razorpay retries (pending), or gave up (halted).
@@ -54,7 +54,7 @@ const fromUnix = (seconds: number | null | undefined) =>
  * plan and interval (priced per store, GST included), all from the environment.
  * Plain fetch with Basic auth; nothing here ever logs or returns a key.
  */
-export class RazorpayGateway implements PaymentGateway {
+export class RazorpayGateway implements SubscriptionGateway {
   readonly name = 'razorpay' as const;
 
   constructor(
@@ -105,7 +105,10 @@ export class RazorpayGateway implements PaymentGateway {
     };
   }
 
-  verifyWebhook(rawBody: Buffer, headers: Readonly<Record<string, unknown>>): GatewayEvent | null {
+  verifyWebhook(
+    rawBody: Buffer,
+    headers: Readonly<Record<string, unknown>>,
+  ): SubscriptionGatewayEvent | null {
     if (!signatureMatches(this.config.webhookSecret, rawBody, headers['x-razorpay-signature'])) {
       return null;
     }

@@ -1,22 +1,21 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { BillingInterval, PaidPlanKey } from '@paint/shared';
+import { hmacHex, signatureMatches } from '../payments-gateway/signatures.js';
 import {
-  hmacHex,
-  signatureMatches,
   type CreatedGatewaySubscription,
-  type GatewayEvent,
-  type GatewayEventType,
+  type SubscriptionGatewayEvent,
+  type SubscriptionEventType,
   type GatewaySubscriptionStatus,
   type NewGatewaySubscription,
-  type PaymentGateway,
-} from './payment-gateway.js';
+  type SubscriptionGateway,
+} from './subscription-gateway.js';
 
 export const FAKE_SIGNATURE_HEADER = 'x-fake-gateway-signature';
 
 /** The body the fake gateway sends: our own event shape, signed like Razorpay's. */
 interface FakeEventBody {
   readonly id: string;
-  readonly type: GatewayEventType;
+  readonly type: SubscriptionEventType;
   readonly subscriptionId: string;
   readonly paymentId: string | null;
   readonly amountPaise: number | null;
@@ -28,7 +27,7 @@ interface FakeEventBody {
  * signed webhook that goes through exactly the checks a real one does. It signs
  * with a secret made fresh for each process, so nothing outside can forge one.
  */
-export class FakeGateway implements PaymentGateway {
+export class FakeGateway implements SubscriptionGateway {
   readonly name = 'fake' as const;
   private readonly secret = randomBytes(32).toString('hex');
   /** What happened, for tests to look at. */
@@ -69,7 +68,7 @@ export class FakeGateway implements PaymentGateway {
 
   /** A webhook as the fake gateway would send it: the raw body and its signature header. */
   webhook(
-    type: GatewayEventType,
+    type: SubscriptionEventType,
     subscriptionId: string,
     payment: { amountPaise: number; id?: string } | null = null,
   ): { body: Buffer; headers: Record<string, string> } {
@@ -84,7 +83,10 @@ export class FakeGateway implements PaymentGateway {
     return { body, headers: { [FAKE_SIGNATURE_HEADER]: hmacHex(this.secret, body) } };
   }
 
-  verifyWebhook(rawBody: Buffer, headers: Readonly<Record<string, unknown>>): GatewayEvent | null {
+  verifyWebhook(
+    rawBody: Buffer,
+    headers: Readonly<Record<string, unknown>>,
+  ): SubscriptionGatewayEvent | null {
     if (!signatureMatches(this.secret, rawBody, headers[FAKE_SIGNATURE_HEADER])) return null;
     const event = JSON.parse(rawBody.toString('utf8')) as FakeEventBody;
     return {

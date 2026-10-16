@@ -1,6 +1,6 @@
 {
-  "id": "8e96ef46-5f66-4629-92f4-8204e2c4d4f6",
-  "prevId": "6e6652e4-fe5c-405f-8ee8-c5c6fde52084",
+  "id": "9c722f13-f6ed-4098-bfb0-60b85cdbeb1d",
+  "prevId": "d631c3a4-a608-49d1-bb87-b86e036a2397",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -8341,8 +8341,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "gateway_subscription_id": {
-          "name": "gateway_subscription_id",
+        "object_id": {
+          "name": "object_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false

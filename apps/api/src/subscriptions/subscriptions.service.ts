@@ -34,8 +34,17 @@ import {
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
+import {
+  receiveGatewayWebhook,
+  type GatewayEventContext,
+  type WebhookOutcome,
+} from '../payments-gateway/gateway-events.js';
 import { renderInvoicePdf } from '../print/render-invoice-pdf.js';
-import { PAYMENT_GATEWAY, type GatewayEvent, type PaymentGateway } from './payment-gateway.js';
+import {
+  SUBSCRIPTION_GATEWAY,
+  type SubscriptionGatewayEvent,
+  type SubscriptionGateway,
+} from './subscription-gateway.js';
 import {
   computeSubscriptionInvoice,
   platformSupplier,
@@ -47,7 +56,6 @@ import { SUBSCRIPTION_SETTINGS, type SubscriptionSettings } from './subscription
 const {
   organizationMembers,
   organizations,
-  paymentGatewayEvents,
   subscriptionCheckouts,
   subscriptionInvoiceSequences,
   subscriptionInvoices,
@@ -108,7 +116,7 @@ export class SubscriptionsService {
 
   constructor(
     @Inject(DATABASE) private readonly connection: DatabaseConnection,
-    @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway,
+    @Inject(SUBSCRIPTION_GATEWAY) private readonly gateway: SubscriptionGateway,
     @Inject(SUBSCRIPTION_SETTINGS) private readonly settings: SubscriptionSettings,
   ) {}
 
@@ -367,13 +375,21 @@ export class SubscriptionsService {
   async receiveWebhook(
     rawBody: Buffer,
     headers: Readonly<Record<string, unknown>>,
-  ): Promise<'applied' | 'duplicate' | 'ignored' | null> {
-    const event = this.gateway.verifyWebhook(rawBody, headers);
-    if (event === null) {
+  ): Promise<WebhookOutcome | null> {
+    const received = await receiveGatewayWebhook(
+      this.connection.db,
+      this.gateway,
+      { rawBody, headers },
+      {
+        objectId: (event) => event.gatewaySubscriptionId,
+        apply: (tx, event, context) => this.apply(tx, event, context),
+      },
+    );
+    if (received === null) {
       this.logger.warn(`Refused a ${this.gateway.name} webhook with a bad signature`);
       return null;
     }
-    const outcome = await this.connection.db.transaction((tx) => this.apply(tx, event));
+    const { event, outcome } = received;
     this.logger.log(
       `Webhook ${event.gatewayType} (${event.id}) from ${this.gateway.name}: ${outcome}`,
     );
@@ -382,20 +398,10 @@ export class SubscriptionsService {
 
   private async apply(
     tx: Transaction,
-    event: GatewayEvent,
-  ): Promise<'applied' | 'duplicate' | 'ignored'> {
+    event: SubscriptionGatewayEvent,
+    context: GatewayEventContext,
+  ): Promise<'applied' | 'ignored'> {
     const gateway = this.gateway.name;
-    const recorded = await tx
-      .insert(paymentGatewayEvents)
-      .values({
-        gateway,
-        eventId: event.id,
-        type: event.gatewayType,
-        gatewaySubscriptionId: event.gatewaySubscriptionId,
-      })
-      .onConflictDoNothing()
-      .returning({ eventId: paymentGatewayEvents.eventId });
-    if (recorded.length === 0) return 'duplicate';
     if (event.type === 'ignored' || event.gatewaySubscriptionId === null) return 'ignored';
 
     const subscriptionId = event.gatewaySubscriptionId;
@@ -420,12 +426,7 @@ export class SubscriptionsService {
       );
     const organizationId = checkout?.organizationId ?? owned?.organizationId;
     if (organizationId === undefined) return 'ignored';
-    await tx
-      .update(paymentGatewayEvents)
-      .set({ organizationId })
-      .where(
-        and(eq(paymentGatewayEvents.gateway, gateway), eq(paymentGatewayEvents.eventId, event.id)),
-      );
+    await context.attach(organizationId);
     // A checkout's first payment makes its plan the business's, once.
     const starting =
       checkout?.status === 'open' && (event.type === 'activated' || event.type === 'charged')
@@ -533,7 +534,7 @@ export class SubscriptionsService {
   private async issueInvoice(
     tx: Transaction,
     organizationId: string,
-    event: GatewayEvent,
+    event: SubscriptionGatewayEvent,
   ): Promise<void> {
     const [row] = (await tx
       .select({

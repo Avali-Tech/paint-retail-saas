@@ -1,5 +1,5 @@
 {
-  "id": "6e6652e4-fe5c-405f-8ee8-c5c6fde52084",
+  "id": "d631c3a4-a608-49d1-bb87-b86e036a2397",
   "prevId": "bd540a6e-20ba-4c3a-afba-c6c75b788cdd",
   "version": "7",
   "dialect": "postgresql",
@@ -8341,8 +8341,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "gateway_subscription_id": {
-          "name": "gateway_subscription_id",
+        "object_id": {
+          "name": "object_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false

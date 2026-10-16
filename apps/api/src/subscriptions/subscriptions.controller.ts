@@ -27,7 +27,7 @@ import { CurrentAuth, Public } from '../auth/decorators.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { attachmentHeader } from '../documents/file-checks.js';
 import { FakeGateway } from './fake-gateway.js';
-import { PAYMENT_GATEWAY, type PaymentGateway } from './payment-gateway.js';
+import { SUBSCRIPTION_GATEWAY, type SubscriptionGateway } from './subscription-gateway.js';
 import { AllowWhenReadOnly } from './read-only.guard.js';
 import { changePlanSchema, type ChangePlanInput } from './subscriptions.schemas.js';
 import { SubscriptionsService } from './subscriptions.service.js';
@@ -43,7 +43,7 @@ const id = () => new ParseUUIDPipe();
 export class SubscriptionsController {
   constructor(
     @Inject(SubscriptionsService) private readonly subscriptions: SubscriptionsService,
-    @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway,
+    @Inject(SUBSCRIPTION_GATEWAY) private readonly gateway: SubscriptionGateway,
   ) {}
 
   @Get('status')

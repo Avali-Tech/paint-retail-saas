@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { Module, type DynamicModule } from '@nestjs/common';
 import type { SubscriptionsConfig } from '../config.js';
 import { FakeGateway } from './fake-gateway.js';
-import { PAYMENT_GATEWAY, type PaymentGateway } from './payment-gateway.js';
+import { SUBSCRIPTION_GATEWAY, type SubscriptionGateway } from './subscription-gateway.js';
 import { RazorpayGateway } from './razorpay-gateway.js';
 import {
   SubscriptionsController,
@@ -12,7 +12,7 @@ import { SubscriptionsService } from './subscriptions.service.js';
 import { SUBSCRIPTION_SETTINGS } from './subscriptions.tokens.js';
 
 /** The gateway the configuration names. */
-export function gatewayFor(config: SubscriptionsConfig): PaymentGateway {
+export function gatewayFor(config: SubscriptionsConfig): SubscriptionGateway {
   return config.gateway.name === 'razorpay'
     ? new RazorpayGateway(config.gateway)
     : new FakeGateway(config.appUrl);
@@ -32,9 +32,9 @@ export class SubscriptionsModule {
       providers: [
         SubscriptionsService,
         { provide: SUBSCRIPTION_SETTINGS, useValue: config },
-        { provide: PAYMENT_GATEWAY, useValue: gatewayFor(config) },
+        { provide: SUBSCRIPTION_GATEWAY, useValue: gatewayFor(config) },
       ],
-      exports: [SubscriptionsService, SUBSCRIPTION_SETTINGS, PAYMENT_GATEWAY],
+      exports: [SubscriptionsService, SUBSCRIPTION_SETTINGS, SUBSCRIPTION_GATEWAY],
     };
   }
 }

@@ -6879,14 +6879,19 @@ export const subscriptionInvoiceSequences = pgTable('subscription_invoice_sequen
   // Row-level security with no tenant policy: tenants can never see a row.
 }).enableRLS();
 
-/** Every webhook event a gateway sent, kept so each is applied once. Platform only. */
+/**
+ * Every webhook event a payment gateway sent, kept so each is applied once, whatever
+ * it is about (a SaaS subscription now, a payment link with P2-M32). Platform only.
+ */
 export const paymentGatewayEvents = pgTable(
   'payment_gateway_events',
   {
     gateway: paymentGateway('gateway').notNull(),
     eventId: text('event_id').notNull(),
+    /** The gateway's own name for the event. */
     type: text('type').notNull(),
-    gatewaySubscriptionId: text('gateway_subscription_id'),
+    /** The gateway's id of what the event is about (a subscription, a payment link). */
+    objectId: text('object_id'),
     organizationId: uuid('organization_id').references(() => organizations.id, {
       onDelete: 'cascade',
     }),

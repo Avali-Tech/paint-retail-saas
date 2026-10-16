@@ -15,7 +15,7 @@ import type { TenantDetail } from '../platform/tenants.service.js';
 import { api, dbToday, ok } from '../test-support/billing-business.js';
 import { startTestApp, uniquePhone, type TestApp } from '../test-support/test-app.js';
 import { FakeGateway } from './fake-gateway.js';
-import { PAYMENT_GATEWAY } from './payment-gateway.js';
+import { SUBSCRIPTION_GATEWAY } from './subscription-gateway.js';
 
 const { organizations, subscriptionInvoices, subscriptionPlanChanges, subscriptions } = schema;
 const BOOTSTRAP_TOKEN = 'platform-bootstrap-token-for-subscription-tests';
@@ -34,7 +34,7 @@ beforeAll(async () => {
     PLATFORM_BOOTSTRAP_TOKEN: BOOTSTRAP_TOKEN,
     PLATFORM_INVOICE_PREFIX: 'PRS',
   });
-  fake = t.app.get<FakeGateway>(PAYMENT_GATEWAY);
+  fake = t.app.get<FakeGateway>(SUBSCRIPTION_GATEWAY);
   operator = ok(
     await t.app.inject({
       method: 'POST',
