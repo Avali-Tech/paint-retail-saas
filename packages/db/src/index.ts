@@ -24,6 +24,7 @@ export {
   InsufficientStockError,
   findReservationMismatches,
   findStockMismatches,
+  nextAverageCost,
   postStockMovements,
   postStockMovementsInBulk,
   releaseStock,

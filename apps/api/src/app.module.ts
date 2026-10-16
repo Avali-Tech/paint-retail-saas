@@ -6,6 +6,7 @@ import { ActivitiesModule } from './activities/activities.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { BillingModule } from './billing/billing.module.js';
+import { BrandProfitabilityModule } from './brand-profitability/brand-profitability.module.js';
 import { BrandSchemesModule } from './brand-schemes/brand-schemes.module.js';
 import { BrandingModule } from './branding/branding.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
@@ -85,6 +86,7 @@ export class AppModule {
         ActivitiesModule,
         AuditModule,
         BillingModule,
+        BrandProfitabilityModule,
         BrandingModule,
         BrandSchemesModule,
         DashboardModule,

@@ -44,6 +44,7 @@ describe('report list', () => {
       'sales-by-site',
       'receivables-ageing',
       'receivables-open-bills',
+      'brand-profitability',
       'brand-schemes',
       'brand-scheme-claims',
     ]);

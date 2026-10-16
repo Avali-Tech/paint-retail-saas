@@ -76,6 +76,11 @@ export const reportsEn = {
         title: 'Open bills by age',
         description: 'Every bill with money still due, most overdue first: who to collect from',
       },
+      'brand-profitability': {
+        title: 'Brand profitability',
+        description:
+          'Which brand, product and store made you the most money, after cost, credit and points',
+      },
       'brand-schemes': {
         title: 'Brand schemes',
         description:

@@ -82,6 +82,11 @@ export const reportsTe: Translation<typeof reportsEn> = {
         description:
           'డబ్బు బకాయి ఉన్న ప్రతి బిల్లు, ఎక్కువ ఆలస్యమైనది ముందు: ఎవరి నుండి వసూలు చేయాలి',
       },
+      'brand-profitability': {
+        title: 'బ్రాండ్ లాభం',
+        description:
+          'ఖర్చు, అప్పు, పాయింట్ల తర్వాత ఏ బ్రాండ్, ప్రోడక్ట్, స్టోర్ ఎక్కువ డబ్బు సంపాదించింది',
+      },
       'brand-schemes': {
         title: 'బ్రాండ్ స్కీమ్‌లు',
         description:

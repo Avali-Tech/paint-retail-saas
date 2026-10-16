@@ -79,6 +79,32 @@ function partyScope(auth: MemberAccess, scope: AgeingScope): SQL {
     where ${sql.join(conditions, sql` and `)}`;
 }
 
+/**
+ * Allocations matching `where` (over `a`, the allocation), each with `eff_on`, the
+ * day it took effect: the later of its two ends' ledger dates, and for an undo also
+ * the day it was undone. Ageing and brand profitability's credit cost both read it.
+ */
+export function datedAllocations(where: SQL): SQL {
+  return sql`
+      select a.id, a.document_id, a.party_ledger_id, a.payment_id, a.credit_note_id, a.amount_paise,
+        greatest(
+          coalesce(sp.received_on, sc.issued_on),
+          coalesce(td.issued_on, tl.entry_on, tr.received_on),
+          case
+            when a.reverses_allocation_id is null then null
+            when a.reversal_reason = 'cheque_bounce' then sp.cheque_bounced_on
+            else (a.created_at at time zone 'Asia/Kolkata')::date
+          end
+        ) as eff_on
+      from ${allocations} a
+      left join ${payments} sp on sp.id = a.payment_id
+      left join ${taxDocuments} sc on sc.id = a.credit_note_id
+      left join ${taxDocuments} td on td.id = a.document_id
+      left join ${partyLedger} tl on tl.id = a.party_ledger_id
+      left join ${payments} tr on tr.id = a.refund_payment_id
+      where ${where}`;
+}
+
 /** What every party in scope owes and has paid ahead, as of `scope.asOf`. */
 export async function loadAgeing(
   tx: Transaction,
@@ -116,25 +142,7 @@ export async function loadAgeing(
     allocations: DatedAmount[];
   }>(sql`
     with scope as (${partyScope(auth, scope)}),
-    x as (
-      select a.id, a.document_id, a.party_ledger_id, a.payment_id, a.credit_note_id, a.amount_paise,
-        greatest(
-          coalesce(sp.received_on, sc.issued_on),
-          coalesce(td.issued_on, tl.entry_on, tr.received_on),
-          case
-            when a.reverses_allocation_id is null then null
-            when a.reversal_reason = 'cheque_bounce' then sp.cheque_bounced_on
-            else (a.created_at at time zone 'Asia/Kolkata')::date
-          end
-        ) as eff_on
-      from ${allocations} a
-      left join ${payments} sp on sp.id = a.payment_id
-      left join ${taxDocuments} sc on sc.id = a.credit_note_id
-      left join ${taxDocuments} td on td.id = a.document_id
-      left join ${partyLedger} tl on tl.id = a.party_ledger_id
-      left join ${payments} tr on tr.id = a.refund_payment_id
-      where a.party_id in (select id from scope)
-    ),
+    x as (${datedAllocations(sql`a.party_id in (select id from scope)`)}),
     owed as (
       select 'owed' as side, d.id, d.kind::text as kind, d.party_id, d.store_id, d.number,
         d.issued_on as raised_on, d.due_on, d.total_paise as total,

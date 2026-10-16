@@ -1,0 +1,29 @@
+import { describe, expect, it } from 'vitest';
+import { currentQuarter, previousQuarter } from './profitability-api.js';
+
+describe('previousQuarter', () => {
+  it('is the quarter before today’s, in India’s financial-year quarters', () => {
+    expect(previousQuarter('2026-10-16')).toEqual({ from: '2026-07-01', to: '2026-09-30' });
+    expect(previousQuarter('2026-07-01')).toEqual({ from: '2026-04-01', to: '2026-06-30' });
+    expect(previousQuarter('2026-06-30')).toEqual({ from: '2026-01-01', to: '2026-03-31' });
+    expect(previousQuarter('2026-04-15')).toEqual({ from: '2026-01-01', to: '2026-03-31' });
+  });
+
+  it('reaches back into last year from January to March', () => {
+    expect(previousQuarter('2027-02-28')).toEqual({ from: '2026-10-01', to: '2026-12-31' });
+    expect(previousQuarter('2028-03-31')).toEqual({ from: '2027-10-01', to: '2027-12-31' });
+  });
+
+  it('refuses a day that is not a date', () => {
+    expect(() => previousQuarter('2026-13-01')).toThrow(RangeError);
+  });
+});
+
+describe('currentQuarter', () => {
+  it('runs from the quarter’s first day to today', () => {
+    expect(currentQuarter('2026-10-16')).toEqual({ from: '2026-10-01', to: '2026-10-16' });
+    expect(currentQuarter('2027-03-31')).toEqual({ from: '2027-01-01', to: '2027-03-31' });
+    expect(currentQuarter('2026-05-02')).toEqual({ from: '2026-04-01', to: '2026-05-02' });
+    expect(() => currentQuarter('2026-02-30')).toThrow(RangeError);
+  });
+});

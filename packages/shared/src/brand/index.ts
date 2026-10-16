@@ -61,6 +61,22 @@ export {
   type OutstandingSpan,
 } from './margin.js';
 export {
+  BRAND_PROFITABILITY_PERMISSION,
+  DEFAULT_POINT_VALUE_PAISE,
+  PROFITABILITY_GROUPS,
+  PROFITABILITY_MAX_DAYS,
+  PROFITABILITY_SETTINGS_PERMISSION,
+  currentQuarter,
+  previousQuarter,
+  type BrandProfitabilityQuery,
+  type BrandProfitabilityRow,
+  type BrandProfitabilityView,
+  type ProfitabilityGroup,
+  type ProfitabilitySettings,
+  type ProfitabilitySettingsInput,
+  type ProfitabilitySliceView,
+} from './profitability-api.js';
+export {
   BENEFIT_MONEY_FORMS,
   BRAND_CLAIM_STATUSES,
   SCHEME_DATE_BASES,
