@@ -439,6 +439,109 @@ the BSP adapter; until then `whatsapp_reply` withdrawals cannot occur and staff 
 | M34    | Import CSV / Excel with a mapping template per brand (columns, date format, sign convention); lines matched to GRNs (supplier invoice number), scheme credit notes and brand payments by reference, date window and amount; unmatched on either side listed. PDF import is research. Full supplier-ledger matching waits for P2-M17                                                                                                                                                                                                         |
 | M35    | Per brand, product and store for a period: sales (taxable value of invoices − credit notes) − cost (stock ledger average cost of units sold) + schemes received and expected − credit cost (average days of credit given × outstanding × the business's cost of money, [PO-5]) − loyalty points paid on that brand                                                                                                                                                                                                                          |
 
+#### Brand engines (round 3b)
+
+Pure functions in `packages/shared/src/brand/`, exported from `@paint/shared`, with no database. 4a
+and 4b load the rows and call them. Money is integer paise and volume is integer millilitres; every
+product of an amount and a rate is taken in BigInt and divided once, with the rounding stated below.
+Rates are basis points (100 = 1 %).
+
+**Scheme model (`scheme.ts`).** A `BrandScheme` has: brand; period (`startsOn` to `endsOn`, both
+days included); `productIds` and `categoryIds` (both empty means every product of the brand, else a
+line counts when either list names it); `measure` (`value`, the target in paise, or `litres`, the
+target in millilitres); `mode` (`retro`, the default, or `incremental`); `settlementDays` (null
+means 45, [PO-32]); and slabs with rising, positive targets. A slab gives any of:
+
+- `rebate` (basis points of value);
+- `per_litre` (paise per litre);
+- `free_goods` (a variant's units, either once on reaching the slab or per whole `perMillilitres`);
+- `points` (gift or trip points under a label, once on reaching the slab).
+
+| Mode              | Rule                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `retro` (default) | The highest slab reached pays on everything achieved, from the first rupee or litre. A rebate on a litres target (or ₹/L on a rupee target) is paid on the whole value (or litres)                                                                                                                                                                                                                                      |
+| `incremental`     | Every slab reached pays on its own band only: slab 1 on [0, target 2), slab k on [target k, target k+1), the last band open. Fixed benefits (free goods without a ratio, points) come from every slab reached. Below target 2 it equals retro; at each target it is the lower bands filled. A benefit on the other basis than the target (rebate on litres, ₹/L or free goods per litre on rupees) is refused ([PO-31]) |
+
+**Benefit (`slabBenefits`).** Rebate = ⌊Σ bps × base ÷ 10,000⌋ and per litre = ⌊Σ paise/L × ml ÷
+1,000⌋. Each is summed exactly over the slabs and bands and rounded down once, so the brand is never
+expected to owe a paisa the slabs did not make. Credit = rebate + per litre. Free goods with a ratio
+are units × ⌊band ml ÷ per⌋, counted in whole steps per band.
+
+**Slab progress (`schemeProgress(scheme, grnLines, asOf)`)** counts the brand's GRN lines in the
+period up to `asOf` and on the products the scheme covers. Each line carries its taxable purchase
+value at cost before GST (paid units only), its paid millilitres and its scheme-free millilitres;
+purchase returns are negative lines.
+
+| Output                     | Formula                                                                                                                          |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Achieved value             | Σ value, at least 0. Scheme-free units add nothing [CA-4]                                                                        |
+| Achieved litres            | Σ (paid + scheme-free) ml, at least 0 [CA-4]                                                                                     |
+| Current slab               | The highest slab whose target is reached (reaching it exactly counts)                                                            |
+| Next slab                  | The next slab, its distance (target − achieved) and the amount per remaining day to reach it (rounded up; null with no day left) |
+| Projected                  | Achieved × period days ÷ days elapsed through `asOf`, rounded down ([PO-36]); nothing before the period starts                   |
+| Projected slab and benefit | The slab and `slabBenefits` of the projection                                                                                    |
+| Benefit                    | `slabBenefits` of what was achieved                                                                                              |
+
+**Expected vs received (`schemeClaim(scheme, expected, received, asOf)`, `claimsAgeing`).**
+`expected` is the scheme's progress benefit. Received entries are money (a credit note or cash,
+negative to reverse), free goods per variant, or points per label; entries dated after `asOf` are
+ignored.
+
+- Outstanding = expected − received for money, for each variant and for each label. A negative
+  figure is an excess.
+- Status: `open` when anything is still owed, else `excess` when something is over, else `settled`.
+- Due date = period end + settlement days. An open claim is aged from then in the receivables
+  buckets (not due, 0–30, 31–60, 61–90, 90+).
+- `final` is false while the period runs, because expected figures still move with purchases.
+- `claimsAgeing` gives, per bucket, the count of open claims and the money still owed (excesses
+  count as 0).
+
+**Price-hike planner (`planStockUp(hike, skus, asOf, rates)`, research).** A unit bought at
+today's cost C instead of after a hike of h saves C × h. If it is held t days before it sells, it
+costs C × r × t ÷ 365, where r = holding cost + cost of money ([PO-5]) + dead-stock risk, all
+annual. So a unit is worth buying ahead only while it sells within the break-even D\* of the hike.
+
+| Figure                            | Formula (q = sold units ÷ sales-window days; units are bought the day before the hike)                    | Rounding  |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------- | --------- |
+| Break-even D\*                    | 365 × h ÷ r days (12 × h ÷ r months); unlimited when r = 0                                                | Down      |
+| Cover T                           | min(D\*, max cover days)                                                                                  | —         |
+| Stock at hike S                   | stock − q × days to the hike                                                                              | Down, ≥ 0 |
+| Stock-up units U                  | q × T − max(S, 0), at least 0; none once the hike is in force                                             | Down      |
+| Cash tied up                      | U × C                                                                                                     | Exact     |
+| Saving                            | U × C × h                                                                                                 | Down      |
+| Holding / money / dead-stock cost | U × C × rate × A ÷ 365 each, where A = max(S, 0) ÷ q + U ÷ 2q (the days the bought units wait on average) | Up, each  |
+| Net saving                        | saving − (holding + money + dead stock)                                                                   | Exact     |
+
+Defaults ([PO-33]): holding 6 %, cost of money 12 %, dead-stock risk 4 % a year (a SKU may override
+the risk), at most 90 days of cover. Every unit sells within D\*, so the net saving is never below
+zero except for rounding.
+
+**Margin (`brandMargins(rows, schemeMoney, {groupBy, costOfMoneyBps})`, `sumMargins`,
+`paiseDays`).** Each row is one brand, product and store's figures for the period. The engine sums
+the rows per brand (and per product and store, as grouped). For each slice:
+
+| Figure       | Formula                                                                                                                                                            | Rounding  |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
+| Net sales    | taxable invoices − taxable credit notes                                                                                                                            | Exact     |
+| Cost         | average cost of units sold − of units returned (stock ledger)                                                                                                      | Exact     |
+| Schemes      | received + expected outstanding (not below 0). The brand's money is spread over its slices by cost, else net sales, else evenly, largest remainder first ([PO-35]) | Exact sum |
+| Credit cost  | Σ outstanding paise × days owed in the period (`paiseDays`) × cost of money ÷ 365 ([PO-5], [PO-34])                                                                | Half-even |
+| Loyalty      | customer points + painter points paid on the sales, valued in paise                                                                                                | Exact     |
+| Contribution | net sales − cost + schemes − credit cost − loyalty                                                                                                                 | Exact     |
+| Margin       | contribution ÷ net sales in basis points; null without positive net sales                                                                                          | Half-even |
+
+Free goods are not added to the margin: they enter stock at zero cost, which already lowers the
+average cost ([CA-20]). Totals are always the sum of their slices.
+
+Property tests (`brand/properties.test.ts`, seeded) check that:
+
+- progress and benefits never fall when a purchase is added;
+- retro and incremental agree below slab 2 and at flat rates, match their definitions at every
+  target, and retro never pays less;
+- outstanding = expected − received;
+- a stock-up adds up and never loses beyond rounding;
+- the margin components sum to the contribution, and the slices to their brand.
+
 ### 6.4 P2-M12 share without a BSP
 
 The signed link is stateless: `base64url(payload).base64url(HMAC-SHA256(key, payload))` with the key
@@ -592,15 +695,24 @@ morning: worklist, two promises, one UPI payment allocated by itself, ageing and
 | PO-19 | When a credit note would take back points the painter has already redeemed, forgive them or carry a negative balance against future points?                                                                                | Forgive (the balance never goes below zero)                               |
 | PO-20 | Should editing an earn rule keep the old version for returns against older invoices (versioned rules), or is weighing returns by today's rules acceptable?                                                                 | Today's rules; switch a rule off and add a new one to keep history clear  |
 | PO-21 | A price-only credit note (no goods back) on a per-litre line: take back points by value, as now, or none?                                                                                                                  | By value                                                                  |
+| PO-30 | Slab mode default and the incremental band: is "retro" (the slab reached pays on all purchases) the right default, and does incremental slab 1 pay from zero (our reading) or only above its own target?                   | Retro; incremental slab 1 pays from zero                                  |
+| PO-31 | An incremental scheme with a rebate % on a litres target (or ₹/L on a rupee target): split the other basis across bands, or refuse?                                                                                        | Refused; enter such schemes as retro                                      |
+| PO-32 | How many days after a scheme's period is its benefit due, for claim ageing (brands differ)?                                                                                                                                | 45 days, overridable per scheme                                           |
+| PO-33 | Price-hike planner rates: holding cost, dead-stock risk, longest cover; should a cash budget cap the plan?                                                                                                                 | 6 % and 4 % a year, 90 days; no budget cap                                |
+| PO-34 | Credit cost in P2-M35: receivables only (spec), or net of the credit days the brand gives us (roadmap "given vs received")?                                                                                                | Receivables only                                                          |
+| PO-35 | How should brand-level scheme money be split across products and stores in P2-M35?                                                                                                                                         | By cost of sales, else net sales, else evenly                             |
+| PO-36 | Slab projection: straight-line run-rate over calendar days, or weighted for quarter-end buying?                                                                                                                            | Straight line                                                             |
 
 ### For the CA
 
-| #    | Question                                                                                                             | Section |
-| ---- | -------------------------------------------------------------------------------------------------------------------- | ------- |
-| CA-1 | Ageing by due date (our default) or by invoice date?                                                                 | §2.2    |
-| CA-2 | Is an allocation dated by when it was recorded, or by the payment's date, for ageing as of a past day?               | §4.5    |
-| CA-3 | Consent records needed for WhatsApp reminders under the DPDP Act 2023 and the BSP's rules                            | §6.2    |
-| CA-4 | Scheme-free units: counted toward a slab by litres only, at zero value, and how a later rebate credit note is booked | §6.3    |
-| CA-5 | Does a statement of account need any statutory wording, and is a Telugu or Hindi statement acceptable?               | §5.2    |
-| CA-6 | Brand rebates received as credit notes vs as cash discounts: effect on our purchase cost in P2-M35                   | §6.3    |
-| CA-7 | An opening balance imported without an "overdue since" date: when does it fall due (go-live, go-live + credit days)? | §2.2    |
+| #     | Question                                                                                                                                                            | Section |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| CA-1  | Ageing by due date (our default) or by invoice date?                                                                                                                | §2.2    |
+| CA-2  | Is an allocation dated by when it was recorded, or by the payment's date, for ageing as of a past day?                                                              | §4.5    |
+| CA-3  | Consent records needed for WhatsApp reminders under the DPDP Act 2023 and the BSP's rules                                                                           | §6.2    |
+| CA-4  | Scheme-free units: counted toward a slab by litres only, at zero value, and how a later rebate credit note is booked                                                | §6.3    |
+| CA-5  | Does a statement of account need any statutory wording, and is a Telugu or Hindi statement acceptable?                                                              | §5.2    |
+| CA-6  | Brand rebates received as credit notes vs as cash discounts: effect on our purchase cost in P2-M35                                                                  | §6.3    |
+| CA-7  | An opening balance imported without an "overdue since" date: when does it fall due (go-live, go-live + credit days)?                                                | §2.2    |
+| CA-20 | Scheme-free goods enter stock at zero cost (lowering average cost) and are not added again as a benefit in P2-M35; is that right for stock valuation and input tax? | §6.3    |
+| CA-21 | Slab value counts the GRN's taxable value at cost before GST, by GRN date; should it follow the supplier invoice date instead, as brands do?                        | §6.3    |
