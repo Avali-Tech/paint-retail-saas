@@ -32,6 +32,35 @@ export const DEFAULT_LINK_VALIDITY_MINUTES = 10;
 /** The shortest and longest validity a business may set: 5 minutes to 30 days. */
 export const MIN_LINK_VALIDITY_MINUTES = 5;
 export const MAX_LINK_VALIDITY_MINUTES = 43_200;
+/**
+ * Minutes a link sent in a message stays payable unless the business sets otherwise
+ * ([PO-61]: decided, a day): messages wait in the outbox and are read later.
+ */
+export const DEFAULT_MESSAGE_LINK_VALIDITY_MINUTES = 1_440;
+/** Razorpay refuses a link that expires sooner than 15 minutes ahead ([PO-60]: decided). */
+export const RAZORPAY_MIN_LINK_VALIDITY_MINUTES = 15;
+
+/** Which validity a link takes: a counter (or manual) link's, or a message's ([PO-61]). */
+export const LINK_VALIDITY_KINDS = ['counter', 'message'] as const;
+export type LinkValidityKind = (typeof LINK_VALIDITY_KINDS)[number];
+
+/** The shortest validity a business may set with this gateway ([PO-60]). */
+export function minLinkValidityMinutes(gateway: 'log' | 'razorpay' | null): number {
+  return gateway === 'razorpay' ? RAZORPAY_MIN_LINK_VALIDITY_MINUTES : MIN_LINK_VALIDITY_MINUTES;
+}
+
+/**
+ * Minutes a link of this kind stays payable: the business's validity for counter links
+ * or for links in messages, never below what the gateway accepts ([PO-60], [PO-61]).
+ */
+export function linkValidityMinutes(
+  kind: LinkValidityKind,
+  rules: { readonly validityMinutes: number; readonly messageValidityMinutes: number },
+  gateway: 'log' | 'razorpay' | null,
+): number {
+  const minutes = kind === 'message' ? rules.messageValidityMinutes : rules.validityMinutes;
+  return Math.max(minutes, minLinkValidityMinutes(gateway));
+}
 
 /** The most one link asks for unless the business sets otherwise ([PO-42]: ₹1,00,000). */
 export const DEFAULT_LINK_CAP_PAISE = 10_000_000;

@@ -7,7 +7,13 @@ import { renderApp } from '../test-support/render-app.js';
 import { parseRules } from './PaymentLinkSettingsPage.js';
 import { RefundNote } from './PaymentLinks.js';
 
-const RULES = { validityMinutes: 10, capPaise: 10_000_000, amountBasis: 'net' as const };
+const RULES = {
+  validityMinutes: 10,
+  messageValidityMinutes: 1_440,
+  minValidityMinutes: 5,
+  capPaise: 10_000_000,
+  amountBasis: 'net' as const,
+};
 const RAZORPAY = { provider: 'razorpay', ready: false, ...RULES };
 const WEBHOOK = 'https://api.example.in/webhooks/payment-links/razorpay/abcdefghijklmnopqrstuv';
 const ACCOUNT = (overrides: Partial<GatewayAccountView> = {}): GatewayAccountView => ({
@@ -21,6 +27,7 @@ const ACCOUNT = (overrides: Partial<GatewayAccountView> = {}): GatewayAccountVie
   connectedBy: null,
   verifiedAt: null,
   webhookUrl: WEBHOOK,
+  validityRaised: null,
   ...overrides,
 });
 const CONNECTED = ACCOUNT({
@@ -50,7 +57,10 @@ describe('Settings → Payment links', { timeout: 30_000 }, () => {
         'GET /payment-links/gateway-account': () => json(account),
         'PUT /payment-links/gateway-account': () => {
           account = CONNECTED;
-          return json(CONNECTED);
+          return json({
+            ...CONNECTED,
+            validityRaised: { counterFrom: 10, messageFrom: null, to: 15 },
+          });
         },
       },
     });
@@ -74,6 +84,12 @@ describe('Settings → Payment links', { timeout: 30_000 }, () => {
     await user.type(within(card).getByLabelText('Webhook secret'), KEYS.webhookSecret);
     await user.click(within(card).getByRole('button', { name: 'Connect Razorpay' }));
     expect(await screen.findByText('Razorpay connected')).toBeVisible();
+    // Its 10-minute links were raised to Razorpay's shortest, and it says so ([PO-60]).
+    expect(
+      screen.getByText(
+        'Razorpay keeps a link payable for at least 15 minutes, so shorter links now last 15 minutes.',
+      ),
+    ).toBeVisible();
     expect(
       requests.find(
         (request) => request.method === 'PUT' && request.path === '/payment-links/gateway-account',
@@ -136,6 +152,7 @@ describe('Settings → Payment links', { timeout: 30_000 }, () => {
         'GET /payment-links/settings': () => json({ ...RAZORPAY, ready: true }),
         'GET /payment-links/gateway-account': () =>
           json({ ...CONNECTED, live: false, connectedBy: null, verifiedAt: null }),
+        'PUT /payment-links/gateway-account': () => json({ ...CONNECTED, live: false }),
         'POST /payment-links/gateway-account/test': () =>
           json(
             {
@@ -152,6 +169,13 @@ describe('Settings → Payment links', { timeout: 30_000 }, () => {
     expect(within(card).getByText(/Test keys take no money/)).toBeVisible();
     await user.click(within(card).getByRole('button', { name: 'Test connection' }));
     expect(await within(card).findByText(/could not be checked just now/)).toBeVisible();
+    // Replacing keys when the links already last long enough raises nothing.
+    await user.type(within(card).getByLabelText('Key id'), KEYS.keyId);
+    await user.type(within(card).getByLabelText('Key secret'), KEYS.keySecret);
+    await user.type(within(card).getByLabelText('Webhook secret'), KEYS.webhookSecret);
+    await user.click(within(card).getByRole('button', { name: 'Replace keys' }));
+    expect(await screen.findByText('Razorpay connected')).toBeVisible();
+    expect(screen.queryByText(/shorter links now last/)).toBeNull();
   });
 
   it('saves how long links live, their cap and what they ask for', async () => {
@@ -179,6 +203,10 @@ describe('Settings → Payment links', { timeout: 30_000 }, () => {
     expect(within(rules).getByText('Enter ₹1.00 to ₹5,00,000.00')).toBeVisible();
     await user.clear(validity);
     await user.type(validity, '30');
+    const inMessages = within(rules).getByLabelText('Links in messages payable for (minutes)');
+    expect(inMessages).toHaveValue('1440');
+    await user.clear(inMessages);
+    await user.type(inMessages, '720');
     const cap = within(rules).getByLabelText('Most one link asks for (₹)');
     await user.clear(cap);
     await user.type(cap, '50000');
@@ -190,7 +218,34 @@ describe('Settings → Payment links', { timeout: 30_000 }, () => {
       requests.find(
         (request) => request.method === 'PUT' && request.path === '/payment-links/settings',
       )?.body,
-    ).toEqual({ validityMinutes: 30, capPaise: 5_000_000, amountBasis: 'full' });
+    ).toEqual({
+      validityMinutes: 30,
+      messageValidityMinutes: 720,
+      capPaise: 5_000_000,
+      amountBasis: 'full',
+    });
+  });
+
+  it('keeps both validities at Razorpay’s 15 minutes or more once it is connected', async () => {
+    const { user, requests } = renderApp({
+      path: '/settings/payment-links',
+      routes: {
+        'GET /auth/me': () => json(OWNER),
+        'GET /payment-links/settings': () =>
+          json({ ...RAZORPAY, ready: true, validityMinutes: 15, minValidityMinutes: 15 }),
+        'GET /payment-links/gateway-account': () => json(CONNECTED),
+      },
+    });
+    const rules = await screen.findByRole('region', { name: 'How links work' });
+    expect(
+      within(rules).getByText('Razorpay keeps a link payable for at least 15 minutes.'),
+    ).toBeVisible();
+    const inMessages = within(rules).getByLabelText('Links in messages payable for (minutes)');
+    await user.clear(inMessages);
+    await user.type(inMessages, '10');
+    await user.click(within(rules).getByRole('button', { name: 'Save' }));
+    expect(await within(rules).findByText('Enter 15 to 43200 minutes')).toBeVisible();
+    expect(requests.some((request) => request.method === 'PUT')).toBe(false);
   });
 
   it('shows why saving failed, and that links are off', async () => {
@@ -233,19 +288,35 @@ describe('Settings → Payment links', { timeout: 30_000 }, () => {
 
 describe('parseRules', () => {
   it('checks the rules as the API does', () => {
-    expect(parseRules({ validityMinutes: '10', cap: '1000', amountBasis: 'net' })).toEqual({
+    const form = (validityMinutes: string, cap: string, messageValidityMinutes = '1440') => ({
+      validityMinutes,
+      messageValidityMinutes,
+      cap,
+      amountBasis: 'net' as const,
+    });
+    expect(parseRules(form('10', '1000'), 5)).toEqual({
       ok: true,
-      input: { validityMinutes: 10, capPaise: 100_000, amountBasis: 'net' },
+      input: {
+        validityMinutes: 10,
+        messageValidityMinutes: 1_440,
+        capPaise: 100_000,
+        amountBasis: 'net',
+      },
     });
-    expect(parseRules({ validityMinutes: '1.5', cap: 'abc', amountBasis: 'net' })).toEqual({
+    expect(parseRules(form('1.5', 'abc'), 5)).toEqual({
       ok: false,
       problems: { validityMinutes: 'range', cap: 'range' },
     });
-    expect(parseRules({ validityMinutes: '43201', cap: '500001', amountBasis: 'full' })).toEqual({
+    expect(parseRules(form('43201', '500001', '43201'), 5)).toEqual({
       ok: false,
-      problems: { validityMinutes: 'range', cap: 'range' },
+      problems: { validityMinutes: 'range', messageValidityMinutes: 'range', cap: 'range' },
     });
-    expect(parseRules({ validityMinutes: '5', cap: '0.99', amountBasis: 'full' }).ok).toBe(false);
+    expect(parseRules(form('5', '0.99'), 5).ok).toBe(false);
+    // With Razorpay, 15 minutes at the least ([PO-60]).
+    expect(parseRules(form('10', '1000', '14'), 15)).toEqual({
+      ok: false,
+      problems: { validityMinutes: 'range', messageValidityMinutes: 'range' },
+    });
   });
 });
 

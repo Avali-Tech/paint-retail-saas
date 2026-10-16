@@ -37,6 +37,11 @@ export interface CreatedPayment {
   readonly gatewayReference: string;
   /** Where the customer pays. */
   readonly url: string;
+  /**
+   * When the gateway stops taking payment, where it differs from what was asked (Razorpay
+   * takes no less than 15 minutes, [PO-60]); the link is recorded with it.
+   */
+  readonly expiresAt?: Date;
 }
 
 /** A gateway that can ask for a one-off payment. */

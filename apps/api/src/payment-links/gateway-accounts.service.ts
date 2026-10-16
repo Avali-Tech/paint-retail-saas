@@ -1,7 +1,11 @@
 import 'reflect-metadata';
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import { schema, withTenant, type DatabaseConnection, type Transaction } from '@paint/db';
-import type { GatewayAccountView, GatewayTestResult } from '@paint/shared';
+import {
+  RAZORPAY_MIN_LINK_VALIDITY_MINUTES,
+  type GatewayAccountView,
+  type GatewayTestResult,
+} from '@paint/shared';
 import { eq, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import type { AuthContext } from '../auth/auth-context.js';
@@ -11,7 +15,7 @@ import { PAYMENT_LINK_GATEWAYS, PaymentLinkGateways } from './payment-link-gatew
 import type { ConnectGatewayInput } from './payment-links.schemas.js';
 import type { RazorpayPaymentLinkProvider } from './razorpay-payment-links.js';
 
-const { organizationMembers, paymentGatewayAccounts, users } = schema;
+const { organizationMembers, paymentGatewayAccounts, salesSettings, users } = schema;
 
 const last4 = (value: string) => value.slice(-4);
 
@@ -79,6 +83,45 @@ export class GatewayAccountsService {
       connectedBy: row?.connectedBy ?? null,
       verifiedAt: row?.verifiedAt?.toISOString() ?? null,
       webhookUrl: this.gateways.webhookUrl(webhookRef),
+      validityRaised: null,
+    };
+  }
+
+  /**
+   * Razorpay keeps a link payable for at least 15 minutes ([PO-60]): connecting raises a
+   * shorter validity (counter links, links in messages) to 15 and says so, rather than
+   * refusing to connect. Audited with the other sales settings.
+   */
+  private async raiseValidity(
+    tx: Transaction,
+    organizationId: string,
+  ): Promise<GatewayAccountView['validityRaised']> {
+    const least = RAZORPAY_MIN_LINK_VALIDITY_MINUTES;
+    await tx
+      .insert(salesSettings)
+      .values({ organizationId })
+      .onConflictDoNothing({ target: salesSettings.organizationId });
+    const [before] = (await tx
+      .select({
+        counter: salesSettings.paymentLinkValidityMinutes,
+        message: salesSettings.messageLinkValidityMinutes,
+      })
+      .from(salesSettings)
+      .where(eq(salesSettings.organizationId, organizationId))
+      .for('update')) as [{ counter: number; message: number }];
+    if (before.counter >= least && before.message >= least) return null;
+    await tx
+      .update(salesSettings)
+      .set({
+        paymentLinkValidityMinutes: Math.max(before.counter, least),
+        messageLinkValidityMinutes: Math.max(before.message, least),
+        updatedAt: sql`now()`,
+      })
+      .where(eq(salesSettings.organizationId, organizationId));
+    return {
+      counterFrom: before.counter < least ? before.counter : null,
+      messageFrom: before.message < least ? before.message : null,
+      to: least,
     };
   }
 
@@ -143,7 +186,8 @@ export class GatewayAccountsService {
           updatedAt: sql`now()`,
         })
         .where(eq(paymentGatewayAccounts.organizationId, organizationId));
-      return this.viewIn(tx, organizationId);
+      const validityRaised = await this.raiseValidity(tx, organizationId);
+      return { ...(await this.viewIn(tx, organizationId)), validityRaised };
     });
   }
 

@@ -40,6 +40,8 @@ interface RazorpayLink {
   readonly id: string;
   readonly short_url: string;
   readonly reference_id?: string;
+  /** Unix seconds; 0 or missing for a link that never expires. */
+  readonly expire_by?: number;
 }
 
 interface RazorpayRefund {
@@ -168,7 +170,14 @@ export class RazorpayPaymentLinkProvider implements PaymentLinkProvider {
       if (made === undefined) throw error;
       link = made;
     }
-    return { gatewayReference: link.id, url: link.short_url };
+    // Recorded as Razorpay keeps it, so our expiry and the gateway's agree ([PO-60]).
+    const expireBy =
+      link.expire_by !== undefined && link.expire_by > 0 ? link.expire_by : body.expire_by;
+    return {
+      gatewayReference: link.id,
+      url: link.short_url,
+      expiresAt: new Date(expireBy * 1000),
+    };
   }
 
   async cancelPayment(gatewayReference: string): Promise<void> {

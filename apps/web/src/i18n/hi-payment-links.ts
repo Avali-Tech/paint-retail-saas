@@ -105,12 +105,19 @@ export const paymentLinksHi = {
       submit: 'Razorpay जोड़ें',
       replace: 'कुंजियाँ बदलें',
       done: 'Razorpay जुड़ गया',
+      validityRaised:
+        'Razorpay किसी लिंक को कम से कम {minutes} मिनट तक देय रखता है, इसलिए छोटे लिंक अब {minutes} मिनट चलेंगे।',
     },
     rules: {
       title: 'लिंक कैसे काम करें',
       validity: 'कितने मिनट देय',
-      validityHint: 'ग्राहक के पास भुगतान के लिए कितना समय है; बाद में आया पैसा भी दर्ज होता है।',
+      validityHint:
+        'काउंटर पर दिखाए या हाथ से भेजे गए लिंक। बाद में आया पैसा भी दर्ज होता है।',
+      messageValidity: 'संदेशों के लिंक कितने मिनट देय',
+      messageValidityHint:
+        'रिमाइंडर, स्टेटमेंट और WhatsApp संदेशों में भेजे गए लिंक, जो बाद में पढ़े जाते हैं: सामान्यतः एक दिन (1440)।',
       validityRange: '{min} से {max} मिनट डालें',
+      gatewayMinimum: 'Razorpay किसी लिंक को कम से कम {min} मिनट तक देय रखता है।',
       cap: 'एक लिंक की अधिकतम राशि (₹)',
       capHint: 'इससे बड़ा लिंक नहीं बनेगा। UPI एक भुगतान में अधिकतम {max} लेता है।',
       capRange: '{min} से {max} डालें',

@@ -145,6 +145,8 @@ describe('the round 4 demo', () => {
       createdByMemberId: null,
       status: 'created',
     });
+    // A link in a message lasts the business's message validity: a day ([PO-61]).
+    expect(Number(link?.expiresAt) - Number(link?.createdAt)).toBe(1_440 * 60_000);
     const reminders = await messagesOf(krishna);
     expect(reminders.map((message) => [message.channel, message.templateKey])).toEqual([
       ['whatsapp', 'payment_reminder_overdue'],
@@ -217,6 +219,27 @@ describe('reminders with payment links', () => {
     await forgetRuns();
     await runReminders();
     expect(await linksOf(party)).toEqual([first]);
+    // Reuse follows the message validity: at two days, a link must have a day left, and
+    // the first has a little less, so a new one goes.
+    const setMessageValidity = async (messageValidityMinutes: number) =>
+      ok(
+        await api(t, b.owner).put('/payment-links/settings', {
+          validityMinutes: 10,
+          messageValidityMinutes,
+          capPaise: 10_000_000,
+          amountBasis: 'net',
+        }),
+      );
+    await setMessageValidity(2_880);
+    try {
+      await forgetRuns();
+      await runReminders();
+      const links = await linksOf(party);
+      expect(links).toHaveLength(2);
+      expect(Number(links[1]?.expiresAt) - Number(links[1]?.createdAt)).toBe(2_880 * 60_000);
+    } finally {
+      await setMessageValidity(1_440);
+    }
   });
 
   it('carry no link to a party nobody can message, or whose advance covers the bills', async () => {
@@ -267,6 +290,7 @@ describe('statement shares with payment links', () => {
       ok(
         await api(t, b.owner).put('/payment-links/settings', {
           validityMinutes: 10,
+          messageValidityMinutes: 1_440,
           capPaise: 10_000_000,
           amountBasis,
         }),

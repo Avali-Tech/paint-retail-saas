@@ -3,11 +3,11 @@ import {
   MAX_LINK_CAP_PAISE,
   MAX_LINK_VALIDITY_MINUTES,
   MIN_LINK_CAP_PAISE,
-  MIN_LINK_VALIDITY_MINUTES,
   RAZORPAY_KEY_ID_PATTERN,
   type GatewayAccountView,
   type LinkAmountBasis,
   type PaymentLinkSettings,
+  type UpdatePaymentLinkSettingsRequest,
 } from '@paint/shared';
 import { Alert, Badge, Button, Card, Field, Input, PageHeader, Select, useToast } from '@paint/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -19,34 +19,52 @@ import { parseRupees, rupeesInput } from '../lib/inputs.js';
 import { QueryState } from '../lib/QueryState.js';
 import { CopyLinkButton, PAYMENT_LINK_SETTINGS_KEY } from './PaymentLinks.js';
 
-// Settings, Payment links (P2-M32, [PO-40] – [PO-43]): owners and admins connect the
-// business's own Razorpay account (keys never shown again, only their last four
-// characters) and set how long links stay payable, their cap and what they ask for.
+// Settings, Payment links (P2-M32, [PO-40] – [PO-43], [PO-60], [PO-61]): owners and
+// admins connect the business's own Razorpay account (keys never shown again, only their
+// last four characters) and set how long links stay payable (at the counter and in
+// messages), their cap and what they ask for.
 
 const GATEWAY_ACCOUNT_KEY = ['payment-link-gateway-account'] as const;
 
 /** What a rules form says is wrong, by field. */
-export type RulesProblems = Partial<Record<'validityMinutes' | 'cap', 'range'>>;
+export type RulesProblems = Partial<
+  Record<'validityMinutes' | 'messageValidityMinutes' | 'cap', 'range'>
+>;
 
-/** The rules form checked as the API checks it. */
-export function parseRules(form: {
-  readonly validityMinutes: string;
-  readonly cap: string;
-  readonly amountBasis: LinkAmountBasis;
-}):
-  | { ok: true; input: { validityMinutes: number; capPaise: number; amountBasis: LinkAmountBasis } }
-  | { ok: false; problems: RulesProblems } {
+/**
+ * The rules form checked as the API checks it: each validity from the business's shortest
+ * (15 minutes with Razorpay, [PO-60]) to 30 days.
+ */
+export function parseRules(
+  form: {
+    readonly validityMinutes: string;
+    readonly messageValidityMinutes: string;
+    readonly cap: string;
+    readonly amountBasis: LinkAmountBasis;
+  },
+  minValidityMinutes: number,
+): { ok: true; input: UpdatePaymentLinkSettingsRequest } | { ok: false; problems: RulesProblems } {
   const problems: RulesProblems = {};
-  const minutes = /^\d+$/.test(form.validityMinutes.trim()) ? Number(form.validityMinutes) : NaN;
-  if (!(minutes >= MIN_LINK_VALIDITY_MINUTES && minutes <= MAX_LINK_VALIDITY_MINUTES)) {
-    problems.validityMinutes = 'range';
-  }
+  const minutesOf = (field: 'validityMinutes' | 'messageValidityMinutes') => {
+    const minutes = /^\d+$/.test(form[field].trim()) ? Number(form[field]) : NaN;
+    if (!(minutes >= minValidityMinutes && minutes <= MAX_LINK_VALIDITY_MINUTES)) {
+      problems[field] = 'range';
+    }
+    return minutes;
+  };
+  const validityMinutes = minutesOf('validityMinutes');
+  const messageValidityMinutes = minutesOf('messageValidityMinutes');
   const cap = parseRupees(form.cap);
   if (cap === null || cap < MIN_LINK_CAP_PAISE || cap > MAX_LINK_CAP_PAISE) problems.cap = 'range';
   if (Object.keys(problems).length > 0) return { ok: false, problems };
   return {
     ok: true,
-    input: { validityMinutes: minutes, capPaise: Number(cap), amountBasis: form.amountBasis },
+    input: {
+      validityMinutes,
+      messageValidityMinutes,
+      capPaise: Number(cap),
+      amountBasis: form.amountBasis,
+    },
   };
 }
 
@@ -57,6 +75,7 @@ function RulesForm({ settings }: { readonly settings: PaymentLinkSettings }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({
     validityMinutes: String(settings.validityMinutes),
+    messageValidityMinutes: String(settings.messageValidityMinutes),
     cap: rupeesInput(settings.capPaise),
     amountBasis: settings.amountBasis,
   });
@@ -64,7 +83,7 @@ function RulesForm({ settings }: { readonly settings: PaymentLinkSettings }) {
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const save = async () => {
-    const parsed = parseRules(form);
+    const parsed = parseRules(form, settings.minValidityMinutes);
     if (!parsed.ok) {
       setProblems(parsed.problems);
       return;
@@ -82,6 +101,29 @@ function RulesForm({ settings }: { readonly settings: PaymentLinkSettings }) {
       setPending(false);
     }
   };
+  const range = t('paymentLinkSettings.rules.validityRange', {
+    min: String(settings.minValidityMinutes),
+    max: String(MAX_LINK_VALIDITY_MINUTES),
+  });
+  const validityField = (
+    field: 'validityMinutes' | 'messageValidityMinutes',
+    label: MessageKey,
+    hint: MessageKey,
+  ) => (
+    <Field
+      label={t(label)}
+      hint={t(hint)}
+      error={problems[field] === undefined ? undefined : range}
+    >
+      <Input
+        inputMode="numeric"
+        value={form[field]}
+        onChange={(event) => {
+          setForm({ ...form, [field]: event.target.value });
+        }}
+      />
+    </Field>
+  );
   return (
     <form
       noValidate
@@ -93,27 +135,24 @@ function RulesForm({ settings }: { readonly settings: PaymentLinkSettings }) {
       <Card title={t('paymentLinkSettings.rules.title')}>
         <div className="stack">
           {message !== null && <Alert tone="danger">{message}</Alert>}
+          {settings.minValidityMinutes > 5 && (
+            <p className="muted">
+              {t('paymentLinkSettings.rules.gatewayMinimum', {
+                min: String(settings.minValidityMinutes),
+              })}
+            </p>
+          )}
           <div className="form-grid">
-            <Field
-              label={t('paymentLinkSettings.rules.validity')}
-              hint={t('paymentLinkSettings.rules.validityHint')}
-              error={
-                problems.validityMinutes === undefined
-                  ? undefined
-                  : t('paymentLinkSettings.rules.validityRange', {
-                      min: String(MIN_LINK_VALIDITY_MINUTES),
-                      max: String(MAX_LINK_VALIDITY_MINUTES),
-                    })
-              }
-            >
-              <Input
-                inputMode="numeric"
-                value={form.validityMinutes}
-                onChange={(event) => {
-                  setForm({ ...form, validityMinutes: event.target.value });
-                }}
-              />
-            </Field>
+            {validityField(
+              'validityMinutes',
+              'paymentLinkSettings.rules.validity',
+              'paymentLinkSettings.rules.validityHint',
+            )}
+            {validityField(
+              'messageValidityMinutes',
+              'paymentLinkSettings.rules.messageValidity',
+              'paymentLinkSettings.rules.messageValidityHint',
+            )}
             <Field
               label={t('paymentLinkSettings.rules.cap')}
               hint={t('paymentLinkSettings.rules.capHint', { max: money(MAX_LINK_CAP_PAISE) })}
@@ -195,7 +234,19 @@ function ConnectForm({ connected }: { readonly connected: boolean }) {
       setForm(empty);
       queryClient.setQueryData(GATEWAY_ACCOUNT_KEY, account);
       await queryClient.invalidateQueries({ queryKey: PAYMENT_LINK_SETTINGS_KEY });
-      toast({ title: t('paymentLinkSettings.connect.done'), tone: 'success' });
+      const raised = account.validityRaised;
+      toast({
+        title: t('paymentLinkSettings.connect.done'),
+        // Razorpay's shortest validity: shorter links were raised to it ([PO-60]).
+        ...(raised === null
+          ? {}
+          : {
+              description: t('paymentLinkSettings.connect.validityRaised', {
+                minutes: String(raised.to),
+              }),
+            }),
+        tone: 'success',
+      });
     } catch (error) {
       setProblem(errorMessage(error));
     } finally {
@@ -388,7 +439,11 @@ export function PaymentLinkSettingsPage() {
         {(data) => (
           <div className="stack">
             <GatewaySection settings={data} />
-            <RulesForm settings={data} />
+            {/* A fresh form when the rules change elsewhere (connecting raises them). */}
+            <RulesForm
+              key={`${String(data.validityMinutes)}:${String(data.messageValidityMinutes)}:${String(data.minValidityMinutes)}`}
+              settings={data}
+            />
           </div>
         )}
       </QueryState>

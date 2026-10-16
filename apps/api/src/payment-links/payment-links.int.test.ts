@@ -223,6 +223,9 @@ describe('payment link settings', () => {
   it('say whether links can be made, and the business’s rules: 10 minutes, ₹1,00,000, net', async () => {
     const defaults = {
       validityMinutes: 10,
+      // A day for links sent in messages ([PO-61]); the log gateway takes 5 minutes.
+      messageValidityMinutes: 1_440,
+      minValidityMinutes: 5,
       capPaise: 10_000_000,
       amountBasis: 'net',
     };
@@ -470,6 +473,8 @@ describe('making a payment link', () => {
       send: 'whatsapp',
     });
     expect(sent.message).toMatchObject({ queued: true });
+    // Sent through the outbox, it is payable for a message's validity ([PO-61]): a day.
+    expect(Date.parse(sent.link.expiresAt) - Date.parse(sent.link.createdAt)).toBe(1_440 * 60_000);
     const [message] = await t.connection.db
       .select()
       .from(messageOutbox)
@@ -495,6 +500,8 @@ describe('making a payment link', () => {
       await create({ partyId: party, purpose: 'invoice', invoiceId: invoice.id }, b.owner, quiet),
     ).json<PaymentLinkCreated>();
     expect(shared.message).toBeNull();
+    // Shared by hand, it keeps the counter validity: 10 minutes.
+    expect(Date.parse(shared.link.expiresAt) - Date.parse(shared.link.createdAt)).toBe(10 * 60_000);
   });
 
   it('is made once per Idempotency-Key', async () => {

@@ -147,6 +147,8 @@ describe('before a business connects Razorpay', () => {
       provider: 'razorpay',
       ready: false,
       validityMinutes: 10,
+      messageValidityMinutes: 1_440,
+      minValidityMinutes: 5,
       capPaise: 10_000_000,
       amountBasis: 'net',
     });
@@ -164,6 +166,7 @@ describe('before a business connects Razorpay', () => {
       webhookUrl: expect.stringMatching(
         /^https:\/\/api\.example\.in\/webhooks\/payment-links\/razorpay\/[\w-]{22}$/,
       ) as string,
+      validityRaised: null,
     });
     // The address stays the same.
     expect((await accountOf()).webhookUrl).toBe(account.webhookUrl);
@@ -172,6 +175,16 @@ describe('before a business connects Razorpay', () => {
     expect(reply.json<{ code: string }>().code).toBe('gateway_not_connected');
     const test = await api(t, b.owner).post('/payment-links/gateway-account/test');
     expect(test.json<{ code: string }>().code).toBe('gateway_not_connected');
+    // Not yet connected, 10 minutes is still allowed; connecting raises it ([PO-60]).
+    const saved = ok(
+      await api(t, b.owner).put('/payment-links/settings', {
+        validityMinutes: 10,
+        messageValidityMinutes: 1_440,
+        capPaise: 10_000_000,
+        amountBasis: 'net',
+      }),
+    ).json<PaymentLinkSettings>();
+    expect(saved).toMatchObject({ validityMinutes: 10, minValidityMinutes: 5 });
   });
 
   it('is managed by owners and admins only', async () => {
@@ -183,6 +196,7 @@ describe('before a business connects Razorpay', () => {
       await api(t, manager).delete('/payment-links/gateway-account'),
       await api(t, manager).put('/payment-links/settings', {
         validityMinutes: 30,
+        messageValidityMinutes: 30,
         capPaise: 100,
         amountBasis: 'net',
       }),
@@ -220,6 +234,8 @@ describe('connecting Razorpay', () => {
       keySecretHint: keys.keySecret.slice(-4),
       webhookSecretHint: keys.webhookSecret.slice(-4),
       connectedBy: 'Owner',
+      // Its 10-minute links were raised to Razorpay's 15 ([PO-60]); a day was long enough.
+      validityRaised: { counterFrom: 10, messageFrom: null, to: 15 },
     });
     expect(account.verifiedAt).not.toBeNull();
     for (const text of [
@@ -253,7 +269,15 @@ describe('connecting Razorpay', () => {
     for (const secret of [keys.keySecret, keys.webhookSecret, keys.keySecret.slice(-4)]) {
       expect(audited).not.toContain(secret);
     }
-    expect(await settingsOf()).toMatchObject({ ready: true });
+    expect(await settingsOf()).toMatchObject({
+      ready: true,
+      validityMinutes: 15,
+      messageValidityMinutes: 1_440,
+      minValidityMinutes: 15,
+    });
+    // Connecting again finds nothing to raise.
+    expect(ok(await connect(keys)).json<GatewayAccountView>().validityRaised).toBeNull();
+    expect((await accountOf()).validityRaised).toBeNull();
   });
 
   it('says when Razorpay cannot be checked just now', async () => {
@@ -302,15 +326,17 @@ describe('links through the business’s own Razorpay account', () => {
     expect(gatewayLinkId).toMatch(/^plink_/);
     expect(linkView).toMatchObject({ provider: 'razorpay', amountPaise: 11_800 });
     expect(linkView.url).toMatch(/^https:\/\/rzp\.io\/i\//);
-    expect(Date.parse(linkView.expiresAt) - Date.parse(linkView.createdAt)).toBe(10 * 60_000);
-    // Razorpay's 15-minute minimum: the gateway keeps it a little longer.
+    // Razorpay's 15-minute minimum, with the adapter's minute of margin; recorded as
+    // Razorpay keeps it, so the two expiries agree ([PO-60]).
     const expireBy = (made?.body as { expire_by: number }).expire_by * 1000;
     expect(expireBy - Date.now()).toBeGreaterThan(15 * 60_000);
+    expect(Date.parse(linkView.expiresAt)).toBe(expireBy);
   });
 
   it('are refused above the business’s cap, and follow its validity', async () => {
     const bad = await api(t, b.owner).put('/payment-links/settings', {
       validityMinutes: 4,
+      messageValidityMinutes: 1_440,
       capPaise: 60_000_000,
       amountBasis: 'gross',
     });
@@ -320,14 +346,38 @@ describe('links through the business’s own Razorpay account', () => {
       'capPaise',
       'amountBasis',
     ]);
+    // With Razorpay connected, under 15 minutes is refused for either validity ([PO-60]).
+    for (const [field, minutes] of [
+      ['validityMinutes', { validityMinutes: 10, messageValidityMinutes: 1_440 }],
+      ['messageValidityMinutes', { validityMinutes: 15, messageValidityMinutes: 14 }],
+    ] as const) {
+      const short = await api(t, b.owner).put('/payment-links/settings', {
+        ...minutes,
+        capPaise: 10_000,
+        amountBasis: 'net',
+      });
+      expect(short.statusCode).toBe(400);
+      expect(short.json<{ issues: { path: string; message: string }[] }>().issues).toEqual([
+        {
+          path: field,
+          message: 'Razorpay keeps a link payable for at least 15 minutes: enter 15 or more',
+        },
+      ]);
+    }
     const saved = ok(
       await api(t, b.owner).put('/payment-links/settings', {
         validityMinutes: 30,
+        messageValidityMinutes: 120,
         capPaise: 10_000,
         amountBasis: 'full',
       }),
     ).json<PaymentLinkSettings>();
-    expect(saved).toMatchObject({ validityMinutes: 30, capPaise: 10_000, amountBasis: 'full' });
+    expect(saved).toMatchObject({
+      validityMinutes: 30,
+      messageValidityMinutes: 120,
+      capPaise: 10_000,
+      amountBasis: 'full',
+    });
     const { reply } = await invoiceLink();
     expect(reply.statusCode).toBe(409);
     expect(reply.json()).toMatchObject({
@@ -345,10 +395,14 @@ describe('links through the business’s own Razorpay account', () => {
         amountPaise: 10_000,
       }),
     ).json<PaymentLinkCreated>();
-    expect(Date.parse(part.link.expiresAt) - Date.parse(part.link.createdAt)).toBe(30 * 60_000);
+    // Razorpay keeps whole seconds: within a second of the business's 30 minutes.
+    const life = Date.parse(part.link.expiresAt) - Date.parse(part.link.createdAt);
+    expect(life).toBeGreaterThanOrEqual(30 * 60_000);
+    expect(life).toBeLessThan(30 * 60_000 + 1_000);
     ok(
       await api(t, b.owner).put('/payment-links/settings', {
-        validityMinutes: 10,
+        validityMinutes: 15,
+        messageValidityMinutes: 1_440,
         capPaise: 10_000_000,
         amountBasis: 'net',
       }),
@@ -466,7 +520,18 @@ describe('links through the business’s own Razorpay account', () => {
   it('never let another business’s secret speak for this business’s links', async () => {
     const other = await billingBusiness(t);
     const theirs = razorpay.account(false);
-    ok(await connect(theirs, other.owner));
+    // Its counter links already last 30 minutes; only its 5-minute message links are raised.
+    ok(
+      await api(t, other.owner).put('/payment-links/settings', {
+        validityMinutes: 30,
+        messageValidityMinutes: 5,
+        capPaise: 10_000_000,
+        amountBasis: 'net',
+      }),
+    );
+    expect(
+      ok(await connect(theirs, other.owner)).json<GatewayAccountView>().validityRaised,
+    ).toEqual({ counterFrom: null, messageFrom: 5, to: 15 });
     const otherAccount = await accountOf(other.owner);
     expect(otherAccount.live).toBe(false);
     const body = paidEvent({ gatewayLinkId }, 11_800, 'pay_Forged00001');

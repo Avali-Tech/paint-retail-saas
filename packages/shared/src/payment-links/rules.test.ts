@@ -11,6 +11,8 @@ import {
   isPermission,
   linkRefundOf,
   linkStatusAt,
+  linkValidityMinutes,
+  minLinkValidityMinutes,
   nextLinkState,
   planPaymentLink,
   refundRetryMinutes,
@@ -302,6 +304,26 @@ describe('nextLinkState', () => {
         expect(allowed, `${status} + ${event} → ${next}`).toBe(true);
       }
     }
+  });
+});
+
+describe('link validity ([PO-60], [PO-61])', () => {
+  const rules = { validityMinutes: 10, messageValidityMinutes: 1_440 };
+
+  it('gives counter links and links in messages their own validity', () => {
+    expect(linkValidityMinutes('counter', rules, 'log')).toBe(10);
+    expect(linkValidityMinutes('message', rules, 'log')).toBe(1_440);
+    expect(linkValidityMinutes('counter', rules, null)).toBe(10);
+  });
+
+  it('never goes below 15 minutes with Razorpay', () => {
+    expect(minLinkValidityMinutes('razorpay')).toBe(15);
+    expect(minLinkValidityMinutes('log')).toBe(5);
+    expect(linkValidityMinutes('counter', rules, 'razorpay')).toBe(15);
+    expect(
+      linkValidityMinutes('message', { ...rules, messageValidityMinutes: 5 }, 'razorpay'),
+    ).toBe(15);
+    expect(linkValidityMinutes('counter', { ...rules, validityMinutes: 30 }, 'razorpay')).toBe(30);
   });
 });
 

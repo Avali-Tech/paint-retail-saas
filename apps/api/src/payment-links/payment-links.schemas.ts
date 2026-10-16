@@ -62,6 +62,11 @@ export const updateLinkSettingsSchema = z
       .int()
       .min(MIN_LINK_VALIDITY_MINUTES, 'A link stays payable for at least 5 minutes')
       .max(MAX_LINK_VALIDITY_MINUTES, 'A link stays payable for at most 30 days'),
+    messageValidityMinutes: z
+      .number()
+      .int()
+      .min(MIN_LINK_VALIDITY_MINUTES, 'A link stays payable for at least 5 minutes')
+      .max(MAX_LINK_VALIDITY_MINUTES, 'A link stays payable for at most 30 days'),
     capPaise: z
       .number()
       .int()
