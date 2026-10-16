@@ -1,4 +1,4 @@
-import type { LoyaltyTier } from '@paint/shared';
+import type { EarnRuleInput, EarnRuleView, LoyaltyTier } from '@paint/shared';
 import type { ApiClient } from './client.js';
 import type { Page } from './parties.js';
 
@@ -19,9 +19,12 @@ export interface LoyaltySummary {
   readonly tier: LoyaltyTier | null;
   readonly nextTier: (LoyaltyTier & { readonly pointsToGo: number }) | null;
   readonly nextExpiry: { readonly points: number; readonly expiresOn: string } | null;
+  /** Painter points (P2-M36): earned on bills they were tagged on, and taken back. */
+  readonly painterPoints: { readonly earned: number; readonly takenBack: number };
 }
 
-export type LedgerKind = 'purchase' | 'award' | 'campaign' | 'redeem' | 'adjust' | 'expire';
+export type LedgerKind =
+  'purchase' | 'award' | 'campaign' | 'redeem' | 'adjust' | 'expire' | 'influencer';
 
 export interface LedgerEntry {
   readonly id: string;
@@ -105,5 +108,10 @@ export function loyaltyEndpoints(api: ApiClient) {
     settings: (signal?: AbortSignal) => api.get<LoyaltySettings>('/loyalty-settings', { signal }),
     setSettings: (settings: LoyaltySettings) =>
       api.put<LoyaltySettings>('/loyalty-settings', settings),
+    /** Painter points earn rules (P2-M36). */
+    earnRules: (signal?: AbortSignal) => api.get<EarnRuleView[]>('/loyalty-earn-rules', { signal }),
+    createEarnRule: (input: EarnRuleInput) => api.post<EarnRuleView>('/loyalty-earn-rules', input),
+    updateEarnRule: (id: string, input: EarnRuleInput) =>
+      api.put<EarnRuleView>(`/loyalty-earn-rules/${id}`, input),
   };
 }

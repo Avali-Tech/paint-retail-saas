@@ -58,6 +58,11 @@ import {
 } from '../orders/order-invoicing.js';
 import { gstRatesFor } from './gst-rates.js';
 import { earnLoyaltyForInvoice, reverseLoyaltyForCancel } from './loyalty-reversal.js';
+import {
+  earnInfluencerPoints,
+  reverseInfluencerPointsForCancel,
+} from '../loyalty/painter-points.js';
+import { queuePointsEarned } from '../loyalty/points-notice.js';
 import { idempotent } from './idempotency.js';
 import { documentView, indiaToday, loadDocument, type TaxDocumentRow } from './invoice-view.js';
 import { invoicePrintSettings } from './print-settings.js';
@@ -235,12 +240,14 @@ export class InvoiceIssueService {
         ]);
       }
       if (document.salesOrderId !== null) await cancelAgainstOrder(tx, document);
-      await reverseLoyaltyForCancel(tx, {
+      const reversal = {
         organizationId: auth.organization.id,
         invoiceId: id,
         invoiceNumber: String(document.number),
         memberId: auth.memberId,
-      });
+      };
+      await reverseLoyaltyForCancel(tx, reversal);
+      await reverseInfluencerPointsForCancel(tx, reversal);
       return documentView(tx, cancelled);
     });
   }
@@ -574,6 +581,16 @@ export class InvoiceIssueService {
       issuedOn: today,
       memberId: auth.memberId,
     });
+    const painterPoints = await earnInfluencerPoints(tx, {
+      organizationId,
+      invoiceId: id,
+      invoiceNumber: number,
+      partyId,
+      influencerPartyId: document.influencerPartyId,
+      issuedOn: today,
+      memberId: auth.memberId,
+    });
+    if (painterPoints !== null) await queuePointsEarned(tx, painterPoints, auth.memberId);
     const view = await this.takePayments(
       tx,
       auth,

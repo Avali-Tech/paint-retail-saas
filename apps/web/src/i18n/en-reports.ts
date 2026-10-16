@@ -162,6 +162,7 @@ export const reportsEn = {
         lastBilled: 'Last billed',
         taxable: 'Taxable value (₹)',
         total: 'Net sales (₹)',
+        points: 'Painter points',
       },
       'sales-by-site': {
         number: 'Project',

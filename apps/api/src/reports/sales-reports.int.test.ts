@@ -105,6 +105,7 @@ describe('sales by influencer', () => {
         lastBilled: today,
         taxable: '900.00',
         total: '1062.00',
+        points: 0,
       },
       {
         influencer: 'Ravi Painter',
@@ -117,6 +118,7 @@ describe('sales by influencer', () => {
         lastBilled: today,
         taxable: '200.00',
         total: '236.00',
+        points: 0,
       },
     ]);
     expect(page.columns.map((c) => c.id)).toContain('sales-by-influencer.customers');
@@ -150,8 +152,9 @@ describe('sales by influencer', () => {
       'Last billed',
       'Taxable value (₹)',
       'Net sales (₹)',
+      'Painter points',
     ]);
-    expect(first?.at(-1)).toBe('1062.00');
+    expect(first?.slice(-2)).toEqual(['1062.00', '0']);
   });
 });
 

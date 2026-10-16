@@ -58,6 +58,9 @@ const LoyaltySettingsPage = lazy(() =>
     default: module.LoyaltySettingsPage,
   })),
 );
+const EarnRulesPage = lazy(() =>
+  import('../loyalty/EarnRulesPage.js').then((module) => ({ default: module.EarnRulesPage })),
+);
 
 /** The customer, credit and loyalty screens, inside the signed-in shell. */
 export function partyRoutes() {
@@ -79,6 +82,7 @@ export function partyRoutes() {
       <Route path="site-accounts/:id" element={guarded('credit:read', SiteAccountPage)} />
       <Route path="settings/credit" element={guarded('credit:read', CreditRulesPage)} />
       <Route path="settings/loyalty" element={guarded('loyalty:read', LoyaltySettingsPage)} />
+      <Route path="settings/painter-points" element={guarded('loyalty:read', EarnRulesPage)} />
       <Route path="loyalty/new" element={guarded('loyalty:manage', EnrolPage)} />
     </>
   );

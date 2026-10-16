@@ -126,14 +126,26 @@ beforeAll(async () => {
       subject: 'Call',
       ...body,
     });
-  await activity('party', customer, { subject: 'Rate enquiry' });
+  // Distinct times, not the database clock of each request: under load the
+  // clock of a container may step back, and the order asserted below is by time.
+  const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+  await activity('party', customer, { subject: 'Rate enquiry', completedAt: minutesAgo(30) });
   await activity('lead', ids.hydLead, {
     type: 'follow_up',
     subject: 'Send quote',
     dueAt: tomorrow,
   });
-  await activity('project', ids.workProject, { type: 'meeting', subject: 'Site meeting' });
-  await activity('lead', ids.punLead, { subject: 'Pune call' }, punSales);
+  await activity('project', ids.workProject, {
+    type: 'meeting',
+    subject: 'Site meeting',
+    completedAt: minutesAgo(20),
+  });
+  await activity(
+    'lead',
+    ids.punLead,
+    { subject: 'Pune call', completedAt: minutesAgo(10) },
+    punSales,
+  );
   // Documents need object storage; the overview only reads their rows.
   await t.connection.db.insert(schema.documents).values({
     organizationId: String((await t.connection.db.select().from(schema.organizations))[0]?.id),

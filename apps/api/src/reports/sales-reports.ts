@@ -76,6 +76,7 @@ export const salesByInfluencer: ReportKind<SalesFilters> = {
     { key: 'site', header: 'Site' },
     { key: 'customers', header: 'Billed to' },
     ...totalColumns,
+    { key: 'points', header: 'Painter points' },
   ],
   ...salesFilters,
   query: (tx: Transaction, auth, filters) =>
@@ -91,6 +92,8 @@ export const salesByInfluencer: ReportKind<SalesFilters> = {
           string | null
         >`string_agg(distinct ${taxDocuments.buyerName}, ', ' order by ${taxDocuments.buyerName})`,
         ...totals,
+        // Painter points (P2-M36) the bills earned the influencer, less what the notes took back.
+        points: sql<string>`coalesce(sum((select sum(l.points) from loyalty_ledger l join loyalty_accounts a on a.id = l.account_id where l.tax_document_id = ${taxDocuments.id} and a.party_id = ${influencers.id} and l.kind in ('influencer', 'adjust'))), 0)`,
       })
       .from(taxDocuments)
       .innerJoin(influencers, eq(influencers.id, taxDocuments.influencerPartyId))
@@ -106,6 +109,7 @@ export const salesByInfluencer: ReportKind<SalesFilters> = {
     site: text(r.site),
     customers: text(r.customers),
     ...totalCells(r),
+    points: Number(r.points),
   }),
 };
 

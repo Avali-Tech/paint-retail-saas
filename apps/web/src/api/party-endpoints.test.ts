@@ -46,6 +46,19 @@ describe('the API client', () => {
   });
 });
 
+const EARN_RULE = {
+  name: 'Every brand',
+  basis: 'value',
+  points: 1,
+  perPaise: 10_000,
+  perMillilitres: null,
+  brandId: null,
+  multiplierBps: 10_000,
+  validFrom: null,
+  validUntil: null,
+  isActive: true,
+} as const;
+
 describe('party, credit and loyalty endpoints', () => {
   it('calls each route with its query and body', async () => {
     const { calls: api, requests } = calls();
@@ -85,6 +98,9 @@ describe('party, credit and loyalty endpoints', () => {
         expiryDays: null,
         minRedemptionPoints: 0,
       }),
+      api.loyalty.earnRules(),
+      api.loyalty.createEarnRule(EARN_RULE),
+      api.loyalty.updateEarnRule('r1', EARN_RULE),
     ]);
     expect(seen(requests).sort()).toEqual(
       [
@@ -111,6 +127,9 @@ describe('party, credit and loyalty endpoints', () => {
         'POST /parties/p1/loyalty/adjustments',
         'GET /loyalty-settings',
         'PUT /loyalty-settings',
+        'GET /loyalty-earn-rules',
+        'POST /loyalty-earn-rules',
+        'PUT /loyalty-earn-rules/r1',
       ].sort(),
     );
     const body = (path: string) =>
