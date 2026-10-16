@@ -299,3 +299,20 @@ Two candidates for the migrations session, if the daily jobs grow slow:
 - **Parameter lists:** the ageing lookups and the worklist pass every party id as its own
   parameter (`IN (...)`). PostgreSQL allows 65,535 parameters, so a business with that many owing
   customers would fail; passing one array (`= any($1::uuid[])`) avoids it.
+
+## Release 2.1: brand profitability (round 5b)
+
+`GET /reports/brand-profitability` reads the books in six queries whatever the period holds (the
+period's sale lines, the units its credit notes put back, the costed receipts behind the average
+cost, every bill owed during it with its dated allocations, the points its documents earned, the
+painter earn rules), then three name lookups. The integration test checks the count does not grow
+as invoices are added. It was not measured on the large demo this round.
+
+### To watch as data grows
+
+- **Average cost is replayed** from the stock ledger: the costed-receipts query runs a window sum
+  over every movement of each store and variant the period sold, from the first. At hundreds of
+  thousands of movements, a nightly average-cost snapshot per store and variant (a migration)
+  would bound it.
+- **Credit cost reads every bill owed during the period**, settled ones included when they were
+  settled inside it; like ageing, a "settled on" date per bill would let it skip the rest.
