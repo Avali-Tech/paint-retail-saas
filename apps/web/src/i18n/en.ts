@@ -20,6 +20,7 @@ import { brandProfitabilityEn, brandProfitabilityEnumsEn } from './en-brand-prof
 import { collectionsEn, collectionsEnumsEn } from './en-collections.js';
 import { paymentLinksEn, paymentLinksEnumsEn } from './en-payment-links.js';
 import { schemesEn, schemesEnumsEn } from './en-schemes.js';
+import { statementsEn, statementsEnumsEn } from './en-statements.js';
 import { posEn } from './en-pos.js';
 import { tintEn } from './en-tint.js';
 import { purchasingEn, purchasingEnumsEn } from './en-purchasing.js';
@@ -357,6 +358,7 @@ export const en = {
   ...collectionsEn,
   ...paymentLinksEn,
   ...schemesEn,
+  ...statementsEn,
   /** Names of API values, for label(group, value). */
   enums: {
     /** Quick actions offered with search, by the API's key. */
@@ -399,6 +401,7 @@ export const en = {
     ...collectionsEnumsEn,
     ...paymentLinksEnumsEn,
     ...schemesEnumsEn,
+    ...statementsEnumsEn,
   },
   pages: {
     notFound: 'This address does not lead to a screen. Check the link, or use the menu or search.',

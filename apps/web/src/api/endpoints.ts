@@ -19,6 +19,7 @@ import { brandProfitabilityEndpoints } from '../brand-profitability/profitabilit
 import { collectionsEndpoints, messagingEndpoints } from '../collections/collections-api.js';
 import { paymentLinkEndpoints } from '../payment-links/payment-links-api.js';
 import { schemeEndpoints } from '../brand-schemes/schemes-api.js';
+import { statementEndpoints } from '../brand-statements/statements-api.js';
 import { tintEndpoints } from '../tint/tint-api.js';
 import { projectEndpoints } from './projects.js';
 import { purchasingEndpoints } from './purchasing.js';
@@ -126,6 +127,7 @@ export function endpoints(api: ApiClient) {
     messaging: messagingEndpoints(api),
     paymentLinks: paymentLinkEndpoints(api),
     schemes: schemeEndpoints(api),
+    statements: statementEndpoints(api),
     estimator: estimatorEndpoints(api),
     tint: tintEndpoints(api),
   };
