@@ -1,6 +1,5 @@
 import { fillLabel, type PrintLabel, type StatementView } from '@paint/shared';
-import PDFDocument from 'pdfkit';
-import { PDF_FONTS } from './render-invoice-pdf.js';
+import { pdfDocument } from './render-invoice-pdf.js';
 
 /**
  * A party's statement of account as an A4 PDF (roadmap P2-M12), drawn with pdfkit and
@@ -318,11 +317,10 @@ class StatementPdf {
 
 /** The statement as an A4 PDF. */
 export function renderStatementPdf(view: StatementView): Promise<Buffer> {
-  const doc = new PDFDocument({
+  const doc = pdfDocument({
     size: 'A4',
     margin: MARGIN,
     bufferPages: true,
-    font: PDF_FONTS.regular,
     lang: 'en-IN',
     info: {
       Title: `${view.labels.statement.text} · ${view.party.name} · ${view.period}`,
@@ -330,7 +328,6 @@ export function renderStatementPdf(view: StatementView): Promise<Buffer> {
       Subject: view.labels.statement.text,
     },
   });
-  for (const [name, path] of Object.entries(PDF_FONTS)) doc.registerFont(name, path);
   const chunks: Buffer[] = [];
   doc.on('data', (chunk: Buffer) => chunks.push(chunk));
   const done = new Promise<Buffer>((resolve) => {
