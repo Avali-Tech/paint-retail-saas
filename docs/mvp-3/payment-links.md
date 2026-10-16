@@ -6,7 +6,8 @@ product owner's decisions on [PO-40] to [PO-44] and adds a real Razorpay adapter
 
 - Each business connects **its own Razorpay account**, so the money goes straight to the shop.
 - Links are payable for **10 minutes** by default and capped at **₹1,00,000** by default. Both
-  can be set per business.
+  can be set per business. Since round 6a, links sent in messages have their own validity (a day by
+  default), and with Razorpay no link lasts less than 15 minutes (§6).
 - Links ask for what is owed **net of the advance** by default, or the bills' full outstanding.
 - Money a link took that nothing was owed for is **refunded through the gateway**, by itself.
 
@@ -44,7 +45,9 @@ Only owners and admins (`organization:manage`) see **Settings → Payment link s
    - **Disconnect** forgets the keys. No new links are made until the shop connects again.
      Razorpay's webhooks meanwhile get a 404 and are retried by Razorpay.
 4. **Set the rules** on the same screen:
-   - how long a link is payable (5 minutes to 30 days, default 10 minutes);
+   - how long a link is payable at the counter or shared by hand (default 10 minutes), and how long
+     a link sent in a message is payable (default a day, 1,440 minutes), each 5 minutes to 30 days,
+     but at least 15 minutes once Razorpay is connected;
    - the most one link may ask for (₹1 to ₹5,00,000, default ₹1,00,000);
    - what links ask for: net of the advance (the default) or the bills' full outstanding.
 
@@ -52,13 +55,13 @@ Who connected the keys and when is in the audit log. No secret is ever in it.
 
 ## 2. What the adapter does (`apps/api/src/payment-links/razorpay-payment-links.ts`)
 
-| Need          | Razorpay API                                                                                               | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Make a link   | `POST /v1/payment_links`                                                                                   | Live keys send `upi_link: true`; test keys send a standard link with `options.checkout.method` set to UPI only. `accept_partial: false`. `reference_id` is our number plus a random suffix (at most 40 characters). Razorpay's own SMS and email are off (we send the link). `expire_by` is our expiry, but at least 16 minutes ahead: Razorpay refuses less than 15 minutes ([PO-60]). Money paid after our expiry is still recorded (PL-9). |
-| Cancel a link | `POST /v1/payment_links/:id/cancel`                                                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Refund        | `POST /v1/payments/:id/refund`                                                                             | `speed: normal`. `receipt` is our refund row's id: asking again with it gets "Duplicate receipt", so the adapter finds the refund already made (`GET /v1/payments/:id/refunds`) instead of refunding twice.                                                                                                                                                                                                                                   |
-| Test the keys | `GET /v1/payments?count=1`                                                                                 | Reads nothing that matters.                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Webhooks      | `payment_link.paid` (and `.partially_paid`), `.expired`, `.cancelled`, `refund.processed`, `refund.failed` | Hex HMAC-SHA256 of the raw body with the business's webhook secret, in `X-Razorpay-Signature`. The event is named by `X-Razorpay-Event-Id`, or by its content for older deliveries. Anything else is kept in `payment_gateway_events` and ignored.                                                                                                                                                                                            |
+| Need          | Razorpay API                                                                                               | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Make a link   | `POST /v1/payment_links`                                                                                   | Live keys send `upi_link: true`; test keys send a standard link with `options.checkout.method` set to UPI only. `accept_partial: false`. `reference_id` is our number plus a random suffix (at most 40 characters). Razorpay's own SMS and email are off (we send the link). `expire_by` is our expiry, but at least 16 minutes ahead: Razorpay refuses less than 15 minutes, and a minute's margin covers clock skew. The link is recorded with the `expire_by` Razorpay answers, so our expiry and Razorpay's agree ([PO-60], PL-20). Money paid after expiry is still recorded (PL-9). |
+| Cancel a link | `POST /v1/payment_links/:id/cancel`                                                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Refund        | `POST /v1/payments/:id/refund`                                                                             | `speed: normal`. `receipt` is our refund row's id: asking again with it gets "Duplicate receipt", so the adapter finds the refund already made (`GET /v1/payments/:id/refunds`) instead of refunding twice.                                                                                                                                                                                                                                                                                                                                                                               |
+| Test the keys | `GET /v1/payments?count=1`                                                                                 | Reads nothing that matters.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Webhooks      | `payment_link.paid` (and `.partially_paid`), `.expired`, `.cancelled`, `refund.processed`, `refund.failed` | Hex HMAC-SHA256 of the raw body with the business's webhook secret, in `X-Razorpay-Signature`. The event is named by `X-Razorpay-Event-Id`, or by its content for older deliveries. Anything else is kept in `payment_gateway_events` and ignored.                                                                                                                                                                                                                                                                                                                                        |
 
 **Transport.** Plain `fetch` with Basic auth, as the subscriptions adapter does:
 
@@ -153,7 +156,24 @@ on its way" or "Refund of ₹… failed: kept as an advance". The customer ledge
   message shows (a statement's balance), the message names the link's amount: "Pay ₹2,360.00 by
   UPI: …" in the message's language (`payLinkText`). Both figures are then explicit.
 
-## 6. Later
+## 6. Link validity (round 6a, [PO-60] and [PO-61] decided)
+
+| Link                                                                                                    | Payable for                                                           |
+| ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Sent in a message: the reminder run, statement shares, a staff link sent on WhatsApp through the outbox | The business's **message validity**: a day (1,440 minutes) by default |
+| Shown at the counter, or shared by hand (`wa.me`, QR, copy)                                             | The business's **counter validity**: 10 minutes by default            |
+
+- Both are 5 minutes to 30 days. **With Razorpay connected, neither may be under 15 minutes**:
+  the settings screen and `PUT /payment-links/settings` refuse less and name the field.
+- **Connecting Razorpay** raises a shorter validity to 15 minutes and says so ("Razorpay keeps a
+  link payable for at least 15 minutes…"); the change is in the audit log with the other sales
+  settings. Migration 0091 raised businesses already connected the same way ([PO-97]).
+- A link made at Razorpay lives at least 16 minutes (a minute's margin) and is **recorded with
+  Razorpay's expiry**, so the link list, the test page and Razorpay show the same time ([PO-98]).
+- The reminder run and statement shares send an open link again only while it has at least half
+  of a message link's validity (at most a day) left (PL-5, PL-19).
+
+## 7. Later
 
 - **Cashfree** (or PayU) is another adapter of the same `PaymentLinkProvider` interface, with its
   own credentials shape, signature header and events. A platform partner account (Razorpay Route)
