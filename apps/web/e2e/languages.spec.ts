@@ -146,6 +146,19 @@ for (const language of LANGUAGES) {
       ['/payments', messages.books.payments.title],
       ['/accounting/export', messages.books.accounting.title],
     ],
+    // MVP 3: credit, receivables, collections, painter points and billing.
+    [
+      ['/receivables', messages.receivables.title],
+      ['/collections', messages.collections.title],
+      ['/collections/reminders', messages.collections.schedule.title],
+      ['/credit/approvals', messages.approvals.title],
+    ],
+    [
+      ['/credit-requests', messages.credit.requests.title],
+      ['/settings/credit', messages.creditRules.title],
+      ['/settings/painter-points', messages.earnRules.title],
+      ['/settings/billing', messages.subscription.title],
+    ],
   ];
 
   for (const [group, screens] of phoneScreens(language.messages).entries()) {
@@ -161,6 +174,43 @@ for (const language of LANGUAGES) {
       }
     });
   }
+
+  test(`a customer's credit, collections and statement fit in ${language.code} @phone`, async ({
+    page,
+  }) => {
+    const { messages } = language;
+    const business = await signedInBusiness(page, `Khata ${language.code} Paints`);
+    const party = await call<{ id: string }>('POST', '/parties', {
+      token: business.token,
+      body: {
+        displayName: 'Venkata Lakshmi Constructions',
+        roles: ['customer', 'contractor'],
+        phone: '+919876543210',
+      },
+    });
+    await chooseLanguage(page, language);
+    await page.goto(`/parties/${party.id}`);
+    await expect(
+      page.getByRole('heading', { name: 'Venkata Lakshmi Constructions', level: 1 }),
+    ).toBeVisible();
+    await expectUsable(page);
+    // Consent to messages: the notice is read out in the customer's language.
+    await page
+      .getByRole('region', { name: messages.messaging.title })
+      .getByRole('button', { name: messages.messaging.record })
+      .click();
+    await expect(page.getByRole('dialog', { name: messages.messaging.dialog.title })).toBeVisible();
+    await expectUsable(page);
+    await page.keyboard.press('Escape');
+    await page.goto(`/parties/${party.id}/statement`);
+    await expect(
+      page.getByRole('heading', {
+        name: messages.statement.title.replace('{name}', 'Venkata Lakshmi Constructions'),
+        level: 1,
+      }),
+    ).toBeVisible();
+    await expectUsable(page);
+  });
 
   test(`the phone menu fits in ${language.code} @phone`, async ({ page }) => {
     await signedInBusiness(page, `Phone Menu ${language.code} Paints`);
