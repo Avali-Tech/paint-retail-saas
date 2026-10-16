@@ -127,7 +127,9 @@ test('a link sent from the worklist is paid by UPI and recorded with no manual e
   await expect(table.getByRole('row')).toHaveCount(2);
   await expect(table.getByText('UPI link')).toBeVisible();
   await page.goto('/payment-links');
-  await expect(page.getByRole('table', { name: 'Payment links' }).getByText('Paid')).toBeVisible();
+  await expect(
+    page.getByRole('table', { name: 'Payment links' }).locator('tbody').getByText('Paid'),
+  ).toBeVisible();
 });
 
 test('a part payment on an invoice’s link leaves it open, part paid', async ({ page }) => {
