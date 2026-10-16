@@ -144,6 +144,7 @@ export const teamHi: Translation<typeof teamEn> = {
       register: 'कैश रजिस्टर',
       accounting: 'लेखा',
       receivables: 'बकाया',
+      schemes: 'ब्रांड स्कीम',
     },
     organization: {
       manage: 'बिजनेस चलाएं: सेटिंग, दिखावट, लॉगिन नियम और सपोर्ट एक्सेस',
@@ -212,5 +213,9 @@ export const teamHi: Translation<typeof teamEn> = {
       reconcile: 'खातों का रात का मिलान देखें और अभी चलाएँ',
     },
     receivables: { read: 'ग्राहकों का बकाया, उसकी उम्र और वसूली सूची देखें' },
+    schemes: {
+      manage:
+        'ब्रांड की स्कीम और स्लैब दर्ज करें, ब्रांड से मिला लाभ दर्ज करें और क्लेम पर नज़र रखें',
+    },
   },
 };

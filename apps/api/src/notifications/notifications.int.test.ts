@@ -348,6 +348,18 @@ describe('preferences', () => {
         inApp: true,
         email: true,
       },
+      {
+        event: 'scheme_slab_near',
+        title: "A brand scheme's next slab is within reach as its period ends",
+        inApp: true,
+        email: true,
+      },
+      {
+        event: 'scheme_claim_overdue',
+        title: 'A brand scheme claim is past its due date',
+        inApp: true,
+        email: true,
+      },
     ]);
     expect(saved.statusCode).toBe(200);
     expect(
@@ -374,6 +386,8 @@ describe('preferences', () => {
       ['promise_broken', true, true],
       ['payment_link_paid', true, true],
       ['payment_link_refund', true, true],
+      ['scheme_slab_near', true, true],
+      ['scheme_claim_overdue', true, true],
     ]);
     const duplicate = await api(hydManager).put('/notifications/preferences', {
       preferences: [
