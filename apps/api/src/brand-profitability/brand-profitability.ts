@@ -16,6 +16,7 @@ import { indiaToday } from '../billing/invoice-view.js';
 import type { BrandProfitabilityInput } from './brand-profitability.schemas.js';
 import { marginRows } from './margin-rows.js';
 import { loadMarginInputs } from './profitability-data.js';
+import { profitabilitySettings } from './profitability-settings.js';
 import type { SchemeMoneySource } from './scheme-money.js';
 
 /**
@@ -65,13 +66,16 @@ export async function brandProfitability(
     query.from !== undefined && query.to !== undefined
       ? { from: query.from, to: query.to }
       : previousQuarter(await indiaToday(tx));
+  const settings = await profitabilitySettings(tx);
+  const costOfMoneyBps = query.costOfMoneyBps ?? settings.costOfMoneyBps;
+  const pointValuePaise = query.pointValuePaise ?? settings.pointValuePaise;
   const ofBrand = <T extends { brandId: string }>(list: readonly T[]) =>
     query.brandId === undefined ? list : list.filter((item) => item.brandId === query.brandId);
 
   const rows = ofBrand(
     marginRows(await loadMarginInputs(tx, period), {
       ...period,
-      pointValuePaise: query.pointValuePaise,
+      pointValuePaise,
     }),
   );
   const money = ofBrand(await schemes.byBrand(tx, auth.organization.id, period.from, period.to));
@@ -84,7 +88,7 @@ export async function brandProfitability(
         (query.productId === undefined || slice.productId === query.productId);
   const slices = brandMargins(rows, money, {
     groupBy: ['product', 'store'],
-    costOfMoneyBps: query.costOfMoneyBps,
+    costOfMoneyBps,
   }).filter(shown);
   const uncosted = rows.filter(shown);
 
@@ -104,8 +108,9 @@ export async function brandProfitability(
   return {
     ...period,
     groupBy: query.groupBy,
-    costOfMoneyBps: query.costOfMoneyBps,
-    pointValuePaise: query.pointValuePaise,
+    costOfMoneyBps,
+    pointValuePaise,
+    settings,
     schemesCounted: schemes.counted,
     brands: brandRows,
     total: sumMargins(brandRows.map((row) => row.figures)),

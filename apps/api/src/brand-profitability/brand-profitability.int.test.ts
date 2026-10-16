@@ -26,6 +26,7 @@ import type { AuthContext } from '../auth/auth-context.js';
 import type { ReportSummary } from '../reports/reports.service.js';
 import { brandProfitability } from './brand-profitability.js';
 import { brandProfitabilitySchema } from './brand-profitability.schemas.js';
+import { profitabilitySettings } from './profitability-settings.js';
 import { NO_SCHEME_MONEY, type SchemeMoneySource } from './scheme-money.js';
 
 const { creditProfiles } = schema;
@@ -736,6 +737,63 @@ describe('scheme money', () => {
   });
 });
 
+describe('the business’s settings', () => {
+  it('takes its cost of money and point value unless the request overrides them', async () => {
+    const o = owner();
+    expect((await view(`brandId=${nerolac}`)).settings).toEqual({
+      costOfMoneyBps: 1_200,
+      pointValuePaise: 100,
+    });
+    expect(
+      ok(
+        await o.put('/reports/brand-profitability/settings', {
+          costOfMoneyBps: 2_400,
+          pointValuePaise: 50,
+        }),
+      ).json(),
+    ).toEqual({ costOfMoneyBps: 2_400, pointValuePaise: 50 });
+    // Beauty: 519,200 paise-days at 24 % = 341.4 → 341; points at 50 paise.
+    const stored = await view(`brandId=${nerolac}`);
+    expect(stored).toMatchObject({
+      costOfMoneyBps: 2_400,
+      pointValuePaise: 50,
+      settings: { costOfMoneyBps: 2_400, pointValuePaise: 50 },
+    });
+    expect(stored.brands[0]?.figures).toMatchObject({
+      creditCostPaise: 341,
+      loyaltyPaise: 200,
+      painterPointsPaise: 400,
+    });
+    const overridden = await view(`brandId=${nerolac}&costOfMoneyBps=1200&pointValuePaise=100`);
+    expect(overridden.brands[0]?.figures).toEqual(beautyAmp);
+    // One at a time; back to the defaults for the tests after.
+    expect(
+      ok(await o.put('/reports/brand-profitability/settings', { costOfMoneyBps: 1_200 })).json(),
+    ).toEqual({ costOfMoneyBps: 1_200, pointValuePaise: 50 });
+    ok(await o.put('/reports/brand-profitability/settings', { pointValuePaise: 100 }));
+    expect((await view(`brandId=${nerolac}`)).brands[0]?.figures).toEqual(beautyAmp);
+  });
+
+  it('is changed by owners and admins only, with something to change', async () => {
+    const put = (body: object, token = b.owner) =>
+      api(t, token).put('/reports/brand-profitability/settings', body);
+    expect(issuesOf(await put({}))).toEqual(['']);
+    expect(issuesOf(await put({ costOfMoneyBps: 10_001, pointValuePaise: -1 }))).toEqual([
+      'costOfMoneyBps',
+      'pointValuePaise',
+    ]);
+    const manager = await b.member('branch_manager', [b.stores.amp]);
+    expect((await put({ costOfMoneyBps: 900 }, manager)).statusCode).toBe(403);
+  });
+
+  it('falls back to 12 % and ₹1 a point for a business with no settings yet', async () => {
+    const elsewhere = '00000000-0000-4000-8000-0000000000ff';
+    expect(await withTenant(t.connection.db, elsewhere, (tx) => profitabilitySettings(tx))).toEqual(
+      { costOfMoneyBps: 1_200, pointValuePaise: 100 },
+    );
+  });
+});
+
 describe('scheme money from the schemes module', () => {
   it('adds what the brand issued on a real scheme, spread over its stores by cost', async () => {
     const me = ok(await owner().get('/auth/me')).json<{ memberId: string }>();
@@ -824,7 +882,7 @@ describe('scale', () => {
       });
     }
     expect(await count()).toBe(before);
-    // Sign-in, our six reads and three name lookups, and the schemes module's own.
-    expect(before).toBeLessThanOrEqual(24);
+    // Sign-in, the two settings, our six reads, three name lookups and the schemes module's own.
+    expect(before).toBeLessThanOrEqual(26);
   });
 });

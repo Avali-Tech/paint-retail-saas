@@ -65,12 +65,15 @@ export {
   DEFAULT_POINT_VALUE_PAISE,
   PROFITABILITY_GROUPS,
   PROFITABILITY_MAX_DAYS,
+  PROFITABILITY_SETTINGS_PERMISSION,
   currentQuarter,
   previousQuarter,
   type BrandProfitabilityQuery,
   type BrandProfitabilityRow,
   type BrandProfitabilityView,
   type ProfitabilityGroup,
+  type ProfitabilitySettings,
+  type ProfitabilitySettingsInput,
   type ProfitabilitySliceView,
 } from './profitability-api.js';
 export {

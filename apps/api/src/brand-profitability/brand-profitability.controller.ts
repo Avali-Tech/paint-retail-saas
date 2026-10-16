@@ -1,7 +1,13 @@
 import 'reflect-metadata';
-import { Controller, Get, Inject, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Put, Query, Res } from '@nestjs/common';
 import { withTenant, type DatabaseConnection } from '@paint/db';
-import { BRAND_PROFITABILITY_PERMISSION, type BrandProfitabilityView } from '@paint/shared';
+import {
+  BRAND_PROFITABILITY_PERMISSION,
+  PROFITABILITY_SETTINGS_PERMISSION,
+  type BrandProfitabilityView,
+  type ProfitabilitySettings,
+  type ProfitabilitySettingsInput,
+} from '@paint/shared';
 import type { FastifyReply } from 'fastify';
 import type { AuthContext } from '../auth/auth-context.js';
 import { CurrentAuth, RequirePermissions } from '../auth/decorators.js';
@@ -10,7 +16,11 @@ import { DATABASE } from '../database/database.module.js';
 import { attachmentHeader } from '../documents/file-checks.js';
 import { ReportsService } from '../reports/reports.service.js';
 import { brandProfitability } from './brand-profitability.js';
-import { brandProfitabilitySchema } from './brand-profitability.schemas.js';
+import {
+  brandProfitabilitySchema,
+  profitabilitySettingsSchema,
+} from './brand-profitability.schemas.js';
+import { saveProfitabilitySettings } from './profitability-settings.js';
 import { schemeMoney } from './scheme-money.js';
 
 /**
@@ -43,6 +53,18 @@ export class BrandProfitabilityController {
     const filters = new ZodValidationPipe(brandProfitabilitySchema).transform(rest);
     return withTenant(this.connection.db, auth.organization.id, (tx) =>
       brandProfitability(tx, auth, filters, schemeMoney),
+    );
+  }
+
+  /** The business's cost of money and point value, the report's defaults (owners and admins). */
+  @Put('settings')
+  @RequirePermissions(PROFITABILITY_SETTINGS_PERMISSION)
+  settings(
+    @CurrentAuth() auth: AuthContext,
+    @Body(new ZodValidationPipe(profitabilitySettingsSchema)) body: ProfitabilitySettingsInput,
+  ): Promise<ProfitabilitySettings> {
+    return withTenant(this.connection.db, auth.organization.id, (tx) =>
+      saveProfitabilitySettings(tx, auth.organization.id, body),
     );
   }
 }

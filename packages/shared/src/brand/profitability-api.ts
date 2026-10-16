@@ -16,10 +16,7 @@ export const BRAND_PROFITABILITY_PERMISSION = 'accounting:export' as const satis
 export const PROFITABILITY_GROUPS = ['brand', 'product', 'store'] as const;
 export type ProfitabilityGroup = (typeof PROFITABILITY_GROUPS)[number];
 
-/**
- * What one loyalty or painter point costs the business, in paise, until the
- * programme has a point value of its own ([PO-81]): ₹1.
- */
+/** What one loyalty or painter point costs the business by default, in paise ([PO-81]): ₹1. */
 export const DEFAULT_POINT_VALUE_PAISE = 100;
 
 /** The longest period one report covers, in days (a financial year). */
@@ -34,9 +31,9 @@ export interface BrandProfitabilityQuery {
   readonly brandId?: string;
   readonly productId?: string;
   readonly groupBy?: ProfitabilityGroup;
-  /** The cost of money a year in basis points; the business's ([PO-5], 12 %) when left out. */
+  /** The cost of money a year in basis points; the business's setting ([PO-5]) when left out. */
   readonly costOfMoneyBps?: number;
-  /** Paise per point; {@link DEFAULT_POINT_VALUE_PAISE} when left out. */
+  /** Paise per point; the business's setting when left out. */
   readonly pointValuePaise?: number;
 }
 
@@ -65,8 +62,11 @@ export interface BrandProfitabilityView {
   readonly from: string;
   readonly to: string;
   readonly groupBy: ProfitabilityGroup;
+  /** The cost of money and point value used: the request's, else the business's settings. */
   readonly costOfMoneyBps: number;
   readonly pointValuePaise: number;
+  /** The business's stored settings. */
+  readonly settings: ProfitabilitySettings;
   /** False while scheme money is not counted yet (the schemes module is not connected). */
   readonly schemesCounted: boolean;
   /** Brands, most contribution first. */
@@ -97,3 +97,20 @@ export function currentQuarter(today: string): { from: string; to: string } {
   const quarterStart = Math.floor((month - 1) / 3) * 3 + 1;
   return { from: `${today.slice(0, 4)}-${String(quarterStart).padStart(2, '0')}-01`, to: today };
 }
+
+/** Who changes the business's profitability settings: owners and admins, as other business settings. */
+export const PROFITABILITY_SETTINGS_PERMISSION =
+  'organization:manage' as const satisfies Permission;
+
+/**
+ * The business's own figures for brand profitability (migration 0086): its cost of
+ * money ([PO-5], `sales_settings`) and what a point costs it (`loyalty_settings`).
+ * A request may override either.
+ */
+export interface ProfitabilitySettings {
+  readonly costOfMoneyBps: number;
+  readonly pointValuePaise: number;
+}
+
+/** PUT /reports/brand-profitability/settings: either or both. */
+export type ProfitabilitySettingsInput = Partial<ProfitabilitySettings>;
