@@ -603,6 +603,20 @@
       "when": 1792153089485,
       "tag": "0085_grant_schemes_manage",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1792160754256,
+      "tag": "0086_profitability_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1792160782045,
+      "tag": "0087_profitability_settings_audit",
+      "breakpoints": true
     }
   ]
 }
