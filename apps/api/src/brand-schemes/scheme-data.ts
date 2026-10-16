@@ -242,7 +242,6 @@ export async function loadGrnLines(
   from: string,
   to: string,
 ): Promise<GrnLineRecord[]> {
-  if (brandIds.length === 0) return [];
   const grnDate = indiaDay(goodsReceipts.receivedAt);
   const receipts = await tx
     .select({
@@ -327,7 +326,7 @@ export async function loadGrnLines(
         sql`(${returnDate})::date between ${from}::date and ${to}::date`,
       ),
     )
-    .orderBy(asc(stockLedger.createdAt));
+    .orderBy(asc(stockLedger.createdAt), asc(stockLedger.id));
 
   return [
     ...receipts.map((row) => ({
@@ -418,7 +417,6 @@ export async function loadReceipts(
   tx: Transaction,
   schemeIds: readonly string[],
 ): Promise<{ readonly schemeId: string; readonly view: BenefitReceiptView }[]> {
-  if (schemeIds.length === 0) return [];
   const rows = await tx
     .select({
       receipt: brandBenefitReceipts,
