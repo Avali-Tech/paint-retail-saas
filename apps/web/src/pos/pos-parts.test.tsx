@@ -35,7 +35,7 @@ const context = {
 };
 const oneLine = billReducer(newBill('b'), { type: 'add', item: item(), quantity: 1 });
 
-function totals(preview: Preview, exclusive = false) {
+function totals(preview: Preview, exclusive = false, payReady = true) {
   return render(
     <I18nProvider locale="en">
       <TotalsPanel
@@ -43,6 +43,7 @@ function totals(preview: Preview, exclusive = false) {
         lineCount={1}
         exclusive={exclusive}
         holding={false}
+        payReady={payReady}
         onHold={() => undefined}
         onPay={() => undefined}
       />
@@ -51,6 +52,14 @@ function totals(preview: Preview, exclusive = false) {
 }
 
 describe('TotalsPanel', () => {
+  it('keeps Pay disabled until the ways to pay are known', () => {
+    const { unmount } = totals(previewBill(oneLine, context), false, false);
+    expect(screen.getByRole('button', { name: /^Pay / })).toBeDisabled();
+    unmount();
+    totals(previewBill(oneLine, context));
+    expect(screen.getByRole('button', { name: /^Pay / })).toBeEnabled();
+  });
+
   it('says why there is no tax breakup, and how prices are taxed', () => {
     totals({ ok: false, reason: 'invalid_amount', payablePaise: 100 }, true);
     expect(screen.getByText('The GST is worked out when the bill is issued.')).toBeInTheDocument();
