@@ -3248,6 +3248,8 @@ export const salesSettings = pgTable(
       .default(sql`'{}'::text[]`),
     /** Minutes a UPI payment link stays payable ([PO-41]: 10 by default). */
     paymentLinkValidityMinutes: integer('payment_link_validity_minutes').notNull().default(10),
+    /** Minutes a link sent in a message stays payable ([PO-61]: a day by default). */
+    messageLinkValidityMinutes: integer('message_link_validity_minutes').notNull().default(1440),
     /** The most one payment link may ask for ([PO-42]: ₹1,00,000 by default). */
     paymentLinkCapPaise: bigint('payment_link_cap_paise', { mode: 'number' })
       .notNull()
@@ -3283,6 +3285,10 @@ export const salesSettings = pgTable(
       'sales_settings_payment_links',
       sql`${table.paymentLinkValidityMinutes} between 5 and 43200
         and ${table.paymentLinkCapPaise} between 100 and 50000000`,
+    ),
+    check(
+      'sales_settings_message_link_validity',
+      sql`${table.messageLinkValidityMinutes} between 5 and 43200`,
     ),
     pgPolicy('sales_settings_tenant_isolation', {
       for: 'all',
@@ -7911,6 +7917,391 @@ export const brandBenefitReceipts = pgTable(
         and char_length(${table.reference}) between 1 and 60 and char_length(${table.note}) <= 500`,
     ),
     pgPolicy('brand_benefit_receipts_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+// Brand statement reconciliation (MVP 3 round 6a, P2-M34; spec §3.9) ---------------------
+
+/** How a statement shows amounts: separate debit and credit columns, or one signed column. */
+export const brandStatementAmountMode = pgEnum('brand_statement_amount_mode', [
+  'debit_credit',
+  'signed',
+]);
+
+/** In a signed column, which sign is a debit (the brand billing us). */
+export const brandStatementSignConvention = pgEnum('brand_statement_sign_convention', [
+  'debit_positive',
+  'credit_positive',
+]);
+
+/** How the statement writes its dates. */
+export const brandStatementDateFormat = pgEnum('brand_statement_date_format', [
+  'dd-mm-yyyy',
+  'mm-dd-yyyy',
+  'yyyy-mm-dd',
+  'dd-mon-yyyy',
+]);
+
+/** What a GRN is compared at: with GST (as the brand bills it) or its taxable value. */
+export const brandStatementGrnBasis = pgEnum('brand_statement_grn_basis', ['with_gst', 'taxable']);
+
+/**
+ * How a brand's (or distributor's) statement is laid out (P2-M34): which column holds
+ * what, the date format and sign convention, and how close a match must be. Made once
+ * in the screens and reused for every month's statement.
+ */
+export const brandStatementTemplates = pgTable(
+  'brand_statement_templates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    name: text('name').notNull(),
+    /** Whose statement it is: the supplier we buy from, whose GRNs it is matched with. */
+    supplierPartyId: uuid('supplier_party_id').notNull(),
+    /** The brand whose scheme credit notes it carries; null for none. */
+    brandId: uuid('brand_id'),
+    /** Rows above the header row (a title, the address); 0 when the header is the first row. */
+    headerRowsToSkip: integer('header_rows_to_skip').notNull().default(0),
+    /** Columns are named by their header text, matched without regard to case or spaces. */
+    dateColumn: text('date_column').notNull(),
+    documentColumn: text('document_column').notNull(),
+    typeColumn: text('type_column'),
+    referenceColumn: text('reference_column'),
+    descriptionColumn: text('description_column'),
+    amountMode: brandStatementAmountMode('amount_mode').notNull(),
+    debitColumn: text('debit_column'),
+    creditColumn: text('credit_column'),
+    amountColumn: text('amount_column'),
+    signConvention: brandStatementSignConvention('sign_convention')
+      .notNull()
+      .default('debit_positive'),
+    dateFormat: brandStatementDateFormat('date_format').notNull().default('dd-mm-yyyy'),
+    /** Words in the type column for each kind of line, e.g. {"credit_note": ["CN"]}. */
+    typeRules: jsonb('type_rules')
+      .$type<Partial<Record<string, string[]>>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    /** How many days apart a line and a GRN may be dated and still match. */
+    dateWindowDays: integer('date_window_days').notNull().default(7),
+    /** How far apart the amounts may be and still count as matched. */
+    amountTolerancePaise: bigint('amount_tolerance_paise', { mode: 'number' })
+      .notNull()
+      .default(100),
+    grnAmountBasis: brandStatementGrnBasis('grn_amount_basis').notNull().default('with_gst'),
+    isActive: boolean('is_active').notNull().default(true),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique('brand_statement_templates_organization_id_id_unique').on(
+      table.organizationId,
+      table.id,
+    ),
+    uniqueIndex('brand_statement_templates_name_unique').on(
+      table.organizationId,
+      sql`lower(${table.name})`,
+    ),
+    foreignKey({
+      name: 'brand_statement_templates_organization_fk',
+      columns: [table.organizationId],
+      foreignColumns: [organizations.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'brand_statement_templates_supplier_fk',
+      columns: [table.organizationId, table.supplierPartyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_statement_templates_brand_fk',
+      columns: [table.organizationId, table.brandId],
+      foreignColumns: [brands.organizationId, brands.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_statement_templates_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'brand_statement_templates_text',
+      sql`${table.name} = btrim(${table.name}) and char_length(${table.name}) between 1 and 80
+        and char_length(${table.dateColumn}) between 1 and 60
+        and char_length(${table.documentColumn}) between 1 and 60
+        and (${table.typeColumn} is null or char_length(${table.typeColumn}) between 1 and 60)
+        and (${table.referenceColumn} is null or char_length(${table.referenceColumn}) between 1 and 60)
+        and (${table.descriptionColumn} is null or char_length(${table.descriptionColumn}) between 1 and 60)
+        and (${table.debitColumn} is null or char_length(${table.debitColumn}) between 1 and 60)
+        and (${table.creditColumn} is null or char_length(${table.creditColumn}) between 1 and 60)
+        and (${table.amountColumn} is null or char_length(${table.amountColumn}) between 1 and 60)`,
+    ),
+    check(
+      'brand_statement_templates_amount_columns',
+      sql`(${table.amountMode} = 'debit_credit') = (${table.debitColumn} is not null)
+        and (${table.amountMode} = 'debit_credit') = (${table.creditColumn} is not null)
+        and (${table.amountMode} = 'signed') = (${table.amountColumn} is not null)`,
+    ),
+    check(
+      'brand_statement_templates_ranges',
+      sql`${table.headerRowsToSkip} between 0 and 50
+        and ${table.dateWindowDays} between 0 and 60
+        and ${table.amountTolerancePaise} between 0 and 100000
+        and jsonb_typeof(${table.typeRules}) = 'object'`,
+    ),
+    pgPolicy('brand_statement_templates_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+export const brandStatementStatus = pgEnum('brand_statement_status', ['active', 'discarded']);
+
+/**
+ * A brand statement imported for a period (P2-M34). The original file is kept in
+ * document storage after a clean virus scan (`storage_key`), else only its lines.
+ * While active, one statement per supplier and period, and a file is imported once.
+ */
+export const brandStatements = pgTable(
+  'brand_statements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** Gap-free, e.g. BS-000003. */
+    number: text('number').notNull(),
+    templateId: uuid('template_id').notNull(),
+    supplierPartyId: uuid('supplier_party_id').notNull(),
+    brandId: uuid('brand_id'),
+    periodFrom: date('period_from', { mode: 'string' }).notNull(),
+    periodTo: date('period_to', { mode: 'string' }).notNull(),
+    /** As printed on the statement: entered, or read from an opening line. */
+    openingBalancePaise: bigint('opening_balance_paise', { mode: 'number' }),
+    closingBalancePaise: bigint('closing_balance_paise', { mode: 'number' }),
+    fileName: text('file_name').notNull(),
+    contentType: text('content_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    sha256: text('sha256').notNull(),
+    /** Where the scanned original is kept; null when it was not kept. */
+    storageKey: text('storage_key'),
+    status: brandStatementStatus('status').notNull().default('active'),
+    /** When the lines were last matched. */
+    matchedAt: timestamp('matched_at', { withTimezone: true }),
+    uploadedByMemberId: uuid('uploaded_by_member_id').notNull(),
+    discardedAt: timestamp('discarded_at', { withTimezone: true }),
+    discardedByMemberId: uuid('discarded_by_member_id'),
+    ...timestamps,
+  },
+  (table) => [
+    unique('brand_statements_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('brand_statements_number_unique').on(table.organizationId, table.number),
+    unique('brand_statements_storage_key_unique').on(table.storageKey),
+    uniqueIndex('brand_statements_file_unique')
+      .on(table.organizationId, table.supplierPartyId, table.sha256)
+      .where(sql`${table.status} = 'active'`),
+    uniqueIndex('brand_statements_period_unique')
+      .on(table.organizationId, table.supplierPartyId, table.periodFrom, table.periodTo)
+      .where(sql`${table.status} = 'active'`),
+    index('brand_statements_supplier_idx').on(
+      table.organizationId,
+      table.supplierPartyId,
+      table.periodFrom,
+    ),
+    foreignKey({
+      name: 'brand_statements_organization_fk',
+      columns: [table.organizationId],
+      foreignColumns: [organizations.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'brand_statements_template_fk',
+      columns: [table.organizationId, table.templateId],
+      foreignColumns: [brandStatementTemplates.organizationId, brandStatementTemplates.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_statements_supplier_fk',
+      columns: [table.organizationId, table.supplierPartyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_statements_brand_fk',
+      columns: [table.organizationId, table.brandId],
+      foreignColumns: [brands.organizationId, brands.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_statements_uploaded_by_fk',
+      columns: [table.organizationId, table.uploadedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_statements_discarded_by_fk',
+      columns: [table.organizationId, table.discardedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('brand_statements_number_format', sql`${table.number} ~ '^BS-[0-9]{6,}$'`),
+    check(
+      'brand_statements_period',
+      sql`${table.periodTo} >= ${table.periodFrom} and ${table.periodTo} - ${table.periodFrom} < 366`,
+    ),
+    check(
+      'brand_statements_file',
+      sql`${table.sizeBytes} > 0 and ${table.sha256} ~ '^[0-9a-f]{64}$'
+        and char_length(${table.fileName}) between 1 and 120`,
+    ),
+    check(
+      'brand_statements_discarded',
+      sql`(${table.status} = 'discarded') = (${table.discardedAt} is not null)
+        and (${table.discardedAt} is null) = (${table.discardedByMemberId} is null)`,
+    ),
+    pgPolicy('brand_statements_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** What a statement line is, from its type column (or its sign when it has none). */
+export const brandStatementLineKind = pgEnum('brand_statement_line_kind', [
+  'opening',
+  'invoice',
+  'credit_note',
+  'debit_note',
+  'payment',
+  'other',
+]);
+
+/**
+ * One line of an imported statement, as read with its template: never changed. The
+ * amount is signed from the brand's books: positive is a debit (the brand billed us),
+ * negative a credit (a credit note, our payment).
+ */
+export const brandStatementLines = pgTable(
+  'brand_statement_lines',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    statementId: uuid('statement_id').notNull(),
+    /** The spreadsheet row it came from (1 = the file's first row). */
+    rowNumber: integer('row_number').notNull(),
+    lineDate: date('line_date', { mode: 'string' }).notNull(),
+    kind: brandStatementLineKind('kind').notNull(),
+    documentNumber: text('document_number'),
+    typeText: text('type_text'),
+    reference: text('reference'),
+    description: text('description'),
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
+  },
+  (table) => [
+    unique('brand_statement_lines_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('brand_statement_lines_statement_id_unique').on(
+      table.organizationId,
+      table.id,
+      table.statementId,
+    ),
+    unique('brand_statement_lines_row_unique').on(table.statementId, table.rowNumber),
+    foreignKey({
+      name: 'brand_statement_lines_statement_fk',
+      columns: [table.organizationId, table.statementId],
+      foreignColumns: [brandStatements.organizationId, brandStatements.id],
+    }).onDelete('cascade'),
+    check(
+      'brand_statement_lines_values',
+      sql`${table.rowNumber} >= 1 and abs(${table.amountPaise}) <= 100000000000
+        and (${table.amountPaise} <> 0 or ${table.kind} = 'opening')
+        and (${table.documentNumber} is null or char_length(${table.documentNumber}) between 1 and 60)
+        and (${table.typeText} is null or char_length(${table.typeText}) between 1 and 60)
+        and (${table.reference} is null or char_length(${table.reference}) between 1 and 120)
+        and (${table.description} is null or char_length(${table.description}) between 1 and 300)`,
+    ),
+    pgPolicy('brand_statement_lines_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * How a line was settled: matched by the matching run (`auto`) or by a member
+ * (`manual`), to a GRN or a recorded scheme receipt; `explained` with a note; or a
+ * pair a member unmatched (`rejected`), which the run never proposes again.
+ */
+export const brandStatementMatchSource = pgEnum('brand_statement_match_source', [
+  'auto',
+  'manual',
+  'explained',
+  'rejected',
+]);
+
+export const brandStatementMatches = pgTable(
+  'brand_statement_matches',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    statementId: uuid('statement_id').notNull(),
+    lineId: uuid('line_id').notNull(),
+    source: brandStatementMatchSource('source').notNull(),
+    goodsReceiptId: uuid('goods_receipt_id'),
+    benefitReceiptId: uuid('benefit_receipt_id'),
+    /** Line amount − our amount, when matched. */
+    differencePaise: bigint('difference_paise', { mode: 'number' }),
+    note: text('note'),
+    /** Who matched, explained or unmatched it; null for the matching run. */
+    memberId: uuid('member_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // One settlement per line; a GRN or a receipt settles one line, across statements.
+    uniqueIndex('brand_statement_matches_line_unique')
+      .on(table.lineId)
+      .where(sql`${table.source} <> 'rejected'`),
+    uniqueIndex('brand_statement_matches_grn_unique')
+      .on(table.organizationId, table.goodsReceiptId)
+      .where(sql`${table.source} <> 'rejected' and ${table.goodsReceiptId} is not null`),
+    uniqueIndex('brand_statement_matches_receipt_unique')
+      .on(table.organizationId, table.benefitReceiptId)
+      .where(sql`${table.source} <> 'rejected' and ${table.benefitReceiptId} is not null`),
+    index('brand_statement_matches_statement_idx').on(table.organizationId, table.statementId),
+    foreignKey({
+      name: 'brand_statement_matches_line_fk',
+      columns: [table.organizationId, table.lineId, table.statementId],
+      foreignColumns: [
+        brandStatementLines.organizationId,
+        brandStatementLines.id,
+        brandStatementLines.statementId,
+      ],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'brand_statement_matches_goods_receipt_fk',
+      columns: [table.organizationId, table.goodsReceiptId],
+      foreignColumns: [goodsReceipts.organizationId, goodsReceipts.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_statement_matches_benefit_receipt_fk',
+      columns: [table.organizationId, table.benefitReceiptId],
+      foreignColumns: [brandBenefitReceipts.organizationId, brandBenefitReceipts.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_statement_matches_member_fk',
+      columns: [table.organizationId, table.memberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'brand_statement_matches_target',
+      sql`num_nonnulls(${table.goodsReceiptId}, ${table.benefitReceiptId})
+          = case when ${table.source} = 'explained' then 0 else 1 end
+        and (${table.differencePaise} is null) = (${table.source} in ('explained', 'rejected'))
+        and (${table.source} <> 'explained' or ${table.note} is not null)
+        and (${table.note} is null or char_length(${table.note}) between 1 and 500)
+        and (${table.source} = 'auto') = (${table.memberId} is null)`,
+    ),
+    pgPolicy('brand_statement_matches_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

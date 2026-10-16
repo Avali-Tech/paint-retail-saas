@@ -617,6 +617,34 @@
       "when": 1792160782045,
       "tag": "0087_profitability_settings_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1792169555767,
+      "tag": "0088_brand_statements",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1792169578515,
+      "tag": "0089_brand_statement_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1792169619664,
+      "tag": "0090_message_link_validity",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1792169620708,
+      "tag": "0091_payment_link_validity_rules",
+      "breakpoints": true
     }
   ]
 }
