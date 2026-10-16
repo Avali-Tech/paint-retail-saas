@@ -1737,6 +1737,7 @@ export const notificationEvent = pgEnum('notification_event', [
   'credit_hold_applied',
   'promise_broken',
   'payment_link_paid',
+  'payment_link_refund',
 ]);
 
 /** An in-app notification for one member. */
@@ -3201,6 +3202,12 @@ export const stockPostOn = pgEnum('stock_post_on', ['invoice', 'dispatch']);
 /** Whether unit prices include GST (counter prices) or have it added. */
 export const priceMode = pgEnum('price_mode', ['inclusive', 'exclusive']);
 
+/**
+ * What a payment link asks for (P2-M32, [PO-43]): what is owed net of the party's advance
+ * (`net`: a statement's balance and its link agree) or the bills' full outstanding.
+ */
+export const paymentLinkAmountBasis = pgEnum('payment_link_amount_basis', ['net', 'full']);
+
 /** A business's selling settings. No row = the defaults. */
 export const salesSettings = pgTable(
   'sales_settings',
@@ -3234,6 +3241,16 @@ export const salesSettings = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /** Minutes a UPI payment link stays payable ([PO-41]: 10 by default). */
+    paymentLinkValidityMinutes: integer('payment_link_validity_minutes').notNull().default(10),
+    /** The most one payment link may ask for ([PO-42]: ₹1,00,000 by default). */
+    paymentLinkCapPaise: bigint('payment_link_cap_paise', { mode: 'number' })
+      .notNull()
+      .default(10_000_000),
+    /** Links ask for what is owed net of the advance, or the bills' full outstanding ([PO-43]). */
+    paymentLinkAmountBasis: paymentLinkAmountBasis('payment_link_amount_basis')
+      .notNull()
+      .default('net'),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -3254,6 +3271,11 @@ export const salesSettings = pgTable(
       sql`${table.upiId} is null or ${table.bankName} is not null`,
     ),
     check('sales_settings_invoice_terms', sql`cardinality(${table.invoiceTerms}) <= 10`),
+    check(
+      'sales_settings_payment_links',
+      sql`${table.paymentLinkValidityMinutes} between 5 and 43200
+        and ${table.paymentLinkCapPaise} between 100 and 50000000`,
+    ),
     pgPolicy('sales_settings_tenant_isolation', {
       for: 'all',
       to: tenantRole,
@@ -4339,13 +4361,13 @@ export const payments = pgTable(
         and ${table.voucherNumber} ~ '^[A-Z0-9/-]{1,16}$'
         and ${table.voucherFy} ~ '^[0-9]{4}-[0-9]{2}$'`,
     ),
-    // Link payments: money in from a gateway, never into a register; the UPI link mode
-    // is theirs alone (compared as text: the value is new in the same migration).
+    // Link payments: money in from a gateway, or its refund through the gateway (out),
+    // never in a register; the UPI link mode is theirs alone (compared as text, as 0079
+    // added the value in the same migration).
     check(
       'payments_link',
       sql`(${table.paymentLinkId} is null
-          or (${table.direction} = 'in' and ${table.gatewayReference} is not null
-            and ${table.registerSessionId} is null))
+          or (${table.gatewayReference} is not null and ${table.registerSessionId} is null))
         and (${table.modeKind}::text = 'upi_link') = (${table.paymentLinkId} is not null)
         and (${table.createdByMemberId} is not null or ${table.paymentLinkId} is not null)`,
     ),
@@ -7230,6 +7252,194 @@ export const paymentLinkDocuments = pgTable(
       sql`${table.position} >= 0 and ${table.outstandingPaise} > 0`,
     ),
     pgPolicy('payment_link_documents_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+// ---------------------------------------------------------------------------
+// Each business's own payment gateway account and gateway refunds (P2-M32, MVP 3
+// round 4c; docs/mvp-3/payment-links.md): [PO-40] money goes straight to the shop,
+// [PO-44] money a link took that nothing was owed for goes back through the gateway.
+
+/**
+ * A business's connection to its own gateway account (Razorpay). The key id, key
+ * secret and webhook secret are sealed together with envelope encryption (a fresh data
+ * key per sealing, wrapped by GATEWAY_CREDENTIALS_KEY; apps/api/src/payment-links/
+ * credential-vault.ts); only hints (last four characters) are kept in the clear.
+ * `webhook_ref` names the business in its webhook URL and survives reconnecting.
+ * Disconnecting clears the credentials but keeps the row. Never deleted (0082).
+ */
+export const paymentGatewayAccounts = pgTable(
+  'payment_gateway_accounts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    gateway: paymentGateway('gateway').notNull(),
+    /** Random, URL-safe: /webhooks/payment-links/razorpay/<webhook_ref>. */
+    webhookRef: text('webhook_ref').notNull(),
+    /** The last four characters of each, for the settings screen. */
+    keyIdHint: text('key_id_hint'),
+    keySecretHint: text('key_secret_hint'),
+    webhookSecretHint: text('webhook_secret_hint'),
+    /** Live keys (rzp_live_…) take real money; test keys (rzp_test_…) do not. */
+    live: boolean('live'),
+    /** `v1:<master key id>:<wrapped data key>:<sealed credentials>`: never leaves the API. */
+    credentialsSealed: text('credentials_sealed'),
+    connectedAt: timestamp('connected_at', { withTimezone: true }),
+    connectedByMemberId: uuid('connected_by_member_id'),
+    /** The last time the keys answered a test call. */
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    unique('payment_gateway_accounts_organization_unique').on(table.organizationId),
+    unique('payment_gateway_accounts_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('payment_gateway_accounts_webhook_ref_unique').on(table.webhookRef),
+    foreignKey({
+      name: 'payment_gateway_accounts_connected_by_fk',
+      columns: [table.organizationId, table.connectedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('payment_gateway_accounts_gateway', sql`${table.gateway}::text = 'razorpay'`),
+    check('payment_gateway_accounts_webhook_ref', sql`${table.webhookRef} ~ '^[A-Za-z0-9_-]{22}$'`),
+    check(
+      'payment_gateway_accounts_connected',
+      sql`num_nonnulls(${table.keyIdHint}, ${table.keySecretHint}, ${table.webhookSecretHint},
+          ${table.live}, ${table.credentialsSealed}, ${table.connectedAt}) in (0, 6)
+        and (${table.connectedByMemberId} is null or ${table.connectedAt} is not null)
+        and (${table.verifiedAt} is null or ${table.connectedAt} is not null)`,
+    ),
+    check(
+      'payment_gateway_accounts_hints',
+      sql`char_length(${table.keyIdHint}) = 4 and char_length(${table.keySecretHint}) = 4
+        and char_length(${table.webhookSecretHint}) = 4
+        and ${table.credentialsSealed} ~ '^v1:' and char_length(${table.credentialsSealed}) <= 4000`,
+    ),
+    pgPolicy('payment_gateway_accounts_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** Why money a link took goes back. */
+export const paymentLinkRefundReason = pgEnum('payment_link_refund_reason', [
+  /** The link's bills were settled some other way before the money came. */
+  'settled',
+  /** More came than the link's bills still owed. */
+  'overpaid',
+]);
+/**
+ * `pending`: to be asked of the gateway (again, after a failed try); `refunded`: the
+ * gateway took it and it is in the books; `failed`: it gave up after its tries, the money
+ * stays an advance; `dropped`: staff used or refunded the money meanwhile; `returned`:
+ * the gateway took it but failed it later, so the money came back as an advance.
+ */
+export const paymentLinkRefundStatus = pgEnum('payment_link_refund_status', [
+  'pending',
+  'refunded',
+  'failed',
+  'dropped',
+  'returned',
+]);
+
+/**
+ * A refund through the gateway of money a link payment left over ([PO-44]): booked as
+ * MVP 2 refunds are (a refund payment out of the link payment, party ledger, refund
+ * voucher) once the gateway takes it. Idempotent: the row id is the gateway's refund
+ * receipt. Its amount and what it refunds never change; the status moves forward only
+ * (trigger, 0082).
+ */
+export const paymentLinkRefunds = pgTable(
+  'payment_link_refunds',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    linkId: uuid('link_id').notNull(),
+    partyId: uuid('party_id').notNull(),
+    /** The money in it pays back part of. */
+    paymentId: uuid('payment_id').notNull(),
+    /** The gateway's id of the payment the money came in by. */
+    gatewayPaymentId: text('gateway_payment_id').notNull(),
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
+    reason: paymentLinkRefundReason('reason').notNull(),
+    provider: paymentGateway('provider').notNull(),
+    status: paymentLinkRefundStatus('status').notNull().default('pending'),
+    gatewayRefundId: text('gateway_refund_id'),
+    /** pending / processed / failed, as the gateway last said. */
+    gatewayStatus: text('gateway_status'),
+    /** The refund payment (RF-…) once booked. */
+    refundPaymentId: uuid('refund_payment_id'),
+    /** The money back in when the gateway failed the refund after taking it. */
+    returnedPaymentId: uuid('returned_payment_id'),
+    /** The refund this one tries again, after the gateway returned it. */
+    retryOfId: uuid('retry_of_id'),
+    attempts: integer('attempts').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Why the last try failed: the gateway's error code, never a key. */
+    lastError: text('last_error'),
+    /** When staff were told it failed (once). */
+    flaggedAt: timestamp('flagged_at', { withTimezone: true }),
+    refundedAt: timestamp('refunded_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    unique('payment_link_refunds_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('payment_link_refunds_gateway_unique').on(table.provider, table.gatewayRefundId),
+    index('payment_link_refunds_link_idx').on(table.linkId),
+    index('payment_link_refunds_payment_idx').on(table.paymentId),
+    index('payment_link_refunds_due_idx')
+      .on(table.nextAttemptAt)
+      .where(sql`${table.status} = 'pending'`),
+    foreignKey({
+      name: 'payment_link_refunds_link_fk',
+      columns: [table.organizationId, table.linkId, table.partyId],
+      foreignColumns: [paymentLinks.organizationId, paymentLinks.id, paymentLinks.partyId],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'payment_link_refunds_payment_fk',
+      columns: [table.organizationId, table.paymentId, table.partyId],
+      foreignColumns: [payments.organizationId, payments.id, payments.partyId],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'payment_link_refunds_refund_payment_fk',
+      columns: [table.organizationId, table.refundPaymentId, table.partyId],
+      foreignColumns: [payments.organizationId, payments.id, payments.partyId],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'payment_link_refunds_returned_payment_fk',
+      columns: [table.organizationId, table.returnedPaymentId, table.partyId],
+      foreignColumns: [payments.organizationId, payments.id, payments.partyId],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'payment_link_refunds_retry_of_fk',
+      columns: [table.organizationId, table.retryOfId],
+      foreignColumns: [table.organizationId, table.id],
+    }).onDelete('restrict'),
+    check('payment_link_refunds_amount_positive', sql`${table.amountPaise} > 0`),
+    check('payment_link_refunds_attempts', sql`${table.attempts} >= 0`),
+    check(
+      'payment_link_refunds_status',
+      sql`(${table.status} in ('refunded', 'returned')) = (${table.refundPaymentId} is not null)
+        and (${table.refundPaymentId} is null or ${table.gatewayRefundId} is not null)
+        and (${table.status} in ('refunded', 'returned')) = (${table.refundedAt} is not null)
+        and (${table.status} = 'returned') = (${table.returnedPaymentId} is not null)`,
+    ),
+    check(
+      'payment_link_refunds_text_lengths',
+      sql`char_length(${table.gatewayPaymentId}) between 1 and 200
+        and char_length(${table.gatewayRefundId}) between 1 and 200
+        and char_length(${table.gatewayStatus}) <= 40 and char_length(${table.lastError}) <= 200`,
+    ),
+    pgPolicy('payment_link_refunds_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

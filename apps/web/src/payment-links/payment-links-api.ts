@@ -1,5 +1,8 @@
 import type {
+  ConnectGatewayRequest,
   CreatePaymentLinkRequest,
+  GatewayAccountView,
+  GatewayTestResult,
   LogCheckoutView,
   LogWebhook,
   PaymentLinkCreated,
@@ -7,6 +10,7 @@ import type {
   PaymentLinkSettings,
   PaymentLinkStatus,
   PaymentLinkView,
+  UpdatePaymentLinkSettingsRequest,
 } from '@paint/shared';
 import type { ApiClient } from '../api/client.js';
 
@@ -24,6 +28,16 @@ export function paymentLinkEndpoints(api: ApiClient) {
   return {
     settings: (signal?: AbortSignal) =>
       api.get<PaymentLinkSettings>('/payment-links/settings', { signal }),
+    /** Owners and admins: link validity, cap and amount basis ([PO-41] – [PO-43]). */
+    saveSettings: (body: UpdatePaymentLinkSettingsRequest) =>
+      api.put<PaymentLinkSettings>('/payment-links/settings', body),
+    /** The business's own Razorpay account, never with a secret (asked only with Razorpay). */
+    gatewayAccount: (signal?: AbortSignal) =>
+      api.get<GatewayAccountView>('/payment-links/gateway-account', { signal }),
+    connectGateway: (body: ConnectGatewayRequest) =>
+      api.put<GatewayAccountView>('/payment-links/gateway-account', body),
+    testGateway: () => api.post<GatewayTestResult>('/payment-links/gateway-account/test'),
+    disconnectGateway: () => api.delete<GatewayAccountView>('/payment-links/gateway-account'),
     /** One link per key: a retried click never makes a second link. */
     create: (body: CreatePaymentLinkRequest, idempotencyKey: string) =>
       api.post<PaymentLinkCreated>('/payment-links', body, {

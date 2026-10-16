@@ -101,9 +101,27 @@ export const PAY_LINK_TEXTS: Readonly<Record<MessageLanguage, string>> = {
   te: ' UPI ద్వారా చెల్లించండి: {url}',
 };
 
-/** The value of `{{payLink}}`: the sentence with the link, or empty without one. */
-export function payLinkText(url: string | null, language: MessageLanguage): string {
-  return url === null ? '' : PAY_LINK_TEXTS[language].replace('{url}', url);
+/** The sentence naming what the link asks for, when it differs from the message's amount. */
+export const PAY_LINK_AMOUNT_TEXTS: Readonly<Record<MessageLanguage, string>> = {
+  en: ' Pay {amount} by UPI: {url}',
+  hi: ' UPI से {amount} का भुगतान करें: {url}',
+  te: ' UPI ద్వారా {amount} చెల్లించండి: {url}',
+};
+
+/**
+ * The value of `{{payLink}}`: the sentence with the link, or empty without one. Given
+ * the link's amount (a link for the bills' full outstanding beside a balance net of the
+ * advance, [PO-43]), it names it, so the message's figures never disagree unexplained.
+ */
+export function payLinkText(
+  url: string | null,
+  language: MessageLanguage,
+  amount: string | null = null,
+): string {
+  if (url === null) return '';
+  return amount === null
+    ? PAY_LINK_TEXTS[language].replace('{url}', url)
+    : PAY_LINK_AMOUNT_TEXTS[language].replace('{amount}', amount).replace('{url}', url);
 }
 
 const VARIABLE = /\{\{\s*([A-Za-z]+)\s*\}\}/g;

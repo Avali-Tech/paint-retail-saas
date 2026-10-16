@@ -6,6 +6,7 @@ import type { DatabaseConnection } from '@paint/db';
 import { AppModule } from './app.module.js';
 import type { SmsSender } from './auth/sms.js';
 import type { AppConfig } from './config.js';
+import type { PaymentLinkGateways } from './payment-links/payment-link-gateways.js';
 import { MAX_DOCUMENT_BYTES } from './documents/file-checks.js';
 import { createLogger } from './logger.js';
 
@@ -13,7 +14,7 @@ import { createLogger } from './logger.js';
 export async function createApp(
   config: AppConfig,
   connection: DatabaseConnection,
-  overrides: { smsSender?: SmsSender } = {},
+  overrides: { smsSender?: SmsSender; paymentLinkGateways?: PaymentLinkGateways } = {},
 ): Promise<NestFastifyApplication> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule.forRoot({ config, connection, ...overrides }),

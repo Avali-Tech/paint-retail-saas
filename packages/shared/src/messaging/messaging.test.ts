@@ -47,6 +47,17 @@ describe('the template catalogue', () => {
   it('writes a payment link as a sentence in the language, or nothing without one', () => {
     expect(payLinkText(null, 'hi')).toBe('');
     expect(payLinkText('https://pay.example/pl', 'en')).toBe(' Pay by UPI: https://pay.example/pl');
+    // A link asking for another amount than the message names it ([PO-43]).
+    expect(payLinkText('https://pay.example/pl', 'en', '₹1,180.00')).toBe(
+      ' Pay ₹1,180.00 by UPI: https://pay.example/pl',
+    );
+    expect(payLinkText('https://pay.example/pl', 'hi', '₹1,180.00')).toBe(
+      ' UPI से ₹1,180.00 का भुगतान करें: https://pay.example/pl',
+    );
+    expect(payLinkText('https://pay.example/pl', 'te', '₹1,180.00')).toBe(
+      ' UPI ద్వారా ₹1,180.00 చెల్లించండి: https://pay.example/pl',
+    );
+    expect(payLinkText(null, 'en', '₹1,180.00')).toBe('');
     expect(payLinkText('https://pay.example/pl', 'hi')).toBe(
       ' UPI से भुगतान करें: https://pay.example/pl',
     );

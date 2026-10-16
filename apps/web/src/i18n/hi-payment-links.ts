@@ -21,6 +21,9 @@ export const paymentLinksHi = {
     actions: 'कार्रवाई',
     pages: 'भुगतान लिंक के पन्ने',
     allStatuses: 'सभी',
+    refunded: '{amount} वापस किए गए',
+    refundPending: '{amount} की वापसी जारी है',
+    refundFailed: '{amount} की वापसी विफल: अग्रिम के रूप में रखा गया',
     partPaid: 'आंशिक भुगतान',
     copy: 'लिंक कॉपी करें',
     copyName: 'लिंक {number} कॉपी करें',
@@ -57,6 +60,71 @@ export const paymentLinksHi = {
       'UPI लिंक से आया पैसा किसी रजिस्टर में नहीं जाता: इसे भुगतान में, मोड "UPI लिंक" से देखें।',
     dayEndLink: 'UPI लिंक से भुगतान',
     statementLink: 'UPI भुगतान लिंक: {url}',
+  },
+  /** सेटिंग्स, भुगतान लिंक (राउंड 4c)। */
+  paymentLinkSettings: {
+    nav: 'भुगतान लिंक सेटिंग्स',
+    title: 'भुगतान लिंक',
+    description:
+      'अपना Razorpay खाता जोड़ें, ताकि UPI का पैसा सीधे आपके पास आए, और तय करें कि लिंक कैसे काम करें।',
+    error: 'भुगतान लिंक की सेटिंग्स लोड नहीं हो सकीं',
+    saved: 'भुगतान लिंक की सेटिंग्स सहेजी गईं',
+    off: 'इस सेवा में भुगतान लिंक चालू नहीं हैं।',
+    logGateway:
+      'यहाँ लिंक टेस्ट गेटवे से बनते हैं: कोई पैसा नहीं जाता, वापसी भी नक़ली है। केवल नीचे के नियम लागू होते हैं।',
+    account: {
+      title: 'Razorpay खाता',
+      description:
+        'लिंक से दिया गया पैसा सीधे आपके Razorpay खाते में जाता है। कुंजियाँ एन्क्रिप्ट करके रखी जाती हैं और फिर कभी नहीं दिखतीं।',
+      connectedLive: 'जुड़ा · लाइव',
+      connectedTest: 'जुड़ा · टेस्ट',
+      notConnected: 'नहीं जुड़ा',
+      testWarning:
+        'टेस्ट कुंजियों से पैसा नहीं आता, और Razorpay केवल लाइव कुंजियों से UPI लिंक बनाता है। ग्राहकों के लिए लाइव कुंजियाँ इस्तेमाल करें।',
+      connectedBy: 'किसने जोड़ा',
+      verifiedAt: 'आख़िरी जाँच',
+      test: 'कनेक्शन जाँचें',
+      tested: 'Razorpay ने जवाब दिया: कुंजियाँ काम कर रही हैं',
+      disconnect: 'हटाएँ',
+      disconnected: 'Razorpay हटा दिया गया: फिर जोड़ने तक नए लिंक नहीं बनेंगे',
+    },
+    webhook: {
+      title: 'वेबहुक',
+      name: 'वेबहुक पता',
+      description:
+        'Razorpay डैशबोर्ड → Accounts & Settings → Webhooks में यह पता और नीचे डाला गया वेबहुक सीक्रेट जोड़ें।',
+      events:
+        'ये इवेंट चालू करें: payment_link.paid, payment_link.expired, payment_link.cancelled, refund.processed, refund.failed।',
+    },
+    connect: {
+      keyId: 'की आईडी',
+      keySecret: 'की सीक्रेट',
+      webhookSecret: 'वेबहुक सीक्रेट',
+      incomplete:
+        'की आईडी (rzp_live_… या rzp_test_…), की सीक्रेट और कम से कम 8 अक्षरों का वेबहुक सीक्रेट डालें',
+      submit: 'Razorpay जोड़ें',
+      replace: 'कुंजियाँ बदलें',
+      done: 'Razorpay जुड़ गया',
+    },
+    rules: {
+      title: 'लिंक कैसे काम करें',
+      validity: 'कितने मिनट देय',
+      validityHint: 'ग्राहक के पास भुगतान के लिए कितना समय है; बाद में आया पैसा भी दर्ज होता है।',
+      validityRange: '{min} से {max} मिनट डालें',
+      cap: 'एक लिंक की अधिकतम राशि (₹)',
+      capHint: 'इससे बड़ा लिंक नहीं बनेगा। UPI एक भुगतान में अधिकतम {max} लेता है।',
+      capRange: '{min} से {max} डालें',
+      basis: 'लिंक माँगे',
+      basisOption: {
+        net: 'बकाया, अग्रिम घटाकर',
+        full: 'बिलों का पूरा बकाया',
+      },
+      basisHint: {
+        net: 'लिंक और खाता विवरण की शेष राशि एक जैसी रहती है; अग्रिम पहले लगता है।',
+        full: 'लिंक बिलों की पूरी राशि माँगता है; खाता विवरण दोनों राशियाँ बताता है।',
+      },
+      save: 'सहेजें',
+    },
   },
   logCheckout: {
     title: 'टेस्ट भुगतान पेज',

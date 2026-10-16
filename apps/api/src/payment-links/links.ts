@@ -3,6 +3,7 @@ import {
   allocateLinkPayment,
   formatDocumentNumber,
   formatINR,
+  linkRefundOf,
   nextLinkState,
   planPaymentLink,
   type LinkPlan,
@@ -19,13 +20,15 @@ import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { queueMessage } from '../messaging/outbox.js';
 import type { Notifier } from '../notifications/notifier.js';
 import type { GatewayEventContext } from '../payments-gateway/gateway-events.js';
+import { indiaToday, lockParty, openTargets, receivePayment } from '../payments/posting.js';
 import {
-  indiaToday,
-  lockParty,
-  openTargets,
-  receivePayment,
-  type PaymentMode,
-} from '../payments/posting.js';
+  applyRefundEvent,
+  queueLinkRefund,
+  refundSummaryColumns,
+  refundViews,
+} from './link-refunds.js';
+import { linkStore, receivedOnOf, upiLinkMode } from './link-books.js';
+import { linkRulesOf } from './payment-link-gateways.js';
 import type {
   GatewayLinkPayment,
   PaymentLinkEvent,
@@ -41,20 +44,10 @@ const {
   partyLedger,
   paymentLinkDocuments,
   paymentLinks,
-  paymentModes,
   payments,
-  stores,
   taxDocuments,
   users,
 } = schema;
-
-/** Where links come from and how long they live (PAYMENT_LINK_PROVIDER, …_EXPIRY_DAYS). */
-export const PAYMENT_LINK_SETTINGS = Symbol('PAYMENT_LINK_SETTINGS');
-export interface PaymentLinkSettings {
-  /** Null when payment links are off. */
-  readonly provider: PaymentLinkProvider | null;
-  readonly expiryDays: number;
-}
 
 /** The party's open documents (oldest first), its advance and today, for planPaymentLink. */
 async function partyPosition(
@@ -76,7 +69,10 @@ async function partyPosition(
   return { open, advancePaise: Number(row.advance), today: row.today };
 }
 
-/** What a link of this purpose would ask the party for now (rules PL-2, PL-3). */
+/**
+ * What a link of this purpose would ask the party for now (rules PL-2, PL-3, PL-13), by
+ * the business's cap and amount basis.
+ */
 export async function planLink(
   tx: Transaction,
   input: {
@@ -87,9 +83,12 @@ export async function planLink(
   },
 ): Promise<LinkPlan> {
   const position = await partyPosition(tx, input.partyId);
+  const rules = await linkRulesOf(tx);
   return planPaymentLink({
     purpose: input.purpose,
     ...position,
+    capPaise: rules.capPaise,
+    basis: rules.amountBasis,
     ...(input.documentIds === undefined ? {} : { documentIds: input.documentIds }),
     ...(input.amountPaise === undefined ? {} : { amountPaise: input.amountPaise }),
   });
@@ -127,21 +126,22 @@ function describe(business: string, link: NewLink): string {
 
 /**
  * Makes a link at the gateway and stores it with its documents (rule PL-4): numbered
- * PL-000001 in the business's own series, payable until the expiry days pass. The
- * gateway is asked inside the transaction; if the transaction then fails, the link the
- * gateway made is never stored and its webhooks are ignored.
+ * PL-000001 in the business's own series, payable for the business's validity minutes
+ * ([PO-41]). The gateway is asked inside the transaction; if the transaction then fails,
+ * the link the gateway made is never stored and its webhooks are ignored.
  */
 export async function createLink(
   tx: Transaction,
-  settings: { readonly provider: PaymentLinkProvider; readonly expiryDays: number },
+  provider: PaymentLinkProvider,
   link: NewLink,
 ): Promise<string> {
+  const { validityMinutes } = await linkRulesOf(tx);
   const [context] = (await tx
     .select({
       business: organizations.name,
       name: parties.displayName,
       phone: parties.phone,
-      expiresAt: sql<Date>`now() + make_interval(days => ${settings.expiryDays})`.mapWith(
+      expiresAt: sql<Date>`now() + make_interval(mins => ${validityMinutes})`.mapWith(
         (value: string | Date) => new Date(value),
       ),
     })
@@ -155,7 +155,7 @@ export async function createLink(
     await nextDocumentNumber(tx, link.organizationId, 'payment_link'),
   );
   const description = describe(context.business, link);
-  const created = await settings.provider.createPayment({
+  const created = await provider.createPayment({
     reference: number,
     amountPaise: link.amountPaise,
     description,
@@ -173,7 +173,7 @@ export async function createLink(
       origin: link.origin,
       amountPaise: link.amountPaise,
       description,
-      provider: settings.provider.name,
+      provider: provider.name,
       gatewayReference: created.gatewayReference,
       url: created.url,
       expiresAt: context.expiresAt,
@@ -202,10 +202,13 @@ const targetKey = (target: { documentId: string | null; partyLedgerId: string | 
 
 /**
  * An open link the system made earlier for exactly the same ask (rule PL-5): same
- * party, purpose, amount and documents, nothing paid, and payable for at least another
- * day. The reminder run and statement shares send it again instead of a new one.
+ * party, purpose, amount and documents, nothing paid, and payable for at least half its
+ * validity (and at most a day) more. The reminder run and statement shares send it
+ * again instead of a new one.
  */
 export async function reusableLink(tx: Transaction, link: NewLink): Promise<string | null> {
+  const { validityMinutes } = await linkRulesOf(tx);
+  const left = Math.min(Math.ceil(validityMinutes / 2), 24 * 60);
   const candidates = await tx
     .select({ id: paymentLinks.id })
     .from(paymentLinks)
@@ -217,7 +220,7 @@ export async function reusableLink(tx: Transaction, link: NewLink): Promise<stri
         eq(paymentLinks.amountPaise, link.amountPaise),
         eq(paymentLinks.status, 'created'),
         eq(paymentLinks.paidPaise, 0),
-        sql`${paymentLinks.expiresAt} > now() + interval '1 day'`,
+        sql`${paymentLinks.expiresAt} > now() + make_interval(mins => ${left})`,
       ),
     )
     .orderBy(desc(paymentLinks.createdAt), desc(paymentLinks.id));
@@ -255,6 +258,7 @@ const summaryColumns = {
   url: paymentLinks.url,
   expiresAt: paymentLinks.expiresAt,
   createdAt: paymentLinks.createdAt,
+  ...refundSummaryColumns,
 };
 
 type SummaryRow = Omit<PaymentLinkSummary, 'expiresAt' | 'createdAt'> & {
@@ -343,50 +347,12 @@ export async function linkView(tx: Transaction, linkId: string): Promise<Payment
       cancelledAt: cancelledAt?.toISOString() ?? null,
       documents,
       payments: paid,
+      refunds: await refundViews(tx, linkId),
     },
   ];
 }
 
-/**
- * The business's UPI link payment mode, made the first time a link is paid (a
- * migration cannot make it: the kind is new in the same migration). Kept even when
- * switched off, since the money came anyway.
- */
-export async function upiLinkMode(tx: Transaction, organizationId: string): Promise<PaymentMode> {
-  const find = async () => {
-    const [mode] = await tx
-      .select({ id: paymentModes.id, kind: paymentModes.kind, name: paymentModes.name })
-      .from(paymentModes)
-      .where(
-        and(eq(paymentModes.organizationId, organizationId), eq(paymentModes.kind, 'upi_link')),
-      )
-      .orderBy(desc(paymentModes.isActive), asc(paymentModes.createdAt), asc(paymentModes.id))
-      .limit(1);
-    return mode;
-  };
-  // "UPI link", or, when the business already named another mode so, a name of its own.
-  for (const name of ['UPI link', 'UPI payment link (gateway)']) {
-    const found = await find();
-    if (found) return found;
-    await tx
-      .insert(paymentModes)
-      .values({ organizationId, kind: 'upi_link', name })
-      .onConflictDoNothing();
-  }
-  return (await find()) as PaymentMode;
-}
-
-/** India date of a gateway's payment time, never after today. */
-async function receivedOnOf(tx: Transaction, paidAt: Date): Promise<string> {
-  const [row] = (
-    await tx.execute<{ day: string }>(sql`
-    select least((${paidAt.toISOString()}::timestamptz at time zone 'Asia/Kolkata')::date,
-      (now() at time zone 'Asia/Kolkata')::date)::text as day`)
-  ).rows as [{ day: string }];
-  return row.day;
-}
-
-type LinkRow = typeof paymentLinks.$inferSelect;
+export type LinkRow = typeof paymentLinks.$inferSelect;
 
 /**
  * Applies a verified gateway event to its link (rules PL-6 – PL-11), inside
@@ -404,19 +370,31 @@ export async function applyLinkEvent(
   tx: Transaction,
   event: PaymentLinkEvent,
   context: GatewayEventContext,
-  deps: { readonly provider: PaymentLinkProvider; readonly notifier: Notifier },
+  deps: {
+    readonly provider: PaymentLinkProvider;
+    readonly notifier: Notifier;
+    /** The business whose account signed the webhook (null for the log gateway). */
+    readonly organizationId: string | null;
+  },
 ): Promise<'applied' | 'ignored'> {
   if (event.kind === 'ignored') return 'ignored';
+  if (event.kind === 'refund_processed' || event.kind === 'refund_failed') {
+    return applyRefundEvent(tx, event, context, deps);
+  }
   const [found] = await tx
     .select({ id: paymentLinks.id, organizationId: paymentLinks.organizationId })
     .from(paymentLinks)
     .where(
       and(
         eq(paymentLinks.provider, deps.provider.name),
-        eq(paymentLinks.gatewayReference, event.gatewayLinkId),
+        // Every link event (paid, expired, cancelled) names its link.
+        eq(paymentLinks.gatewayReference, String(event.gatewayLinkId)),
       ),
     );
-  if (!found) return 'ignored';
+  // A business's webhook secret speaks only for its own links.
+  if (!found || (deps.organizationId !== null && found.organizationId !== deps.organizationId)) {
+    return 'ignored';
+  }
   await context.attach(found.organizationId);
   await enterTenantScope(tx, found.organizationId);
   const [{ partyId }] = (await tx
@@ -488,21 +466,11 @@ async function recordLinkPayment(
     };
   });
   const plan = allocateLinkPayment(targets, payment.amountPaise);
-  const [store] = (await tx
-    .select({
-      id: stores.id,
-      code: stores.code,
-      gstin: sql<
-        string | null
-      >`case when ${stores.registrationType} <> 'unregistered' then ${stores.gstin} end`,
-    })
-    .from(stores)
-    .where(eq(stores.id, link.storeId))) as [{ id: string; code: string; gstin: string | null }];
   const row = await receivePayment(
     tx,
     { organization: { id: organizationId }, memberId: null },
     {
-      store,
+      store: await linkStore(tx, link.storeId),
       partyId: link.partyId,
       mode: await upiLinkMode(tx, organizationId),
       details: {
@@ -527,7 +495,22 @@ async function recordLinkPayment(
       ...(next.status === 'paid' && link.status !== 'paid' ? { paidAt: sql`now()` } : {}),
     })
     .where(eq(paymentLinks.id, link.id));
-  await tellStaff(tx, notifier, link, row, plan.advancePaise, targets.length > 0);
+  // What the bills no longer owed goes back through the gateway ([PO-44]).
+  const refund = linkRefundOf({
+    purpose: link.purpose,
+    amountPaise: payment.amountPaise,
+    advancePaise: plan.advancePaise,
+  });
+  if (refund !== null) {
+    await queueLinkRefund(tx, {
+      link,
+      paymentId: row.id,
+      gatewayPaymentId: payment.id,
+      amountPaise: refund.amountPaise,
+      reason: refund.reason,
+    });
+  }
+  await tellStaff(tx, notifier, link, row, plan.advancePaise, targets.length > 0, refund !== null);
   // The customer's receipt, when they agreed to WhatsApp messages (MSG-1).
   await queueMessage(tx, {
     organizationId,
@@ -543,8 +526,8 @@ async function recordLinkPayment(
 
 /**
  * The paid-link notice to who takes payments at the link's store (rule PL-10). Money
- * for bills already paid some other way, or more than they owed, is an advance: the
- * notice says so, so someone refunds or allocates it.
+ * for bills already paid some other way, or more than they owed, goes back through the
+ * gateway ([PO-44]): the notice says so.
  */
 async function tellStaff(
   tx: Transaction,
@@ -553,6 +536,7 @@ async function tellStaff(
   payment: { id: string; number: string; amountPaise: number },
   advancePaise: number,
   hadDocuments: boolean,
+  refunding: boolean,
 ): Promise<void> {
   const [party] = (await tx
     .select({ name: parties.displayName })
@@ -566,8 +550,11 @@ async function tellStaff(
   const parts = [
     `${formatINR(payment.amountPaise)} received for ${link.number}, recorded as ${payment.number}.`,
   ];
-  if (advancePaise > 0 && hadDocuments) {
-    parts.push(`${formatINR(advancePaise)} is kept as an advance: refund or allocate it.`);
+  // Only an advance link keeps money no bill took, and that money was asked for.
+  if (refunding) {
+    parts.push(
+      `${formatINR(advancePaise)} was not owed and goes back to the customer through the gateway.`,
+    );
   }
   await notifier.notify(tx, {
     organizationId: link.organizationId,

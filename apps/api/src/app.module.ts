@@ -31,7 +31,7 @@ import { OnboardingModule } from './onboarding/onboarding.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { PaintModule } from './paint/paint.module.js';
 import { PartiesModule } from './parties/parties.module.js';
-import { paymentLinkProviderFor } from './payment-links/payment-link-provider.js';
+import { PaymentLinkGateways } from './payment-links/payment-link-gateways.js';
 import { PaymentLinksModule } from './payment-links/payment-links.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
 import { PlatformModule } from './platform/platform.module.js';
@@ -54,13 +54,25 @@ export interface AppModuleOptions {
   readonly connection: DatabaseConnection;
   /** Replaces the configured SMS sender (tests capture codes and messages this way). */
   readonly smsSender?: SmsSender;
+  /** Replaces the configured payment-link gateways (tests talk to a fake Razorpay this way). */
+  readonly paymentLinkGateways?: PaymentLinkGateways;
 }
 
 @Module({})
 export class AppModule {
-  static forRoot({ config, connection, smsSender }: AppModuleOptions): DynamicModule {
+  static forRoot({
+    config,
+    connection,
+    smsSender,
+    paymentLinkGateways,
+  }: AppModuleOptions): DynamicModule {
     const whatsapp = messagingProviderFor(config.messagingProvider);
-    const paymentLinks = paymentLinkProviderFor(config.paymentLinks.provider, config.appUrl);
+    const paymentLinks =
+      paymentLinkGateways ??
+      PaymentLinkGateways.fromConfig(config.paymentLinks, {
+        appUrl: config.appUrl,
+        publicApiUrl: config.publicApiUrl,
+      });
     // Party SMS goes where sign-in codes go: the log in development, nowhere until a provider exists.
     const sms = smsSender ?? (config.smsProvider === 'log' ? new LoggingSmsSender() : null);
     return {
@@ -99,20 +111,14 @@ export class AppModule {
           email: config.email,
           workerIntervalSeconds: config.workerIntervalSeconds,
           messaging: { whatsapp, sms },
-          paymentLinks: {
-            provider: paymentLinks,
-            expiryDays: config.paymentLinks.expiryDays,
-          },
+          paymentLinks,
         }),
         OnboardingModule,
         OrdersModule,
         PaintModule,
         PartiesModule,
         PaymentsModule,
-        PaymentLinksModule.forRoot({
-          provider: paymentLinks,
-          expiryDays: config.paymentLinks.expiryDays,
-        }),
+        PaymentLinksModule.forRoot(paymentLinks),
         PlatformModule.forRoot({
           bootstrapToken: config.platformBootstrapToken,
           trialDays: config.subscriptions.trialDays,

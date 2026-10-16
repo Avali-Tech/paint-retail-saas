@@ -34,6 +34,8 @@ const production = {
   STORAGE_BUCKET: 'docs',
   CLAMAV_HOST: 'clamav',
 };
+const KEY = Buffer.alloc(32, 7).toString('base64');
+const OLD_KEY = Buffer.alloc(32, 9).toString('base64');
 const razorpay = {
   SUBSCRIPTION_GATEWAY: 'razorpay',
   RAZORPAY_KEY_ID: 'rzp_live_key',
@@ -60,7 +62,11 @@ describe('loadConfig', () => {
       platformBootstrapToken: null,
       signupPlan: 'trial',
       messagingProvider: 'disabled',
-      paymentLinks: { provider: 'disabled', expiryDays: 7 },
+      paymentLinks: {
+        provider: 'disabled',
+        credentialsKeys: null,
+        razorpayApiUrl: 'https://api.razorpay.com/v1',
+      },
       publicApiUrl: 'http://localhost:5173/api',
       subscriptions: {
         gateway: { name: 'manual' },
@@ -115,8 +121,9 @@ describe('loadConfig', () => {
         PLATFORM_BOOTSTRAP_TOKEN: 'bootstrap-token-of-at-least-32-characters',
         SIGNUP_PLAN: 'standard',
         MESSAGING_PROVIDER: 'disabled',
-        PAYMENT_LINK_PROVIDER: 'disabled',
-        PAYMENT_LINK_EXPIRY_DAYS: '3',
+        PAYMENT_LINK_PROVIDER: 'razorpay',
+        GATEWAY_CREDENTIALS_KEY: KEY,
+        GATEWAY_CREDENTIALS_PREVIOUS_KEY: OLD_KEY,
         PUBLIC_API_URL: 'https://api.paintsaas.in/',
         SUBSCRIPTION_GATEWAY: 'razorpay',
         RAZORPAY_KEY_ID: 'rzp_live_key',
@@ -163,7 +170,14 @@ describe('loadConfig', () => {
       platformBootstrapToken: 'bootstrap-token-of-at-least-32-characters',
       signupPlan: 'standard',
       messagingProvider: 'disabled',
-      paymentLinks: { provider: 'disabled', expiryDays: 3 },
+      paymentLinks: {
+        provider: 'razorpay',
+        credentialsKeys: {
+          current: Buffer.from(KEY, 'base64'),
+          previous: Buffer.from(OLD_KEY, 'base64'),
+        },
+        razorpayApiUrl: 'https://api.razorpay.example/v1',
+      },
       publicApiUrl: 'https://api.paintsaas.in',
       subscriptions: {
         gateway: {
@@ -218,8 +232,34 @@ describe('loadConfig', () => {
   it('makes pretend payment links with the log provider outside production', () => {
     expect(loadConfig({ ...required, PAYMENT_LINK_PROVIDER: 'log' }).paymentLinks).toEqual({
       provider: 'log',
-      expiryDays: 7,
+      credentialsKeys: null,
+      razorpayApiUrl: 'https://api.razorpay.com/v1',
     });
+  });
+
+  it('takes Razorpay payment links in production with the key that seals shops’ credentials', () => {
+    const config = loadConfig({
+      ...production,
+      ...bank,
+      PAYMENT_LINK_PROVIDER: 'razorpay',
+      GATEWAY_CREDENTIALS_KEY: KEY,
+    });
+    expect(config.paymentLinks.credentialsKeys).toEqual({
+      current: Buffer.from(KEY, 'base64'),
+      previous: null,
+    });
+  });
+
+  it('never prints the credentials key when it is wrong', () => {
+    const wrong = 'c2hvcnQta2V5LW5vdC0zMi1ieXRlcw==';
+    expect(() => loadConfig({ ...required, GATEWAY_CREDENTIALS_KEY: wrong })).toThrow(
+      /GATEWAY_CREDENTIALS_KEY: must be 32 random bytes/,
+    );
+    try {
+      loadConfig({ ...required, GATEWAY_CREDENTIALS_KEY: wrong });
+    } catch (error) {
+      expect(String(error)).not.toContain(wrong);
+    }
   });
 
   it('invoices by hand in production with the platform bank account and no Razorpay keys', () => {
@@ -257,13 +297,19 @@ describe('loadConfig', () => {
       { ...required, NODE_ENV: 'production', MESSAGING_PROVIDER: 'log' },
       /MESSAGING_PROVIDER: "log"/,
     ],
-    [{ ...required, PAYMENT_LINK_PROVIDER: 'razorpay' }, /PAYMENT_LINK_PROVIDER/],
+    [{ ...required, PAYMENT_LINK_PROVIDER: 'cashfree' }, /PAYMENT_LINK_PROVIDER/],
+    [
+      { ...required, PAYMENT_LINK_PROVIDER: 'razorpay' },
+      /GATEWAY_CREDENTIALS_KEY: is required with PAYMENT_LINK_PROVIDER=razorpay/,
+    ],
+    [
+      { ...required, GATEWAY_CREDENTIALS_KEY: KEY, GATEWAY_CREDENTIALS_PREVIOUS_KEY: 'short' },
+      /GATEWAY_CREDENTIALS_PREVIOUS_KEY: must be 32 random bytes/,
+    ],
     [
       { ...required, NODE_ENV: 'production', PAYMENT_LINK_PROVIDER: 'log' },
       /PAYMENT_LINK_PROVIDER: "log"/,
     ],
-    [{ ...required, PAYMENT_LINK_EXPIRY_DAYS: '0' }, /PAYMENT_LINK_EXPIRY_DAYS/],
-    [{ ...required, PAYMENT_LINK_EXPIRY_DAYS: '31' }, /PAYMENT_LINK_EXPIRY_DAYS/],
     [{ ...required, PUBLIC_API_URL: 'ftp://api' }, /PUBLIC_API_URL/],
     [{ ...required, PORT: 'abc' }, /PORT/],
     [{ ...required, PORT: '70000' }, /PORT/],

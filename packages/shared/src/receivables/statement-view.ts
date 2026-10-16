@@ -209,6 +209,8 @@ export function statementShareText(
   language: PrintLanguage,
   linkUrl: string | null = null,
   payUrl: string | null = null,
+  /** What the link asks for ([PO-43]: named when it is not the balance shown). */
+  payPaise: number | null = null,
 ): string {
   const texts = SHARE_TEXTS[language];
   const { ageing } = data;
@@ -225,7 +227,8 @@ export function statementShareText(
   const tail =
     ageing.netPaise > 0 && dueNow > 0 ? fillLabel(texts.dueNow, { amount: formatINR(dueNow) }) : '';
   const attachment = linkUrl === null ? texts.attached : fillLabel(texts.linked, { url: linkUrl });
-  return `${fillLabel(head, params)}${tail}${attachment}${payLinkText(payUrl, language)}`;
+  const payAmount = payPaise === null || payPaise === ageing.netPaise ? null : formatINR(payPaise);
+  return `${fillLabel(head, params)}${tail}${attachment}${payLinkText(payUrl, language, payAmount)}`;
 }
 
 /** "Statement-Deccan-Contractors-2026-04-01-2026-10-11.pdf" (ASCII only, for every browser). */

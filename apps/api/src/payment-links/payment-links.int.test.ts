@@ -29,7 +29,7 @@ import {
   type BillingBusiness,
 } from '../test-support/billing-business.js';
 import { startTestApp, uniquePhone, type TestApp } from '../test-support/test-app.js';
-import { PAYMENT_LINK_SETTINGS, type PaymentLinkSettings } from './links.js';
+import { PAYMENT_LINK_GATEWAYS, type PaymentLinkGateways } from './payment-link-gateways.js';
 import { LOG_SIGNATURE_HEADER, LogPaymentLinkProvider } from './payment-link-provider.js';
 
 const {
@@ -51,9 +51,12 @@ let quiet: TestApp;
 let b: BillingBusiness;
 let today: string;
 
-const provider = (app = t) =>
-  app.app.get<PaymentLinkSettings>(PAYMENT_LINK_SETTINGS, { strict: false })
-    .provider as LogPaymentLinkProvider;
+/** The log gateway of an app that has it. */
+const provider = (app = t): LogPaymentLinkProvider => {
+  const log = app.app.get<PaymentLinkGateways>(PAYMENT_LINK_GATEWAYS, { strict: false }).log;
+  if (log === null) throw new Error('This app has no log gateway');
+  return log;
+};
 const referenceOf = (link: { url: string }) => String(link.url.split('/').at(-1));
 
 const create = (body: object, token = b.owner, app = t) =>
@@ -136,7 +139,11 @@ async function grantWhatsapp(partyId: string, language = 'en') {
 }
 
 const paymentsOf = (linkId: string) =>
-  t.connection.db.select().from(payments).where(eq(payments.paymentLinkId, linkId));
+  t.connection.db
+    .select()
+    .from(payments)
+    .where(eq(payments.paymentLinkId, linkId))
+    .orderBy(payments.createdAt, payments.id);
 
 const balanceOf = async (partyId: string) => {
   const [row] = await t.connection.db
@@ -155,7 +162,10 @@ async function booksBalance() {
 }
 
 /** The paid-link notices whose title has `title` (each member told gets a copy). */
-const noticesOf = (title: string) =>
+const noticesOf = (
+  title: string,
+  event: 'payment_link_paid' | 'payment_link_refund' = 'payment_link_paid',
+) =>
   t.connection.db
     .selectDistinct({
       title: notifications.title,
@@ -166,7 +176,7 @@ const noticesOf = (title: string) =>
     .where(
       and(
         eq(notifications.organizationId, b.organizationId),
-        eq(notifications.event, 'payment_link_paid'),
+        eq(notifications.event, event),
         sql`${notifications.title} like ${`%${title}%`}`,
       ),
     );
@@ -180,10 +190,7 @@ beforeAll(async () => {
     APP_URL: 'https://app.example.in',
   });
   off = await startTestApp(database.connectionString);
-  quiet = await startTestApp(database.connectionString, {
-    PAYMENT_LINK_PROVIDER: 'log',
-    PAYMENT_LINK_EXPIRY_DAYS: '2',
-  });
+  quiet = await startTestApp(database.connectionString, { PAYMENT_LINK_PROVIDER: 'log' });
   b = await billingBusiness(t);
   today = await dbToday(t);
 });
@@ -196,13 +203,35 @@ afterAll(async () => {
 });
 
 describe('payment link settings', () => {
-  it('say whether links can be made and how long they live', async () => {
+  it('have no Razorpay account to connect with the log gateway', async () => {
+    expect(ok(await api(t, b.owner).get('/payment-links/gateway-account')).json()).toBeNull();
+    const connect = await api(t, b.owner).put('/payment-links/gateway-account', {
+      keyId: 'rzp_test_1DP5mmOlF5G5ag',
+      keySecret: 'abcdefghijklmnopqrst',
+      webhookSecret: 'webhook-secret',
+    });
+    expect(connect.statusCode).toBe(409);
+    expect(connect.json<{ code: string }>().code).toBe('gateway_not_razorpay');
+    for (const reply of [
+      await api(t, b.owner).post('/payment-links/gateway-account/test'),
+      await api(t, b.owner).delete('/payment-links/gateway-account'),
+    ]) {
+      expect(reply.json<{ code: string }>().code).toBe('gateway_not_razorpay');
+    }
+  });
+
+  it('say whether links can be made, and the business’s rules: 10 minutes, ₹1,00,000, net', async () => {
+    const defaults = {
+      validityMinutes: 10,
+      capPaise: 10_000_000,
+      amountBasis: 'net',
+    };
     expect(
       ok(await api(t, b.owner).get('/payment-links/settings')).json<PaymentLinkSettingsView>(),
-    ).toEqual({ provider: 'log', expiryDays: 7 });
+    ).toEqual({ provider: 'log', ready: true, ...defaults });
     expect(
       ok(await api(off, b.owner).get('/payment-links/settings')).json<PaymentLinkSettingsView>(),
-    ).toEqual({ provider: null, expiryDays: 7 });
+    ).toEqual({ provider: null, ready: false, ...defaults });
   });
 });
 
@@ -236,9 +265,15 @@ describe('making a payment link', () => {
         },
       ],
       payments: [],
+      refunds: [],
+      refundedPaise: 0,
+      refundPendingPaise: 0,
+      refundFailed: false,
     });
     expect(result.link.url).toMatch(/^https:\/\/app\.example\.in\/pay\/plink_log_[\w-]{22}$/);
-    expect(Date.parse(result.link.expiresAt) - Date.now()).toBeGreaterThan(6.9 * 24 * 3600_000);
+    // Payable for the business's 10 minutes ([PO-41]).
+    const life = Date.parse(result.link.expiresAt) - Date.parse(result.link.createdAt);
+    expect(life).toBe(10 * 60_000);
     expect(result.message).toBeNull();
     expect(decodeURIComponent(String(result.waMeUrl))).toContain(
       `Invoice ${invoice.number} for ₹1,180.00. Pay by UPI: ${result.link.url}`,
@@ -459,7 +494,7 @@ describe('making a payment link', () => {
     const shared = ok(
       await create({ partyId: party, purpose: 'invoice', invoiceId: invoice.id }, b.owner, quiet),
     ).json<PaymentLinkCreated>();
-    expect(Date.parse(shared.link.expiresAt) - Date.now()).toBeLessThan(2.1 * 24 * 3600_000);
+    expect(shared.message).toBeNull();
   });
 
   it('is made once per Idempotency-Key', async () => {
@@ -602,22 +637,36 @@ describe('a payment reported by the gateway', () => {
     await booksBalance();
   });
 
-  it('keeps an overpayment as an advance, with a receipt voucher, and says so', async () => {
+  it('refunds an overpayment through the gateway, with a refund voucher, and says so', async () => {
     const party = await customer({ displayName: 'Over Payer' });
     const invoice = await bill(party, 1);
     const { link } = await created({ partyId: party, purpose: 'invoice', invoiceId: invoice.id });
 
     await payLink(link, 20_000);
 
-    const [payment] = await paymentsOf(link.id);
+    const [payment, refund] = await paymentsOf(link.id);
     expect(payment?.voucherNumber).toEqual(expect.any(String));
-    expect(await balanceOf(party)).toEqual({ balance: -8_200, advance: 8_200 });
-    expect((await view(link.id)).payments).toMatchObject([{ advancePaise: 8_200 }]);
+    expect(refund).toMatchObject({ direction: 'out', amountPaise: 8_200 });
+    expect(refund?.voucherNumber).toEqual(expect.any(String));
+    expect(await balanceOf(party)).toEqual({ balance: 0, advance: 0 });
+    expect(await view(link.id)).toMatchObject({
+      refundedPaise: 8_200,
+      refundPendingPaise: 0,
+      refunds: [{ amountPaise: 8_200, reason: 'overpaid', status: 'refunded' }],
+    });
     expect(await noticesOf('Over Payer')).toEqual([
       expect.objectContaining({
         title: 'Paid by UPI link: Over Payer',
         body: expect.stringContaining(
-          '₹82.00 is kept as an advance: refund or allocate it.',
+          '₹82.00 was not owed and goes back to the customer through the gateway.',
+        ) as string,
+      }),
+    ]);
+    expect(await noticesOf('Over Payer', 'payment_link_refund')).toEqual([
+      expect.objectContaining({
+        title: 'Refunded through the gateway: Over Payer',
+        body: expect.stringMatching(
+          /^₹82\.00 paid by PL-\d{6} went back to the customer, as it was more than the bills owed: RF-\d{6}\.$/,
         ) as string,
       }),
     ]);
@@ -639,12 +688,17 @@ describe('a payment reported by the gateway', () => {
 
     await payLink(link, 11_800);
 
-    expect(await balanceOf(party)).toEqual({ balance: -11_800, advance: 11_800 });
-    expect(await noticesOf('Paid Twice')).toEqual([
-      expect.objectContaining({
-        title: 'UPI link paid for bills already settled: Paid Twice',
-        body: expect.stringContaining('₹118.00 is kept as an advance') as string,
-      }),
+    expect(await balanceOf(party)).toEqual({ balance: 0, advance: 0 });
+    expect(await noticesOf('Paid Twice')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'UPI link paid for bills already settled: Paid Twice',
+          body: expect.stringContaining('₹118.00 was not owed and goes back') as string,
+        }),
+      ]),
+    );
+    expect((await view(link.id)).refunds).toMatchObject([
+      { amountPaise: 11_800, reason: 'settled', status: 'refunded' },
     ]);
     await booksBalance();
   });
@@ -761,8 +815,19 @@ describe('a payment reported by the gateway', () => {
       ),
     );
     expect(outcomes.sort()).toEqual(['applied', 'duplicate', 'duplicate']);
-    expect(await paymentsOf(link.id)).toHaveLength(4);
-    expect(await balanceOf(party)).toEqual({ balance: -1_000, advance: 1_000 });
+    // Three payments in, the late one in and refunded once through the gateway ([PO-44]).
+    const recorded = await paymentsOf(link.id);
+    expect(recorded.map((payment) => payment.direction).sort()).toEqual([
+      'in',
+      'in',
+      'in',
+      'in',
+      'out',
+    ]);
+    expect((await view(link.id)).refunds).toMatchObject([
+      { amountPaise: 1_000, reason: 'settled', status: 'refunded' },
+    ]);
+    expect(await balanceOf(party)).toEqual({ balance: 0, advance: 0 });
     await booksBalance();
   });
 
@@ -791,6 +856,27 @@ describe('a payment reported by the gateway', () => {
       ).statusCode,
     ).toBe(404);
     expect((await deliver(unknownLink.body, unknownLink.signature, off)).statusCode).toBe(404);
+    expect(
+      (
+        await deliver(
+          unknownLink.body,
+          unknownLink.signature,
+          off,
+          '/webhooks/payment-links/disabled',
+        )
+      ).statusCode,
+    ).toBe(404);
+    // The log gateway names no business in its route.
+    expect(
+      (
+        await deliver(
+          unknownLink.body,
+          unknownLink.signature,
+          t,
+          '/webhooks/payment-links/log/aaaaaaaaaaaaaaaaaaaaaa',
+        )
+      ).statusCode,
+    ).toBe(404);
     // Another process's log provider signs with another secret.
     expect((await deliver(unknownLink.body, unknownLink.signature, quiet)).statusCode).toBe(400);
   });

@@ -342,6 +342,12 @@ describe('preferences', () => {
         inApp: true,
         email: true,
       },
+      {
+        event: 'payment_link_refund',
+        title: 'Money paid by link goes back to a customer, or a refund fails',
+        inApp: true,
+        email: true,
+      },
     ]);
     expect(saved.statusCode).toBe(200);
     expect(
@@ -367,6 +373,7 @@ describe('preferences', () => {
       ['credit_hold_applied', true, true],
       ['promise_broken', true, true],
       ['payment_link_paid', true, true],
+      ['payment_link_refund', true, true],
     ]);
     const duplicate = await api(hydManager).put('/notifications/preferences', {
       preferences: [

@@ -536,3 +536,49 @@ describe('0078_subscription_rules: a subscription for every business', () => {
     ]);
   });
 });
+
+describe('0081_payment_gateway_accounts: link settings for every business', () => {
+  it('gives existing sales settings the default link validity, cap and amount basis', async () => {
+    const { connectionString: url } = await freshDatabase();
+    await migrateDatabase(url, migrationsUpTo('0080_payment_link_rules'));
+    const organizationId = await withPgClient(url, async (client) => {
+      const org = await client.query<{ id: string }>(
+        "INSERT INTO organizations (name) VALUES ('Old Paints') RETURNING id",
+      );
+      const id = String(org.rows[0]?.id);
+      await client.query(
+        'INSERT INTO sales_settings (organization_id, quote_validity_days) VALUES ($1, 30)',
+        [id],
+      );
+      return id;
+    });
+
+    await migrateDatabase(url);
+
+    const rows = await withPgClient(url, async (client) => {
+      const result = await client.query<{
+        quote_validity_days: number;
+        payment_link_validity_minutes: number;
+        payment_link_cap_paise: string;
+        payment_link_amount_basis: string;
+        accounts: string;
+      }>(
+        `SELECT quote_validity_days, payment_link_validity_minutes, payment_link_cap_paise,
+           payment_link_amount_basis::text,
+           (SELECT count(*) FROM payment_gateway_accounts)::text AS accounts
+         FROM sales_settings WHERE organization_id = $1`,
+        [organizationId],
+      );
+      return result.rows;
+    });
+    expect(rows).toEqual([
+      {
+        quote_validity_days: 30,
+        payment_link_validity_minutes: 10,
+        payment_link_cap_paise: '10000000',
+        payment_link_amount_basis: 'net',
+        accounts: '0',
+      },
+    ]);
+  });
+});

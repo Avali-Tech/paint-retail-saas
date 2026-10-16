@@ -41,6 +41,8 @@ export interface MessageToQueue {
    * language. Templates that take `{{payLink}}` get it empty without one.
    */
   readonly payLinkUrl?: string | null;
+  /** What the link asks for, when the message names another amount ([PO-43]). */
+  readonly payLinkAmount?: string | null;
 }
 
 /** The business's wording of a template on a channel in a language, else the product's. */
@@ -68,7 +70,7 @@ async function wordingOf(
 
 /** The variables of a message: the party's and shop's names, the caller's, and the link. */
 function variablesOf(
-  message: Pick<MessageToQueue, 'templateKey' | 'variables' | 'payLinkUrl'>,
+  message: Pick<MessageToQueue, 'templateKey' | 'variables' | 'payLinkUrl' | 'payLinkAmount'>,
   names: { readonly name: string; readonly business: string },
   language: MessageLanguage,
 ): Record<string, string> {
@@ -76,7 +78,9 @@ function variablesOf(
     ...names,
     ...message.variables,
     ...(TEMPLATE_VARIABLES[message.templateKey].includes('payLink')
-      ? { payLink: payLinkText(message.payLinkUrl ?? null, language) }
+      ? {
+          payLink: payLinkText(message.payLinkUrl ?? null, language, message.payLinkAmount ?? null),
+        }
       : {}),
   };
 }

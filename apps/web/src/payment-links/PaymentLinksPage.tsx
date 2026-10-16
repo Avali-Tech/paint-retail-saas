@@ -6,7 +6,7 @@ import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { useUrlFilters } from '../lib/hooks.js';
 import { QueryState } from '../lib/QueryState.js';
-import { LinkActions, LinkStatus } from './PaymentLinks.js';
+import { LinkActions, LinkStatus, RefundNote } from './PaymentLinks.js';
 
 export const PAYMENT_LINKS_PAGE_SIZE = 25;
 const FILTERS = ['status'] as const;
@@ -80,7 +80,10 @@ export function PaymentLinksPage() {
                         <td className="numeric">{money(link.amountPaise)}</td>
                         <td className="numeric">{money(link.paidPaise)}</td>
                         <td>
-                          <LinkStatus link={link} />
+                          <span className="row">
+                            <LinkStatus link={link} />
+                            <RefundNote link={link} />
+                          </span>
                         </td>
                         <td>{dateTime(link.expiresAt)}</td>
                         <td>

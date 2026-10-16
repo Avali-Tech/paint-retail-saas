@@ -13,7 +13,7 @@ import {
   type BillingBusiness,
 } from '../test-support/billing-business.js';
 import { startTestApp, uniquePhone, type TestApp } from '../test-support/test-app.js';
-import { PAYMENT_LINK_SETTINGS, type PaymentLinkSettings } from './links.js';
+import { PAYMENT_LINK_GATEWAYS, type PaymentLinkGateways } from './payment-link-gateways.js';
 import { LOG_SIGNATURE_HEADER, type LogPaymentLinkProvider } from './payment-link-provider.js';
 
 // Payment links on the messages that ask for money (spec §6.2 rule PL-12): the
@@ -26,8 +26,13 @@ let t: TestApp;
 let b: BillingBusiness;
 let today: string;
 
-const settings = () => t.app.get<PaymentLinkSettings>(PAYMENT_LINK_SETTINGS, { strict: false });
-const provider = () => settings().provider as LogPaymentLinkProvider;
+const settings = () => t.app.get<PaymentLinkGateways>(PAYMENT_LINK_GATEWAYS, { strict: false });
+/** The log gateway, on in this app. */
+const provider = (): LogPaymentLinkProvider => {
+  const log = settings().log;
+  if (log === null) throw new Error('No log gateway');
+  return log;
+};
 
 async function customer(body: object = {}): Promise<string> {
   return ok(
@@ -257,6 +262,47 @@ describe('statement shares with payment links', () => {
       ...body,
     });
 
+  it('name the link’s amount when it asks for the bills’ full outstanding beside an advance ([PO-43])', async () => {
+    const setBasis = async (amountBasis: 'net' | 'full') =>
+      ok(
+        await api(t, b.owner).put('/payment-links/settings', {
+          validityMinutes: 10,
+          capPaise: 10_000_000,
+          amountBasis,
+        }),
+      );
+    const party = await customer();
+    await bill(party, 2, await dbToday(t, 10));
+    await grant(party, 'whatsapp');
+    // An advance of ₹36.00 beside the bill of ₹236.00.
+    ok(
+      await api(t, b.owner).post('/payments', {
+        storeId: b.stores.amp,
+        partyId: party,
+        modeId: b.modes.upi.id,
+        amountPaise: 3_600,
+        allocations: [],
+      }),
+    );
+    const net = ok(await share(party)).json<StatementShareResult>();
+    expect(net.paymentLink?.amountPaise).toBe(20_000);
+    expect(decodeURIComponent(String(net.waMeUrl))).toContain(' Pay by UPI: ');
+
+    await setBasis('full');
+    try {
+      const full = ok(await share(party, { send: 'whatsapp' })).json<StatementShareResult>();
+      expect(full.paymentLink?.amountPaise).toBe(23_600);
+      expect(decodeURIComponent(String(full.waMeUrl))).toContain(
+        `Pay ₹236.00 by UPI: ${String(full.paymentLink?.url)}`,
+      );
+      const [message] = (await messagesOf(party)).slice(-1);
+      expect(message?.body).toContain(`balance ₹200.00`);
+      expect(message?.body).toContain(`Pay ₹236.00 by UPI: ${String(full.paymentLink?.url)}`);
+    } finally {
+      await setBasis('net');
+    }
+  });
+
   it('carry a UPI link for what the party owes, sent again until something changes', async () => {
     const party = await customer();
     await bill(party, 2, await dbToday(t, 10));
@@ -269,7 +315,11 @@ describe('statement shares with payment links', () => {
       amountPaise: 23_600,
       storeId: b.stores.amp,
     });
-    expect(shared.paymentLink).toEqual({ number: link?.number, url: link?.url });
+    expect(shared.paymentLink).toEqual({
+      number: link?.number,
+      url: link?.url,
+      amountPaise: 23_600,
+    });
     expect(decodeURIComponent(String(shared.waMeUrl))).toContain(
       `View the statement: ${shared.url} Pay by UPI: ${String(link?.url)}`,
     );

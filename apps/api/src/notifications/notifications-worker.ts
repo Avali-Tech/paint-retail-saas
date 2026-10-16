@@ -19,7 +19,8 @@ import { DATABASE } from '../database/database.module.js';
 import { expireAccount } from '../loyalty/loyalty-lookups.js';
 import type { MessagingProvider } from '../messaging/messaging-provider.js';
 import { sendDueMessages } from '../messaging/outbox.js';
-import type { PaymentLinkSettings } from '../payment-links/links.js';
+import { runDueLinkRefunds } from '../payment-links/link-refunds.js';
+import type { PaymentLinkGateways } from '../payment-links/payment-link-gateways.js';
 import { reconcileDueBusinesses } from '../reconciliation/reconciler.js';
 import { ManualBillingService } from '../subscriptions/manual-billing.js';
 import type { EmailSender } from './email-sender.js';
@@ -50,8 +51,8 @@ export interface WorkerSettings {
     readonly whatsapp: MessagingProvider | null;
     readonly sms: SmsSender | null;
   };
-  /** Payment links for reminders (P2-M32); the provider is null when links are off. */
-  readonly paymentLinks: PaymentLinkSettings;
+  /** Payment links for reminders and their gateway refunds (P2-M32). */
+  readonly paymentLinks: PaymentLinkGateways;
   /** The time now (runOnce takes another, so tests can fix the time of day). */
   readonly clock: () => Date;
 }
@@ -82,6 +83,8 @@ export interface WorkerRun {
   readonly promisesSettled: number;
   /** Payment reminders queued by the daily collections run. */
   readonly remindersQueued: number;
+  /** Payment-link refunds the gateway took (P2-M32, [PO-44]). */
+  readonly linkRefunds: number;
   /** Messages to parties sent, and failed attempts (P2-M32). */
   readonly messagesSent: number;
   readonly messagesFailed: number;
@@ -182,6 +185,12 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
           { sent: 0, failed: 0, skipped: 0 },
         )
       : { sent: 0, failed: 0, skipped: 0 };
+    // Refunds are not messages: they go back at any hour (spec §6.2 PL-16).
+    const linkRefunds = await this.attempt(
+      'Payment link refunds',
+      () => runDueLinkRefunds(this.connection.db, this.settings.paymentLinks, this.notifier),
+      0,
+    );
     const { sent, failed } = await this.attempt('Sending email', () => this.sendDueEmails(), {
       sent: 0,
       failed: 0,
@@ -196,6 +205,7 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
       subscriptionInvoices,
       promisesSettled: collections.kept + collections.broken,
       remindersQueued: collections.remindersQueued,
+      linkRefunds,
       messagesSent: messages.sent,
       messagesFailed: messages.failed,
       emailsSent: sent,

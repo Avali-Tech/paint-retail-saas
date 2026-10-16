@@ -21,6 +21,9 @@ export const paymentLinksEn = {
     actions: 'Actions',
     pages: 'Payment link pages',
     allStatuses: 'All',
+    refunded: 'Refunded {amount}',
+    refundPending: 'Refund of {amount} on its way',
+    refundFailed: 'Refund of {amount} failed: kept as an advance',
     partPaid: 'Part paid',
     copy: 'Copy link',
     copyName: 'Copy link {number}',
@@ -57,6 +60,71 @@ export const paymentLinksEn = {
     dayEnd: 'Money paid by UPI link goes to no register: find it under Payments, mode "UPI link".',
     dayEndLink: 'Payments by UPI link',
     statementLink: 'UPI payment link: {url}',
+  },
+  /** Settings, Payment links (round 4c, [PO-40] – [PO-43]). */
+  paymentLinkSettings: {
+    nav: 'Payment link settings',
+    title: 'Payment links',
+    description:
+      'Connect your own Razorpay account, so UPI money goes straight to you, and set how links work.',
+    error: 'Could not load the payment link settings',
+    saved: 'Payment link settings saved',
+    off: 'Payment links are not switched on for this service.',
+    logGateway:
+      'Links use the test gateway here: no money moves, and refunds are pretend too. Only the rules below apply.',
+    account: {
+      title: 'Razorpay account',
+      description:
+        'Money paid by link goes straight into your Razorpay account. Keys are kept encrypted and never shown again.',
+      connectedLive: 'Connected · live',
+      connectedTest: 'Connected · test',
+      notConnected: 'Not connected',
+      testWarning:
+        'Test keys take no money, and Razorpay makes UPI-only links with live keys only. Use live keys for customers.',
+      connectedBy: 'Connected by',
+      verifiedAt: 'Last checked',
+      test: 'Test connection',
+      tested: 'Razorpay answered: the keys work',
+      disconnect: 'Disconnect',
+      disconnected: 'Razorpay disconnected: no new links until you connect again',
+    },
+    webhook: {
+      title: 'Webhook',
+      name: 'webhook address',
+      description:
+        'In Razorpay Dashboard → Accounts & Settings → Webhooks, add this address with the webhook secret you enter below.',
+      events:
+        'Enable these events: payment_link.paid, payment_link.expired, payment_link.cancelled, refund.processed, refund.failed.',
+    },
+    connect: {
+      keyId: 'Key id',
+      keySecret: 'Key secret',
+      webhookSecret: 'Webhook secret',
+      incomplete:
+        'Enter the key id (rzp_live_… or rzp_test_…), the key secret and a webhook secret of at least 8 characters',
+      submit: 'Connect Razorpay',
+      replace: 'Replace keys',
+      done: 'Razorpay connected',
+    },
+    rules: {
+      title: 'How links work',
+      validity: 'Payable for (minutes)',
+      validityHint: 'How long a customer has to pay; money paid later is still recorded.',
+      validityRange: 'Enter {min} to {max} minutes',
+      cap: 'Most one link asks for (₹)',
+      capHint: 'A link above this is refused. UPI takes at most {max} in one payment.',
+      capRange: 'Enter {min} to {max}',
+      basis: 'Links ask for',
+      basisOption: {
+        net: 'What is owed, less the advance',
+        full: "The bills' full outstanding",
+      },
+      basisHint: {
+        net: 'The link and the statement balance agree; the advance is used first.',
+        full: 'The link asks for the bills in full; the statement names both figures.',
+      },
+      save: 'Save',
+    },
   },
   /** The `log` provider's pretend payment page (development and demos only). */
   logCheckout: {

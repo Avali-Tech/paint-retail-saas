@@ -9,7 +9,7 @@ import {
   type LogWebhook,
   type PaymentLinkCreated,
   type PaymentLinkPage,
-  type PaymentLinkSettings as PaymentLinkSettingsView,
+  type PaymentLinkSettings,
   type PaymentLinkView,
   type QueueResult,
   type TemplateKey,
@@ -29,15 +29,14 @@ import { receiveGatewayWebhook, type WebhookOutcome } from '../payments-gateway/
 import { paymentStore, walkInPartyId } from '../payments/posting.js';
 import { whatsappLink } from '../statements/statement-links.service.js';
 import { fieldError } from '../tax/tax-lookups.js';
+import { runDueLinkRefunds } from './link-refunds.js';
+import { applyLinkEvent, createLink, linkSummaries, linkView, planLink } from './links.js';
 import {
-  PAYMENT_LINK_SETTINGS,
-  applyLinkEvent,
-  createLink,
-  linkSummaries,
-  linkView,
-  planLink,
-  type PaymentLinkSettings,
-} from './links.js';
+  PAYMENT_LINK_GATEWAYS,
+  PaymentLinkGateways,
+  WEBHOOK_PATH,
+  linkRulesOf,
+} from './payment-link-gateways.js';
 import {
   LOG_SIGNATURE_HEADER,
   LogPaymentLinkProvider,
@@ -47,21 +46,33 @@ import type {
   CreatePaymentLinkInput,
   ListPaymentLinksQuery,
   LogPayInput,
+  UpdateLinkSettingsInput,
 } from './payment-links.schemas.js';
 
-const { organizations, parties, paymentLinkDocuments, paymentLinks, taxDocuments } = schema;
+const {
+  organizations,
+  parties,
+  paymentGatewayEvents,
+  paymentLinkDocuments,
+  paymentLinks,
+  salesSettings,
+  taxDocuments,
+} = schema;
 
-/** Where a gateway posts its webhooks: /webhooks/payment-links/<provider>. */
-export const WEBHOOK_PATH = '/webhooks/payment-links';
-
-const PROBLEMS: Readonly<Record<LinkPlanProblem, string>> = {
+const PROBLEMS: Readonly<Record<Exclude<LinkPlanProblem, 'over_limit'>, string>> = {
   not_open: 'Nothing is left to pay on this bill',
   nothing_due: 'This customer owes nothing of this kind',
   covered_by_advance: "The customer's advance covers what is owed: allocate it instead",
   over_due: 'This is more than the customer owes: ask for less, or take it as an advance',
   amount_required: 'Enter the amount of the advance',
-  over_limit: 'A link asks for at most ₹10,00,000',
 };
+
+/** Why a link cannot be made: the business's cap names its amount ([PO-42]). */
+function problemMessage(problem: LinkPlanProblem, capPaise: number): string {
+  return problem === 'over_limit'
+    ? `A link asks for at most ${formatINR(capPaise)}: ask for part of it, or change the limit in Settings`
+    : PROBLEMS[problem];
+}
 
 /** The message a link goes out in: the invoice's, a reminder's, or a payment request. */
 const TEMPLATE_OF: Readonly<Record<CreatePaymentLinkInput['purpose'], TemplateKey>> = {
@@ -82,27 +93,54 @@ export class PaymentLinksService {
 
   constructor(
     @Inject(DATABASE) private readonly connection: DatabaseConnection,
-    @Inject(PAYMENT_LINK_SETTINGS) private readonly settings: PaymentLinkSettings,
+    @Inject(PAYMENT_LINK_GATEWAYS) private readonly gateways: PaymentLinkGateways,
     @Inject(MESSAGING_SETTINGS) private readonly messaging: MessagingSettings,
     @Inject(Notifier) private readonly notifier: Notifier,
   ) {}
 
-  status(): PaymentLinkSettingsView {
+  /** Whether this business can make links now, and its link rules (rule PL-13). */
+  status(auth: AuthContext): Promise<PaymentLinkSettings> {
+    return withTenant(this.connection.db, auth.organization.id, (tx) => this.statusIn(tx, auth));
+  }
+
+  private async statusIn(tx: Transaction, auth: AuthContext): Promise<PaymentLinkSettings> {
     return {
-      provider: this.settings.provider?.name ?? null,
-      expiryDays: this.settings.expiryDays,
+      provider: this.gateways.provider,
+      ready: (await this.gateways.forBusiness(tx, auth.organization.id)) !== null,
+      ...(await linkRulesOf(tx)),
     };
   }
 
-  private provider(): PaymentLinkProvider {
-    if (this.settings.provider === null) {
+  /** Owners and admins set how long links live, their cap and their basis ([PO-41] – [PO-43]). */
+  updateSettings(auth: AuthContext, input: UpdateLinkSettingsInput): Promise<PaymentLinkSettings> {
+    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      const values = {
+        paymentLinkValidityMinutes: input.validityMinutes,
+        paymentLinkCapPaise: input.capPaise,
+        paymentLinkAmountBasis: input.amountBasis,
+      };
+      await tx
+        .insert(salesSettings)
+        .values({ organizationId: auth.organization.id, ...values })
+        .onConflictDoUpdate({
+          target: salesSettings.organizationId,
+          set: { ...values, updatedAt: sql`now()` },
+        });
+      return this.statusIn(tx, auth);
+    });
+  }
+
+  /** The business's gateway now: 409 when its Razorpay account is not connected. */
+  private async provider(tx: Transaction, auth: AuthContext): Promise<PaymentLinkProvider> {
+    const provider = await this.gateways.forBusiness(tx, auth.organization.id);
+    if (provider === null) {
       throw new ConflictException({
         statusCode: 409,
-        code: 'payment_links_off',
-        message: 'Payment links are not set up',
+        code: 'gateway_not_connected',
+        message: 'Connect your Razorpay account in Settings → Payment links first',
       });
     }
-    return this.settings.provider;
+    return provider;
   }
 
   create(
@@ -110,7 +148,13 @@ export class PaymentLinksService {
     input: CreatePaymentLinkInput,
     idempotencyKey?: string,
   ): Promise<PaymentLinkCreated> {
-    const provider = this.provider();
+    if (this.gateways.provider === null) {
+      throw new ConflictException({
+        statusCode: 409,
+        code: 'payment_links_off',
+        message: 'Payment links are not set up',
+      });
+    }
     if (input.send === 'whatsapp' && this.messaging.whatsapp === null) {
       throw new ConflictException({
         statusCode: 409,
@@ -120,7 +164,9 @@ export class PaymentLinksService {
     }
     const request = { method: 'POST', path: '/payment-links', body: input };
     return withTenant(this.connection.db, auth.organization.id, (tx) =>
-      idempotent(tx, auth, idempotencyKey, request, () => this.createIn(tx, auth, input, provider)),
+      idempotent(tx, auth, idempotencyKey, request, async () =>
+        this.createIn(tx, auth, input, await this.provider(tx, auth)),
+      ),
     );
   }
 
@@ -150,23 +196,19 @@ export class PaymentLinksService {
       throw new ConflictException({
         statusCode: 409,
         code: `link_${plan.problem}`,
-        message: PROBLEMS[plan.problem],
+        message: problemMessage(plan.problem, (await linkRulesOf(tx)).capPaise),
       });
     }
-    const id = await createLink(
-      tx,
-      { provider, expiryDays: this.settings.expiryDays },
-      {
-        organizationId: auth.organization.id,
-        partyId: party.id,
-        storeId,
-        purpose: input.purpose,
-        origin: 'staff',
-        targets: plan.targets,
-        amountPaise: plan.amountPaise,
-        memberId: auth.memberId,
-      },
-    );
+    const id = await createLink(tx, provider, {
+      organizationId: auth.organization.id,
+      partyId: party.id,
+      storeId,
+      purpose: input.purpose,
+      origin: 'staff',
+      targets: plan.targets,
+      amountPaise: plan.amountPaise,
+      memberId: auth.memberId,
+    });
     const [link] = (await linkView(tx, id)) as [PaymentLinkView];
     const message = {
       organizationId: auth.organization.id,
@@ -293,8 +335,9 @@ export class PaymentLinksService {
       if (link.status !== 'created') {
         throw new ConflictException(`This link is already ${link.status}`);
       }
-      if (this.settings.provider?.name === link.provider) {
-        await this.settings.provider.cancelPayment(link.gatewayReference);
+      const provider = await this.gateways.forBusiness(tx, auth.organization.id);
+      if (provider?.name === link.provider) {
+        await provider.cancelPayment(link.gatewayReference);
       }
       await tx
         .update(paymentLinks)
@@ -317,19 +360,25 @@ export class PaymentLinksService {
    */
   async receiveWebhook(
     providerName: string,
+    businessRef: string | undefined,
     rawBody: Buffer,
     headers: Readonly<Record<string, unknown>>,
   ): Promise<WebhookOutcome | null> {
-    const provider = this.settings.provider;
-    if (provider?.name !== providerName) throw new NotFoundException();
+    const route = await this.gateways.forWebhook(this.connection.db, providerName, businessRef);
+    if (route === null) throw new NotFoundException();
+    const { provider, organizationId } = route;
     const received = await receiveGatewayWebhook(
       this.connection.db,
       provider,
       { rawBody, headers },
       {
-        objectId: (event) => event.gatewayLinkId,
+        objectId: (event) => event.gatewayLinkId ?? event.refund?.id ?? null,
         apply: (tx, event, context) =>
-          applyLinkEvent(tx, event, context, { provider, notifier: this.notifier }),
+          applyLinkEvent(tx, event, context, {
+            provider,
+            notifier: this.notifier,
+            organizationId,
+          }),
       },
     );
     if (received === null) {
@@ -339,17 +388,36 @@ export class PaymentLinksService {
     this.logger.log(
       `Payment-link webhook ${received.event.gatewayType} (${received.event.id}): ${received.outcome}`,
     );
+    if (received.outcome === 'applied') await this.refundNow(provider.name, received.event.id);
     return received.outcome;
+  }
+
+  /**
+   * Tries at once the refunds an applied event left waiting (rule PL-15); the worker
+   * tries again whatever this does not finish. Never fails the webhook: its event is
+   * already stored and applied.
+   */
+  private async refundNow(gateway: 'log' | 'razorpay', eventId: string): Promise<void> {
+    try {
+      const [event] = (await this.connection.db
+        .select({ organizationId: paymentGatewayEvents.organizationId })
+        .from(paymentGatewayEvents)
+        .where(
+          and(eq(paymentGatewayEvents.gateway, gateway), eq(paymentGatewayEvents.eventId, eventId)),
+        )) as [{ organizationId: string }];
+      await runDueLinkRefunds(this.connection.db, this.gateways, this.notifier, {
+        organizationId: event.organizationId,
+      });
+    } catch (error) {
+      this.logger.error(`Refunds after webhook ${eventId} wait for the worker: ${String(error)}`);
+    }
   }
 
   // The log provider's pretend checkout (development, tests and demos) ---------
 
   private logProvider(reference: string): LogPaymentLinkProvider {
-    const provider = this.settings.provider;
-    if (
-      !(provider instanceof LogPaymentLinkProvider) ||
-      !LogPaymentLinkProvider.isReference(reference)
-    ) {
+    const provider = this.gateways.log;
+    if (provider === null || !LogPaymentLinkProvider.isReference(reference)) {
       throw new NotFoundException('Not found');
     }
     return provider;

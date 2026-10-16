@@ -568,6 +568,20 @@
       "when": 1792130358672,
       "tag": "0080_payment_link_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1792145533735,
+      "tag": "0081_payment_gateway_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1792145542066,
+      "tag": "0082_payment_link_refund_rules",
+      "breakpoints": true
     }
   ]
 }
