@@ -765,20 +765,20 @@ day-end close, Tally export, all reconciled.
 
 ### For the product owner
 
-| #     | Question                                                                                                                                          | Default if unanswered                     |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| PO-1  | Always issue an invoice, even under ₹200, instead of a daily consolidated invoice?                                                                | Always issue                              |
-| PO-2  | What is each pilot shop's aggregate turnover? Above ₹5 crore, B2B invoices need an IRN from day one (§2.10), which would pull part of 2.3 forward | Manual IRN entry field                    |
-| PO-3  | Is "post stock on invoice or on dispatch" per organisation or per store?                                                                          | Per organisation                          |
-| PO-4  | Allow back-orders (confirm an order without enough stock, unreserved)?                                                                            | No                                        |
-| PO-5  | At go-live, take opening balances from MVP 1's manual exposure or from an imported Tally ledger?                                                  | Import, falling back to manual exposure   |
-| PO-6  | Loyalty points on taxable value or invoice total?                                                                                                 | Taxable value                             |
-| PO-7  | Which thermal printers do pilots use (model, 58 or 80 mm, USB or network)?                                                                        | 80 mm via browser print                   |
-| PO-8  | Do pilot accountants want item-level Tally vouchers or purchases in 2.0?                                                                          | Accounting vouchers, sales side only      |
-| PO-9  | Can counter staff change price or give a discount before the 2.2 discount engine?                                                                 | Discount up to a per-role %, setting      |
-| PO-10 | Can the POS sell more than book stock (goods arrived, GRN not yet entered)?                                                                       | No; MVP 1 refuses negative stock          |
-| PO-11 | Must a cash register session be open to bill?                                                                                                     | Yes for cash; UPI / card allowed without  |
-| PO-12 | Is P2-M08 (subscriptions) planned in a parallel track?                                                                                            | Yes: [subscriptions.md](subscriptions.md) |
+| #     | Question                                                                                                                                          | Default if unanswered                              |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| PO-1  | Always issue an invoice, even under ₹200, instead of a daily consolidated invoice?                                                                | Always issue                                       |
+| PO-2  | What is each pilot shop's aggregate turnover? Above ₹5 crore, B2B invoices need an IRN from day one (§2.10), which would pull part of 2.3 forward | Manual IRN entry field                             |
+| PO-3  | Is "post stock on invoice or on dispatch" per organisation or per store?                                                                          | Per organisation                                   |
+| PO-4  | Allow back-orders (confirm an order without enough stock, unreserved)?                                                                            | No                                                 |
+| PO-5  | At go-live, take opening balances from MVP 1's manual exposure or from an imported Tally ledger?                                                  | Import, falling back to manual exposure            |
+| PO-6  | Loyalty points on taxable value or invoice total?                                                                                                 | Taxable value                                      |
+| PO-7  | Which thermal printers do pilots use (model, 58 or 80 mm, USB or network)?                                                                        | 80 mm via browser print                            |
+| PO-8  | Do pilot accountants want item-level Tally vouchers or purchases in 2.0?                                                                          | Accounting vouchers, sales side only               |
+| PO-9  | Can counter staff change price or give a discount before the 2.2 discount engine?                                                                 | Discount up to a per-role %, setting               |
+| PO-10 | Can the POS sell more than book stock (goods arrived, GRN not yet entered)?                                                                       | No; MVP 1 refuses negative stock                   |
+| PO-11 | Must a cash register session be open to bill?                                                                                                     | Yes for cash; UPI / card allowed without           |
+| PO-12 | Is P2-M08 (subscriptions) planned in a parallel track?                                                                                            | Yes: [subscriptions.md](../mvp-3/subscriptions.md) |
 
 ### For the CA
 

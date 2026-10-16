@@ -6949,7 +6949,7 @@ export const planRequestStatus = pgEnum('subscription_plan_request_status', [
 
 /**
  * With manual invoicing, the owner asks for a plan and a platform operator applies
- * it (docs/mvp-3/subscriptions.md §4). At most one open request per business; a
+ * it (docs/mvp-3/subscriptions.md §3.2). At most one open request per business; a
  * newer one cancels it. Decided once.
  */
 export const subscriptionPlanRequests = pgTable(
