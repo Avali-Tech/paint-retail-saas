@@ -18,6 +18,7 @@ import {
 import { ist, quantity, rupees, text } from './report-values.js';
 import { receivablesAgeing, receivablesOpenBills } from '../receivables/receivables-reports.js';
 import { salesByInfluencer, salesBySite } from './sales-reports.js';
+import { brandProfitabilityReport } from '../brand-profitability/brand-profitability-report.js';
 
 const {
   brands,
@@ -497,4 +498,5 @@ export const REPORT_KINDS: readonly ReportKind<unknown>[] = [
   salesBySite,
   receivablesAgeing,
   receivablesOpenBills,
+  brandProfitabilityReport,
 ];
