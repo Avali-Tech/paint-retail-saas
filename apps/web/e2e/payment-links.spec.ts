@@ -204,14 +204,18 @@ test('Settings → Payment link settings: the business’s link rules, on deskto
   const rules = page.getByRole('region', { name: 'How links work' });
   await expect(rules.getByLabel('Payable for (minutes)')).toHaveValue('10');
   await expect(rules.getByLabel('Most one link asks for (₹)')).toHaveValue('100000.00');
+  // Links sent in messages last a day by default ([PO-61]).
+  await expect(rules.getByLabel('Links in messages payable for (minutes)')).toHaveValue('1440');
   await expectUsable(page);
   await rules.getByLabel('Payable for (minutes)').fill('30');
+  await rules.getByLabel('Links in messages payable for (minutes)').fill('720');
   await rules.getByLabel('Most one link asks for (₹)').fill('200');
   await rules.getByLabel('Links ask for').selectOption('full');
   await rules.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Payment link settings saved')).toBeVisible();
   await page.reload();
   await expect(rules.getByLabel('Payable for (minutes)')).toHaveValue('30');
+  await expect(rules.getByLabel('Links in messages payable for (minutes)')).toHaveValue('720');
 
   // The cap holds: the ₹236.00 bill is more than one link may ask for now.
   await page.goto(`/invoices/${books.invoice.id}`);
