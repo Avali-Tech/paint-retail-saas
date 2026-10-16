@@ -1,7 +1,12 @@
 // Makes inject('databaseUrl') typed for every package that uses these helpers.
 import type {} from './vitest-context.js';
 
-export { POSTGRES_IMAGE, startTestDatabase, type TestDatabase } from './postgres.js';
+export {
+  MAX_LOCKS_PER_TRANSACTION,
+  POSTGRES_IMAGE,
+  startTestDatabase,
+  type TestDatabase,
+} from './postgres.js';
 export { createIsolatedDatabase } from './isolated-database.js';
 export { MAIL_SERVER_IMAGE, startTestMailServer, type TestMailServer } from './mail-server.js';
 export {

@@ -1,5 +1,10 @@
 import { describe, expect, inject, it } from 'vitest';
-import { POSTGRES_IMAGE, startTestDatabase, withPgClient } from './index.js';
+import {
+  MAX_LOCKS_PER_TRANSACTION,
+  POSTGRES_IMAGE,
+  startTestDatabase,
+  withPgClient,
+} from './index.js';
 
 describe('startTestDatabase', () => {
   it('starts a PostgreSQL 17 container that accepts queries, and stops it', async () => {
@@ -32,6 +37,17 @@ describe('shared integration database', () => {
     });
 
     expect(answer).toBe(42);
+  });
+
+  it('has room in the lock table for parallel migrations and bulk seeds', async () => {
+    const setting = await withPgClient(inject('databaseUrl'), async (client) => {
+      const result = await client.query<{ max_locks_per_transaction: string }>(
+        'SHOW max_locks_per_transaction',
+      );
+      return result.rows[0]?.max_locks_per_transaction;
+    });
+
+    expect(setting).toBe(String(MAX_LOCKS_PER_TRANSACTION));
   });
 });
 
