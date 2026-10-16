@@ -36,9 +36,11 @@ import {
   creditRulesOf,
   creditSummaryOf,
   exposureOf,
+  exposuresOf,
   positionOf,
   visibleParties,
   type CreditSummary,
+  type Exposure,
 } from './credit-lookups.js';
 import type {
   CreditRequestInput,
@@ -188,9 +190,15 @@ export class CreditService {
         .innerJoin(parties, eq(parties.id, creditProfiles.partyId))
         .where(where);
       const rules = await creditRulesOf(tx, auth.organization.id);
+      // One query for the whole page, however long (no query per customer).
+      const exposures = await exposuresOf(
+        tx,
+        rows.map(({ profile, party }) => ({ partyId: party.id, manual: profile })),
+      );
       const items: CreditListItem[] = [];
       for (const { profile, party } of rows) {
-        const exposure = await exposureOf(tx, party.id, profile);
+        // Every party asked for is answered.
+        const exposure = exposures.get(party.id) as unknown as Exposure;
         items.push({
           party,
           status: profile.status,
