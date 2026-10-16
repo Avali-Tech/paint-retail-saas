@@ -87,23 +87,26 @@ function Trend({ days }: { readonly days: SalesOverview['days'] }) {
           />
         ))}
       </div>
-      <table className="ui-visually-hidden">
-        <caption>{t('salesTile.trend')}</caption>
-        <thead>
-          <tr>
-            <th scope="col">{t('salesTile.day')}</th>
-            <th scope="col">{t('salesTile.netSales')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {days.map((day) => (
-            <tr key={day.day}>
-              <th scope="row">{date(day.day)}</th>
-              <td>{money(day.taxablePaise)}</td>
+      {/* A table ignores the 1px box that hides it, so its wrapper is what is hidden. */}
+      <div className="ui-visually-hidden">
+        <table>
+          <caption>{t('salesTile.trend')}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{t('salesTile.day')}</th>
+              <th scope="col">{t('salesTile.netSales')}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {days.map((day) => (
+              <tr key={day.day}>
+                <th scope="row">{date(day.day)}</th>
+                <td>{money(day.taxablePaise)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }
