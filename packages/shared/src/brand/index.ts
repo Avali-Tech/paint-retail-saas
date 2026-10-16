@@ -60,3 +60,15 @@ export {
   type MarginSlice,
   type OutstandingSpan,
 } from './margin.js';
+export {
+  BRAND_PROFITABILITY_PERMISSION,
+  DEFAULT_POINT_VALUE_PAISE,
+  PROFITABILITY_GROUPS,
+  PROFITABILITY_MAX_DAYS,
+  previousQuarter,
+  type BrandProfitabilityQuery,
+  type BrandProfitabilityRow,
+  type BrandProfitabilityView,
+  type ProfitabilityGroup,
+  type ProfitabilitySliceView,
+} from './profitability-api.js';
