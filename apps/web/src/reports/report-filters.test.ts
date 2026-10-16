@@ -26,6 +26,10 @@ describe('report filters', () => {
       { value: 'salesperson', label: 'Salesperson' },
       { value: 'store', label: 'Store' },
     ]);
+    expect(choice('schemeStatus', ['active', 'closed'])).toEqual([
+      { value: 'active', label: 'Running' },
+      { value: 'closed', label: 'Closed' },
+    ]);
     // A filter the app does not know yet: its values humanized.
     expect(choice('channel', ['walk_in'])).toEqual([{ value: 'walk_in', label: 'Walk in' }]);
     expect(filterChoices(i18n, { name: 'from', type: 'date' })).toEqual([]);

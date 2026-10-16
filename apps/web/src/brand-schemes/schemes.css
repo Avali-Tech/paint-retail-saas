@@ -1,0 +1,85 @@
+/* Brand schemes. Design tokens only (theme-guard.test.ts). */
+
+.schemes__list {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (min-width: 900px) {
+  .schemes__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.scheme-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.scheme-card__name {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+}
+
+.scheme-progress {
+  position: relative;
+  height: var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-sunken);
+  overflow: hidden;
+}
+
+.scheme-progress__bar {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+}
+
+.scheme-progress__bar--reached {
+  background: var(--color-success-text);
+}
+
+.scheme-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+.scheme-slab {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.scheme-slab legend {
+  font-weight: 600;
+  padding: 0 var(--space-1);
+}
+
+.scheme-benefit {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+@media (min-width: 700px) {
+  .scheme-benefit {
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    align-items: end;
+  }
+}
+
+.scheme-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  max-height: 14rem;
+  overflow-y: auto;
+}

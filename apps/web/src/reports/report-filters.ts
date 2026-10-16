@@ -25,6 +25,8 @@ function choiceLabel(i18n: I18n, filter: string, value: string): string {
       return label('reportLeadSources', value);
     case 'groupBy':
       return label('ageingGroups', value);
+    case 'schemeStatus':
+      return label('schemeStatus', value);
     default:
       return humanize(value);
   }

@@ -21,6 +21,7 @@ import { posRoutes } from '../pos/routes.js';
 import { printRoutes } from '../print/routes.js';
 import { projectRoutes } from '../projects/routes.js';
 import { purchasingRoutes } from '../purchasing/routes.js';
+import { schemeRoutes } from '../brand-schemes/routes.js';
 import { receivablesRoutes } from '../receivables/routes.js';
 import { reportRoutes } from '../reports/routes.js';
 import { salesRoutes } from '../sales/routes.js';
@@ -92,6 +93,7 @@ export function AppRoutes() {
         {transferRoutes()}
         {stockCountRoutes()}
         {purchasingRoutes()}
+        {schemeRoutes()}
         {importRoutes()}
         {leadRoutes()}
         {opportunityRoutes()}
