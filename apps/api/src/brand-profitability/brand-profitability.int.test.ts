@@ -385,7 +385,7 @@ describe('brand profitability', () => {
       groupBy: 'store',
       costOfMoneyBps: 1_200,
       pointValuePaise: 100,
-      schemesCounted: false,
+      schemesCounted: true,
       uncostedLines: 1,
     });
     expect(byStore.brands.map((brand) => [brand.brandName, brand.uncostedLines])).toEqual([
@@ -736,6 +736,72 @@ describe('scheme money', () => {
   });
 });
 
+describe('scheme money from the schemes module', () => {
+  it('adds what the brand issued on a real scheme, spread over its stores by cost', async () => {
+    const me = ok(await owner().get('/auth/me')).json<{ memberId: string }>();
+    await withTenant(t.connection.db, b.organizationId, async (tx) => {
+      const [row] = await tx
+        .insert(schema.brandSchemes)
+        .values({
+          organizationId: b.organizationId,
+          brandId: asian,
+          name: 'Asian quarter',
+          startsOn: from,
+          endsOn: to,
+          measure: 'value',
+          status: 'active',
+          createdByMemberId: me.memberId,
+        })
+        .returning();
+      const schemeId = String(row?.id);
+      const [slab] = await tx
+        .insert(schema.brandSchemeSlabs)
+        .values({
+          organizationId: b.organizationId,
+          schemeId,
+          position: 1,
+          target: 50_000_00,
+        })
+        .returning();
+      await tx.insert(schema.brandSchemeBenefits).values({
+        organizationId: b.organizationId,
+        schemeId,
+        slabId: String(slab?.id),
+        position: 1,
+        kind: 'rebate',
+        basisPoints: 100,
+      });
+      // No GRNs reach the slab, so nothing more is expected; the brand sent ₹40 anyway.
+      await tx.insert(schema.brandBenefitReceipts).values({
+        organizationId: b.organizationId,
+        schemeId,
+        kind: 'money',
+        receivedOn: to,
+        amountPaise: 4_000,
+        moneyForm: 'credit_note',
+        reference: 'AP-CN-1',
+        recordedByMemberId: me.memberId,
+      });
+    });
+    const result = await view('groupBy=store');
+    expect(result.schemesCounted).toBe(true);
+    const asianRow = result.brands.find((brand) => brand.brandId === asian);
+    expect(asianRow?.figures).toEqual({
+      ...asianTotal,
+      schemeReceivedPaise: 4_000,
+      contributionPaise: 64_261 + 4_000,
+      marginBps: 3_973,
+    });
+    // Cost ₹780 at Ameerpet, ₹260 at Kukatpally, none at the counter: 3 to 1.
+    expect(asianRow?.slices.map((slice) => [slice.storeCode, slice.schemeReceivedPaise])).toEqual([
+      ['AMP', 3_000],
+      ['UNR', 0],
+      ['KKP', 1_000],
+    ]);
+    expectSlicesAddUp(result);
+  });
+});
+
 describe('scale', () => {
   it('reads the books in a fixed number of queries, however many there are', async () => {
     const count = async () => {
@@ -758,6 +824,7 @@ describe('scale', () => {
       });
     }
     expect(await count()).toBe(before);
-    expect(before).toBeLessThanOrEqual(16);
+    // Sign-in, our six reads and three name lookups, and the schemes module's own.
+    expect(before).toBeLessThanOrEqual(24);
   });
 });

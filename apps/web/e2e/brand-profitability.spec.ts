@@ -93,7 +93,7 @@ test('the owner sees which brand made the most money, and splits it', async ({ p
   await expect(apex).toContainText('₹8,000.00');
   await expect(apex).toContainText('₹2,000.00');
   await expect(table.getByRole('row', { name: /Nerolac/ })).toContainText('₹100.00');
-  await expect(page.getByText(/Scheme money from brands is not counted yet/)).toBeVisible();
+  await expect(page.getByText(/Scheme money from brands is not counted yet/)).toHaveCount(0);
   await expectUsable(page);
 
   await page.getByRole('button', { name: 'Split Asian Paints by product' }).click();
