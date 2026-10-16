@@ -19,6 +19,15 @@ export interface SessionStore {
 }
 
 export const SESSION_KEY = 'paint.session';
+/** Why the last session ended, kept so a reload of the sign-in screen still explains it. */
+export const ENDED_KEY = 'paint.session.ended';
+
+const REASONS: readonly SessionEndReason[] = ['signed-out', 'expired', 'support-rejected'];
+
+function readEnded(storage: Storage): SessionEndReason | null {
+  const value = storage.getItem(ENDED_KEY);
+  return REASONS.find((reason) => reason === value) ?? null;
+}
 
 function readGrant(storage: Storage): SessionGrant | null {
   try {
@@ -56,7 +65,8 @@ export function createSessionStore(
   win: Pick<Window, 'addEventListener' | 'removeEventListener'> = window,
 ): SessionStore {
   const listeners = new Set<() => void>();
-  let state: SessionState = { session: readGrant(storage), ended: null };
+  const saved = readGrant(storage);
+  let state: SessionState = { session: saved, ended: saved ? null : readEnded(storage) };
 
   const set = (next: SessionState) => {
     state = next;
@@ -68,6 +78,7 @@ export function createSessionStore(
   const getState = () => {
     if (state.session && isExpired(state.session)) {
       storage.removeItem(SESSION_KEY);
+      storage.setItem(ENDED_KEY, 'expired');
       state = { session: null, ended: 'expired' };
     }
     return state;
@@ -78,10 +89,14 @@ export function createSessionStore(
     getToken: () => getState().session?.token ?? null,
     start: (grant) => {
       storage.setItem(SESSION_KEY, JSON.stringify(grant));
+      storage.removeItem(ENDED_KEY);
       set({ session: grant, ended: null });
     },
     end: (reason) => {
       storage.removeItem(SESSION_KEY);
+      // A request may find the session gone just before the page reloads (a background
+      // poll, then a refresh): the sign-in screen after the reload still says why.
+      storage.setItem(ENDED_KEY, reason);
       set({ session: null, ended: reason });
     },
     subscribe: (listener) => {

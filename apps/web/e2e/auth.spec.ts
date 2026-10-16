@@ -108,8 +108,9 @@ test('an ended session sends the user back to sign in', async ({ page }) => {
 
   // The session ends elsewhere (signed out on another device, or expired).
   await call('POST', '/auth/logout', { token: await storedToken(page) });
-  // Its next request (here a reload) finds out. Clicking a button raced the app's own
-  // background requests (branding, notifications), which may find out first.
+  // Its next request (here a reload) finds out. A background poll (notifications, the
+  // subscription) may find out first, just before the reload: the reason the session
+  // ended is kept in storage, so the sign-in screen after the reload still says it.
   await page.reload();
 
   await expect(page.getByText('Your session has ended. Please sign in again.')).toBeVisible();
