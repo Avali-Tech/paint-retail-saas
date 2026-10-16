@@ -10,6 +10,7 @@ import { schema, type DatabaseConnection } from '@paint/db';
 import { isMessagingHour, variantName } from '@paint/shared';
 import { and, asc, eq, isNull, lt, lte, notExists, or, sql } from 'drizzle-orm';
 import { RECORD_PATHS, recordLabel } from '../activities/activity-records.js';
+import { noticeSchemesForBusinesses } from '../brand-schemes/scheme-notices.js';
 import type { SmsSender } from '../auth/sms.js';
 import { runCollectionsForBusinesses } from '../collections/collections-job.js';
 import { todayInIndia } from '../contracts/contract-dates.js';
@@ -85,6 +86,8 @@ export interface WorkerRun {
   readonly remindersQueued: number;
   /** Payment-link refunds the gateway took (P2-M32, [PO-44]). */
   readonly linkRefunds: number;
+  /** Brand scheme notices: a slab within reach, a claim overdue (P2-M33). */
+  readonly schemeNotices: number;
   /** Messages to parties sent, and failed attempts (P2-M32). */
   readonly messagesSent: number;
   readonly messagesFailed: number;
@@ -108,6 +111,8 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
   private timer: NodeJS.Timeout | undefined;
   /** Runs queue up behind each other, so they never overlap. */
   private running: Promise<void> = Promise.resolve();
+  /** The India day this server last looked for brand scheme notices: once a day is enough. */
+  private schemesNoticedOn: string | null = null;
 
   constructor(
     @Inject(DATABASE) private readonly connection: DatabaseConnection,
@@ -191,6 +196,11 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
       () => runDueLinkRefunds(this.connection.db, this.settings.paymentLinks, this.notifier),
       0,
     );
+    const schemeNotices = await this.attempt(
+      'Brand scheme notices',
+      () => this.noticeSchemes(now),
+      0,
+    );
     const { sent, failed } = await this.attempt('Sending email', () => this.sendDueEmails(), {
       sent: 0,
       failed: 0,
@@ -206,11 +216,24 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
       promisesSettled: collections.kept + collections.broken,
       remindersQueued: collections.remindersQueued,
       linkRefunds,
+      schemeNotices,
       messagesSent: messages.sent,
       messagesFailed: messages.failed,
       emailsSent: sent,
       emailsFailed: failed,
     };
+  }
+
+  /**
+   * Brand scheme notices (slab within reach, claim overdue), once per India day per
+   * server; each notice goes once per scheme whichever server sends it.
+   */
+  async noticeSchemes(now: Date): Promise<number> {
+    const today = todayInIndia(now);
+    if (this.schemesNoticedOn === today) return 0;
+    const sent = await noticeSchemesForBusinesses(this.connection.db, this.notifier, today);
+    this.schemesNoticedOn = today;
+    return sent;
   }
 
   private async attempt<T>(name: string, job: () => Promise<T>, fallback: T): Promise<T> {

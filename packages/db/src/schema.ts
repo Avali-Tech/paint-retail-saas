@@ -1738,6 +1738,8 @@ export const notificationEvent = pgEnum('notification_event', [
   'promise_broken',
   'payment_link_paid',
   'payment_link_refund',
+  'scheme_slab_near',
+  'scheme_claim_overdue',
 ]);
 
 /** An in-app notification for one member. */
@@ -2668,6 +2670,8 @@ export const loyaltySettings = pgTable(
     tiers: jsonb('tiers').$type<{ name: string; minPoints: number }[]>().notNull().default([]),
     expiryDays: integer('expiry_days'),
     minRedemptionPoints: integer('min_redemption_points').notNull().default(0),
+    /** What one point is worth in paise when paid out (brand profitability's loyalty cost). */
+    pointValuePaise: integer('point_value_paise').notNull().default(100),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -2677,6 +2681,7 @@ export const loyaltySettings = pgTable(
     ),
     check('loyalty_settings_expiry_positive', sql`${table.expiryDays} > 0`),
     check('loyalty_settings_min_redemption', sql`${table.minRedemptionPoints} >= 0`),
+    check('loyalty_settings_point_value', sql`${table.pointValuePaise} >= 0`),
     check('loyalty_settings_tiers_array', sql`jsonb_typeof(${table.tiers}) = 'array'`),
     pgPolicy('loyalty_settings_tenant_isolation', {
       for: 'all',
@@ -3251,6 +3256,8 @@ export const salesSettings = pgTable(
     paymentLinkAmountBasis: paymentLinkAmountBasis('payment_link_amount_basis')
       .notNull()
       .default('net'),
+    /** The business's cost of money a year, basis points ([PO-5]; brand profitability's credit cost). */
+    costOfMoneyBps: integer('cost_of_money_bps').notNull().default(1200),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -3271,6 +3278,7 @@ export const salesSettings = pgTable(
       sql`${table.upiId} is null or ${table.bankName} is not null`,
     ),
     check('sales_settings_invoice_terms', sql`cardinality(${table.invoiceTerms}) <= 10`),
+    check('sales_settings_cost_of_money', sql`${table.costOfMoneyBps} between 0 and 10000`),
     check(
       'sales_settings_payment_links',
       sql`${table.paymentLinkValidityMinutes} between 5 and 43200
@@ -7440,6 +7448,469 @@ export const paymentLinkRefunds = pgTable(
         and char_length(${table.gatewayStatus}) <= 40 and char_length(${table.lastError}) <= 200`,
     ),
     pgPolicy('payment_link_refunds_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+// ---------------------------------------------------------------------------
+// Brand schemes, targets and rebates (roadmap P2-M33, MVP 3 round 5a;
+// docs/mvp-3/credit-and-receivables.md §3.8 and §6.3): a brand's slab scheme over a
+// period, what each slab gives, what the brand has issued against it, and the claims
+// filed with the brand. Progress and expected benefits are computed by the pure
+// engines in @paint/shared (`schemeProgress`, `schemeClaim`) from the brand's GRNs.
+
+/** What slab targets count: purchase value at cost (paise) or paint (millilitres). */
+export const brandSchemeMeasure = pgEnum('brand_scheme_measure', ['value', 'litres']);
+/** `retro`: the slab reached pays on everything; `incremental`: each slab on its band ([PO-30]). */
+export const brandSchemeMode = pgEnum('brand_scheme_mode', ['retro', 'incremental']);
+/** Which day puts a GRN in a scheme's period ([CA-21]): the GRN's own, or the supplier invoice's. */
+export const brandSchemeDateBasis = pgEnum('brand_scheme_date_basis', ['grn_date', 'invoice_date']);
+/**
+ * `draft`: being entered, not counted anywhere; `active`: counted (progress, claims,
+ * dashboard, profitability); `closed`: nothing more is expected from the brand (what
+ * is still owed is written off); `cancelled`: the brand withdrew it. Forward only:
+ * draft → active / cancelled, active → closed / cancelled (trigger, 0084).
+ */
+export const brandSchemeStatus = pgEnum('brand_scheme_status', [
+  'draft',
+  'active',
+  'closed',
+  'cancelled',
+]);
+
+/**
+ * A brand's scheme (P2-M33): a period (both days included), what it counts (value or
+ * litres, retro or incremental), the products or categories it covers
+ * (`brand_scheme_items`; none = every product of the brand), its slabs, and the days
+ * after the period the brand settles in (null = 45, [PO-32]). The brand never changes;
+ * a closed or cancelled scheme never changes again (trigger, 0084). Audited.
+ */
+export const brandSchemes = pgTable(
+  'brand_schemes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    brandId: uuid('brand_id').notNull(),
+    name: text('name').notNull(),
+    /** The brand's own code or circular number for the scheme. */
+    brandReference: text('brand_reference'),
+    startsOn: date('starts_on', { mode: 'string' }).notNull(),
+    endsOn: date('ends_on', { mode: 'string' }).notNull(),
+    measure: brandSchemeMeasure('measure').notNull(),
+    mode: brandSchemeMode('mode').notNull().default('retro'),
+    /** Days after `ends_on` the brand settles in; null = 45 ([PO-32]). */
+    settlementDays: integer('settlement_days'),
+    dateBasis: brandSchemeDateBasis('date_basis').notNull().default('grn_date'),
+    status: brandSchemeStatus('status').notNull().default('draft'),
+    note: text('note'),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    /** When it was closed or cancelled, by whom and why. */
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    endedByMemberId: uuid('ended_by_member_id'),
+    endNote: text('end_note'),
+    ...timestamps,
+  },
+  (table) => [
+    unique('brand_schemes_organization_id_id_unique').on(table.organizationId, table.id),
+    uniqueIndex('brand_schemes_brand_name_unique').on(
+      table.organizationId,
+      table.brandId,
+      sql`lower(${table.name})`,
+    ),
+    index('brand_schemes_brand_period_idx').on(
+      table.organizationId,
+      table.brandId,
+      table.startsOn,
+      table.endsOn,
+    ),
+    foreignKey({
+      name: 'brand_schemes_organization_fk',
+      columns: [table.organizationId],
+      foreignColumns: [organizations.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'brand_schemes_brand_fk',
+      columns: [table.organizationId, table.brandId],
+      foreignColumns: [brands.organizationId, brands.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_schemes_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_schemes_ended_by_fk',
+      columns: [table.organizationId, table.endedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'brand_schemes_text',
+      sql`${table.name} = btrim(${table.name}) and char_length(${table.name}) between 1 and 120
+        and char_length(${table.brandReference}) between 1 and 60
+        and char_length(${table.note}) <= 500 and char_length(${table.endNote}) <= 500`,
+    ),
+    check(
+      'brand_schemes_period',
+      sql`${table.endsOn} >= ${table.startsOn} and ${table.endsOn} - ${table.startsOn} < 731`,
+    ),
+    check('brand_schemes_settlement_days', sql`${table.settlementDays} between 0 and 365`),
+    check(
+      'brand_schemes_ended',
+      sql`(${table.status} in ('closed', 'cancelled')) = (${table.endedAt} is not null)
+        and (${table.endedByMemberId} is null or ${table.endedAt} is not null)
+        and (${table.endNote} is null or ${table.endedAt} is not null)`,
+    ),
+    pgPolicy('brand_schemes_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * A product or category a scheme covers (exactly one of the two). A scheme with no
+ * items covers every product of its brand; with items, a GRN line counts when its
+ * product or its product's category is named.
+ */
+export const brandSchemeItems = pgTable(
+  'brand_scheme_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    schemeId: uuid('scheme_id').notNull(),
+    productId: uuid('product_id'),
+    categoryId: uuid('category_id'),
+  },
+  (table) => [
+    uniqueIndex('brand_scheme_items_product_unique')
+      .on(table.schemeId, table.productId)
+      .where(sql`${table.productId} is not null`),
+    uniqueIndex('brand_scheme_items_category_unique')
+      .on(table.schemeId, table.categoryId)
+      .where(sql`${table.categoryId} is not null`),
+    foreignKey({
+      name: 'brand_scheme_items_scheme_fk',
+      columns: [table.organizationId, table.schemeId],
+      foreignColumns: [brandSchemes.organizationId, brandSchemes.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'brand_scheme_items_product_fk',
+      columns: [table.organizationId, table.productId],
+      foreignColumns: [products.organizationId, products.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_scheme_items_category_fk',
+      columns: [table.organizationId, table.categoryId],
+      foreignColumns: [categories.organizationId, categories.id],
+    }).onDelete('restrict'),
+    check('brand_scheme_items_one', sql`num_nonnulls(${table.productId}, ${table.categoryId}) = 1`),
+    pgPolicy('brand_scheme_items_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * A slab of a scheme: its target in the scheme's measure (paise or millilitres),
+ * 1-based `position`, targets rising with position (checked by the API with the
+ * engine's `assertScheme`). Audited (insert and delete: editing replaces them).
+ */
+export const brandSchemeSlabs = pgTable(
+  'brand_scheme_slabs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    schemeId: uuid('scheme_id').notNull(),
+    position: integer('position').notNull(),
+    /** Paise for a value scheme, millilitres for a litres one. */
+    target: bigint('target', { mode: 'number' }).notNull(),
+  },
+  (table) => [
+    unique('brand_scheme_slabs_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('brand_scheme_slabs_scheme_id_unique').on(
+      table.organizationId,
+      table.id,
+      table.schemeId,
+    ),
+    unique('brand_scheme_slabs_position_unique').on(table.schemeId, table.position),
+    unique('brand_scheme_slabs_target_unique').on(table.schemeId, table.target),
+    foreignKey({
+      name: 'brand_scheme_slabs_scheme_fk',
+      columns: [table.organizationId, table.schemeId],
+      foreignColumns: [brandSchemes.organizationId, brandSchemes.id],
+    }).onDelete('cascade'),
+    check('brand_scheme_slabs_position', sql`${table.position} between 1 and 20`),
+    check(
+      'brand_scheme_slabs_target',
+      sql`${table.target} > 0 and ${table.target} <= 9007199254740991`,
+    ),
+    pgPolicy('brand_scheme_slabs_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** What a slab gives (the engine's `SlabBenefit`). */
+export const brandSchemeBenefitKind = pgEnum('brand_scheme_benefit_kind', [
+  /** `basis_points` of the purchase value. */
+  'rebate',
+  /** `paise_per_litre` of the litres. */
+  'per_litre',
+  /** `units` of `variant_id`, once, or per whole `per_millilitres` when set. */
+  'free_goods',
+  /** `points` gift or trip points under `label`, once. */
+  'points',
+]);
+
+/**
+ * One benefit of a slab, with exactly the columns its kind needs. An incremental
+ * scheme refuses a benefit on the other basis than its target ([PO-31]): the API
+ * checks that with the engine. Audited (insert and delete).
+ */
+export const brandSchemeBenefits = pgTable(
+  'brand_scheme_benefits',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    schemeId: uuid('scheme_id').notNull(),
+    slabId: uuid('slab_id').notNull(),
+    position: integer('position').notNull(),
+    kind: brandSchemeBenefitKind('kind').notNull(),
+    basisPoints: integer('basis_points'),
+    paisePerLitre: integer('paise_per_litre'),
+    variantId: uuid('variant_id'),
+    units: integer('units'),
+    perMillilitres: bigint('per_millilitres', { mode: 'number' }),
+    label: text('label'),
+    points: integer('points'),
+  },
+  (table) => [
+    unique('brand_scheme_benefits_position_unique').on(table.slabId, table.position),
+    index('brand_scheme_benefits_scheme_idx').on(table.organizationId, table.schemeId),
+    foreignKey({
+      name: 'brand_scheme_benefits_slab_fk',
+      columns: [table.organizationId, table.slabId, table.schemeId],
+      foreignColumns: [
+        brandSchemeSlabs.organizationId,
+        brandSchemeSlabs.id,
+        brandSchemeSlabs.schemeId,
+      ],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'brand_scheme_benefits_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('restrict'),
+    check('brand_scheme_benefits_position', sql`${table.position} between 1 and 10`),
+    check(
+      'brand_scheme_benefits_kind',
+      sql`(${table.kind} = 'rebate') = (${table.basisPoints} is not null)
+        and (${table.kind} = 'per_litre') = (${table.paisePerLitre} is not null)
+        and (${table.kind} = 'free_goods') = (${table.variantId} is not null)
+        and (${table.kind} = 'free_goods') = (${table.units} is not null)
+        and (${table.perMillilitres} is null or ${table.kind} = 'free_goods')
+        and (${table.kind} = 'points') = (${table.label} is not null)
+        and (${table.kind} = 'points') = (${table.points} is not null)`,
+    ),
+    check(
+      'brand_scheme_benefits_amounts',
+      sql`${table.basisPoints} between 1 and 10000 and ${table.paisePerLitre} between 1 and 100000000
+        and ${table.units} between 1 and 1000000 and ${table.perMillilitres} > 0
+        and ${table.points} between 1 and 100000000
+        and ${table.label} = btrim(${table.label}) and char_length(${table.label}) between 1 and 60`,
+    ),
+    pgPolicy('brand_scheme_benefits_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** `filed` → `acknowledged` → `settled` / `rejected`; `filed` or `acknowledged` → `withdrawn`. */
+export const brandClaimStatus = pgEnum('brand_claim_status', [
+  'filed',
+  'acknowledged',
+  'settled',
+  'rejected',
+  'withdrawn',
+]);
+
+/**
+ * A claim filed with the brand for a scheme's benefits (SC-000001): the money claimed
+ * and the brand's reference, followed up to settled, rejected or withdrawn. What is
+ * still owed and its age come from the engine (`schemeClaim`); this row is the
+ * follow-up. Amount and scheme fixed, status forward only (trigger, 0084). Audited.
+ */
+export const brandClaims = pgTable(
+  'brand_claims',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    schemeId: uuid('scheme_id').notNull(),
+    /** SC-000001, gap-free per business. */
+    number: text('number').notNull(),
+    filedOn: date('filed_on', { mode: 'string' }).notNull(),
+    claimedPaise: bigint('claimed_paise', { mode: 'number' }).notNull(),
+    /** The brand's own claim or ticket number. */
+    brandReference: text('brand_reference'),
+    note: text('note'),
+    status: brandClaimStatus('status').notNull().default('filed'),
+    filedByMemberId: uuid('filed_by_member_id').notNull(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedByMemberId: uuid('resolved_by_member_id'),
+    resolutionNote: text('resolution_note'),
+    ...timestamps,
+  },
+  (table) => [
+    unique('brand_claims_organization_id_id_unique').on(table.organizationId, table.id),
+    unique('brand_claims_scheme_id_unique').on(table.organizationId, table.id, table.schemeId),
+    unique('brand_claims_number_unique').on(table.organizationId, table.number),
+    index('brand_claims_scheme_idx').on(table.organizationId, table.schemeId),
+    foreignKey({
+      name: 'brand_claims_scheme_fk',
+      columns: [table.organizationId, table.schemeId],
+      foreignColumns: [brandSchemes.organizationId, brandSchemes.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_claims_filed_by_fk',
+      columns: [table.organizationId, table.filedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_claims_resolved_by_fk',
+      columns: [table.organizationId, table.resolvedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('brand_claims_number_format', sql`${table.number} ~ '^SC-[0-9]{6,}$'`),
+    check('brand_claims_claimed', sql`${table.claimedPaise} >= 0`),
+    check(
+      'brand_claims_resolved',
+      sql`(${table.status} in ('settled', 'rejected', 'withdrawn')) = (${table.resolvedAt} is not null)
+        and (${table.resolvedByMemberId} is null or ${table.resolvedAt} is not null)
+        and (${table.resolutionNote} is null or ${table.resolvedAt} is not null)`,
+    ),
+    check(
+      'brand_claims_text',
+      sql`char_length(${table.brandReference}) between 1 and 60
+        and char_length(${table.note}) <= 500 and char_length(${table.resolutionNote}) <= 500`,
+    ),
+    pgPolicy('brand_claims_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/** What the brand issued: money (credit note or payment), free goods, or points. */
+export const brandBenefitReceiptKind = pgEnum('brand_benefit_receipt_kind', [
+  'money',
+  'free_goods',
+  'points',
+]);
+/** How scheme money came ([CA-6]): a credit note against our purchases, or a payment. */
+export const brandBenefitMoneyForm = pgEnum('brand_benefit_money_form', ['credit_note', 'payment']);
+
+/**
+ * Something the brand issued against a scheme (the engine's `ReceivedBenefit`): a
+ * credit note or payment in paise, free units of a variant (perhaps on a GRN), or
+ * points under a label, dated and with the brand's reference. A negative amount,
+ * units or points reverses an earlier entry. Append-only (trigger, 0084); never on a
+ * draft or cancelled scheme. Audited.
+ */
+export const brandBenefitReceipts = pgTable(
+  'brand_benefit_receipts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    schemeId: uuid('scheme_id').notNull(),
+    /** The claim it answers, if any (of the same scheme). */
+    claimId: uuid('claim_id'),
+    kind: brandBenefitReceiptKind('kind').notNull(),
+    receivedOn: date('received_on', { mode: 'string' }).notNull(),
+    amountPaise: bigint('amount_paise', { mode: 'number' }),
+    moneyForm: brandBenefitMoneyForm('money_form'),
+    variantId: uuid('variant_id'),
+    units: integer('units'),
+    /** The GRN the free goods came in on. */
+    goodsReceiptId: uuid('goods_receipt_id'),
+    label: text('label'),
+    points: integer('points'),
+    /** The brand's credit note, letter or GRN number. */
+    reference: text('reference'),
+    note: text('note'),
+    recordedByMemberId: uuid('recorded_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('brand_benefit_receipts_organization_id_id_unique').on(table.organizationId, table.id),
+    index('brand_benefit_receipts_scheme_idx').on(
+      table.organizationId,
+      table.schemeId,
+      table.receivedOn,
+    ),
+    foreignKey({
+      name: 'brand_benefit_receipts_scheme_fk',
+      columns: [table.organizationId, table.schemeId],
+      foreignColumns: [brandSchemes.organizationId, brandSchemes.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_benefit_receipts_claim_fk',
+      columns: [table.organizationId, table.claimId, table.schemeId],
+      foreignColumns: [brandClaims.organizationId, brandClaims.id, brandClaims.schemeId],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_benefit_receipts_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_benefit_receipts_goods_receipt_fk',
+      columns: [table.organizationId, table.goodsReceiptId],
+      foreignColumns: [goodsReceipts.organizationId, goodsReceipts.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'brand_benefit_receipts_recorded_by_fk',
+      columns: [table.organizationId, table.recordedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check(
+      'brand_benefit_receipts_kind',
+      sql`(${table.kind} = 'money') = (${table.amountPaise} is not null)
+        and (${table.kind} = 'money') = (${table.moneyForm} is not null)
+        and (${table.kind} = 'free_goods') = (${table.variantId} is not null)
+        and (${table.kind} = 'free_goods') = (${table.units} is not null)
+        and (${table.goodsReceiptId} is null or ${table.kind} = 'free_goods')
+        and (${table.kind} = 'points') = (${table.label} is not null)
+        and (${table.kind} = 'points') = (${table.points} is not null)`,
+    ),
+    check(
+      'brand_benefit_receipts_amounts',
+      sql`${table.amountPaise} <> 0 and abs(${table.amountPaise}) <= 100000000000
+        and ${table.units} <> 0 and abs(${table.units}) <= 1000000
+        and ${table.points} <> 0 and abs(${table.points}) <= 100000000`,
+    ),
+    check(
+      'brand_benefit_receipts_text',
+      sql`${table.label} = btrim(${table.label}) and char_length(${table.label}) between 1 and 60
+        and char_length(${table.reference}) between 1 and 60 and char_length(${table.note}) <= 500`,
+    ),
+    pgPolicy('brand_benefit_receipts_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,

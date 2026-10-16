@@ -141,6 +141,7 @@ export const teamEn = {
       register: 'Cash register',
       accounting: 'Accounting',
       receivables: 'Receivables',
+      schemes: 'Brand schemes',
     },
     organization: {
       manage: 'Run the business: settings, appearance, sign-in rules and support access',
@@ -203,5 +204,8 @@ export const teamEn = {
       reconcile: 'See the nightly reconciliation of the books and run it now',
     },
     receivables: { read: 'See what customers owe, the ageing and the collections worklist' },
+    schemes: {
+      manage: "Enter brands' schemes and slabs, record what the brand issued and follow up claims",
+    },
   },
 };

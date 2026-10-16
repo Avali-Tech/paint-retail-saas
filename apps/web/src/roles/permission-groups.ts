@@ -45,6 +45,7 @@ export const PERMISSION_LABELS: Record<Permission, MessageKey> = {
   'accounting:export': 'permissions.accounting.export',
   'accounting:reconcile': 'permissions.accounting.reconcile',
   'receivables:read': 'permissions.receivables.read',
+  'schemes:manage': 'permissions.schemes.manage',
 };
 
 /** Names of the areas, in the order the checklist shows them. */
@@ -70,6 +71,7 @@ export const AREA_LABELS: Record<PermissionArea, MessageKey> = {
   register: 'permissions.areas.register',
   accounting: 'permissions.areas.accounting',
   receivables: 'permissions.areas.receivables',
+  schemes: 'permissions.areas.schemes',
 };
 
 export interface PermissionGroup {

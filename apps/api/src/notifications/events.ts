@@ -24,4 +24,6 @@ export const EVENT_TITLES: Record<NotificationEvent, string> = {
   promise_broken: 'A customer breaks a promise to pay',
   payment_link_paid: 'A customer pays a payment link at your store',
   payment_link_refund: 'Money paid by link goes back to a customer, or a refund fails',
+  scheme_slab_near: "A brand scheme's next slab is within reach as its period ends",
+  scheme_claim_overdue: 'A brand scheme claim is past its due date',
 };
