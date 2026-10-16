@@ -196,6 +196,8 @@ beforeAll(async () => {
     }
   }
   await withPgClient(database.connectionString, (client) => client.query('ANALYZE'));
+  const report = process.env.BRAND_MONEY_SCALE_REPORT;
+  if (report !== undefined) appendFileSync(report, `${JSON.stringify(books)}\n`);
 }, 900_000);
 
 afterAll(async () => {
