@@ -160,7 +160,7 @@ export const goLiveSchema = z.object({
       z.object({
         partyId: z.uuid(),
         amountPaise: paise,
-        overdueSince: isoDate.optional(),
+        overdueSince: isoDate.nullable().optional(),
       }),
     )
     .max(10_000)

@@ -81,7 +81,7 @@ export class GoLiveService {
             given.partyId,
             `openings.${String(index)}.partyId`,
           );
-          if (given.overdueSince !== undefined && given.overdueSince > liveOn) {
+          if (typeof given.overdueSince === 'string' && given.overdueSince > liveOn) {
             throw fieldError(
               `openings.${String(index)}.overdueSince`,
               'Cannot be after the go-live date',
@@ -94,7 +94,9 @@ export class GoLiveService {
             manualExposurePaise: known?.manualExposurePaise ?? 0,
             overdueDays: known?.overdueDays ?? 0,
             amountPaise: given.amountPaise,
-            overdueSince: given.overdueSince ?? known?.overdueSince ?? null,
+            // Left out keeps the imported or hand-entered date; null says none is overdue.
+            overdueSince:
+              given.overdueSince === undefined ? (known?.overdueSince ?? null) : given.overdueSince,
             source: known?.source ?? 'manual',
           });
         }

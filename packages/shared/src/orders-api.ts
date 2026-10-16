@@ -766,7 +766,8 @@ export interface GoLiveRequest {
   readonly openings?: readonly {
     readonly partyId: string;
     readonly amountPaise: number;
-    readonly overdueSince?: string;
+    /** Left out keeps the imported or hand-entered date; null: nothing is overdue. */
+    readonly overdueSince?: string | null;
   }[];
 }
 

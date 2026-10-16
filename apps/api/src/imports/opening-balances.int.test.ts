@@ -289,7 +289,11 @@ describe('opening-balances import', () => {
     // Overridden by hand for one party at the go-live itself.
     const result = ok(
       await api(t, b.owner).post('/sales/go-live', {
-        openings: [{ partyId: people.ravi.id, amountPaise: 140_000 }],
+        openings: [
+          { partyId: people.ravi.id, amountPaise: 140_000 },
+          // Null: nothing of Farhan's is overdue, whatever was entered by hand.
+          { partyId: people.farhan.id, amountPaise: 200_000, overdueSince: null },
+        ],
       }),
     ).json<GoLiveResult>();
     expect(result).toEqual({
@@ -302,6 +306,16 @@ describe('opening-balances import', () => {
       .from(creditProfiles)
       .where(eq(creditProfiles.partyId, people.sharma.id));
     expect(sharma?.since).toBe('2026-03-16');
+    const since = async (partyId: string) =>
+      (
+        await t.connection.db
+          .select({ since: creditProfiles.openingOverdueSince })
+          .from(creditProfiles)
+          .where(eq(creditProfiles.partyId, partyId))
+      )[0]?.since;
+    // Left out, Ravi keeps the overdue days entered by hand.
+    expect(await since(people.ravi.id)).toBe(ravisOverdue);
+    expect(await since(people.farhan.id)).toBeNull();
   });
 
   it('is refused once billing is live, by the import and by the database', async () => {
