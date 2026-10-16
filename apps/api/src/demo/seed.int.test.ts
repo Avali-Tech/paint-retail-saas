@@ -22,6 +22,9 @@ import {
   type PartyLedgerView,
   type ReceivablesSummaryView,
   type ReminderScheduleView,
+  type SchemeClaimsReport,
+  type SchemeSummary,
+  type SchemesOverview,
   type SiteAccountDetail,
   type SiteAccountView,
   type SubscriptionInvoiceView,
@@ -647,6 +650,49 @@ describe('Release 2.1 for a pilot walkthrough', () => {
       join ${schema.taxDocuments} n on n.id = l.tax_document_id and n.kind = 'credit_note'
       where l.kind = 'adjust' and l.points < 0 and a.party_id = ${await partyId('painter-1')}`);
     expect(taken?.count).toBe(1);
+  });
+});
+
+describe('brand schemes for the pilot walkthrough (round 5)', () => {
+  it('shows per brand the distance to the next slab and the benefits outstanding', async () => {
+    const schemes = await get<SchemeSummary[]>('/brand-schemes?status=active');
+    const byName = Object.fromEntries(schemes.map((row) => [row.scheme.name, row]));
+    const quarter = byName['Monsoon quarter'];
+    const litres = byName['Litres booster'];
+    // The first brand's quarter: its first slab reached, the second ahead, per day needed.
+    expect(quarter?.scheme.brand.name).toBe('Asian Paints');
+    expect(quarter?.progress.current?.index).toBe(0);
+    expect(quarter?.progress.next?.distance).toBeGreaterThan(0);
+    expect(quarter?.progress.next?.perDayNeeded).toBeGreaterThan(0);
+    expect(quarter?.claim.money.expectedPaise).toBeGreaterThan(0);
+    // The second brand's litres scheme: its first slab still ahead.
+    expect(litres?.scheme.brand.name).not.toBe('Asian Paints');
+    expect(litres?.progress.current).toBeNull();
+    expect(litres?.progress.next?.distance).toBeGreaterThan(0);
+
+    const overview = await get<SchemesOverview>('/brand-schemes/overview');
+    expect(overview.activeSchemes).toBe(3);
+    expect(overview.nearest).not.toBeNull();
+    expect(overview.outstandingPaise).toBeGreaterThan(0);
+    expect(overview.overdueClaims).toBe(1);
+  });
+
+  it('has a claim filed with the brand, partly paid by a credit note and overdue', async () => {
+    const report = await get<SchemeClaimsReport>('/brand-schemes/claims');
+    const booster = report.rows.find((row) => row.scheme.name === 'Pre-monsoon booster');
+    expect(booster?.filed?.status).toBe('acknowledged');
+    expect(booster?.claim.status).toBe('open');
+    expect(booster?.claim.money.receivedPaise).toBeGreaterThan(0);
+    expect(booster?.claim.money.outstandingPaise).toBeGreaterThan(0);
+    // Ended 30 days ago, settled in 15: 15 days late.
+    expect(booster?.claim.daysPastDue).toBe(15);
+    expect(booster?.claim.bucket).toBe('days_0_30');
+    expect(report.ageing.find((row) => row.bucket === 'days_0_30')?.claims).toBe(1);
+    // The owner was told the claim is overdue.
+    const [notice] = await rows<{ count: number }>(sql`
+      select count(*)::int as count from ${schema.notifications}
+      where event::text = 'scheme_claim_overdue'`);
+    expect(notice?.count).toBeGreaterThan(0);
   });
 });
 
