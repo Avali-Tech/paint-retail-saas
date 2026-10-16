@@ -14,6 +14,8 @@ import {
   ageingBucket,
   isValidGstin,
   type AgeingBucket,
+  type BrandStatementDetail,
+  type BrandStatementSummaryView,
   type AgeingPage,
   type CreditApprovalPage,
   type EarnRuleView,
@@ -49,6 +51,7 @@ import {
   DEMO_TOTP_SECRET,
 } from './plan.js';
 import { REMINDER_SCHEDULES } from './seed-collections.js';
+import { STATEMENT_DEMO } from './seed-statements.js';
 import { SITES } from './seed-sites.js';
 import { runSeedCommand } from './seed-command.js';
 
@@ -693,6 +696,50 @@ describe('brand schemes for the pilot walkthrough (round 5)', () => {
       select count(*)::int as count from ${schema.notifications}
       where event::text = 'scheme_claim_overdue'`);
     expect(notice?.count).toBeGreaterThan(0);
+  });
+
+  it('reconciles a month’s brand statement with its mismatches listed (spec §7 round 6)', async () => {
+    const [statement] = await get<BrandStatementSummaryView[]>('/brand-statements');
+    expect(statement).toMatchObject({ number: 'BS-000001', status: 'active', fileKept: false });
+    const detail = await get<BrandStatementDetail>(`/brand-statements/${String(statement?.id)}`);
+    const byDocument = (document: string) =>
+      detail.lines.filter((line) => line.documentNumber?.endsWith(document));
+    // Every GRN of the month is on it; all but the last match exactly, by number and with GST.
+    const invoices = detail.lines.filter(
+      (line) =>
+        line.kind === 'invoice' && !line.documentNumber?.endsWith(STATEMENT_DEMO.missingInvoice),
+    );
+    expect(invoices.length).toBeGreaterThan(1);
+    const partial = invoices.filter((line) => line.status === 'partial');
+    expect(partial.map((line) => line.match?.differencePaise)).toEqual([
+      STATEMENT_DEMO.rateDifferencePaise,
+    ]);
+    expect(invoices.filter((line) => line.status === 'matched')).toHaveLength(invoices.length - 1);
+    // The invoice whose goods never came, and the credit note we did not record.
+    expect(byDocument(STATEMENT_DEMO.missingInvoice).map((line) => line.status)).toEqual([
+      'unmatched',
+    ]);
+    expect(byDocument(STATEMENT_DEMO.unrecordedCreditNote)).toMatchObject([
+      {
+        kind: 'credit_note',
+        status: 'unmatched',
+        amountPaise: -STATEMENT_DEMO.unrecordedCreditNotePaise,
+      },
+    ]);
+    // The booster's credit note we recorded is matched by its reference.
+    expect(byDocument('CN/26/88213').map((line) => line.status)).toEqual(['matched']);
+    expect(byDocument(STATEMENT_DEMO.payment).map((line) => line.status)).toEqual(['untracked']);
+    expect(statement?.mismatches).toBe(3);
+    // The difference is explained, paisa for paisa.
+    const { summary } = detail;
+    expect(
+      summary.amountDifferencesPaise +
+        summary.unmatchedLinesPaise +
+        summary.explainedLinesPaise +
+        summary.untrackedLinesPaise -
+        summary.ourUnmatchedPaise,
+    ).toBe(summary.differencePaise);
+    expect(summary.brandClosingPaise).toBe(summary.printedClosingPaise);
   });
 });
 

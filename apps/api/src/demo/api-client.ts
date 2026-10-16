@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH';
@@ -42,11 +43,15 @@ export class DemoApi {
     url: string,
     token: string | null,
     payload?: object,
+    contentType?: string,
   ): Promise<T> {
     const response = await this.app.inject({
       method,
       url,
-      headers: token === null ? {} : { authorization: `Bearer ${token}` },
+      headers: {
+        ...(token === null ? {} : { authorization: `Bearer ${token}` }),
+        ...(contentType === undefined ? {} : { 'content-type': contentType }),
+      },
       ...(payload === undefined ? {} : { payload }),
     });
     if (response.statusCode >= 400) {
@@ -77,5 +82,33 @@ export class MemberApi {
 
   patch<T = Answer>(url: string, payload: object): Promise<T> {
     return this.api.request<T>('PATCH', url, this.token, payload);
+  }
+
+  /** POSTs a form with one file, as a browser uploads it (multipart/form-data). */
+  upload<T = Answer>(
+    url: string,
+    fields: Readonly<Record<string, string>>,
+    file: { readonly fileName: string; readonly data: Buffer; readonly contentType: string },
+  ): Promise<T> {
+    const boundary = `----paint-demo-${randomUUID()}`;
+    const parts = Object.entries(fields).map(
+      ([name, value]) =>
+        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`,
+    );
+    const payload = Buffer.concat([
+      Buffer.from(parts.join('')),
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${file.fileName}"\r\nContent-Type: ${file.contentType}\r\n\r\n`,
+      ),
+      file.data,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    return this.api.request<T>(
+      'POST',
+      url,
+      this.token,
+      payload,
+      `multipart/form-data; boundary=${boundary}`,
+    );
   }
 }
