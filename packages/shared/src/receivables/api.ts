@@ -33,6 +33,8 @@ export interface AgeingQuery extends ReceivablesQuery {
   readonly groupBy?: AgeingGroup;
   /** Customer name or mobile (customer grouping). */
   readonly q?: string;
+  /** Only bills booked to this site (project): what its site account ages (spec §2.3). */
+  readonly projectId?: string;
   /** Only rows with something past due. */
   readonly overdueOnly?: boolean;
   readonly limit?: number;
