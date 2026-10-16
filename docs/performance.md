@@ -177,3 +177,125 @@ These are within budget now but grow linearly with the business:
   903 KB). CloudFront compresses only when the cache policy allows it, and the API behaviour uses
   the managed CachingDisabled policy, which (as we understand it) does not; worth checking, or
   adding compression in the API.
+
+## Release 2.1: receivables, collections, credit and statements
+
+MVP 3 round 4b measured the Release 2.1 reads on the same large shop. **Verdict:** every read
+is within budget after three fixes:
+
+- the credit list ran a query per customer;
+- site accounts ran a query per site;
+- PDFs read and parsed their font file again for every line, so a busy customer's statement PDF
+  took 4 s.
+
+### Dataset
+
+`DEMO_SIZE=large` now also writes the books of 1,200 credit customers
+(`apps/api/src/demo/bulk-receivables.ts`), in bulk like the rest, inside the tenant scope with the
+audit and allocation rules on. Each customer has:
+
+- an opening balance from the old books for about a third, some overdue since well before go-live;
+- 1–23 bills on account since go-live, some booked to a site;
+- payments set against the oldest bills first, advances used on the next bill, and a quarter who
+  never paid;
+- holds by hand, and for every account over 30 days late;
+- site accounts and promises to pay (open, and broken with escalations).
+
+The nightly reconciliation then finds nothing, as on the demo.
+
+| What                                                     |                How many |
+| -------------------------------------------------------- | ----------------------: |
+| Credit customers                                         |                   1,223 |
+| Tax documents (invoices, notes) / payments / allocations | 15,679 / 6,304 / 16,948 |
+| Party ledger entries / site accounts / promises to pay   |        22,429 / 88 / 55 |
+| Database                                                 |                  188 MB |
+
+### Method
+
+The large demo was seeded into a PostgreSQL 17 Testcontainer and `VACUUM ANALYZE`d. The API ran
+in-process (the seed's own `createApp`, `jit=off` as in production), with requests sent by
+`app.inject`: 2 warm-up requests, then 20 timed. p50 and p95 are by nearest rank; queries are
+counted on the `pg` client for one request. All requests are as the owner, with all 8 stores.
+
+Before and after were measured back to back on the same machine, an 8 GB Mac running other work.
+"Before" is commit `f40261f`; "after" is `6912b52`. Compare the two columns rather than the
+absolute numbers.
+
+`apps/api/src/receivables/receivables-scale.int.test.ts` keeps the same reads in CI. It uses
+1,500 credit customers and about 9,000 bills, and fails on two things:
+
+- a query count that grows with the page (a page of 200 must run as many queries as a page of 50);
+- times over generous limits (4 s for ageing and the worklist, 1.5 s for a credit check).
+
+### Results (ms)
+
+| Request                                                     | Budget p95 | Before p50 / p95 | After p50 / p95 | Queries before → after | Response |
+| ----------------------------------------------------------- | ---------: | ---------------: | --------------: | ---------------------: | -------: |
+| `/receivables/summary`                                      |       1000 |        205 / 216 |   **210 / 225** |                12 → 12 |     1 KB |
+| `/receivables/ageing?limit=50` (by customer)                |        300 |        207 / 227 |   **205 / 214** |                11 → 11 |    17 KB |
+| `/receivables/ageing?groupBy=salesperson`                   |        300 |        205 / 212 |   **200 / 206** |                11 → 11 |     3 KB |
+| `/receivables/ageing?groupBy=store`                         |        300 |        198 / 211 |   **206 / 213** |                11 → 11 |     3 KB |
+| `/receivables/ageing?projectId=` (one site)                 |        300 |              n/a |     **54 / 55** |                     11 |     1 KB |
+| `/receivables/ageing` as a sales executive (2 of 8 stores)  |        300 |        117 / 119 |   **117 / 129** |                12 → 12 |    17 KB |
+| `/collections/worklist?limit=50`                            |        300 |        212 / 222 |   **205 / 223** |                14 → 14 |    23 KB |
+| `/collections/worklist?salespersonId=me` (sales executive)  |        300 |        111 / 116 |   **114 / 119** |                15 → 15 |    22 KB |
+| `/collections/escalations`                                  |        300 |           8 / 10 |      **8 / 10** |                10 → 10 |    10 KB |
+| `/credit-profiles?limit=50`                                 |        300 |        121 / 130 |     **22 / 24** |           **111 → 13** |    20 KB |
+| `/credit-approvals?status=pending`                          |        300 |          13 / 14 |     **12 / 15** |                  9 → 9 |     1 KB |
+| `/parties/:id/credit` (the busiest customer)                |        300 |          15 / 20 |     **20 / 24** |                17 → 17 |     1 KB |
+| `/parties/:id/sites`                                        |        300 |            8 / 9 |     **12 / 14** |  10 → 9 (one per site) |     1 KB |
+| `/site-accounts/:id`                                        |        300 |          13 / 14 |     **13 / 16** |                13 → 12 |     2 KB |
+| `/parties/:id/statement` (the customer with the most bills) |        300 |          29 / 32 |     **30 / 32** |                13 → 13 |    59 KB |
+| `/parties/:id/statement.pdf` (the same)                     |       1000 |      4025 / 4066 |   **138 / 156** |                13 → 13 |    31 KB |
+| `/reports/receivables-ageing?format=csv`                    |       1000 |        202 / 219 |   **204 / 232** |                11 → 11 |   121 KB |
+| `/reports/receivables-open-bills?format=csv`                |       1000 |        205 / 220 |   **211 / 234** |                11 → 11 |   592 KB |
+
+The scale test (1,500 customers) shows the same: `/credit-profiles?limit=50` 130 → 22 ms and
+`?limit=200` 494 → 25 ms (111 and 411 queries → 13). A contractor with six sites now runs the same
+9 queries as one with one site.
+
+### What was slow, and the fixes
+
+1. **The credit list ran two queries per customer.** `GET /credit-profiles` called `exposureOf`
+   for each row (the go-live check, then the exposure). `exposuresOf` now answers the whole page in
+   one query over `unnest` of the page's parties: `apps/api/src/credit/credit-lookups.ts`.
+   `exposureOf` is the same query for one party, so the list and the credit check cannot disagree.
+2. **Site accounts ran a query per site.** `siteAccountsOf` now selects each site's outstanding
+   and open orders as columns of its list query, with the same SQL the credit check uses.
+3. **PDFs re-read their font for every line.** pdfkit 0.20 caches a registered font under its name
+   only when it opens it first. Our documents were created with the regular font's file as their
+   default, so every later `font('regular')` read and parsed the file again: about 1.5 ms a table
+   cell. `pdfDocument` (`apps/api/src/print/render-invoice-pdf.ts`) registers the fonts with no
+   default file, for statements, invoices (ours and the businesses'), quotations and receipts. A
+   300-entry statement went from 2.9 s to 0.1 s, with the same bytes.
+4. **The worklist searched lists per row** for each customer's promise, escalation and last
+   activity. It now uses maps (no visible change at this size; quadratic at tens of thousands).
+
+### Indexes
+
+None were needed at this volume, and none were added (this round has no migrations). The ageing
+query reads a business's whole receivable books by design. In `EXPLAIN (ANALYZE, BUFFERS)` as
+`app_tenant`, its joins use primary keys (a memoised index scan for openings), and the
+cancellation lookup uses `party_ledger_reference_unique`. The rest are sequential scans of the
+business's own rows, which suit a read of everything; no plan showed a missing index. Each 200 ms
+request is that query, then ageing every bill in `@paint/shared` and serialising the rows.
+
+Two candidates for the migrations session, if the daily jobs grow slow:
+
+- `tax_documents (organization_id, due_on) WHERE status = 'issued' AND kind IN ('invoice',
+'bill_of_supply', 'debit_note')`, for the reminders run's `due_on = today − n`;
+- `party_ledger (organization_id, party_id) WHERE entry_type IN ('opening', 'adjustment')`, for the
+  ageing's openings and charges.
+
+### To watch as data grows
+
+- **Ageing reads the whole history** of the business's receivable books on every request, settled
+  bills included, and drops what is settled after aggregating. That is 200 ms at 15,000 bills, so
+  about 1.5 s at 100,000.
+
+  Cheapest next step: skip settled bills before aggregating their allocations when ageing as of
+  today. Beyond that: a "settled on" date per bill (a migration).
+
+- **Parameter lists:** the ageing lookups and the worklist pass every party id as its own
+  parameter (`IN (...)`). PostgreSQL allows 65,535 parameters, so a business with that many owing
+  customers would fail; passing one array (`= any($1::uuid[])`) avoids it.

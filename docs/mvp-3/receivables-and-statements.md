@@ -41,14 +41,14 @@ day or more; "due this week" is the as-of day and the six after it.
 
 ## API and screens
 
-| Piece                                                  | Permission         | Notes                                                                                 |
-| ------------------------------------------------------ | ------------------ | ------------------------------------------------------------------------------------- |
-| `GET /receivables/summary`                             | `receivables:read` | Total outstanding, paid ahead, due today / this week, overdue, credit used, top 5     |
-| `GET /receivables/ageing`                              | `receivables:read` | By customer, salesperson (`customer_profiles.assigned_member_id`) or store            |
-| Reports `receivables-ageing`, `receivables-open-bills` | `receivables:read` | CSV through the reports framework, which now takes computed reports                   |
-| `GET /parties/:id/statement` and `.pdf`                | `sales:read`       | As the party ledger; opening, entries, closing, ageing and bills due on the last day  |
-| `/receivables`, dashboard tile                         | `receivables:read` | Customer rows link to the ledger and the statement; salesperson and store rows narrow |
-| `/parties/:id/statement`                               | `sales:read`       | A4 preview, print, PDF, Share on WhatsApp                                             |
+| Piece                                                  | Permission         | Notes                                                                                                                                                                                      |
+| ------------------------------------------------------ | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /receivables/summary`                             | `receivables:read` | Total outstanding, paid ahead, due today / this week, overdue, credit used, top 5                                                                                                          |
+| `GET /receivables/ageing`                              | `receivables:read` | By customer, salesperson (`customer_profiles.assigned_member_id`) or store; `projectId` ages one site's bills only (no openings, charges or advances), as its site account does (round 4b) |
+| Reports `receivables-ageing`, `receivables-open-bills` | `receivables:read` | CSV through the reports framework, which now takes computed reports                                                                                                                        |
+| `GET /parties/:id/statement` and `.pdf`                | `sales:read`       | As the party ledger; opening, entries, closing, ageing and bills due on the last day                                                                                                       |
+| `/receivables`, dashboard tile                         | `receivables:read` | Customer rows link to the ledger and the statement; salesperson and store rows narrow                                                                                                      |
+| `/parties/:id/statement`                               | `sales:read`       | A4 preview, print, PDF, Share on WhatsApp                                                                                                                                                  |
 
 Store scope: members not at every store see the parties they may see (`canSeeParty`: no home
 store, or one of theirs) with their whole balances; a store filter limits bills and payments
