@@ -512,6 +512,7 @@ describe('credit list', () => {
     expect(await titles('status=none')).toEqual(['New Painter']);
     expect(await titles('risk=high')).toEqual(['Raj Contractors']);
     expect(await titles('q=sri')).toEqual(['Sri Painters']);
+    expect(await titles('q=nobody-by-this-name')).toEqual([]);
     expect(page.total).toBe(page.items.length);
   });
 });

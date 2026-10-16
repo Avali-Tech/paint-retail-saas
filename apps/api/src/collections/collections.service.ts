@@ -235,9 +235,8 @@ export class CollectionsService {
 
       // By party, so a worklist of thousands of customers is not a search per row.
       const promiseOf = new Map(promises.map((p) => [p.partyId, p]));
-      const escalationOf = new Map<string, string>();
-      for (const e of escalations)
-        if (!escalationOf.has(e.partyId)) escalationOf.set(e.partyId, e.id);
+      // The first open escalation of a party, as before (a later entry in a map wins).
+      const escalationOf = new Map([...escalations].reverse().map((e) => [e.partyId, e.id]));
       const activityOf = new Map(lastActivities.map((a) => [a.partyId, a]));
       const rows: WorklistRow[] = overdue.map(([partyId, row]) => {
         // Every party aged is looked up.
