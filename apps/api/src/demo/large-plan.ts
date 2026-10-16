@@ -41,6 +41,10 @@ export interface LargeScale {
   readonly notifications: number;
   readonly loyaltyAccounts: number;
   readonly loyaltyEntries: number;
+  /** Parties given credit, with bills on account, payments and holds (bulk-receivables.ts). */
+  readonly creditCustomers: number;
+  /** Invoices on account per credit customer, on average. */
+  readonly invoicesPerCustomer: number;
   /** How many days back the bulk history goes. */
   readonly historyDays: number;
   /** Other (small) businesses onboarded from the platform console, for its list of businesses. */
@@ -62,6 +66,8 @@ export const LARGE_SCALE: LargeScale = {
   notifications: 15_000,
   loyaltyAccounts: 1_500,
   loyaltyEntries: 15_000,
+  creditCustomers: 1_200,
+  invoicesPerCustomer: 12,
   historyDays: 180,
   otherBusinesses: 150,
 };
@@ -81,6 +87,8 @@ export const LARGE_SHAPED_TEST_SCALE: LargeScale = {
   notifications: 300,
   loyaltyAccounts: 30,
   loyaltyEntries: 300,
+  creditCustomers: 30,
+  invoicesPerCustomer: 4,
   historyDays: 30,
   otherBusinesses: 3,
 };

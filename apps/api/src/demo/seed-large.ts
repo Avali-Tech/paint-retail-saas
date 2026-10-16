@@ -9,9 +9,10 @@ import {
   type BulkStockMovement,
   type TenantTransaction,
 } from '@paint/db';
-import { formatDocumentNumber, type AuthProfile } from '@paint/shared';
+import { formatDocumentNumber, type AuthProfile, type PaymentModeView } from '@paint/shared';
 import type { PgInsertValue, PgTable } from 'drizzle-orm/pg-core';
 import pg from 'pg';
+import { planReceivables, writeReceivables } from './bulk-receivables.js';
 import { BRAND_CODES } from './catalogue.js';
 import { dayOpensAt, indiaDate } from './history-clock.js';
 import { personName } from './identity.js';
@@ -573,6 +574,8 @@ export async function seedLargeShop(
     const leadRows: PgInsertValue<typeof leads>[] = [];
     const opportunityRows: PgInsertValue<typeof opportunities>[] = [];
     const projectRows: PgInsertValue<typeof projects>[] = [];
+    /** Each project's customer, by project id. */
+    const projectCustomers: (readonly [project: string, party: string])[] = [];
     const projectPartyRows: PgInsertValue<typeof projectParties>[] = [];
     const wonOpportunities: { id: string; partyId: string; storeIndex: number }[] = [];
     await tenant(async (tx) => {
@@ -724,6 +727,7 @@ export async function seedLargeShop(
           updatedAt: closedAt ?? createdAt,
           closedAt,
         });
+        projectCustomers.push([id, from?.partyId ?? party.id]);
         for (const role of ['architect', 'contractor', 'painter'] as const) {
           if (random.chance(0.6)) {
             projectPartyRows.push({
@@ -979,6 +983,46 @@ export async function seedLargeShop(
     });
     context.count('loyalty members', accounts.length);
     context.count('loyalty entries', ledgerRows.length);
+
+    // ── Receivables (MVP 3): credit customers' bills, payments, holds, sites ──
+    const credit = { contractor: 0, builder: 0, dealer: 1, retail: 2 } as const;
+    const rank = (party: BulkParty) =>
+      party.segment in credit ? credit[party.segment as keyof typeof credit] : 3;
+    const projectsOf = new Map<string, string[]>();
+    for (const [project, party] of projectCustomers) {
+      projectsOf.set(party, [...(projectsOf.get(party) ?? []), project]);
+    }
+    const modes = await owner.get<PaymentModeView[]>('/payment-modes');
+    const plan = planReceivables(
+      random,
+      {
+        organizationId,
+        stores: stores.map((store) => ({ id: store.id, memberId: store.manager })),
+        customers: customers
+          .map((party, order) => ({ party, order }))
+          .sort((a, b) => rank(a.party) - rank(b.party) || a.order - b.order)
+          .map(({ party }) => ({
+            id: party.id,
+            name: party.displayName,
+            store: party.homeStore,
+            projectIds: projectsOf.get(party.id) ?? [],
+          })),
+        modes: modes.flatMap((mode) =>
+          mode.kind === 'bank_transfer' || mode.kind === 'upi'
+            ? [{ id: mode.id, kind: mode.kind }]
+            : [],
+        ),
+        liveDaysAgo: context.plan.historyDays,
+        now,
+      },
+      scale,
+    );
+    await tenant((tx) => writeReceivables(tx, organizationId, plan));
+    context.count('credit customers', plan.creditProfiles.length);
+    context.count('invoices', plan.invoices.length);
+    context.count('payments received', plan.payments.length);
+    context.count('site accounts', plan.sites.length);
+    context.count('promises to pay', plan.promises.length);
   } finally {
     await connection.close();
   }
