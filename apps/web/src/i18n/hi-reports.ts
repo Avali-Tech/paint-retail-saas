@@ -2,6 +2,11 @@
 // Same keys as en-reports.ts.
 import type { reportEnumsEn, reportsEn } from './en-reports.js';
 import type { Translation } from './shape.js';
+import {
+  salesReportColumnsHi,
+  salesReportFiltersHi,
+  salesReportKindsHi,
+} from './hi-sales-reports.js';
 
 export const reportsHi: Translation<typeof reportsEn> = {
   reports: {
@@ -36,6 +41,7 @@ export const reportsHi: Translation<typeof reportsEn> = {
       asOf: 'इस तारीख को',
       groupBy: 'किस हिसाब से',
       schemeStatus: 'स्कीम की स्थिति',
+      ...salesReportFiltersHi,
     },
     kinds: {
       'stock-by-location': {
@@ -93,6 +99,7 @@ export const reportsHi: Translation<typeof reportsEn> = {
         title: 'ब्रांड स्कीम क्लेम',
         description: 'हर चल रही या बंद स्कीम: अपेक्षित और मिला, देय तारीख़ और उम्र',
       },
+      ...salesReportKindsHi,
     },
     columns: {
       'stock-by-location': {
@@ -260,6 +267,7 @@ export const reportsHi: Translation<typeof reportsEn> = {
         filed: 'भेजा क्लेम',
         filedStatus: 'भेजे क्लेम की स्थिति',
       },
+      ...salesReportColumnsHi,
     },
   },
 };

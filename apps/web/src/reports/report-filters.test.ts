@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createI18n } from '../i18n/i18n.js';
-import { filterChoices, filterLabel, reportText } from './report-filters.js';
+import { cellText, filterChoices, filterLabel, reportText } from './report-filters.js';
 
 const i18n = createI18n('en');
 const choice = (name: string, values: string[]) =>
@@ -50,5 +50,24 @@ describe('report filters', () => {
       title: 'Sales by day',
       description: null,
     });
+  });
+
+  it('names the sales reports’ choices', () => {
+    expect(choice('interval', ['week']).map((c) => c.label)).toEqual(['Week']);
+    expect(choice('kind', ['bill_of_supply']).map((c) => c.label)).toEqual(['Bill of supply']);
+    expect(choice('buyerType', ['b2b', 'b2c']).map((c) => c.label)).toEqual([
+      'B2B (buyer has a GSTIN)',
+      'B2C',
+    ]);
+    expect(choice('customerType', ['builder']).map((c) => c.label)).toEqual(['Builder']);
+    expect(choice('modeKind', ['upi_link']).map((c) => c.label)).toEqual(['UPI link']);
+    expect(filterLabel(i18n.t, 'customerSalespersonId')).toBe('Customer’s salesperson');
+  });
+
+  it('reads coded cells by their names, and other cells as they are', () => {
+    expect(cellText(i18n, 'gst-summary.section', 'nil_rated')).toBe('Nil rated');
+    expect(cellText(i18n, 'gst-summary.supplyType', 'inter_state')).toBe('To another state');
+    expect(cellText(i18n, 'payments-by-mode.modeKind', 'cheque')).toBe('Cheque');
+    expect(cellText(i18n, 'gst-summary.gstin', '36AABCS1429B1Z5')).toBe('36AABCS1429B1Z5');
   });
 });

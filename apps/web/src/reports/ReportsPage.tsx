@@ -1,6 +1,7 @@
 import { Card, EmptyState, Icon, PageHeader, buttonStyle } from '@paint/ui';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
+import type { ReportSummary } from '../api/reports.js';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
@@ -12,6 +13,37 @@ export const reportsKey = ['reports'] as const;
 export function useReports() {
   const api = useApi();
   return useQuery({ queryKey: reportsKey, queryFn: ({ signal }) => api.reports.list(signal) });
+}
+
+/** Sales, collections and GST reports come first, under their own heading (#sales). */
+export const isSalesReport = (kind: string) =>
+  kind.startsWith('sales-') || kind.startsWith('gst-') || kind === 'payments-by-mode';
+
+function ReportCards({ reports }: { readonly reports: readonly ReportSummary[] }) {
+  const { t } = useI18n();
+  return (
+    <div className="detail-grid">
+      {reports.map((report) => {
+        const { title, description } = reportText(t, report);
+        return (
+          <Card key={report.kind} title={title}>
+            <div className="stack">
+              {description !== null && <p className="muted">{description}</p>}
+              <div className="row">
+                <Link
+                  to={`/reports/${report.kind}`}
+                  aria-label={t('reports.open', { title })}
+                  {...buttonStyle('secondary')}
+                >
+                  {t('reports.openButton')}
+                </Link>
+              </div>
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
 }
 
 /** /reports — every report the member may run, each opening its filters, table and CSV. */
@@ -28,26 +60,25 @@ export function ReportsPage() {
               <EmptyState icon={<Icon name="dashboard" size={32} />} title={t('reports.empty')} />
             </Card>
           ) : (
-            <div className="detail-grid">
-              {list.map((report) => {
-                const { title, description } = reportText(t, report);
-                return (
-                  <Card key={report.kind} title={title}>
-                    <div className="stack">
-                      {description !== null && <p className="muted">{description}</p>}
-                      <div className="row">
-                        <Link
-                          to={`/reports/${report.kind}`}
-                          aria-label={t('reports.open', { title })}
-                          {...buttonStyle('secondary')}
-                        >
-                          {t('reports.openButton')}
-                        </Link>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
+            <div className="stack">
+              {[
+                { key: 'sales', reports: list.filter((r) => isSalesReport(r.kind)) },
+                { key: 'other', reports: list.filter((r) => !isSalesReport(r.kind)) },
+              ]
+                .filter((section) => section.reports.length > 0)
+                .map((section) => (
+                  <section
+                    key={section.key}
+                    id={section.key}
+                    aria-labelledby={`reports-${section.key}`}
+                    className="stack"
+                  >
+                    <h2 id={`reports-${section.key}`}>
+                      {t(section.key === 'sales' ? 'reportSections.sales' : 'reportSections.other')}
+                    </h2>
+                    <ReportCards reports={section.reports} />
+                  </section>
+                ))}
             </div>
           )
         }

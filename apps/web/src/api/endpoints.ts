@@ -37,6 +37,7 @@ import type {
   NotificationPage,
   OrganizationSecurity,
   Profile,
+  SalesOverview,
   SearchResults,
   SignInResult,
   TwoFactorEnrolment,
@@ -89,6 +90,9 @@ export function endpoints(api: ApiClient) {
     team: teamEndpoints(api),
     dashboard: (storeId?: string, signal?: AbortSignal) =>
       api.get<Dashboard>('/dashboard', { query: { storeId }, signal }),
+    /** The dashboard's sales tile (sales:read). */
+    dashboardSales: (storeId?: string, signal?: AbortSignal) =>
+      api.get<SalesOverview>('/dashboard/sales', { query: { storeId }, signal }),
     search: (q: string, signal?: AbortSignal) =>
       api.get<SearchResults>('/search', { query: { q }, signal }),
     quickActions: (q = '') => api.get<QuickAction[]>('/search/actions', { query: { q } }),

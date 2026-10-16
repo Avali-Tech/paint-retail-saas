@@ -28,6 +28,7 @@ import { posTe } from './te-pos.js';
 import { tintTe } from './te-tint.js';
 import { purchasingEnumsTe, purchasingTe } from './te-purchasing.js';
 import { reportEnumsTe, reportsTe } from './te-reports.js';
+import { salesReportEnumsTe, salesReportsTe } from './te-sales-reports.js';
 import { stockCountEnumsTe, stockCountsTe } from './te-stock-counts.js';
 import { stockEnumsTe, stockTe } from './te-stock.js';
 import { billingTe } from './te-billing.js';
@@ -345,6 +346,7 @@ export const te: Messages = {
   ...contractsTe,
   ...documentsTe,
   ...reportsTe,
+  ...salesReportsTe,
   ...teamTe,
   ...platformTe,
   ...printTe,
@@ -394,6 +396,7 @@ export const te: Messages = {
     ...leadEnumsTe,
     ...followUpEnumsTe,
     ...reportEnumsTe,
+    ...salesReportEnumsTe,
     ...taxEnumsTe,
     ...salesEnumsTe,
     ...ordersEnumsTe,

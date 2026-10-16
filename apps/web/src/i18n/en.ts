@@ -25,6 +25,7 @@ import { posEn } from './en-pos.js';
 import { tintEn } from './en-tint.js';
 import { purchasingEn, purchasingEnumsEn } from './en-purchasing.js';
 import { reportEnumsEn, reportsEn } from './en-reports.js';
+import { salesReportEnumsEn, salesReportsEn } from './en-sales-reports.js';
 import { stockCountEnumsEn, stockCountsEn } from './en-stock-counts.js';
 import { stockEn, stockEnumsEn } from './en-stock.js';
 import { billingEn } from './en-billing.js';
@@ -340,6 +341,7 @@ export const en = {
   ...contractsEn,
   ...documentsEn,
   ...reportsEn,
+  ...salesReportsEn,
   ...teamEn,
   ...platformEn,
   ...printEn,
@@ -391,6 +393,7 @@ export const en = {
     ...leadEnumsEn,
     ...followUpEnumsEn,
     ...reportEnumsEn,
+    ...salesReportEnumsEn,
     ...taxEnumsEn,
     ...salesEnumsEn,
     ...ordersEnumsEn,

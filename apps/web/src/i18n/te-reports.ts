@@ -2,6 +2,11 @@
 // Same keys as en-reports.ts.
 import type { reportEnumsEn, reportsEn } from './en-reports.js';
 import type { Translation } from './shape.js';
+import {
+  salesReportColumnsTe,
+  salesReportFiltersTe,
+  salesReportKindsTe,
+} from './te-sales-reports.js';
 
 export const reportsTe: Translation<typeof reportsEn> = {
   reports: {
@@ -36,6 +41,7 @@ export const reportsTe: Translation<typeof reportsEn> = {
       asOf: 'ఈ తేదీ నాటికి',
       groupBy: 'దేని ప్రకారం',
       schemeStatus: 'స్కీమ్ స్థితి',
+      ...salesReportFiltersTe,
     },
     kinds: {
       'stock-by-location': {
@@ -96,6 +102,7 @@ export const reportsTe: Translation<typeof reportsEn> = {
         title: 'బ్రాండ్ స్కీమ్ క్లెయిమ్‌లు',
         description: 'నడుస్తున్న లేదా మూసిన ప్రతి స్కీమ్: ఆశించినది, వచ్చినది, గడువు, వయస్సు',
       },
+      ...salesReportKindsTe,
     },
     columns: {
       'stock-by-location': {
@@ -263,6 +270,7 @@ export const reportsTe: Translation<typeof reportsEn> = {
         filed: 'పంపిన క్లెయిమ్',
         filedStatus: 'పంపిన క్లెయిమ్ స్థితి',
       },
+      ...salesReportColumnsTe,
     },
   },
 };

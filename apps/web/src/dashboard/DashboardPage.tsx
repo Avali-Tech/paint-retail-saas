@@ -21,6 +21,7 @@ import { stageLabel, useI18n } from '../i18n/i18n.js';
 import { ReceivablesTile } from '../receivables/ReceivablesTile.js';
 import { BrandProfitabilityTile } from '../brand-profitability/BrandProfitabilityTile.js';
 import { SchemesTile } from '../brand-schemes/SchemesTile.js';
+import { SalesTile } from './SalesTile.js';
 
 export const dashboardKey = (storeId: string | null) => ['dashboard', storeId ?? 'all'] as const;
 
@@ -104,6 +105,7 @@ function Tiles({
   const { stock, lowStock, transfers, purchaseOrders } = dashboard.totals;
   return (
     <section className="tiles" aria-label={t('dashboard.total')}>
+      <SalesTile storeId={storeId} />
       {stock && (
         <Tile
           title={t('dashboard.stockValue')}

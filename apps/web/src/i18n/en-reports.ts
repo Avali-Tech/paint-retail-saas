@@ -1,4 +1,9 @@
 // English messages for reports (spread into en.ts).
+import {
+  salesReportColumnsEn,
+  salesReportFiltersEn,
+  salesReportKindsEn,
+} from './en-sales-reports.js';
 
 export const reportsEn = {
   reports: {
@@ -33,6 +38,7 @@ export const reportsEn = {
       asOf: 'As of',
       groupBy: 'Group by',
       schemeStatus: 'Scheme status',
+      ...salesReportFiltersEn,
     },
     kinds: {
       'stock-by-location': {
@@ -90,6 +96,7 @@ export const reportsEn = {
         title: 'Brand scheme claims',
         description: 'Each running or closed scheme: expected against received, due date and age',
       },
+      ...salesReportKindsEn,
     },
     /** Column headers by report and column key (the API's column id is "<kind>.<key>"). */
     columns: {
@@ -258,6 +265,7 @@ export const reportsEn = {
         filed: 'Filed claim',
         filedStatus: 'Filed claim status',
       },
+      ...salesReportColumnsEn,
     },
   },
 };

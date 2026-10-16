@@ -28,6 +28,7 @@ import { posHi } from './hi-pos.js';
 import { tintHi } from './hi-tint.js';
 import { purchasingEnumsHi, purchasingHi } from './hi-purchasing.js';
 import { reportEnumsHi, reportsHi } from './hi-reports.js';
+import { salesReportEnumsHi, salesReportsHi } from './hi-sales-reports.js';
 import { stockCountEnumsHi, stockCountsHi } from './hi-stock-counts.js';
 import { stockEnumsHi, stockHi } from './hi-stock.js';
 import { billingHi } from './hi-billing.js';
@@ -338,6 +339,7 @@ export const hi: Messages = {
   ...contractsHi,
   ...documentsHi,
   ...reportsHi,
+  ...salesReportsHi,
   ...teamHi,
   ...platformHi,
   ...printHi,
@@ -387,6 +389,7 @@ export const hi: Messages = {
     ...leadEnumsHi,
     ...followUpEnumsHi,
     ...reportEnumsHi,
+    ...salesReportEnumsHi,
     ...taxEnumsHi,
     ...salesEnumsHi,
     ...ordersEnumsHi,

@@ -24,7 +24,14 @@ import { useUrlFilters, type UrlFilters } from '../lib/hooks.js';
 import { dateRangeProblems } from '../lib/india-time.js';
 import { QueryState } from '../lib/QueryState.js';
 import { StoreSelect } from '../stock/StoreSelect.js';
-import { columnHeader, filterChoices, filterLabel, reportText } from './report-filters.js';
+import { BrandFilter, CategoryFilter, MemberFilter } from './PickFilters.js';
+import {
+  cellText,
+  columnHeader,
+  filterChoices,
+  filterLabel,
+  reportText,
+} from './report-filters.js';
 import { useReports } from './ReportsPage.js';
 
 export const REPORT_PAGE_SIZE = 50;
@@ -106,6 +113,12 @@ function FilterControl({
     }
     case 'supplier':
       return <SupplierFilter label={label} value={value} onChange={set} />;
+    case 'brand':
+      return <BrandFilter label={label} value={value} onChange={set} />;
+    case 'category':
+      return <CategoryFilter label={label} value={value} onChange={set} />;
+    case 'member':
+      return <MemberFilter label={label} value={value} onChange={set} />;
     case 'enum':
       return (
         <Field label={label}>
@@ -137,7 +150,7 @@ function FilterControl({
         </Field>
       );
     default:
-      // Any kind of filter this version of the app does not know yet, as text.
+      // Free text (a product's name or SKU), and any kind of filter this version does not know.
       return (
         <Field label={label}>
           <Input
@@ -153,7 +166,8 @@ function FilterControl({
 
 function Report({ report }: { readonly report: ReportSummary }) {
   const api = useApi();
-  const { t, number } = useI18n();
+  const i18n = useI18n();
+  const { t, number } = i18n;
   const toast = useToast();
   const filters = useUrlFilters(report.filters.map((filter) => filter.name));
   const [downloading, setDownloading] = useState(false);
@@ -193,12 +207,12 @@ function Report({ report }: { readonly report: ReportSummary }) {
     }
   };
 
-  const cell = (value: ReportValue | undefined) =>
+  const cell = (id: string, value: ReportValue | undefined) =>
     value === null || value === undefined
       ? t('common.none')
       : typeof value === 'number'
         ? number(value)
-        : value;
+        : cellText(i18n, id, value);
 
   return (
     <>
@@ -259,7 +273,7 @@ function Report({ report }: { readonly report: ReportSummary }) {
                             key={column.key}
                             className={typeof row[column.key] === 'number' ? 'ui-num' : undefined}
                           >
-                            {cell(row[column.key])}
+                            {cell(column.id, row[column.key])}
                           </td>
                         ))}
                       </tr>

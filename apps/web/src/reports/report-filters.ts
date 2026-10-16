@@ -27,6 +27,16 @@ function choiceLabel(i18n: I18n, filter: string, value: string): string {
       return label('ageingGroups', value);
     case 'schemeStatus':
       return label('schemeStatus', value);
+    case 'interval':
+      return label('salesIntervals', value);
+    case 'kind':
+      return label('taxDocumentKinds', value);
+    case 'buyerType':
+      return label('buyerTypes', value);
+    case 'customerType':
+      return label('customerTypes', value);
+    case 'modeKind':
+      return label('paymentModeKinds', value);
     default:
       return humanize(value);
   }
@@ -77,4 +87,22 @@ export function columnHeader(t: I18n['t'], column: ReportColumn): string {
   const key = column.id.slice(split + 1);
   if (split < 0 || COLUMNS[kind]?.[key] === undefined) return column.header;
   return t(`reports.columns.${kind}.${key}` as Parameters<I18n['t']>[0]);
+}
+
+type EnumGroup = Parameters<I18n['label']>[0];
+
+/** Columns whose cells are API codes, and the names they read as. */
+const CODED_COLUMNS: Readonly<Record<string, EnumGroup>> = {
+  'sales-by-customer.customerType': 'customerTypes',
+  'payments-by-mode.modeKind': 'paymentModeKinds',
+  'gst-summary.section': 'gstSections',
+  'gst-summary.buyerType': 'buyerTypes',
+  'gst-summary.supplyType': 'supplyTypes',
+  'gst-hsn-summary.section': 'gstSections',
+};
+
+/** A text cell as people read it: a code in a coded column by its name, else as it is. */
+export function cellText(i18n: I18n, columnId: string, value: string): string {
+  const group = CODED_COLUMNS[columnId];
+  return group === undefined ? value : i18n.label(group, value);
 }
