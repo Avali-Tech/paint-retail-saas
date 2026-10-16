@@ -2,7 +2,9 @@ import { schema, type Transaction } from '@paint/db';
 import {
   buildInvoiceView,
   computeInvoice,
+  financialYear,
   formatPrintDate,
+  formatTaxDocumentNumber,
   PLANS,
   SAAS_GST_RATE_BPS,
   stateCodeFromGstin,
@@ -10,12 +12,15 @@ import {
   type Invoice,
   type InvoiceView,
   type PaidPlanKey,
+  type PaymentGatewayName,
   type PrintAddress,
+  type PrintBankDetails,
 } from '@paint/shared';
-import { and, asc, eq, isNotNull } from 'drizzle-orm';
-import type { PlatformSupplierConfig } from '../config.js';
+import { and, asc, eq, isNotNull, sql } from 'drizzle-orm';
+import type { PlatformSupplierConfig, SubscriptionsConfig } from '../config.js';
 
-const { organizations, stores } = schema;
+const { organizations, stores, subscriptionInvoiceSequences, subscriptionInvoices } = schema;
+type InvoiceRow = typeof subscriptionInvoices.$inferSelect;
 type Party = schema.SubscriptionInvoiceParty;
 
 /** The platform as it prints on its invoices, from configuration. */
@@ -86,8 +91,12 @@ export interface SubscriptionInvoiceInput {
   readonly sacCode: string;
   readonly supplier: Party;
   readonly buyer: Party;
-  /** The gateway's payment, printed as a note. */
-  readonly paymentReference: string;
+  /** India date it is payable by. */
+  readonly dueOn: string;
+  /** The gateway's payment, printed as a note; null for a manual invoice. */
+  readonly paymentReference: string | null;
+  /** Where to pay a manual invoice: printed in the bank block; null when paid online. */
+  readonly bank: PrintBankDetails | null;
 }
 
 /**
@@ -182,10 +191,129 @@ export function subscriptionInvoiceView(input: SubscriptionInvoiceInput): Invoic
     aggregateTurnoverPaise: 0,
     reverseCharge: false,
     logoUrl: null,
-    notes: [`Paid online, payment ${input.paymentReference}.`],
+    notes: [
+      input.paymentReference === null
+        ? `Payable by ${formatPrintDate(input.dueOn)} by bank transfer or UPI to the account below. Quote ${input.number} as the reference.`
+        : `Paid online, payment ${input.paymentReference}.`,
+    ],
     terms: ['Software as a service (SAC ' + input.sacCode + '); no goods are supplied.'],
-    bank: null,
+    bank: input.bank,
     signatoryName: null,
     secondLanguage: null,
+  });
+}
+
+/** What one of our invoices is for; the rest comes from configuration and the business. */
+export interface NewSubscriptionInvoice {
+  readonly organizationId: string;
+  readonly plan: PaidPlanKey;
+  readonly interval: BillingInterval;
+  readonly quantity: number;
+  /** India dates, first and last day of the period invoiced. */
+  readonly periodStart: string;
+  readonly periodEnd: string;
+  /** India date it is payable by; never before the day of issue. */
+  readonly dueOn: string;
+  readonly gateway: PaymentGatewayName;
+  /** The gateway's payment; null for a manual invoice. */
+  readonly gatewayPaymentId: string | null;
+}
+
+/**
+ * Issues our GST invoice, numbered in the platform's series (gap-free per financial
+ * year), dated today in India, and stores it; platform scope, in the caller's
+ * transaction.
+ */
+export async function insertSubscriptionInvoice(
+  tx: Transaction,
+  settings: SubscriptionsConfig,
+  spec: NewSubscriptionInvoice,
+): Promise<InvoiceRow> {
+  const today = await tx.execute<{ on: string }>(
+    sql`select ((now() at time zone 'Asia/Kolkata')::date)::text as "on"`,
+  );
+  const issuedOn = (today.rows[0] as { on: string }).on;
+  const { platform } = settings;
+  const fy = financialYear(issuedOn);
+  const [sequence] = (await tx
+    .insert(subscriptionInvoiceSequences)
+    .values({ financialYear: fy, lastValue: 1 })
+    .onConflictDoUpdate({
+      target: subscriptionInvoiceSequences.financialYear,
+      set: { lastValue: sql`${subscriptionInvoiceSequences.lastValue} + 1` },
+    })
+    .returning({ value: subscriptionInvoiceSequences.lastValue })) as [{ value: number }];
+  // Rule 46(b): at most 16 characters (PRS/26-27/000001).
+  const digits = 16 - 7 - platform.invoicePrefix.length;
+  const input: SubscriptionInvoiceInput = {
+    number: formatTaxDocumentNumber(platform.invoicePrefix, fy, sequence.value, digits),
+    issuedOn,
+    plan: spec.plan,
+    interval: spec.interval,
+    quantity: spec.quantity,
+    unitPricePaise: PLANS[spec.plan].prices[spec.interval],
+    periodStart: spec.periodStart,
+    periodEnd: spec.periodEnd,
+    sacCode: platform.sacCode,
+    supplier: platformSupplier(platform),
+    buyer: await subscriptionBuyer(tx, spec.organizationId),
+    // A period invoiced late is payable at once.
+    dueOn: spec.dueOn < issuedOn ? issuedOn : spec.dueOn,
+    paymentReference: spec.gatewayPaymentId,
+    bank: spec.gatewayPaymentId === null ? settings.bank : null,
+  };
+  const { placeOfSupply, totals } = computeSubscriptionInvoice(input);
+  const [row] = (await tx
+    .insert(subscriptionInvoices)
+    .values({
+      organizationId: spec.organizationId,
+      number: input.number,
+      financialYear: fy,
+      serial: sequence.value,
+      issuedOn,
+      plan: input.plan,
+      billingInterval: input.interval,
+      storeQuantity: input.quantity,
+      unitPricePaise: input.unitPricePaise,
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+      sacCode: input.sacCode,
+      rateBps: SAAS_GST_RATE_BPS,
+      placeOfSupply,
+      taxablePaise: totals.taxablePaise,
+      cgstPaise: totals.cgstPaise,
+      sgstPaise: totals.sgstPaise,
+      igstPaise: totals.igstPaise,
+      totalPaise: totals.payablePaise,
+      supplier: input.supplier,
+      buyer: input.buyer,
+      dueOn: input.dueOn,
+      gateway: spec.gateway,
+      gatewayPaymentId: spec.gatewayPaymentId,
+    })
+    .returning()) as [InvoiceRow];
+  return row;
+}
+
+/**
+ * A stored invoice as the print view its PDF draws, as issued. A manual invoice
+ * prints the platform's bank details as configured now.
+ */
+export function storedInvoiceView(row: InvoiceRow, bank: PrintBankDetails): InvoiceView {
+  return subscriptionInvoiceView({
+    number: row.number,
+    issuedOn: row.issuedOn,
+    plan: row.plan as PaidPlanKey,
+    interval: row.billingInterval,
+    quantity: row.storeQuantity,
+    unitPricePaise: row.unitPricePaise,
+    periodStart: row.periodStart,
+    periodEnd: row.periodEnd,
+    sacCode: row.sacCode,
+    supplier: row.supplier,
+    buyer: row.buyer,
+    dueOn: row.dueOn,
+    paymentReference: row.gatewayPaymentId,
+    bank: row.gatewayPaymentId === null ? bank : null,
   });
 }

@@ -36,9 +36,13 @@ import {
 } from './platform.schemas.js';
 import { TenantsService, type TenantDetail, type TenantView } from './tenants.service.js';
 import { pendingCodeSchema, pendingSchema } from '../auth/two-factor.schemas.js';
+import type { TenantBillingView } from '@paint/shared';
+import { ManualBillingService } from '../subscriptions/manual-billing.js';
 import {
   extendTrialSchema,
+  recordPaymentSchema,
   type ExtendTrialInput,
+  type RecordPaymentInput,
 } from '../subscriptions/subscriptions.schemas.js';
 import type { Enrolment } from '../auth/two-factor.service.js';
 
@@ -97,7 +101,10 @@ export class PlatformAuthController {
 @UseGuards(PlatformGuard)
 @Controller('platform/tenants')
 export class TenantsController {
-  constructor(@Inject(TenantsService) private readonly tenants: TenantsService) {}
+  constructor(
+    @Inject(TenantsService) private readonly tenants: TenantsService,
+    @Inject(ManualBillingService) private readonly billing: ManualBillingService,
+  ) {}
 
   @Get()
   list(
@@ -134,6 +141,51 @@ export class TenantsController {
     @Body(new ZodValidationPipe(extendTrialSchema)) body: ExtendTrialInput,
   ): Promise<TenantDetail> {
     return this.tenants.extendTrial(tenantId, body.days);
+  }
+
+  /** Manual invoicing: the owner's plan requests and our invoices with their payments. */
+  @Get(':id/billing')
+  async billingOf(@Param('id', id()) tenantId: string): Promise<TenantBillingView> {
+    await this.tenants.get(tenantId);
+    return this.billing.billing(tenantId);
+  }
+
+  @Post(':id/plan-requests/:requestId/apply')
+  @HttpCode(200)
+  async applyRequest(
+    @Param('id', id()) tenantId: string,
+    @Param('requestId', id()) requestId: string,
+    @CurrentOperator() operator: Operator,
+  ): Promise<TenantBillingView> {
+    await this.tenants.get(tenantId);
+    await this.billing.applyRequest(tenantId, requestId, operator.userId);
+    return this.billing.billing(tenantId);
+  }
+
+  @Post(':id/plan-requests/:requestId/decline')
+  @HttpCode(200)
+  async declineRequest(
+    @Param('id', id()) tenantId: string,
+    @Param('requestId', id()) requestId: string,
+    @CurrentOperator() operator: Operator,
+  ): Promise<TenantBillingView> {
+    await this.tenants.get(tenantId);
+    await this.billing.declineRequest(tenantId, requestId, operator.userId);
+    return this.billing.billing(tenantId);
+  }
+
+  /** Money that arrived by bank transfer, UPI or cheque for one of our manual invoices. */
+  @Post(':id/invoices/:invoiceId/payments')
+  @HttpCode(200)
+  async recordPayment(
+    @Param('id', id()) tenantId: string,
+    @Param('invoiceId', id()) invoiceId: string,
+    @Body(new ZodValidationPipe(recordPaymentSchema)) body: RecordPaymentInput,
+    @CurrentOperator() operator: Operator,
+  ): Promise<TenantBillingView> {
+    await this.tenants.get(tenantId);
+    await this.billing.recordPayment(tenantId, invoiceId, body, operator.userId);
+    return this.billing.billing(tenantId);
   }
 
   @Post(':id/suspend')

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planRefusal } from './subscriptions.service.js';
+import { planRefusal } from './subscription-lookups.js';
 
 describe('planRefusal', () => {
   it('names each limit the business is over', () => {

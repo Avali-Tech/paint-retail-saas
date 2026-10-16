@@ -2,9 +2,13 @@ import type { PlanChangeResult, SubscriptionView } from '@paint/shared';
 import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  BANK,
   CHECKOUT,
   INVOICE,
   PAID_VIEW,
+  PLAN_REQUEST,
+  UNPAID_INVOICE,
+  manualView,
   subscriptionView,
 } from '../test-support/billing-fixtures.js';
 import { OWNER, json, profile, type FakeHandler } from '../test-support/fake-api.js';
@@ -234,7 +238,7 @@ describe('billing for a paying business', () => {
     [
       'past due, in its grace period',
       { status: 'past_due', graceEndsAt: '2026-10-23T04:30:00.000Z' },
-      'Your last payment did not go through. Pay by 23 Oct 2026 to keep working without a break.',
+      'Your payment is overdue. Pay by 23 Oct 2026 to keep working without a break.',
     ],
     [
       'past due and read-only',
@@ -316,6 +320,84 @@ describe('the fake checkout', () => {
     await user.click(await screen.findByRole('button', { name: 'Pay ₹5,306.46' }));
     expect(await screen.findByText('This checkout is already paid')).toBeVisible();
     expect(location()).toBe(`/billing/checkout/${CHECKOUT.id}`);
+  });
+});
+
+describe('billing with manual invoicing', () => {
+  it('asks for a plan, shows the request, our invoices and how to pay them', async () => {
+    let asked = false;
+    const { user, requests } = renderBilling('/settings/billing', {
+      'GET /subscription': () => json(manualView(asked ? { planRequest: PLAN_REQUEST } : {})),
+      'GET /subscription/invoices': () => json([UNPAID_INVOICE, INVOICE]),
+      'POST /subscription/change': () => {
+        asked = true;
+        return json({ kind: 'requested', request: PLAN_REQUEST } satisfies PlanChangeResult);
+      },
+    });
+    const plans = await screen.findByRole('region', { name: 'Plans' });
+    expect(plans).toHaveTextContent(
+      'Choose a plan and our team applies it and sends you our invoice.',
+    );
+    const pay = screen.getByRole('region', { name: 'How to pay' });
+    expect(pay).toHaveTextContent('quoting the invoice number as the reference');
+    expect(pay).toHaveTextContent(
+      'Account nameAvali Tech Private LimitedBankHDFC Bank, Banjara HillsAccount number50200012345678IFSCHDFC0000123UPI IDavalitech@hdfcbank',
+    );
+    const invoices = await screen.findByRole('table', { name: 'Our invoices to you' });
+    expect(within(invoices).getByRole('row', { name: /PRS\/26-27\/000002/ })).toHaveTextContent(
+      'Due 16 Oct 2026',
+    );
+    expect(within(invoices).getByRole('row', { name: /PRS\/26-27\/000001/ })).toHaveTextContent(
+      'Paid 16 Oct 2026',
+    );
+
+    await user.click(within(offer('Standard')).getByRole('button', { name: 'Upgrade: Standard' }));
+    expect(
+      await screen.findByText(
+        'We have your request for the Standard plan. Our invoice follows shortly.',
+      ),
+    ).toBeVisible();
+    const current = screen.getByRole('region', { name: 'Your plan' });
+    expect(
+      await within(current).findByText(
+        'You asked for the Standard plan (Monthly) on 16 Oct 2026. Our team will apply it and send the invoice.',
+      ),
+    ).toBeVisible();
+    expect(
+      within(offer('Standard')).getByRole('button', { name: 'Requested: Standard' }),
+    ).toBeDisabled();
+    expect(requests.filter((request) => request.method === 'POST')).toHaveLength(1);
+  });
+
+  it('says how a business we invoice pays, and asks a plan set by hand to request one', async () => {
+    const { unmount } = renderBilling('/settings/billing', {
+      'GET /subscription': () =>
+        json({ ...PAID_VIEW, gateway: 'manual', collection: 'manual', paymentInstructions: BANK }),
+    });
+    const current = await screen.findByRole('region', { name: 'Your plan' });
+    expect(current).toHaveTextContent('PaymentOur invoice, paid by bank transfer or UPI');
+    expect(
+      within(current).getByRole('button', { name: 'Cancel at the end of the period' }),
+    ).toBeVisible();
+    unmount();
+
+    renderBilling('/settings/billing', {
+      'GET /subscription': () =>
+        json(
+          manualView({
+            plan: 'standard',
+            planName: 'Standard',
+            status: 'active',
+            trialEndsAt: null,
+            trialDaysLeft: null,
+          }),
+        ),
+    });
+    expect(
+      await screen.findByText(
+        'Your plan was set by our team. Ask for a plan below to be invoiced for it.',
+      ),
+    ).toBeVisible();
   });
 });
 

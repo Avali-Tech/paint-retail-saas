@@ -33,6 +33,7 @@ import { QueryState } from '../lib/QueryState.js';
 import type { TenantChange, TenantDetail } from './platform-api.js';
 import { PLATFORM_QUERY, usePlatformApi } from './session.js';
 import { GrantTable, RequestAccessDialog, grantsKey } from './support-ui.js';
+import { TenantBillingCard } from './TenantBilling.js';
 import { SubscriptionBadges, Usage } from './usage.js';
 
 const tenantKey = (id: string) => [PLATFORM_QUERY, 'tenant', id];
@@ -150,11 +151,13 @@ function SubscriptionCard({ tenant }: { readonly tenant: TenantDetail }) {
           ],
           [
             t('platform.tenant.collection'),
-            subscription.gateway !== null
-              ? t('platform.tenant.online', { gateway: subscription.gateway })
-              : onTrial
-                ? null
-                : t('platform.tenant.manual'),
+            subscription.gateway === 'manual'
+              ? t('platform.tenant.invoiced')
+              : subscription.gateway !== null
+                ? t('platform.tenant.online', { gateway: subscription.gateway })
+                : onTrial
+                  ? null
+                  : t('platform.tenant.manual'),
           ],
         ]}
       />
@@ -459,7 +462,10 @@ function SupportCard({ tenant }: { readonly tenant: TenantDetail }) {
   );
 }
 
-/** /platform/tenants/:id — a business's usage, plan, features, suspension and support access. */
+/**
+ * /platform/tenants/:id — a business's usage, plan, subscription, features, suspension,
+ * invoices and payments (manual invoicing) and support access.
+ */
 export function TenantDetailPage() {
   const { t, date } = useI18n();
   const api = usePlatformApi();
@@ -501,6 +507,7 @@ export function TenantDetailPage() {
               <FeaturesCard tenant={business} />
               <SuspensionCard tenant={business} />
             </div>
+            <TenantBillingCard tenant={business} />
             <SupportCard tenant={business} />
           </>
         )}

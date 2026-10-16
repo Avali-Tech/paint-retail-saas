@@ -55,21 +55,12 @@ beforeAll(async () => {
       LOG_LEVEL: 'error',
       RUN_MIGRATIONS: 'true',
       AUTH_SECRET: 'dist-test-secret-of-at-least-32-characters',
-      // Production refuses the fake gateway and placeholder GST details (none are contacted here).
-      PAYMENT_GATEWAY: 'razorpay',
-      RAZORPAY_KEY_ID: 'rzp_test_dist',
-      RAZORPAY_KEY_SECRET: 'razorpay-key-secret-for-tests',
-      RAZORPAY_WEBHOOK_SECRET: 'razorpay-webhook-secret-for-tests',
-      RAZORPAY_PLAN_IDS: JSON.stringify(
-        Object.fromEntries(
-          ['starter', 'standard', 'enterprise'].flatMap((plan) =>
-            ['monthly', 'annual'].map((interval) => [
-              `${plan}_${interval}`,
-              `plan_${plan}${interval}`,
-            ]),
-          ),
-        ),
-      ),
+      // Production invoices by hand (the default) and refuses placeholder GST and bank
+      // details; it needs no Razorpay keys.
+      PLATFORM_BANK_NAME: 'Test Bank, Hyderabad',
+      PLATFORM_BANK_ACCOUNT_NAME: 'Platform Test Private Limited',
+      PLATFORM_BANK_ACCOUNT_NUMBER: '123456789012',
+      PLATFORM_BANK_IFSC: 'SBIN0020345',
       PLATFORM_LEGAL_NAME: 'Platform Test Private Limited',
       PLATFORM_GSTIN: '36AAACP0000P1ZP',
       PLATFORM_ADDRESS: '1 Test Road',

@@ -1,9 +1,15 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import type { LatestReconciliation, PlanChangeResult, SubscriptionView } from '@paint/shared';
+import type {
+  LatestReconciliation,
+  PlanChangeResult,
+  SubscriptionInvoiceView,
+  SubscriptionView,
+  TenantBillingView,
+} from '@paint/shared';
 import pg from 'pg';
 import { base32Decode, sealSecret, totp } from '../auth/totp.js';
 import { NotificationsWorker } from '../notifications/notifications-worker.js';
-import { DemoApi } from './api-client.js';
+import { DemoApi, type MemberApi } from './api-client.js';
 import { HistoryClock } from './history-clock.js';
 import type { LargeScale } from './large-plan.js';
 import {
@@ -143,8 +149,10 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
     await clock.close();
   }
 
-  // The business signed up on the free trial; today the owner pays for a plan.
-  const plan = await subscribe(context);
+  // The business signed up on the free trial; today the owner asks for a plan, the
+  // platform's operator applies it and records the bank transfer for our invoice.
+  const { operator, token: operatorToken } = await createOperator(options);
+  const plan = await subscribe(context, new DemoApi(options.app).as(operatorToken));
 
   if (options.large !== null) {
     await seedLargeShop(context, options.databaseUrl, options.large, new Date());
@@ -155,7 +163,6 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
   await options.app.get(NotificationsWorker).runOnce();
   assertReconciled(await context.as('owner').get<LatestReconciliation>('/reconciliation/latest'));
   const twoFactor = await enrolAuthenticator(context, options);
-  const { operator, token: operatorToken } = await createOperator(options);
   await new DemoApi(options.app).as(operatorToken).post('/platform/tenants', {
     ...DEMO_TRIAL_BUSINESS,
     plan: 'trial',
@@ -206,17 +213,27 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
 
 /**
  * The owner moves the business from its free trial to a paid plan the way any owner
- * does (Settings → Billing): a checkout at the gateway (the fake one in the demo),
- * paid, which issues the platform's first GST invoice to the business.
+ * does with manual invoicing (Settings → Billing): asks for the plan; the platform's
+ * operator applies it, which raises our first GST invoice, and records the bank
+ * transfer that pays it, which starts the plan.
  */
-async function subscribe(context: SeedContext): Promise<string> {
+async function subscribe(context: SeedContext, platform: MemberApi): Promise<string> {
   const owner = context.as('owner');
-  // On the trial, choosing a plan always opens a checkout.
-  const { checkout } = await owner.post<Extract<PlanChangeResult, { kind: 'checkout' }>>(
+  const { request } = await owner.post<Extract<PlanChangeResult, { kind: 'requested' }>>(
     '/subscription/change',
     DEMO_PAID_PLAN,
   );
-  await owner.post(`/subscription/checkouts/${checkout.id}/fake-pay`);
+  const tenantId = (await owner.get<{ organization: { id: string } }>('/auth/me')).organization.id;
+  const billing = await platform.post<TenantBillingView>(
+    `/platform/tenants/${tenantId}/plan-requests/${request.id}/apply`,
+  );
+  const [invoice] = billing.invoices as [SubscriptionInvoiceView];
+  await platform.post(`/platform/tenants/${tenantId}/invoices/${invoice.id}/payments`, {
+    amountPaise: invoice.totalPaise,
+    paidOn: invoice.issuedOn,
+    mode: 'bank_transfer',
+    reference: 'UTR HDFCR52026000001',
+  });
   const subscription = await owner.get<SubscriptionView>('/subscription');
   context.count('subscription invoices', 1);
   return `${subscription.planName}, ${String(subscription.interval)}`;

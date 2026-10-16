@@ -31,6 +31,7 @@ beforeAll(async () => {
   await migrateDatabase(database.connectionString);
   t = await startTestApp(database.connectionString, {
     SIGNUP_PLAN: 'trial',
+    SUBSCRIPTION_GATEWAY: 'fake',
     PLATFORM_BOOTSTRAP_TOKEN: BOOTSTRAP_TOKEN,
     PLATFORM_INVOICE_PREFIX: 'PRS',
   });
@@ -300,6 +301,14 @@ describe('upgrading through the gateway', () => {
       taxablePaise: 2_998_00,
       taxPaise: 539_64,
       totalPaise: 3_537_64,
+      // Paid at the gateway, so payable the day it was issued.
+      dueOn: await dbToday(t),
+      payment: {
+        mode: 'online',
+        amountPaise: 3_537_64,
+        paidOn: await dbToday(t),
+        reference: expect.stringMatching(/^pay_fake_/) as string,
+      },
     });
   });
 

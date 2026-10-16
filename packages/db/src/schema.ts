@@ -6635,7 +6635,7 @@ export const statementLinks = pgTable(
 ).enableRLS();
 
 // ---------------------------------------------------------------------------
-// SaaS subscriptions (roadmap P2-M08; docs/mvp-2/subscriptions.md): what each
+// SaaS subscriptions (roadmap P2-M08; docs/mvp-3/subscriptions.md): what each
 // business pays the platform. The current plan stays on organizations.plan; these
 // tables hold how it is paid. Tenants read their own rows; every write is made by
 // the platform (the API, after checking the owner), never in tenant scope.
@@ -6648,7 +6648,12 @@ export const subscriptionStatus = pgEnum('subscription_status', [
   'expired',
 ]);
 export const billingInterval = pgEnum('billing_interval', ['monthly', 'annual']);
-export const paymentGateway = pgEnum('payment_gateway', ['fake', 'razorpay']);
+/**
+ * How a subscription is collected: `manual` (our invoices, paid by bank transfer or
+ * UPI and recorded by a platform operator), or a gateway: `razorpay`, or `fake` for
+ * tests. Gateway webhooks name their gateway too.
+ */
+export const paymentGateway = pgEnum('payment_gateway', ['manual', 'fake', 'razorpay']);
 export const planChangeSource = pgEnum('plan_change_source', [
   'signup',
   'owner',
@@ -6683,7 +6688,10 @@ export const subscriptions = pgTable(
     /** When a renewal failed; the grace period runs from here. */
     pastDueSince: timestamp('past_due_since', { withTimezone: true }),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
-    /** Who collects: null for a trial or a plan the platform set by hand. */
+    /**
+     * Who collects: null for a trial or a plan the platform set by hand; `manual` for
+     * our own invoices, where current_period_end is the end of the last period paid.
+     */
     gateway: paymentGateway('gateway'),
     gatewaySubscriptionId: text('gateway_subscription_id'),
     ...timestamps,
@@ -6703,7 +6711,7 @@ export const subscriptions = pgTable(
     ),
     check(
       'subscriptions_gateway_id',
-      sql`(${table.gateway} is null) = (${table.gatewaySubscriptionId} is null)`,
+      sql`(${table.gateway} is null or ${table.gateway} = 'manual') = (${table.gatewaySubscriptionId} is null)`,
     ),
     check(
       'subscriptions_paid_billing',
@@ -6848,12 +6856,26 @@ export const subscriptionInvoices = pgTable(
     totalPaise: bigint('total_paise', { mode: 'number' }).notNull(),
     supplier: jsonb('supplier').$type<SubscriptionInvoiceParty>().notNull(),
     buyer: jsonb('buyer').$type<SubscriptionInvoiceParty>().notNull(),
+    /** India date it is payable by; the day of issue when a gateway took the money. */
+    dueOn: date('due_on', { mode: 'string' }).notNull(),
+    /** `manual`: raised by us, paid by transfer (subscription_payments); else paid at the gateway. */
     gateway: paymentGateway('gateway').notNull(),
-    gatewayPaymentId: text('gateway_payment_id').notNull(),
+    /** The gateway's payment; null for a `manual` invoice. */
+    gatewayPaymentId: text('gateway_payment_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     unique('subscription_invoices_serial_unique').on(table.financialYear, table.serial),
+    unique('subscription_invoices_organization_id_unique').on(table.organizationId, table.id),
+    // One manual invoice per period: the renewal job raises each once.
+    uniqueIndex('subscription_invoices_manual_period_unique')
+      .on(table.organizationId, table.periodStart)
+      .where(sql`${table.gateway} = 'manual'`),
+    check(
+      'subscription_invoices_gateway_payment',
+      sql`(${table.gateway} = 'manual') = (${table.gatewayPaymentId} is null)`,
+    ),
+    check('subscription_invoices_due', sql`${table.dueOn} >= ${table.issuedOn}`),
     // One invoice per payment, however often the gateway reports it.
     uniqueIndex('subscription_invoices_payment_unique').on(table.gateway, table.gatewayPaymentId),
     index('subscription_invoices_organization_idx').on(
@@ -6869,6 +6891,105 @@ export const subscriptionInvoices = pgTable(
     ),
     check('subscription_invoices_period', sql`${table.periodEnd} >= ${table.periodStart}`),
     tenantReads('subscription_invoices_tenant_read', table.organizationId),
+  ],
+).enableRLS();
+
+export const subscriptionPaymentMode = pgEnum('subscription_payment_mode', [
+  'bank_transfer',
+  'upi',
+  'cheque',
+  'other',
+]);
+
+/**
+ * A payment a platform operator recorded against one of our manual invoices: it
+ * settles the invoice (one per invoice) and pays for the invoice's period. Never
+ * edited.
+ */
+export const subscriptionPayments = pgTable(
+  'subscription_payments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'restrict' }),
+    invoiceId: uuid('invoice_id').notNull().unique(),
+    /** What arrived; less than the invoice when the business deducted TDS ([CA-8]). */
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
+    /** India date the money arrived. */
+    paidOn: date('paid_on', { mode: 'string' }).notNull(),
+    mode: subscriptionPaymentMode('mode').notNull(),
+    /** The bank's UTR, the UPI reference or the cheque number. */
+    reference: text('reference').notNull(),
+    recordedByUserId: uuid('recorded_by_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: 'subscription_payments_invoice_fk',
+      columns: [table.organizationId, table.invoiceId],
+      foreignColumns: [subscriptionInvoices.organizationId, subscriptionInvoices.id],
+    }).onDelete('restrict'),
+    check('subscription_payments_amount', sql`${table.amountPaise} > 0`),
+    check(
+      'subscription_payments_reference',
+      sql`length(btrim(${table.reference})) between 1 and 100`,
+    ),
+    tenantReads('subscription_payments_tenant_read', table.organizationId),
+  ],
+).enableRLS();
+
+export const planRequestStatus = pgEnum('subscription_plan_request_status', [
+  'open',
+  'applied',
+  'cancelled',
+]);
+
+/**
+ * With manual invoicing, the owner asks for a plan and a platform operator applies
+ * it (docs/mvp-3/subscriptions.md §4). At most one open request per business; a
+ * newer one cancels it. Decided once.
+ */
+export const subscriptionPlanRequests = pgTable(
+  'subscription_plan_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    plan: plan('plan').notNull(),
+    billingInterval: billingInterval('billing_interval').notNull(),
+    status: planRequestStatus('status').notNull().default('open'),
+    requestedByMemberId: uuid('requested_by_member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** The operator who applied or declined it; null when a newer request replaced it. */
+    decidedByUserId: uuid('decided_by_user_id').references(() => users.id, {
+      onDelete: 'restrict',
+    }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('subscription_plan_requests_open_unique')
+      .on(table.organizationId)
+      .where(sql`${table.status} = 'open'`),
+    index('subscription_plan_requests_organization_idx').on(
+      table.organizationId,
+      table.createdAt.desc().nullsFirst(),
+    ),
+    foreignKey({
+      name: 'subscription_plan_requests_member_fk',
+      columns: [table.organizationId, table.requestedByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('subscription_plan_requests_plan_paid', sql`${table.plan} <> 'trial'`),
+    check(
+      'subscription_plan_requests_decided',
+      sql`(${table.status} = 'open') = (${table.decidedAt} is null)
+        and (${table.status} <> 'applied' or ${table.decidedByUserId} is not null)`,
+    ),
+    tenantReads('subscription_plan_requests_tenant_read', table.organizationId),
   ],
 ).enableRLS();
 

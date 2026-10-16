@@ -145,7 +145,7 @@ describe('sign-in sheet', () => {
       'Platform console (the team that runs the service): http://localhost:5173/platform',
     );
     expect(sheet).toContain(
-      'Subscription: Sharma Paints & Hardware pays for the Standard, monthly plan (Settings → Billing).',
+      'Subscription: Sharma Paints & Hardware pays for the Standard, monthly plan by bank transfer against our invoice (Settings → Billing).',
     );
     expect(sheet).toContain(
       'A business on its free trial: Reddy Colour Centre. Its owner Srinivas Reddy',

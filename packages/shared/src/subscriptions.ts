@@ -21,9 +21,25 @@ export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 export const PLAN_CHANGE_SOURCES = ['signup', 'owner', 'operator', 'gateway'] as const;
 export type PlanChangeSource = (typeof PLAN_CHANGE_SOURCES)[number];
 
-/** Payment gateways the API can use; `fake` is for tests, e2e and the demo. */
-export const PAYMENT_GATEWAYS = ['fake', 'razorpay'] as const;
+/**
+ * How the platform collects subscriptions (SUBSCRIPTION_GATEWAY). `manual`, the
+ * default: our GST invoices, paid by bank transfer or UPI and recorded by a
+ * platform operator. `razorpay`: Razorpay Subscriptions. `fake`: a gateway that
+ * takes no money, for tests.
+ */
+export const PAYMENT_GATEWAYS = ['manual', 'fake', 'razorpay'] as const;
 export type PaymentGatewayName = (typeof PAYMENT_GATEWAYS)[number];
+
+/** How a business paid one of our manual invoices. */
+export const SUBSCRIPTION_PAYMENT_MODES = ['bank_transfer', 'upi', 'cheque', 'other'] as const;
+export type SubscriptionPaymentMode = (typeof SUBSCRIPTION_PAYMENT_MODES)[number];
+
+/** A plan an owner asked for under manual invoicing: open until an operator decides. */
+export const PLAN_REQUEST_STATUSES = ['open', 'applied', 'cancelled'] as const;
+export type PlanRequestStatus = (typeof PLAN_REQUEST_STATUSES)[number];
+
+/** Manual invoicing raises the next period's invoice this many days before it starts. */
+export const RENEWAL_INVOICE_LEAD_DAYS = 7;
 
 /** GST on software as a service: 18% (basis points). */
 export const SAAS_GST_RATE_BPS = 1800;

@@ -1,6 +1,6 @@
 {
-  "id": "9c722f13-f6ed-4098-bfb0-60b85cdbeb1d",
-  "prevId": "d631c3a4-a608-49d1-bb87-b86e036a2397",
+  "id": "b76cffb6-48a5-4e8a-a33b-4c4ae0464cdf",
+  "prevId": "cf0ee3ec-08b7-4e22-af39-7574580428d6",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -15214,6 +15214,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "due_on": {
+          "name": "due_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
         "gateway": {
           "name": "gateway",
           "type": "payment_gateway",
@@ -15225,7 +15231,7 @@
           "name": "gateway_payment_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -15236,6 +15242,28 @@
         }
       },
       "indexes": {
+        "subscription_invoices_manual_period_unique": {
+          "name": "subscription_invoices_manual_period_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "period_start",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"subscription_invoices\".\"gateway\" = 'manual'",
+          "concurrently": false
+        },
         "subscription_invoices_payment_unique": {
           "name": "subscription_invoices_payment_unique",
           "columns": [
@@ -15307,6 +15335,11 @@
           "name": "subscription_invoices_serial_unique",
           "columns": ["financial_year", "serial"],
           "nullsNotDistinct": false
+        },
+        "subscription_invoices_organization_id_unique": {
+          "name": "subscription_invoices_organization_id_unique",
+          "columns": ["organization_id", "id"],
+          "nullsNotDistinct": false
         }
       },
       "policies": {
@@ -15319,6 +15352,14 @@
         }
       },
       "checkConstraints": {
+        "subscription_invoices_gateway_payment": {
+          "name": "subscription_invoices_gateway_payment",
+          "value": "(\"subscription_invoices\".\"gateway\" = 'manual') = (\"subscription_invoices\".\"gateway_payment_id\" is null)"
+        },
+        "subscription_invoices_due": {
+          "name": "subscription_invoices_due",
+          "value": "\"subscription_invoices\".\"due_on\" >= \"subscription_invoices\".\"issued_on\""
+        },
         "subscription_invoices_plan_paid": {
           "name": "subscription_invoices_plan_paid",
           "value": "\"subscription_invoices\".\"plan\" <> 'trial'"
@@ -15334,6 +15375,127 @@
         "subscription_invoices_period": {
           "name": "subscription_invoices_period",
           "value": "\"subscription_invoices\".\"period_end\" >= \"subscription_invoices\".\"period_start\""
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.subscription_payments": {
+      "name": "subscription_payments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invoice_id": {
+          "name": "invoice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_paise": {
+          "name": "amount_paise",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "paid_on": {
+          "name": "paid_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mode": {
+          "name": "mode",
+          "type": "subscription_payment_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reference": {
+          "name": "reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_by_user_id": {
+          "name": "recorded_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "subscription_payments_organization_id_organizations_id_fk": {
+          "name": "subscription_payments_organization_id_organizations_id_fk",
+          "tableFrom": "subscription_payments",
+          "columnsFrom": ["organization_id"],
+          "tableTo": "organizations",
+          "columnsTo": ["id"],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "subscription_payments_recorded_by_user_id_users_id_fk": {
+          "name": "subscription_payments_recorded_by_user_id_users_id_fk",
+          "tableFrom": "subscription_payments",
+          "columnsFrom": ["recorded_by_user_id"],
+          "tableTo": "users",
+          "columnsTo": ["id"],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "subscription_payments_invoice_fk": {
+          "name": "subscription_payments_invoice_fk",
+          "tableFrom": "subscription_payments",
+          "columnsFrom": ["organization_id", "invoice_id"],
+          "tableTo": "subscription_invoices",
+          "columnsTo": ["organization_id", "id"],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "subscription_payments_invoice_id_unique": {
+          "name": "subscription_payments_invoice_id_unique",
+          "columns": ["invoice_id"],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {
+        "subscription_payments_tenant_read": {
+          "name": "subscription_payments_tenant_read",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": ["app_tenant"],
+          "using": "\"subscription_payments\".\"organization_id\" = nullif(current_setting('app.current_organization_id', true), '')::uuid"
+        }
+      },
+      "checkConstraints": {
+        "subscription_payments_amount": {
+          "name": "subscription_payments_amount",
+          "value": "\"subscription_payments\".\"amount_paise\" > 0"
+        },
+        "subscription_payments_reference": {
+          "name": "subscription_payments_reference",
+          "value": "length(btrim(\"subscription_payments\".\"reference\")) between 1 and 100"
         }
       },
       "isRLSEnabled": true
@@ -15476,6 +15638,162 @@
         "subscription_plan_changes_who": {
           "name": "subscription_plan_changes_who",
           "value": "(\"subscription_plan_changes\".\"source\" = 'owner') = (\"subscription_plan_changes\".\"changed_by_member_id\" is not null)\n        and (\"subscription_plan_changes\".\"source\" = 'operator') = (\"subscription_plan_changes\".\"changed_by_user_id\" is not null)"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.subscription_plan_requests": {
+      "name": "subscription_plan_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan": {
+          "name": "plan",
+          "type": "plan",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "billing_interval": {
+          "name": "billing_interval",
+          "type": "billing_interval",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "subscription_plan_request_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "requested_by_member_id": {
+          "name": "requested_by_member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "decided_by_user_id": {
+          "name": "decided_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "subscription_plan_requests_open_unique": {
+          "name": "subscription_plan_requests_open_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"subscription_plan_requests\".\"status\" = 'open'",
+          "concurrently": false
+        },
+        "subscription_plan_requests_organization_idx": {
+          "name": "subscription_plan_requests_organization_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "first"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "subscription_plan_requests_organization_id_organizations_id_fk": {
+          "name": "subscription_plan_requests_organization_id_organizations_id_fk",
+          "tableFrom": "subscription_plan_requests",
+          "columnsFrom": ["organization_id"],
+          "tableTo": "organizations",
+          "columnsTo": ["id"],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
+        "subscription_plan_requests_decided_by_user_id_users_id_fk": {
+          "name": "subscription_plan_requests_decided_by_user_id_users_id_fk",
+          "tableFrom": "subscription_plan_requests",
+          "columnsFrom": ["decided_by_user_id"],
+          "tableTo": "users",
+          "columnsTo": ["id"],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "subscription_plan_requests_member_fk": {
+          "name": "subscription_plan_requests_member_fk",
+          "tableFrom": "subscription_plan_requests",
+          "columnsFrom": ["organization_id", "requested_by_member_id"],
+          "tableTo": "organization_members",
+          "columnsTo": ["organization_id", "id"],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "subscription_plan_requests_tenant_read": {
+          "name": "subscription_plan_requests_tenant_read",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": ["app_tenant"],
+          "using": "\"subscription_plan_requests\".\"organization_id\" = nullif(current_setting('app.current_organization_id', true), '')::uuid"
+        }
+      },
+      "checkConstraints": {
+        "subscription_plan_requests_plan_paid": {
+          "name": "subscription_plan_requests_plan_paid",
+          "value": "\"subscription_plan_requests\".\"plan\" <> 'trial'"
+        },
+        "subscription_plan_requests_decided": {
+          "name": "subscription_plan_requests_decided",
+          "value": "(\"subscription_plan_requests\".\"status\" = 'open') = (\"subscription_plan_requests\".\"decided_at\" is null)\n        and (\"subscription_plan_requests\".\"status\" <> 'applied' or \"subscription_plan_requests\".\"decided_by_user_id\" is not null)"
         }
       },
       "isRLSEnabled": true
@@ -15631,7 +15949,7 @@
         },
         "subscriptions_gateway_id": {
           "name": "subscriptions_gateway_id",
-          "value": "(\"subscriptions\".\"gateway\" is null) = (\"subscriptions\".\"gateway_subscription_id\" is null)"
+          "value": "(\"subscriptions\".\"gateway\" is null or \"subscriptions\".\"gateway\" = 'manual') = (\"subscriptions\".\"gateway_subscription_id\" is null)"
         },
         "subscriptions_paid_billing": {
           "name": "subscriptions_paid_billing",
@@ -18959,7 +19277,7 @@
     "public.payment_gateway": {
       "name": "payment_gateway",
       "schema": "public",
-      "values": ["fake", "razorpay"]
+      "values": ["manual", "fake", "razorpay"]
     },
     "public.payment_mode_kind": {
       "name": "payment_mode_kind",
@@ -18980,6 +19298,11 @@
       "name": "plan_change_source",
       "schema": "public",
       "values": ["signup", "owner", "operator", "gateway"]
+    },
+    "public.subscription_plan_request_status": {
+      "name": "subscription_plan_request_status",
+      "schema": "public",
+      "values": ["open", "applied", "cancelled"]
     },
     "public.price_mode": {
       "name": "price_mode",
@@ -19118,6 +19441,11 @@
       "name": "stock_reservation_status",
       "schema": "public",
       "values": ["open", "consumed", "released"]
+    },
+    "public.subscription_payment_mode": {
+      "name": "subscription_payment_mode",
+      "schema": "public",
+      "values": ["bank_transfer", "upi", "cheque", "other"]
     },
     "public.subscription_status": {
       "name": "subscription_status",

@@ -1,7 +1,9 @@
 CREATE TYPE "public"."billing_interval" AS ENUM('monthly', 'annual');--> statement-breakpoint
 CREATE TYPE "public"."subscription_checkout_status" AS ENUM('open', 'paid');--> statement-breakpoint
-CREATE TYPE "public"."payment_gateway" AS ENUM('fake', 'razorpay');--> statement-breakpoint
+CREATE TYPE "public"."payment_gateway" AS ENUM('manual', 'fake', 'razorpay');--> statement-breakpoint
 CREATE TYPE "public"."plan_change_source" AS ENUM('signup', 'owner', 'operator', 'gateway');--> statement-breakpoint
+CREATE TYPE "public"."subscription_plan_request_status" AS ENUM('open', 'applied', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."subscription_payment_mode" AS ENUM('bank_transfer', 'upi', 'cheque', 'other');--> statement-breakpoint
 CREATE TYPE "public"."subscription_status" AS ENUM('trialing', 'active', 'past_due', 'cancelled', 'expired');--> statement-breakpoint
 ALTER TYPE "public"."plan" ADD VALUE 'starter' BEFORE 'standard';--> statement-breakpoint
 CREATE TABLE "payment_gateway_events" (
@@ -65,11 +67,15 @@ CREATE TABLE "subscription_invoices" (
 	"total_paise" bigint NOT NULL,
 	"supplier" jsonb NOT NULL,
 	"buyer" jsonb NOT NULL,
+	"due_on" date NOT NULL,
 	"gateway" "payment_gateway" NOT NULL,
-	"gateway_payment_id" text NOT NULL,
+	"gateway_payment_id" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "subscription_invoices_number_unique" UNIQUE("number"),
 	CONSTRAINT "subscription_invoices_serial_unique" UNIQUE("financial_year","serial"),
+	CONSTRAINT "subscription_invoices_organization_id_unique" UNIQUE("organization_id","id"),
+	CONSTRAINT "subscription_invoices_gateway_payment" CHECK (("subscription_invoices"."gateway" = 'manual') = ("subscription_invoices"."gateway_payment_id" is null)),
+	CONSTRAINT "subscription_invoices_due" CHECK ("subscription_invoices"."due_on" >= "subscription_invoices"."issued_on"),
 	CONSTRAINT "subscription_invoices_plan_paid" CHECK ("subscription_invoices"."plan" <> 'trial'),
 	CONSTRAINT "subscription_invoices_quantity" CHECK ("subscription_invoices"."store_quantity" > 0),
 	CONSTRAINT "subscription_invoices_total" CHECK ("subscription_invoices"."total_paise" = "subscription_invoices"."taxable_paise" + "subscription_invoices"."cgst_paise" + "subscription_invoices"."sgst_paise" + "subscription_invoices"."igst_paise"),
@@ -77,6 +83,22 @@ CREATE TABLE "subscription_invoices" (
 );
 --> statement-breakpoint
 ALTER TABLE "subscription_invoices" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "subscription_payments" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"organization_id" uuid NOT NULL,
+	"invoice_id" uuid NOT NULL,
+	"amount_paise" bigint NOT NULL,
+	"paid_on" date NOT NULL,
+	"mode" "subscription_payment_mode" NOT NULL,
+	"reference" text NOT NULL,
+	"recorded_by_user_id" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "subscription_payments_invoice_id_unique" UNIQUE("invoice_id"),
+	CONSTRAINT "subscription_payments_amount" CHECK ("subscription_payments"."amount_paise" > 0),
+	CONSTRAINT "subscription_payments_reference" CHECK (length(btrim("subscription_payments"."reference")) between 1 and 100)
+);
+--> statement-breakpoint
+ALTER TABLE "subscription_payments" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "subscription_plan_changes" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" uuid NOT NULL,
@@ -92,6 +114,22 @@ CREATE TABLE "subscription_plan_changes" (
 );
 --> statement-breakpoint
 ALTER TABLE "subscription_plan_changes" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "subscription_plan_requests" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"organization_id" uuid NOT NULL,
+	"plan" "plan" NOT NULL,
+	"billing_interval" "billing_interval" NOT NULL,
+	"status" "subscription_plan_request_status" DEFAULT 'open' NOT NULL,
+	"requested_by_member_id" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"decided_by_user_id" uuid,
+	"decided_at" timestamp with time zone,
+	CONSTRAINT "subscription_plan_requests_plan_paid" CHECK ("subscription_plan_requests"."plan" <> 'trial'),
+	CONSTRAINT "subscription_plan_requests_decided" CHECK (("subscription_plan_requests"."status" = 'open') = ("subscription_plan_requests"."decided_at" is null)
+        and ("subscription_plan_requests"."status" <> 'applied' or "subscription_plan_requests"."decided_by_user_id" is not null))
+);
+--> statement-breakpoint
+ALTER TABLE "subscription_plan_requests" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "subscriptions" (
 	"organization_id" uuid PRIMARY KEY NOT NULL,
 	"status" "subscription_status" NOT NULL,
@@ -109,7 +147,7 @@ CREATE TABLE "subscriptions" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "subscriptions_trial_end" CHECK ("subscriptions"."status" <> 'trialing' or "subscriptions"."trial_ends_at" is not null),
 	CONSTRAINT "subscriptions_past_due_since" CHECK (("subscriptions"."status" = 'past_due') = ("subscriptions"."past_due_since" is not null)),
-	CONSTRAINT "subscriptions_gateway_id" CHECK (("subscriptions"."gateway" is null) = ("subscriptions"."gateway_subscription_id" is null)),
+	CONSTRAINT "subscriptions_gateway_id" CHECK (("subscriptions"."gateway" is null or "subscriptions"."gateway" = 'manual') = ("subscriptions"."gateway_subscription_id" is null)),
 	CONSTRAINT "subscriptions_paid_billing" CHECK (("subscriptions"."gateway" is null) or ("subscriptions"."billing_interval" is not null and "subscriptions"."store_quantity" > 0 and "subscriptions"."current_period_end" is not null)),
 	CONSTRAINT "subscriptions_period_order" CHECK ("subscriptions"."current_period_start" is null or "subscriptions"."current_period_end" > "subscriptions"."current_period_start")
 );
@@ -119,17 +157,28 @@ ALTER TABLE "payment_gateway_events" ADD CONSTRAINT "payment_gateway_events_orga
 ALTER TABLE "subscription_checkouts" ADD CONSTRAINT "subscription_checkouts_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subscription_checkouts" ADD CONSTRAINT "subscription_checkouts_member_fk" FOREIGN KEY ("organization_id","created_by_member_id") REFERENCES "public"."organization_members"("organization_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subscription_invoices" ADD CONSTRAINT "subscription_invoices_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "subscription_payments" ADD CONSTRAINT "subscription_payments_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "subscription_payments" ADD CONSTRAINT "subscription_payments_recorded_by_user_id_users_id_fk" FOREIGN KEY ("recorded_by_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "subscription_payments" ADD CONSTRAINT "subscription_payments_invoice_fk" FOREIGN KEY ("organization_id","invoice_id") REFERENCES "public"."subscription_invoices"("organization_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subscription_plan_changes" ADD CONSTRAINT "subscription_plan_changes_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subscription_plan_changes" ADD CONSTRAINT "subscription_plan_changes_changed_by_user_id_users_id_fk" FOREIGN KEY ("changed_by_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subscription_plan_changes" ADD CONSTRAINT "subscription_plan_changes_member_fk" FOREIGN KEY ("organization_id","changed_by_member_id") REFERENCES "public"."organization_members"("organization_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "subscription_plan_requests" ADD CONSTRAINT "subscription_plan_requests_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "subscription_plan_requests" ADD CONSTRAINT "subscription_plan_requests_decided_by_user_id_users_id_fk" FOREIGN KEY ("decided_by_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "subscription_plan_requests" ADD CONSTRAINT "subscription_plan_requests_member_fk" FOREIGN KEY ("organization_id","requested_by_member_id") REFERENCES "public"."organization_members"("organization_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "subscription_checkouts_gateway_unique" ON "subscription_checkouts" USING btree ("gateway","gateway_subscription_id");--> statement-breakpoint
 CREATE INDEX "subscription_checkouts_organization_idx" ON "subscription_checkouts" USING btree ("organization_id","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "subscription_invoices_manual_period_unique" ON "subscription_invoices" USING btree ("organization_id","period_start") WHERE "subscription_invoices"."gateway" = 'manual';--> statement-breakpoint
 CREATE UNIQUE INDEX "subscription_invoices_payment_unique" ON "subscription_invoices" USING btree ("gateway","gateway_payment_id");--> statement-breakpoint
 CREATE INDEX "subscription_invoices_organization_idx" ON "subscription_invoices" USING btree ("organization_id","issued_on" DESC NULLS FIRST,"serial" DESC NULLS FIRST);--> statement-breakpoint
 CREATE INDEX "subscription_plan_changes_organization_idx" ON "subscription_plan_changes" USING btree ("organization_id","created_at" DESC NULLS FIRST,"id" DESC NULLS FIRST);--> statement-breakpoint
+CREATE UNIQUE INDEX "subscription_plan_requests_open_unique" ON "subscription_plan_requests" USING btree ("organization_id") WHERE "subscription_plan_requests"."status" = 'open';--> statement-breakpoint
+CREATE INDEX "subscription_plan_requests_organization_idx" ON "subscription_plan_requests" USING btree ("organization_id","created_at" DESC NULLS FIRST);--> statement-breakpoint
 CREATE UNIQUE INDEX "subscriptions_gateway_subscription_unique" ON "subscriptions" USING btree ("gateway","gateway_subscription_id");--> statement-breakpoint
 CREATE POLICY "subscription_checkouts_tenant_read" ON "subscription_checkouts" AS PERMISSIVE FOR SELECT TO "app_tenant" USING ("subscription_checkouts"."organization_id" = nullif(current_setting('app.current_organization_id', true), '')::uuid);--> statement-breakpoint
 CREATE POLICY "subscription_invoices_tenant_read" ON "subscription_invoices" AS PERMISSIVE FOR SELECT TO "app_tenant" USING ("subscription_invoices"."organization_id" = nullif(current_setting('app.current_organization_id', true), '')::uuid);--> statement-breakpoint
+CREATE POLICY "subscription_payments_tenant_read" ON "subscription_payments" AS PERMISSIVE FOR SELECT TO "app_tenant" USING ("subscription_payments"."organization_id" = nullif(current_setting('app.current_organization_id', true), '')::uuid);--> statement-breakpoint
 CREATE POLICY "subscription_plan_changes_tenant_read" ON "subscription_plan_changes" AS PERMISSIVE FOR SELECT TO "app_tenant" USING ("subscription_plan_changes"."organization_id" = nullif(current_setting('app.current_organization_id', true), '')::uuid);--> statement-breakpoint
+CREATE POLICY "subscription_plan_requests_tenant_read" ON "subscription_plan_requests" AS PERMISSIVE FOR SELECT TO "app_tenant" USING ("subscription_plan_requests"."organization_id" = nullif(current_setting('app.current_organization_id', true), '')::uuid);--> statement-breakpoint
 CREATE POLICY "subscriptions_tenant_read" ON "subscriptions" AS PERMISSIVE FOR SELECT TO "app_tenant" USING ("subscriptions"."organization_id" = nullif(current_setting('app.current_organization_id', true), '')::uuid);

@@ -29,9 +29,27 @@ export const billingEn = {
     collection: 'Payment',
     online: 'Paid online',
     manual: 'Set by our team',
+    invoiced: 'Our invoice, paid by bank transfer or UPI',
+    manualHintRequest: 'Your plan was set by our team. Ask for a plan below to be invoiced for it.',
+    requestHint:
+      'Choose a plan and our team applies it and sends you our invoice. Pay it by bank transfer or UPI.',
+    requested: 'We have your request for the {plan} plan. Our invoice follows shortly.',
+    requestedPlan: 'Requested',
+    requestPending:
+      'You asked for the {plan} plan ({interval}) on {date}. Our team will apply it and send the invoice.',
+    unpaid: 'Due {date}',
+    paid: 'Paid {date}',
+    payTitle: 'How to pay',
+    payHint:
+      'Pay our invoice by bank transfer (NEFT, RTGS or IMPS) or UPI, quoting the invoice number as the reference. Our team records your payment, usually within one working day.',
+    accountName: 'Account name',
+    bankName: 'Bank',
+    accountNumber: 'Account number',
+    ifsc: 'IFSC',
+    upiId: 'UPI ID',
     manualHint:
       'Your plan was set by our team and is invoiced separately. Choose a plan below to pay online instead.',
-    pastDue: 'Your last payment did not go through. Pay by {date} to keep working without a break.',
+    pastDue: 'Your payment is overdue. Pay by {date} to keep working without a break.',
     readOnly:
       'The business is read-only: everyone can look, but nothing new can be saved until a plan is paid for.',
     cancelling: 'The subscription ends on {date} and will not renew.',
@@ -106,7 +124,7 @@ export const billingEn = {
       expired: 'Your free trial has ended',
       expiredText: 'The business is read-only. Choose a plan to continue.',
       pastDue: 'Payment overdue',
-      pastDueText: 'Your last payment did not go through. Pay by {date} to avoid read-only mode.',
+      pastDueText: 'Your payment is overdue. Pay by {date} to avoid read-only mode.',
       readOnly: 'The business is read-only',
       readOnlyOwnerText: 'Nothing new can be saved until the subscription is paid.',
       readOnlyText:

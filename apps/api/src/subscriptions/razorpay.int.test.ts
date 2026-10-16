@@ -43,7 +43,7 @@ beforeAll(async () => {
   });
   t = await startTestApp(database.connectionString, {
     SIGNUP_PLAN: 'trial',
-    PAYMENT_GATEWAY: 'razorpay',
+    SUBSCRIPTION_GATEWAY: 'razorpay',
     RAZORPAY_KEY_ID: 'rzp_test_key',
     RAZORPAY_KEY_SECRET: 'razorpay-key-secret',
     RAZORPAY_WEBHOOK_SECRET: WEBHOOK_SECRET,

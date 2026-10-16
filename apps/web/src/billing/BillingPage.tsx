@@ -19,6 +19,7 @@ import { saveFile } from '../lib/download.js';
 import { FormDialog } from '../lib/FormDialog.js';
 import { QueryState } from '../lib/QueryState.js';
 import { STATUS_TONES, SUBSCRIPTION_QUERY } from './billing-api.js';
+import { InvoiceStatus, PaymentInstructionsCard } from './invoice-parts.js';
 import { OwnerOnly } from './OwnerOnly.js';
 
 function StatusCard({ view }: { readonly view: SubscriptionView }) {
@@ -79,7 +80,9 @@ function StatusCard({ view }: { readonly view: SubscriptionView }) {
                 ? null
                 : view.gateway === null
                   ? t('subscription.manual')
-                  : t('subscription.online'),
+                  : view.gateway === 'manual'
+                    ? t('subscription.invoiced')
+                    : t('subscription.online'),
             ],
           ]}
         />
@@ -93,7 +96,20 @@ function StatusCard({ view }: { readonly view: SubscriptionView }) {
           <Alert tone="info">{t('subscription.cancelling', { date: String(periodEnd) })}</Alert>
         )}
         {view.plan !== 'trial' && view.gateway === null && view.status === 'active' && (
-          <p className="muted">{t('subscription.manualHint')}</p>
+          <p className="muted">
+            {view.collection === 'manual'
+              ? t('subscription.manualHintRequest')
+              : t('subscription.manualHint')}
+          </p>
+        )}
+        {view.planRequest !== null && (
+          <Alert tone="info">
+            {t('subscription.requestPending', {
+              plan: PLANS[view.planRequest.plan].name,
+              interval: t(`subscription.intervals.${view.planRequest.interval}`),
+              date: date(view.planRequest.createdAt),
+            })}
+          </Alert>
         )}
       </div>
       {cancelling && (
@@ -161,13 +177,19 @@ function OfferCard({
     interval === view.interval &&
     view.status === 'active' &&
     !view.cancelAtPeriodEnd;
+  const requested =
+    view.planRequest !== null &&
+    view.planRequest.plan === offer.plan &&
+    view.planRequest.interval === interval;
   const label = current
     ? t('subscription.currentPlan')
-    : offer.plan === view.plan
-      ? t('subscription.choose')
-      : isUpgrade(view.plan, offer.plan)
-        ? t('subscription.upgrade')
-        : t('subscription.downgrade');
+    : requested
+      ? t('subscription.requestedPlan')
+      : offer.plan === view.plan
+        ? t('subscription.choose')
+        : isUpgrade(view.plan, offer.plan)
+          ? t('subscription.upgrade')
+          : t('subscription.downgrade');
   return (
     <li>
       <strong>{offer.name}</strong>
@@ -199,7 +221,7 @@ function OfferCard({
         <Button
           size="sm"
           variant={current ? 'secondary' : 'primary'}
-          disabled={current || busy || offer.blockers.length > 0}
+          disabled={current || requested || busy || offer.blockers.length > 0}
           onClick={onChoose}
           aria-label={`${label}: ${offer.name}`}
         >
@@ -220,6 +242,14 @@ function PlansCard({ view }: { readonly view: SubscriptionView }) {
   const change = useMutation({
     mutationFn: (plan: PlanOffer['plan']) => api.subscription.change({ plan, interval }),
     onSuccess: async (result) => {
+      if (result.kind === 'requested') {
+        toast({
+          title: t('subscription.requested', { plan: PLANS[result.request.plan].name }),
+          tone: 'success',
+        });
+        await queryClient.invalidateQueries({ queryKey: [SUBSCRIPTION_QUERY] });
+        return;
+      }
       if (result.kind === 'changed') {
         toast({
           title: t('subscription.changed', { plan: result.subscription.planName }),
@@ -247,6 +277,7 @@ function PlansCard({ view }: { readonly view: SubscriptionView }) {
             stores: plural('subscription.billedStores', Math.max(1, view.usage.stores)),
           })}
         </p>
+        {view.collection === 'manual' && <p className="muted">{t('subscription.requestHint')}</p>}
         <Field label={t('subscription.interval')}>
           <Select
             value={interval}
@@ -313,6 +344,7 @@ function InvoicesCard() {
                   <th scope="col">{t('subscription.period')}</th>
                   <th scope="col">{t('subscription.plan')}</th>
                   <th scope="col">{t('subscription.total')}</th>
+                  <th scope="col">{t('subscription.status')}</th>
                   <th scope="col">
                     <span className="ui-visually-hidden">{t('subscription.download')}</span>
                   </th>
@@ -336,6 +368,9 @@ function InvoicesCard() {
                       })}
                     </td>
                     <td>{money(invoice.totalPaise)}</td>
+                    <td>
+                      <InvoiceStatus invoice={invoice} />
+                    </td>
                     <td>
                       <Button
                         size="sm"
@@ -409,6 +444,9 @@ function OwnerBilling() {
             </div>
             <PlansCard key={`${view.plan}-${String(view.interval)}`} view={view} />
             <InvoicesCard />
+            {view.paymentInstructions !== null && (
+              <PaymentInstructionsCard instructions={view.paymentInstructions} />
+            )}
             <HistoryCard view={view} />
           </div>
         )}
@@ -419,8 +457,9 @@ function OwnerBilling() {
 
 /**
  * /settings/billing — the owner's plan, usage against its limits, the plans to
- * move to (priced for the business's stores), cancelling, our invoices and the
- * history of plan changes. Admins see who manages it.
+ * move to (priced for the business's stores; with manual invoicing the owner asks
+ * and our team applies), cancelling, our invoices with what is paid and due, how to
+ * pay them, and the history of plan changes. Admins see who manages it.
  */
 export function BillingPage() {
   return (

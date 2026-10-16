@@ -14,8 +14,28 @@ const PLAN_IDS = {
   enterprise_annual: 'plan_EA',
 };
 const PLATFORM_GSTIN = `29AABCA1234B1Z${gstinCheckCharacter('29AABCA1234B1Z')}`;
+const platform = {
+  PLATFORM_LEGAL_NAME: 'Avali Tech Private Limited',
+  PLATFORM_GSTIN,
+  PLATFORM_ADDRESS: '4th Floor, 12 MG Road',
+  PLATFORM_CITY: 'Bengaluru',
+  PLATFORM_PINCODE: '560001',
+};
+const bank = {
+  PLATFORM_BANK_NAME: 'HDFC Bank, MG Road',
+  PLATFORM_BANK_ACCOUNT_NAME: 'Avali Tech Private Limited',
+  PLATFORM_BANK_ACCOUNT_NUMBER: '50200012345678',
+  PLATFORM_BANK_IFSC: 'hdfc0000123',
+};
+const production = {
+  ...required,
+  ...platform,
+  NODE_ENV: 'production',
+  STORAGE_BUCKET: 'docs',
+  CLAMAV_HOST: 'clamav',
+};
 const razorpay = {
-  PAYMENT_GATEWAY: 'razorpay',
+  SUBSCRIPTION_GATEWAY: 'razorpay',
   RAZORPAY_KEY_ID: 'rzp_live_key',
   RAZORPAY_KEY_SECRET: 'razorpay-key-secret',
   RAZORPAY_WEBHOOK_SECRET: 'razorpay-webhook-secret',
@@ -42,7 +62,7 @@ describe('loadConfig', () => {
       messagingProvider: 'disabled',
       publicApiUrl: 'http://localhost:5173/api',
       subscriptions: {
-        gateway: { name: 'fake' },
+        gateway: { name: 'manual' },
         trialDays: 14,
         graceDays: 7,
         platform: {
@@ -54,6 +74,13 @@ describe('loadConfig', () => {
           email: null,
           invoicePrefix: 'PRS',
           sacCode: '998315',
+        },
+        bank: {
+          bankName: 'Placeholder Bank, set PLATFORM_BANK_NAME',
+          accountName: 'Paint Retail SaaS Private Limited (placeholder)',
+          accountNumber: '000000000000',
+          ifsc: 'SBIN0000000',
+          upiId: null,
         },
         appUrl: 'http://localhost:5173',
       },
@@ -88,7 +115,7 @@ describe('loadConfig', () => {
         SIGNUP_PLAN: 'standard',
         MESSAGING_PROVIDER: 'disabled',
         PUBLIC_API_URL: 'https://api.paintsaas.in/',
-        PAYMENT_GATEWAY: 'razorpay',
+        SUBSCRIPTION_GATEWAY: 'razorpay',
         RAZORPAY_KEY_ID: 'rzp_live_key',
         RAZORPAY_KEY_SECRET: 'razorpay-key-secret',
         RAZORPAY_WEBHOOK_SECRET: 'razorpay-webhook-secret',
@@ -104,6 +131,8 @@ describe('loadConfig', () => {
         PLATFORM_EMAIL: 'billing@paintsaas.in',
         PLATFORM_INVOICE_PREFIX: 'PS',
         PLATFORM_SAC: '998314',
+        ...bank,
+        PLATFORM_UPI_ID: 'avalitech@hdfcbank',
       }),
     ).toEqual({
       nodeEnv: 'production',
@@ -153,6 +182,13 @@ describe('loadConfig', () => {
           invoicePrefix: 'PS',
           sacCode: '998314',
         },
+        bank: {
+          bankName: 'HDFC Bank, MG Road',
+          accountName: 'Avali Tech Private Limited',
+          accountNumber: '50200012345678',
+          ifsc: 'HDFC0000123',
+          upiId: 'avalitech@hdfcbank',
+        },
         appUrl: 'https://app.paintsaas.in',
       },
     });
@@ -173,6 +209,19 @@ describe('loadConfig', () => {
 
   it('prints WhatsApp messages with the log provider outside production', () => {
     expect(loadConfig({ ...required, MESSAGING_PROVIDER: 'log' }).messagingProvider).toBe('log');
+  });
+
+  it('invoices by hand in production with the platform bank account and no Razorpay keys', () => {
+    const config = loadConfig({ ...production, ...bank });
+    expect(config.subscriptions.gateway).toEqual({ name: 'manual' });
+    expect(config.subscriptions.bank).toMatchObject({ accountNumber: '50200012345678' });
+  });
+
+  it('needs no bank account in production when Razorpay collects', () => {
+    expect(
+      loadConfig({ ...production, ...razorpay, RAZORPAY_PLAN_IDS: JSON.stringify(PLAN_IDS) })
+        .subscriptions.gateway.name,
+    ).toBe('razorpay');
   });
 
   it('accepts port 0 (pick any free port)', () => {
@@ -226,14 +275,21 @@ describe('loadConfig', () => {
       { ...required, PLATFORM_BOOTSTRAP_TOKEN: 'short' },
       /PLATFORM_BOOTSTRAP_TOKEN: must be at least 32/,
     ],
-    [{ ...required, NODE_ENV: 'production' }, /PAYMENT_GATEWAY: must be "razorpay" in production/],
+    [
+      { ...production, ...bank, SUBSCRIPTION_GATEWAY: 'fake' },
+      /SUBSCRIPTION_GATEWAY: must be "manual" or "razorpay" in production/,
+    ],
+    [production, /PLATFORM_BANK_ACCOUNT_NUMBER: PLATFORM_BANK_NAME, PLATFORM_BANK_ACCOUNT_NAME/],
+    [{ ...required, PLATFORM_BANK_ACCOUNT_NUMBER: '12AB' }, /PLATFORM_BANK_ACCOUNT_NUMBER/],
+    [{ ...required, PLATFORM_BANK_IFSC: 'HDFC123' }, /PLATFORM_BANK_IFSC: is not an IFSC/],
+    [{ ...required, PLATFORM_UPI_ID: 'no-at-sign' }, /PLATFORM_UPI_ID: is not a UPI id/],
     [
       { ...required, NODE_ENV: 'production' },
       /PLATFORM_GSTIN: PLATFORM_LEGAL_NAME, PLATFORM_GSTIN/,
     ],
-    [{ ...required, PAYMENT_GATEWAY: 'stripe' }, /PAYMENT_GATEWAY/],
+    [{ ...required, SUBSCRIPTION_GATEWAY: 'stripe' }, /SUBSCRIPTION_GATEWAY/],
     [
-      { ...required, PAYMENT_GATEWAY: 'razorpay' },
+      { ...required, SUBSCRIPTION_GATEWAY: 'razorpay' },
       /RAZORPAY_KEY_ID: RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET/,
     ],
     [

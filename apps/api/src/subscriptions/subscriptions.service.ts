@@ -10,8 +10,6 @@ import {
 } from '@nestjs/common';
 import { schema, type DatabaseConnection, type Transaction } from '@paint/db';
 import {
-  financialYear,
-  formatTaxDocumentNumber,
   PAID_PLAN_KEYS,
   planBlockers,
   PLANS,
@@ -20,13 +18,11 @@ import {
   type BillingInterval,
   type CheckoutView,
   type PaidPlanKey,
-  type PlanBlocker,
   type PlanChangeResult,
   type PlanChangeView,
   type PlanKey,
   type PlanUsage,
   type SubscriptionInvoiceView,
-  type SubscriptionRecord,
   type SubscriptionState,
   type SubscriptionStatusView,
   type SubscriptionView,
@@ -40,61 +36,37 @@ import {
   type WebhookOutcome,
 } from '../payments-gateway/gateway-events.js';
 import { renderInvoicePdf } from '../print/render-invoice-pdf.js';
+import { ManualBillingService } from './manual-billing.js';
 import {
   SUBSCRIPTION_GATEWAY,
   type SubscriptionGatewayEvent,
   type SubscriptionGateway,
 } from './subscription-gateway.js';
+import { insertSubscriptionInvoice, storedInvoiceView } from './subscription-invoice.js';
 import {
-  computeSubscriptionInvoice,
-  platformSupplier,
-  subscriptionBuyer,
-  subscriptionInvoiceView,
-} from './subscription-invoice.js';
+  dbNowMs,
+  invoicesOf,
+  iso,
+  planUsage,
+  requireRoomOn,
+  subscriptionRecord,
+  unpaidManualInvoice,
+  type Db,
+  type SubscriptionRow,
+} from './subscription-lookups.js';
 import { SUBSCRIPTION_SETTINGS, type SubscriptionSettings } from './subscriptions.tokens.js';
 
 const {
   organizationMembers,
   organizations,
   subscriptionCheckouts,
-  subscriptionInvoiceSequences,
   subscriptionInvoices,
   subscriptionPlanChanges,
   subscriptions,
   users,
 } = schema;
 
-type Db = DatabaseConnection['db'] | Transaction;
-type SubscriptionRow = typeof subscriptions.$inferSelect;
 type CheckoutRow = typeof subscriptionCheckouts.$inferSelect;
-type InvoiceRow = typeof subscriptionInvoices.$inferSelect;
-
-/** The database clock in milliseconds: every comparison with time uses it, never Node's. */
-const dbNowMs = sql<number>`(extract(epoch from now()) * 1000)::float8`.mapWith(Number);
-
-const iso = (date: Date | null) => (date ? date.toISOString() : null);
-
-/** A subscription as the shared rules read it. */
-export function subscriptionRecord(row: SubscriptionRow): SubscriptionRecord {
-  return {
-    status: row.status,
-    gateway: row.gateway,
-    trialEndsAt: iso(row.trialEndsAt),
-    currentPeriodEnd: iso(row.currentPeriodEnd),
-    cancelAtPeriodEnd: row.cancelAtPeriodEnd,
-    pastDueSince: iso(row.pastDueSince),
-  };
-}
-
-/** Why a plan cannot be chosen, in words (English, as the API's other refusals). */
-export function planRefusal(plan: PlanKey, blockers: readonly PlanBlocker[]): string {
-  const limits = blockers.map((blocker) => {
-    const noun = blocker.what === 'stores' ? 'active store' : 'active team member';
-    const allowed = `${String(blocker.limit)} ${noun}${blocker.limit === 1 ? '' : 's'}`;
-    return `allows ${allowed} and you have ${String(blocker.used)}`;
-  });
-  return `The ${PLANS[plan].name} plan ${limits.join('; it ')}. Close stores or deactivate team members first.`;
-}
 
 const READ_ONLY_MESSAGES: Readonly<Record<string, string>> = {
   past_due:
@@ -118,7 +90,13 @@ export class SubscriptionsService {
     @Inject(DATABASE) private readonly connection: DatabaseConnection,
     @Inject(SUBSCRIPTION_GATEWAY) private readonly gateway: SubscriptionGateway,
     @Inject(SUBSCRIPTION_SETTINGS) private readonly settings: SubscriptionSettings,
+    @Inject(ManualBillingService) private readonly manual: ManualBillingService,
   ) {}
+
+  /** True with manual invoicing (SUBSCRIPTION_GATEWAY=manual, the default). */
+  private get manualInvoicing(): boolean {
+    return this.gateway.name === 'manual';
+  }
 
   /** Only the business's owner, signed in as themself, manages its subscription. */
   static requireOwner(auth: AuthContext): void {
@@ -198,6 +176,9 @@ export class SubscriptionsService {
       currentPeriodStart: iso(subscription.currentPeriodStart),
       pastDueSince: iso(subscription.pastDueSince),
       gateway: subscription.gateway,
+      collection: this.gateway.name,
+      paymentInstructions: this.manualInvoicing ? this.settings.bank : null,
+      planRequest: this.manualInvoicing ? await this.manual.openRequest(db, organizationId) : null,
       offers: PAID_PLAN_KEYS.map((key) => ({
         plan: key,
         name: PLANS[key].name,
@@ -222,11 +203,12 @@ export class SubscriptionsService {
   }
 
   /**
-   * Moves the business to a paid plan. A running paid subscription changes in place:
-   * the limits at once, the price from the next period (no proration). Anything
-   * else (a trial, a plan set by hand, a lapsed or cancelled subscription) pays
-   * first: the plan changes when the gateway reports the payment. Refused while
-   * the business uses more than the plan allows.
+   * Moves the business to a paid plan. With manual invoicing the owner only asks:
+   * a platform operator applies the request (ManualBillingService). With a gateway,
+   * a running paid subscription changes in place: the limits at once, the price from
+   * the next period (no proration). Anything else (a trial, a plan set by hand, a
+   * lapsed or cancelled subscription) pays first: the plan changes when the gateway
+   * reports the payment. Refused while the business uses more than the plan allows.
    */
   async change(
     auth: AuthContext,
@@ -237,14 +219,12 @@ export class SubscriptionsService {
     const { db } = this.connection;
     const { subscription, plan, state } = await this.current(db, organizationId);
     const usage = await planUsage(db, organizationId);
-    const blockers = planBlockers(input.plan, usage);
-    if (blockers.length > 0) {
-      throw new ConflictException({
-        statusCode: 409,
-        code: 'plan_limits_exceeded',
-        message: planRefusal(input.plan, blockers),
-        blockers,
-      });
+    requireRoomOn(input.plan, usage);
+    if (this.manualInvoicing) {
+      return {
+        kind: 'requested',
+        request: await this.manual.request(organizationId, auth.memberId, input),
+      };
     }
     const gatewayId = subscription.gatewaySubscriptionId;
     if (gatewayId === null || state.status !== 'active' || subscription.cancelAtPeriodEnd) {
@@ -352,13 +332,20 @@ export class SubscriptionsService {
     const organizationId = auth.organization.id;
     const { db } = this.connection;
     const { subscription, state } = await this.current(db, organizationId);
-    if (subscription.gatewaySubscriptionId === null || state.status !== 'active') {
+    if (subscription.gateway === null || state.status !== 'active') {
       throw new ConflictException('Only a paid subscription that is running can be cancelled');
     }
     if (subscription.cancelAtPeriodEnd) {
       throw new ConflictException('The subscription already ends with this period');
     }
-    await this.gateway.cancelAtPeriodEnd(subscription.gatewaySubscriptionId);
+    const unpaid = await unpaidManualInvoice(db, organizationId);
+    if (unpaid !== null) {
+      throw new ConflictException(
+        `Invoice ${unpaid.number} for your next period is already raised. Contact us to cancel.`,
+      );
+    }
+    // A manual subscription has no gateway id: the manual gateway has nobody to tell.
+    await this.gateway.cancelAtPeriodEnd(String(subscription.gatewaySubscriptionId));
     await db
       .update(subscriptions)
       .set({ cancelAtPeriodEnd: true, updatedAt: sql`now()` })
@@ -530,33 +517,12 @@ export class SubscriptionsService {
     this.logger.log(`Business ${organizationId} paid for the ${checkout.plan} plan`);
   }
 
-  /** Our GST invoice for one payment, numbered in the platform's series; once per payment. */
+  /** Our GST invoice for one gateway payment, numbered in the platform's series; once per payment. */
   private async issueInvoice(
     tx: Transaction,
     organizationId: string,
     event: SubscriptionGatewayEvent,
   ): Promise<void> {
-    const [row] = (await tx
-      .select({
-        plan: organizations.plan,
-        interval: subscriptions.billingInterval,
-        quantity: subscriptions.storeQuantity,
-        issuedOn: sql<string>`((now() at time zone 'Asia/Kolkata')::date)::text`,
-        periodStart: sql<string>`((${subscriptions.currentPeriodStart} at time zone 'Asia/Kolkata')::date)::text`,
-        periodEnd: sql<string>`(((${subscriptions.currentPeriodEnd} - interval '1 second') at time zone 'Asia/Kolkata')::date)::text`,
-      })
-      .from(subscriptions)
-      .innerJoin(organizations, eq(organizations.id, subscriptions.organizationId))
-      .where(eq(subscriptions.organizationId, organizationId))) as [
-      {
-        plan: PaidPlanKey;
-        interval: BillingInterval;
-        quantity: number;
-        issuedOn: string;
-        periodStart: string;
-        periodEnd: string;
-      },
-    ];
     const paymentId = String(event.paymentId);
     const [already] = await tx
       .select({ id: subscriptionInvoices.id })
@@ -568,75 +534,48 @@ export class SubscriptionsService {
         ),
       );
     if (already) return;
-    const { platform } = this.settings;
-    const fy = financialYear(row.issuedOn);
-    const [sequence] = (await tx
-      .insert(subscriptionInvoiceSequences)
-      .values({ financialYear: fy, lastValue: 1 })
-      .onConflictDoUpdate({
-        target: subscriptionInvoiceSequences.financialYear,
-        set: { lastValue: sql`${subscriptionInvoiceSequences.lastValue} + 1` },
+    const [row] = (await tx
+      .select({
+        plan: organizations.plan,
+        interval: subscriptions.billingInterval,
+        quantity: subscriptions.storeQuantity,
+        periodStart: sql<string>`((${subscriptions.currentPeriodStart} at time zone 'Asia/Kolkata')::date)::text`,
+        periodEnd: sql<string>`(((${subscriptions.currentPeriodEnd} - interval '1 second') at time zone 'Asia/Kolkata')::date)::text`,
       })
-      .returning({ value: subscriptionInvoiceSequences.lastValue })) as [{ value: number }];
-    // Rule 46(b): at most 16 characters (PRS/26-27/000001).
-    const digits = 16 - 7 - platform.invoicePrefix.length;
-    const input = {
-      number: formatTaxDocumentNumber(platform.invoicePrefix, fy, sequence.value, digits),
-      issuedOn: row.issuedOn,
+      .from(subscriptions)
+      .innerJoin(organizations, eq(organizations.id, subscriptions.organizationId))
+      .where(eq(subscriptions.organizationId, organizationId))) as [
+      {
+        plan: PaidPlanKey;
+        interval: BillingInterval;
+        quantity: number;
+        periodStart: string;
+        periodEnd: string;
+      },
+    ];
+    const invoice = await insertSubscriptionInvoice(tx, this.settings, {
+      organizationId,
       plan: row.plan,
       interval: row.interval,
       quantity: row.quantity,
-      unitPricePaise: PLANS[row.plan].prices[row.interval],
       periodStart: row.periodStart,
       periodEnd: row.periodEnd,
-      sacCode: platform.sacCode,
-      supplier: platformSupplier(platform),
-      buyer: await subscriptionBuyer(tx, organizationId),
-      paymentReference: paymentId,
-    };
-    const invoice = computeSubscriptionInvoice(input);
-    const { totals } = invoice;
-    if (event.amountPaise !== null && event.amountPaise !== totals.payablePaise) {
-      this.logger.warn(
-        `Payment ${paymentId} for business ${organizationId} was ${String(event.amountPaise)} paise; the invoice is ${String(totals.payablePaise)}. Check the gateway's plan prices.`,
-      );
-    }
-    await tx.insert(subscriptionInvoices).values({
-      organizationId,
-      number: input.number,
-      financialYear: fy,
-      serial: sequence.value,
-      issuedOn: input.issuedOn,
-      plan: input.plan,
-      billingInterval: input.interval,
-      storeQuantity: input.quantity,
-      unitPricePaise: input.unitPricePaise,
-      periodStart: input.periodStart,
-      periodEnd: input.periodEnd,
-      sacCode: input.sacCode,
-      rateBps: 1800,
-      placeOfSupply: invoice.placeOfSupply,
-      taxablePaise: totals.taxablePaise,
-      cgstPaise: totals.cgstPaise,
-      sgstPaise: totals.sgstPaise,
-      igstPaise: totals.igstPaise,
-      totalPaise: totals.payablePaise,
-      supplier: input.supplier,
-      buyer: input.buyer,
+      // Paid already: payable the day it is issued.
+      dueOn: row.periodStart,
       gateway: this.gateway.name,
       gatewayPaymentId: paymentId,
     });
+    if (event.amountPaise !== null && event.amountPaise !== invoice.totalPaise) {
+      this.logger.warn(
+        `Payment ${paymentId} for business ${organizationId} was ${String(event.amountPaise)} paise; the invoice is ${String(invoice.totalPaise)}. Check the gateway's plan prices.`,
+      );
+    }
   }
 
   /** Our invoices to the business, newest first. */
   async invoices(auth: AuthContext): Promise<SubscriptionInvoiceView[]> {
     SubscriptionsService.requireOwner(auth);
-    const rows = await this.connection.db
-      .select()
-      .from(subscriptionInvoices)
-      .where(eq(subscriptionInvoices.organizationId, auth.organization.id))
-      .orderBy(desc(subscriptionInvoices.issuedOn), desc(subscriptionInvoices.serial));
-    return rows.map(invoiceView);
+    return invoicesOf(this.connection.db, auth.organization.id);
   }
 
   /** One invoice as an A4 PDF, drawn by the same renderer as the business's own invoices. */
@@ -652,20 +591,7 @@ export class SubscriptionsService {
         ),
       );
     if (!row) throw new NotFoundException('Invoice not found');
-    const view = subscriptionInvoiceView({
-      number: row.number,
-      issuedOn: row.issuedOn,
-      plan: row.plan as PaidPlanKey,
-      interval: row.billingInterval,
-      quantity: row.storeQuantity,
-      unitPricePaise: row.unitPricePaise,
-      periodStart: row.periodStart,
-      periodEnd: row.periodEnd,
-      sacCode: row.sacCode,
-      supplier: row.supplier,
-      buyer: row.buyer,
-      paymentReference: row.gatewayPaymentId,
-    });
+    const view = storedInvoiceView(row, this.settings.bank);
     return { number: row.number, pdf: await renderInvoicePdf(view) };
   }
 
@@ -754,17 +680,6 @@ export interface FakePayer {
   ): { body: Buffer; headers: Record<string, string> };
 }
 
-/** Active stores and team members, counted as requireRoomFor counts them; platform scope. */
-export async function planUsage(db: Db, organizationId: string): Promise<PlanUsage> {
-  const result = await db.execute<{ stores: number; members: number }>(sql`
-    select
-      (select count(*)::int from stores s where s.organization_id = ${organizationId} and s.is_active) as stores,
-      (select count(*)::int from organization_members m
-        where m.organization_id = ${organizationId} and m.is_active and not m.is_support) as members`);
-  const [row] = result.rows as [{ stores: number; members: number }];
-  return { stores: row.stores, members: row.members };
-}
-
 function statusView(
   subscription: SubscriptionRow,
   plan: PlanKey,
@@ -793,21 +708,5 @@ function checkoutView(row: CheckoutRow): CheckoutView {
     checkoutUrl: row.checkoutUrl,
     status: row.status,
     createdAt: row.createdAt.toISOString(),
-  };
-}
-
-function invoiceView(row: InvoiceRow): SubscriptionInvoiceView {
-  return {
-    id: row.id,
-    number: row.number,
-    issuedOn: row.issuedOn,
-    plan: row.plan as PaidPlanKey,
-    interval: row.billingInterval,
-    quantity: row.storeQuantity,
-    periodStart: row.periodStart,
-    periodEnd: row.periodEnd,
-    taxablePaise: row.taxablePaise,
-    taxPaise: row.cgstPaise + row.sgstPaise + row.igstPaise,
-    totalPaise: row.totalPaise,
   };
 }

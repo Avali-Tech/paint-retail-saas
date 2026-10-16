@@ -4,6 +4,8 @@ import {
   PAID_PLAN_KEYS,
   PLANS,
   type CheckoutView,
+  type PaymentInstructions,
+  type PlanRequestView,
   type PlanUsage,
   type SubscriptionInvoiceView,
   type SubscriptionStatusView,
@@ -53,6 +55,9 @@ export function subscriptionView(overrides: Partial<SubscriptionView> = {}): Sub
     currentPeriodStart: null,
     pastDueSince: null,
     gateway: null,
+    collection: 'fake',
+    paymentInstructions: null,
+    planRequest: null,
     offers: PAID_PLAN_KEYS.map((key) => ({
       plan: key,
       name: PLANS[key].name,
@@ -138,4 +143,43 @@ export const INVOICE: SubscriptionInvoiceView = {
   taxablePaise: 4_497_00,
   taxPaise: 809_46,
   totalPaise: 5_306_46,
+  dueOn: '2026-10-16',
+  payment: {
+    mode: 'online',
+    amountPaise: 5_306_46,
+    paidOn: '2026-10-16',
+    reference: 'pay_fake_1',
+  },
 };
+
+/** The platform's bank account, as manual invoicing shows it. */
+export const BANK: PaymentInstructions = {
+  accountName: 'Avali Tech Private Limited',
+  bankName: 'HDFC Bank, Banjara Hills',
+  accountNumber: '50200012345678',
+  ifsc: 'HDFC0000123',
+  upiId: 'avalitech@hdfcbank',
+};
+
+/** Manual invoicing: our invoice waiting for a bank transfer. */
+export const UNPAID_INVOICE: SubscriptionInvoiceView = {
+  ...INVOICE,
+  id: '00000000-0000-4000-8000-0000000000d2',
+  number: 'PRS/26-27/000002',
+  payment: null,
+};
+
+export const PLAN_REQUEST: PlanRequestView = {
+  id: '00000000-0000-4000-8000-0000000000e1',
+  plan: 'standard',
+  interval: 'monthly',
+  status: 'open',
+  requestedBy: 'Anil Kumar',
+  createdAt: '2026-10-16T04:30:00.000Z',
+  decidedAt: null,
+};
+
+/** The trial business with manual invoicing (the default): requests, no checkout. */
+export function manualView(overrides: Partial<SubscriptionView> = {}): SubscriptionView {
+  return subscriptionView({ collection: 'manual', paymentInstructions: BANK, ...overrides });
+}

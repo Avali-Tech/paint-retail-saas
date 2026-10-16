@@ -125,18 +125,26 @@ describe('the demo business', () => {
     expect(page.json<{ branding: { appName: string } }>().branding.appName).toBe('Sharma Paints');
   });
 
-  it('pays for the Standard plan, with the platform’s GST invoice; a second business is on its trial', async () => {
+  it('pays our GST invoice for the Standard plan by bank transfer; a second business is on its trial', async () => {
     const subscription = await get<SubscriptionView>('/subscription');
     expect(subscription).toMatchObject({
       plan: 'standard',
       status: 'active',
       interval: 'monthly',
       quantity: 3,
-      gateway: 'fake',
+      gateway: 'manual',
+      collection: 'manual',
       readOnly: false,
     });
     const invoices = await get<SubscriptionInvoiceView[]>('/subscription/invoices');
-    expect(invoices).toMatchObject([{ plan: 'standard', quantity: 3, totalPaise: 5_306_46 }]);
+    expect(invoices).toMatchObject([
+      {
+        plan: 'standard',
+        quantity: 3,
+        totalPaise: 5_306_46,
+        payment: { mode: 'bank_transfer', amountPaise: 5_306_46 },
+      },
+    ]);
     const sheet = readFileSync(credentialsFile, 'utf8');
     expect(sheet).toContain('pays for the Standard, monthly plan');
     expect(sheet).toContain('Reddy Colour Centre');

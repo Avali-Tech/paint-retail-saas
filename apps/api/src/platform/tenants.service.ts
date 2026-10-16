@@ -16,10 +16,8 @@ import { setUpOrganization } from '../auth/organization-setup.js';
 import { only } from '../common/only.js';
 import { DATABASE } from '../database/database.module.js';
 import { containsPattern } from '../parties/party-access.js';
-import {
-  subscriptionRecord,
-  SubscriptionsService,
-} from '../subscriptions/subscriptions.service.js';
+import { subscriptionRecord } from '../subscriptions/subscription-lookups.js';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service.js';
 import {
   SUBSCRIPTION_SETTINGS,
   type SubscriptionSettings,
