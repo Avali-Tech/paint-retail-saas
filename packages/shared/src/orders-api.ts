@@ -735,7 +735,10 @@ export interface GoLiveOpeningView {
   readonly source: 'import' | 'manual';
 }
 
-/** GET /sales/go-live: the cut-over preview, or what it did. */
+/**
+ * GET /sales/go-live (`?liveOn=` previews another past go-live date; default
+ * today): the cut-over preview, or what it did.
+ */
 export interface GoLivePreview {
   readonly billingLiveOn: string | null;
   readonly live: boolean;
@@ -744,6 +747,8 @@ export interface GoLivePreview {
   readonly openings: readonly GoLiveOpeningView[];
   /** Loyalty accounts whose manual purchase entry switches off. */
   readonly loyaltyAccounts: number;
+  /** Once live: the opening ledger entries the go-live posted (PO-100); null before. */
+  readonly posted: { readonly entries: number; readonly totalPaise: number } | null;
 }
 
 /**
@@ -761,7 +766,8 @@ export interface GoLiveRequest {
   readonly openings?: readonly {
     readonly partyId: string;
     readonly amountPaise: number;
-    readonly overdueSince?: string;
+    /** Left out keeps the imported or hand-entered date; null: nothing is overdue. */
+    readonly overdueSince?: string | null;
   }[];
 }
 

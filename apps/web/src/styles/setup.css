@@ -1,0 +1,13 @@
+/* Settings, Stores and Billing go-live. Design tokens only (theme-guard.test.ts). */
+
+.setup-legend {
+  padding: 0;
+  font-weight: 600;
+}
+
+.setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}

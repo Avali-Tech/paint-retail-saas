@@ -15,6 +15,7 @@ import { POS_NAV_ITEMS } from '../pos/nav.js';
 import { RECEIVABLES_NAV_ITEMS } from '../receivables/nav.js';
 import { REPORT_NAV_ITEMS } from '../reports/nav.js';
 import { SALES_NAV_ITEMS } from '../sales/nav.js';
+import { SETUP_NAV_ITEMS } from '../setup/nav.js';
 import { SUPPORT_ACCESS_NAV_ITEMS } from '../support-access/nav.js';
 import { TEAM_NAV_ITEMS } from '../team/nav.js';
 
@@ -117,6 +118,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   ...SUPPORT_ACCESS_NAV_ITEMS,
   ...BILLING_NAV_ITEMS,
+  ...SETUP_NAV_ITEMS,
 ];
 
 export const BOTTOM_BAR_SIZE = 4;

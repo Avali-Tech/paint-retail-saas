@@ -69,6 +69,7 @@ export const importsHi: Translation<typeof importsEn> = {
       products: 'प्रोडक्ट खोलें',
       parties: 'ग्राहक खोलें',
       'opening-stock': 'स्टॉक खोलें',
+      'opening-balances': 'बिलिंग गो-लाइव देखें',
     },
   },
 };

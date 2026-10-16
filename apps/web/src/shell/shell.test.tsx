@@ -135,6 +135,8 @@ describe('navigation by role', () => {
       'Payment link settings',
       'Support access',
       'Billing',
+      'Stores',
+      'Billing go-live',
       // Everyone's own sign-in settings, next to signing out.
       'Account security',
     ]);
@@ -239,6 +241,8 @@ describe('navigation by role', () => {
       'Payment link settings',
       'Support access',
       'Billing',
+      'Stores',
+      'Billing go-live',
       'Account security',
     ]);
     await user.click(within(more).getByRole('link', { name: 'Leads' }));

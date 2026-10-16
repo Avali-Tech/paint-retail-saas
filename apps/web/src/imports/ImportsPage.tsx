@@ -42,6 +42,7 @@ const NEXT: Readonly<Record<string, { readonly to: string; readonly label: Messa
   products: { to: '/products', label: 'imports.next.products' },
   parties: { to: '/parties', label: 'imports.next.parties' },
   'opening-stock': { to: '/stock', label: 'imports.next.opening-stock' },
+  'opening-balances': { to: '/settings/go-live', label: 'imports.next.opening-balances' },
 };
 
 const PROBLEMS: Readonly<Record<SpreadsheetProblem, MessageKey>> = {

@@ -1,10 +1,15 @@
 import 'reflect-metadata';
-import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import type { AuthContext } from '../auth/auth-context.js';
 import { CurrentAuth, RequirePermissions } from '../auth/decorators.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import type { StoreDirectoryEntry } from '@paint/shared';
-import { createStoreSchema, type CreateStoreInput } from './stores.schemas.js';
+import {
+  createStoreSchema,
+  updateStoreSchema,
+  type CreateStoreInput,
+  type UpdateStoreInput,
+} from './stores.schemas.js';
 import { StoresService, type Store } from './stores.service.js';
 
 @Controller('stores')
@@ -40,5 +45,15 @@ export class StoresController {
     @Body(new ZodValidationPipe(createStoreSchema)) body: CreateStoreInput,
   ): Promise<Store> {
     return this.stores.create(auth, body);
+  }
+
+  @Patch(':id')
+  @RequirePermissions('stores:manage')
+  update(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body(new ZodValidationPipe(updateStoreSchema)) body: UpdateStoreInput,
+  ): Promise<Store> {
+    return this.stores.update(auth, id, body);
   }
 }

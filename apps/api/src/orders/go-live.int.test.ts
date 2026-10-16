@@ -114,7 +114,17 @@ describe('before go-live', () => {
         },
       ],
       loyaltyAccounts: 1,
+      posted: null,
     });
+    // Previewing an earlier go-live date counts the overdue days back from it.
+    const earlier = await dbToday(t, -5);
+    expect(
+      ok(await owner().get(`/sales/go-live?liveOn=${earlier}`)).json<GoLivePreview>().openings,
+    ).toEqual([expect.objectContaining({ overdueSince: await dbToday(t, -15) })]);
+    expect(issuesOf(await owner().get(`/sales/go-live?liveOn=${await dbToday(t, 1)}`))).toEqual([
+      'liveOn',
+    ]);
+    expect(issuesOf(await owner().get('/sales/go-live?liveOn=tomorrow'))).toEqual(['liveOn']);
     const fresh = await billingBusiness(t);
     expect(ok(await api(t, fresh.owner).get('/sales/go-live')).json<GoLivePreview>()).toEqual({
       billingLiveOn: null,
@@ -122,6 +132,7 @@ describe('before go-live', () => {
       stockPostOn: 'invoice',
       openings: [],
       loyaltyAccounts: 0,
+      posted: null,
     });
     // Going live with the hand-entered figures as they are: an amount owed, nothing late.
     await t.connection.db.insert(creditProfiles).values({
@@ -214,6 +225,7 @@ describe('POST /sales/go-live', () => {
       billingLiveOn: today,
       live: true,
       openings: [],
+      posted: { entries: 2, totalPaise: 1_805_000 },
     });
 
     const ledger = ok(

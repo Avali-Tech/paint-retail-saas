@@ -71,6 +71,7 @@ export const importsTe: Translation<typeof importsEn> = {
       products: 'ప్రోడక్ట్‌లు తెరవండి',
       parties: 'కస్టమర్లను తెరవండి',
       'opening-stock': 'స్టాక్ తెరవండి',
+      'opening-balances': 'బిల్లింగ్ గో-లైవ్ చూడండి',
     },
   },
 };
