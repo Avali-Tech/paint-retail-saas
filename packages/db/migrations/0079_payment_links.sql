@@ -1,6 +1,7 @@
 CREATE TYPE "public"."payment_link_origin" AS ENUM('staff', 'reminder', 'statement');--> statement-breakpoint
 CREATE TYPE "public"."payment_link_purpose" AS ENUM('invoice', 'overdue', 'outstanding', 'bills', 'advance');--> statement-breakpoint
 CREATE TYPE "public"."payment_link_status" AS ENUM('created', 'paid', 'expired', 'cancelled');--> statement-breakpoint
+ALTER TYPE "public"."message_template_key" ADD VALUE 'payment_request';--> statement-breakpoint
 ALTER TYPE "public"."notification_event" ADD VALUE 'payment_link_paid';--> statement-breakpoint
 ALTER TYPE "public"."payment_gateway" ADD VALUE 'log';--> statement-breakpoint
 ALTER TYPE "public"."payment_mode_kind" ADD VALUE 'upi_link';--> statement-breakpoint

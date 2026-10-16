@@ -255,6 +255,15 @@ describe('statementShareText', () => {
     expect(statementShareText(DATA, 'te', url)).toContain(`ఖాతా వివరణ చూడండి: ${url}`);
     expect(statementShareText(DATA, 'en', url)).not.toContain('attached');
   });
+
+  it('adds where to pay by UPI when a payment link comes with it (MVP 3 round 4a)', () => {
+    const url = 'https://app.example.in/s/abc';
+    const pay = 'https://app.example.in/pay/plink_log_1';
+    expect(statementShareText(DATA, 'en', url, pay)).toMatch(
+      /View the statement: https:\/\/app\.example\.in\/s\/abc Pay by UPI: https:\/\/app\.example\.in\/pay\/plink_log_1$/,
+    );
+    expect(statementShareText(DATA, 'te', null, pay)).toContain(`UPI ద్వారా చెల్లించండి: ${pay}`);
+  });
 });
 
 describe('statementFileName', () => {

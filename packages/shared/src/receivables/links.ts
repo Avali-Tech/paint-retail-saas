@@ -43,4 +43,9 @@ export interface StatementShareResult {
   readonly waMeUrl: string | null;
   /** Whether the WhatsApp message was queued, when asked to send. */
   readonly message: QueueResult | null;
+  /**
+   * A UPI payment link for what the party owes (round 4a), carried by the message and
+   * the wa.me text; null without a payment-link provider or with nothing owed.
+   */
+  readonly paymentLink: { readonly number: string; readonly url: string } | null;
 }

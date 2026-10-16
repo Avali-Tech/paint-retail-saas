@@ -19,6 +19,7 @@ import { DATABASE } from '../database/database.module.js';
 import { expireAccount } from '../loyalty/loyalty-lookups.js';
 import type { MessagingProvider } from '../messaging/messaging-provider.js';
 import { sendDueMessages } from '../messaging/outbox.js';
+import type { PaymentLinkSettings } from '../payment-links/links.js';
 import { reconcileDueBusinesses } from '../reconciliation/reconciler.js';
 import { ManualBillingService } from '../subscriptions/manual-billing.js';
 import type { EmailSender } from './email-sender.js';
@@ -49,6 +50,8 @@ export interface WorkerSettings {
     readonly whatsapp: MessagingProvider | null;
     readonly sms: SmsSender | null;
   };
+  /** Payment links for reminders (P2-M32); the provider is null when links are off. */
+  readonly paymentLinks: PaymentLinkSettings;
   /** The time now (runOnce takes another, so tests can fix the time of day). */
   readonly clock: () => Date;
 }
@@ -159,7 +162,12 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
     const collections = messagingHour
       ? await this.attempt(
           'Collections',
-          () => runCollectionsForBusinesses(this.connection.db, this.notifier),
+          () =>
+            runCollectionsForBusinesses(
+              this.connection.db,
+              this.notifier,
+              this.settings.paymentLinks,
+            ),
           { kept: 0, broken: 0, remindersQueued: 0 },
         )
       : { kept: 0, broken: 0, remindersQueued: 0 };

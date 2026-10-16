@@ -4,6 +4,8 @@
  * channel and language (`message_templates`); WhatsApp wording must match what the
  * BSP approved ([PO-1]). Variables are data-minimal (spec MSG-5, after draft PR #51
  * WA-5): the party's name, the shop's name, a document number, amounts and dates.
+ * `{{payLink}}` (round 4a) is a UPI payment link in the message's language
+ * (`payLinkText`), or empty when there is none, so a template reads well either way.
  */
 
 export const MESSAGE_CHANNELS = ['whatsapp', 'sms', 'email'] as const;
@@ -21,19 +23,21 @@ export const TEMPLATE_KEYS = [
   'promise_confirmed',
   'order_ready',
   'points_earned',
+  'payment_request',
 ] as const;
 export type TemplateKey = (typeof TEMPLATE_KEYS)[number];
 
 /** The variables each template may use; every one is filled when a message is queued. */
 export const TEMPLATE_VARIABLES: Readonly<Record<TemplateKey, readonly string[]>> = {
-  invoice_issued: ['name', 'business', 'number', 'amount'],
+  invoice_issued: ['name', 'business', 'number', 'amount', 'payLink'],
   receipt_issued: ['name', 'business', 'number', 'amount'],
-  statement_ready: ['name', 'business', 'from', 'to', 'amount', 'link'],
-  payment_reminder_due: ['name', 'business', 'amount', 'dueOn'],
-  payment_reminder_overdue: ['name', 'business', 'amount', 'days'],
+  statement_ready: ['name', 'business', 'from', 'to', 'amount', 'link', 'payLink'],
+  payment_reminder_due: ['name', 'business', 'amount', 'dueOn', 'payLink'],
+  payment_reminder_overdue: ['name', 'business', 'amount', 'days', 'payLink'],
   promise_confirmed: ['name', 'business', 'amount', 'promisedOn'],
   order_ready: ['name', 'business', 'number'],
   points_earned: ['name', 'business', 'points', 'number', 'balance'],
+  payment_request: ['name', 'business', 'amount', 'payLink'],
 };
 
 /** Longest template body a business may save (the column allows 1,000). */
@@ -44,9 +48,9 @@ type Wording = Readonly<Record<MessageLanguage, string>>;
 /** The product's own wording, used when the business has not reworded a template. */
 export const DEFAULT_TEMPLATES: Readonly<Record<TemplateKey, Wording>> = {
   invoice_issued: {
-    en: 'Dear {{name}}, thank you for shopping at {{business}}. Invoice {{number}} for {{amount}}.',
-    hi: 'प्रिय {{name}}, {{business}} से खरीदारी के लिए धन्यवाद। इनवॉइस {{number}}, राशि {{amount}}।',
-    te: 'ప్రియమైన {{name}}, {{business}}లో కొనుగోలు చేసినందుకు ధన్యవాదాలు. ఇన్‌వాయిస్ {{number}}, మొత్తం {{amount}}.',
+    en: 'Dear {{name}}, thank you for shopping at {{business}}. Invoice {{number}} for {{amount}}.{{payLink}}',
+    hi: 'प्रिय {{name}}, {{business}} से खरीदारी के लिए धन्यवाद। इनवॉइस {{number}}, राशि {{amount}}।{{payLink}}',
+    te: 'ప్రియమైన {{name}}, {{business}}లో కొనుగోలు చేసినందుకు ధన్యవాదాలు. ఇన్‌వాయిస్ {{number}}, మొత్తం {{amount}}.{{payLink}}',
   },
   receipt_issued: {
     en: 'Dear {{name}}, {{business}} has received {{amount}} (receipt {{number}}). Thank you.',
@@ -54,19 +58,19 @@ export const DEFAULT_TEMPLATES: Readonly<Record<TemplateKey, Wording>> = {
     te: 'ప్రియమైన {{name}}, {{business}}కు {{amount}} అందింది (రసీదు {{number}}). ధన్యవాదాలు.',
   },
   statement_ready: {
-    en: 'Dear {{name}}, your statement from {{business}} for {{from}} to {{to}}: balance {{amount}}. View it here: {{link}}',
-    hi: 'प्रिय {{name}}, {{business}} से {{from}} से {{to}} तक आपका खाता विवरण: शेष {{amount}}। यहाँ देखें: {{link}}',
-    te: 'ప్రియమైన {{name}}, {{business}} నుండి {{from}} నుండి {{to}} వరకు మీ ఖాతా వివరణ: నిల్వ {{amount}}. ఇక్కడ చూడండి: {{link}}',
+    en: 'Dear {{name}}, your statement from {{business}} for {{from}} to {{to}}: balance {{amount}}. View it here: {{link}}{{payLink}}',
+    hi: 'प्रिय {{name}}, {{business}} से {{from}} से {{to}} तक आपका खाता विवरण: शेष {{amount}}। यहाँ देखें: {{link}}{{payLink}}',
+    te: 'ప్రియమైన {{name}}, {{business}} నుండి {{from}} నుండి {{to}} వరకు మీ ఖాతా వివరణ: నిల్వ {{amount}}. ఇక్కడ చూడండి: {{link}}{{payLink}}',
   },
   payment_reminder_due: {
-    en: 'Dear {{name}}, a reminder from {{business}}: {{amount}} falls due on {{dueOn}}.',
-    hi: 'प्रिय {{name}}, {{business}} की ओर से याद दिलाना: {{amount}} का भुगतान {{dueOn}} को देय है।',
-    te: 'ప్రియమైన {{name}}, {{business}} నుండి గుర్తు: {{amount}} చెల్లింపు {{dueOn}} నాటికి చెల్లించాలి.',
+    en: 'Dear {{name}}, a reminder from {{business}}: {{amount}} falls due on {{dueOn}}.{{payLink}}',
+    hi: 'प्रिय {{name}}, {{business}} की ओर से याद दिलाना: {{amount}} का भुगतान {{dueOn}} को देय है।{{payLink}}',
+    te: 'ప్రియమైన {{name}}, {{business}} నుండి గుర్తు: {{amount}} చెల్లింపు {{dueOn}} నాటికి చెల్లించాలి.{{payLink}}',
   },
   payment_reminder_overdue: {
-    en: 'Dear {{name}}, {{amount}} owed to {{business}} is overdue by {{days}} days. Please pay at the earliest.',
-    hi: 'प्रिय {{name}}, {{business}} का {{amount}} बकाया {{days}} दिन से देय है। कृपया जल्द भुगतान करें।',
-    te: 'ప్రియమైన {{name}}, {{business}}కు చెల్లించాల్సిన {{amount}} గడువు దాటి {{days}} రోజులైంది. దయచేసి త్వరగా చెల్లించండి.',
+    en: 'Dear {{name}}, {{amount}} owed to {{business}} is overdue by {{days}} days. Please pay at the earliest.{{payLink}}',
+    hi: 'प्रिय {{name}}, {{business}} का {{amount}} बकाया {{days}} दिन से देय है। कृपया जल्द भुगतान करें।{{payLink}}',
+    te: 'ప్రియమైన {{name}}, {{business}}కు చెల్లించాల్సిన {{amount}} గడువు దాటి {{days}} రోజులైంది. దయచేసి త్వరగా చెల్లించండి.{{payLink}}',
   },
   promise_confirmed: {
     en: 'Dear {{name}}, {{business}} has noted your promise to pay {{amount}} by {{promisedOn}}. Thank you.',
@@ -83,7 +87,24 @@ export const DEFAULT_TEMPLATES: Readonly<Record<TemplateKey, Wording>> = {
     hi: 'प्रिय {{name}}, {{business}} के इनवॉइस {{number}} पर आपको {{points}} पॉइंट मिले। कुल: {{balance}} पॉइंट।',
     te: 'ప్రియమైన {{name}}, {{business}} ఇన్‌వాయిస్ {{number}}పై మీకు {{points}} పాయింట్లు వచ్చాయి. మొత్తం: {{balance}} పాయింట్లు.',
   },
+  payment_request: {
+    en: 'Dear {{name}}, {{business}} requests a payment of {{amount}}.{{payLink}}',
+    hi: 'प्रिय {{name}}, {{business}} ने {{amount}} का भुगतान माँगा है।{{payLink}}',
+    te: 'ప్రియమైన {{name}}, {{business}} {{amount}} చెల్లింపు కోరుతోంది.{{payLink}}',
+  },
 };
+
+/** The `{{payLink}}` sentence in each language; `{url}` is the payment link. */
+export const PAY_LINK_TEXTS: Readonly<Record<MessageLanguage, string>> = {
+  en: ' Pay by UPI: {url}',
+  hi: ' UPI से भुगतान करें: {url}',
+  te: ' UPI ద్వారా చెల్లించండి: {url}',
+};
+
+/** The value of `{{payLink}}`: the sentence with the link, or empty without one. */
+export function payLinkText(url: string | null, language: MessageLanguage): string {
+  return url === null ? '' : PAY_LINK_TEXTS[language].replace('{url}', url);
+}
 
 const VARIABLE = /\{\{\s*([A-Za-z]+)\s*\}\}/g;
 

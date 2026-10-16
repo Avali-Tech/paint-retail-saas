@@ -5,6 +5,7 @@ import {
   type PrintLanguage,
   type SecondLanguage,
 } from '../invoice-print/labels.js';
+import { payLinkText } from '../messaging/templates.js';
 import { formatINR } from '../money.js';
 import { AGEING_BUCKETS, type AgeingBucket } from './ageing.js';
 import type { StatementData } from './api.js';
@@ -200,12 +201,14 @@ const SHARE_TEXTS: Readonly<
  * The short WhatsApp message sent with the statement PDF, in the statement's language:
  * the balance on the last day and how much of it is due now. A wa.me link carries
  * text only, so it says the PDF is attached (by hand), or, given a stored statement
- * link (MVP 3 round 2a, spec §6.4), where to open it.
+ * link (MVP 3 round 2a, spec §6.4), where to open it; given a payment link (round
+ * 4a), where to pay by UPI.
  */
 export function statementShareText(
   data: StatementData,
   language: PrintLanguage,
   linkUrl: string | null = null,
+  payUrl: string | null = null,
 ): string {
   const texts = SHARE_TEXTS[language];
   const { ageing } = data;
@@ -222,7 +225,7 @@ export function statementShareText(
   const tail =
     ageing.netPaise > 0 && dueNow > 0 ? fillLabel(texts.dueNow, { amount: formatINR(dueNow) }) : '';
   const attachment = linkUrl === null ? texts.attached : fillLabel(texts.linked, { url: linkUrl });
-  return `${fillLabel(head, params)}${tail}${attachment}`;
+  return `${fillLabel(head, params)}${tail}${attachment}${payLinkText(payUrl, language)}`;
 }
 
 /** "Statement-Deccan-Contractors-2026-04-01-2026-10-11.pdf" (ASCII only, for every browser). */

@@ -161,6 +161,7 @@ export const collectionsEnumsHi = {
     promise_confirmed: 'वादा दर्ज',
     order_ready: 'ऑर्डर तैयार',
     points_earned: 'पॉइंट मिले',
+    payment_request: 'भुगतान अनुरोध',
   },
   linkStatus: { active: 'चालू', expired: 'समाप्त', revoked: 'रद्द' },
 };

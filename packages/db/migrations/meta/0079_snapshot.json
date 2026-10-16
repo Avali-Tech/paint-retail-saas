@@ -1,5 +1,5 @@
 {
-  "id": "3b4d80a0-e75a-4c05-af8b-f6756984be98",
+  "id": "1aadf23c-e3cc-40ec-9080-8fc06f10abcf",
   "prevId": "b76cffb6-48a5-4e8a-a33b-4c4ae0464cdf",
   "version": "7",
   "dialect": "postgresql",
@@ -22211,7 +22211,8 @@
         "payment_reminder_overdue",
         "promise_confirmed",
         "order_ready",
-        "points_earned"
+        "points_earned",
+        "payment_request"
       ]
     },
     "public.notification_event": {

@@ -91,7 +91,10 @@ export const listPaymentsSchema = z.object({
 export type ListPaymentsQuery = z.output<typeof listPaymentsSchema>;
 
 export const createPaymentModeSchema = z.object({
-  kind: z.enum(PAYMENT_MODE_KINDS),
+  // A UPI link mode is made by the system when a link is first paid (P2-M32).
+  kind: z
+    .enum(PAYMENT_MODE_KINDS)
+    .refine((kind) => kind !== 'upi_link', 'UPI link payments are recorded by the gateway'),
   name: text(60),
 });
 export type CreatePaymentModeInput = z.output<typeof createPaymentModeSchema>;

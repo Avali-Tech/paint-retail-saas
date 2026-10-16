@@ -3,7 +3,9 @@ import { createHash, randomBytes } from 'node:crypto';
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema, withTenant, type DatabaseConnection, type Transaction } from '@paint/db';
 import {
+  PAYMENT_LINK_MANAGE_PERMISSION,
   STATEMENT_LINK_DAYS,
+  can,
   STATEMENT_TOKEN_PATTERN,
   formatINR,
   formatPrintDate,
@@ -24,10 +26,17 @@ import {
   type MessagingSettings,
 } from '../messaging/messaging.service.js';
 import { queueMessage } from '../messaging/outbox.js';
+import {
+  PAYMENT_LINK_SETTINGS,
+  createLink,
+  planLink,
+  reusableLink,
+  type PaymentLinkSettings,
+} from '../payment-links/links.js';
 import type { ShareStatementInput } from './statements.schemas.js';
 import { statementData } from './statements.service.js';
 
-const { organizationMembers, organizations, statementLinks, users } = schema;
+const { organizationMembers, organizations, paymentLinks, statementLinks, users } = schema;
 
 export const STATEMENT_LINK_SETTINGS = Symbol('STATEMENT_LINK_SETTINGS');
 export interface StatementLinkSettings {
@@ -96,6 +105,7 @@ export class StatementLinksService {
     @Inject(DATABASE) private readonly connection: DatabaseConnection,
     @Inject(MESSAGING_SETTINGS) private readonly messaging: MessagingSettings,
     @Inject(STATEMENT_LINK_SETTINGS) private readonly settings: StatementLinkSettings,
+    @Inject(PAYMENT_LINK_SETTINGS) private readonly paymentLinks: PaymentLinkSettings,
   ) {}
 
   share(
@@ -127,9 +137,10 @@ export class StatementLinksService {
         })
         .returning({ id: statementLinks.id })) as [{ id: string }];
       const url = `${this.settings.publicApiUrl}/public/statements/${token}`;
+      const paymentLink = await this.payLink(tx, auth, data);
       const message =
         body.send === 'whatsapp'
-          ? await this.queueStatement(tx, auth, data, created.id, url, body)
+          ? await this.queueStatement(tx, auth, data, created.id, url, body, paymentLink)
           : null;
       const [link] = (await linkViews(tx, eq(statementLinks.id, created.id))) as [
         StatementLinkView,
@@ -140,10 +151,63 @@ export class StatementLinksService {
         waMeUrl:
           data.party.phone === null
             ? null
-            : whatsappLink(data.party.phone, statementShareText(data, body.lang, url)),
+            : whatsappLink(
+                data.party.phone,
+                statementShareText(data, body.lang, url, paymentLink?.url ?? null),
+              ),
         message,
+        paymentLink,
       };
     });
+  }
+
+  /**
+   * A UPI link for what the party owes now (rule PL-12), when payment links are set up,
+   * the party owes something and the member may take payments where it is recorded (the
+   * party's home store, else its oldest open bill's store): an open one already made for
+   * the same amount and bills, or a new one. Null otherwise; the share goes without.
+   */
+  private async payLink(
+    tx: Transaction,
+    auth: AuthContext,
+    data: StatementData,
+  ): Promise<{ number: string; url: string } | null> {
+    const provider = this.paymentLinks.provider;
+    if (provider === null) return null;
+    const plan = await planLink(tx, { partyId: data.party.id, purpose: 'outstanding' });
+    if (!plan.ok) return null;
+    const [where] = (
+      await tx.execute<{ store_id: string | null }>(sql`
+      select coalesce(p.home_store_id, (
+        select d.store_id from tax_documents d
+        where d.party_id = p.id and d.status = 'issued'
+          and d.kind in ('invoice', 'bill_of_supply', 'debit_note')
+          and d.total_paise > coalesce((select sum(a.amount_paise) from allocations a where a.document_id = d.id), 0)
+        order by d.issued_on, d.issued_at, d.id
+        limit 1
+      )) as store_id
+      from parties p where p.id = ${data.party.id}`)
+    ).rows as [{ store_id: string | null }];
+    const storeId = where.store_id;
+    if (storeId === null || !can(auth, PAYMENT_LINK_MANAGE_PERMISSION, storeId)) return null;
+    const link = {
+      organizationId: auth.organization.id,
+      partyId: data.party.id,
+      storeId,
+      purpose: 'outstanding' as const,
+      origin: 'statement' as const,
+      targets: plan.targets,
+      amountPaise: plan.amountPaise,
+      memberId: auth.memberId,
+    };
+    const id =
+      (await reusableLink(tx, link)) ??
+      (await createLink(tx, { provider, expiryDays: this.paymentLinks.expiryDays }, link));
+    const [row] = (await tx
+      .select({ number: paymentLinks.number, url: paymentLinks.url })
+      .from(paymentLinks)
+      .where(eq(paymentLinks.id, id))) as [{ number: string; url: string }];
+    return row;
   }
 
   private queueStatement(
@@ -153,6 +217,7 @@ export class StatementLinksService {
     linkId: string,
     url: string,
     body: ShareStatementInput,
+    paymentLink: { url: string } | null,
   ): Promise<QueueResult> {
     return queueMessage(tx, {
       organizationId: auth.organization.id,
@@ -167,6 +232,7 @@ export class StatementLinksService {
       },
       reference: { type: 'statement_link', id: linkId },
       memberId: auth.memberId,
+      payLinkUrl: paymentLink?.url ?? null,
     });
   }
 

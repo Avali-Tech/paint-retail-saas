@@ -165,6 +165,7 @@ export const collectionsEnumsEn = {
     promise_confirmed: 'Promise noted',
     order_ready: 'Order ready',
     points_earned: 'Points earned',
+    payment_request: 'Payment request',
   },
   linkStatus: { active: 'Active', expired: 'Expired', revoked: 'Revoked' },
 };

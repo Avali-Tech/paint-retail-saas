@@ -1,11 +1,14 @@
 import { schema, type Database, type Transaction } from '@paint/db';
 import {
   DEFAULT_TEMPLATES,
+  TEMPLATE_VARIABLES,
   consentFor,
   emailParts,
+  payLinkText,
   renderTemplate,
   type ConsentRecord,
   type MessageChannel,
+  type MessageLanguage,
   type QueueResult,
   type TemplateKey,
 } from '@paint/shared';
@@ -33,6 +36,49 @@ export interface MessageToQueue {
   readonly dedupeKey?: string;
   /** Null when the system queues it (reminders, the collections job). */
   readonly memberId: string | null;
+  /**
+   * A UPI payment link (round 4a): `{{payLink}}` says where to pay in the message's
+   * language. Templates that take `{{payLink}}` get it empty without one.
+   */
+  readonly payLinkUrl?: string | null;
+}
+
+/** The business's wording of a template on a channel in a language, else the product's. */
+async function wordingOf(
+  tx: Transaction,
+  organizationId: string,
+  key: TemplateKey,
+  channel: MessageChannel,
+  language: MessageLanguage,
+): Promise<string> {
+  const [custom] = await tx
+    .select({ body: messageTemplates.body })
+    .from(messageTemplates)
+    .where(
+      and(
+        eq(messageTemplates.organizationId, organizationId),
+        eq(messageTemplates.key, key),
+        eq(messageTemplates.channel, channel),
+        eq(messageTemplates.language, language),
+        eq(messageTemplates.isActive, true),
+      ),
+    );
+  return custom?.body ?? DEFAULT_TEMPLATES[key][language];
+}
+
+/** The variables of a message: the party's and shop's names, the caller's, and the link. */
+function variablesOf(
+  message: Pick<MessageToQueue, 'templateKey' | 'variables' | 'payLinkUrl'>,
+  names: { readonly name: string; readonly business: string },
+  language: MessageLanguage,
+): Record<string, string> {
+  return {
+    ...names,
+    ...message.variables,
+    ...(TEMPLATE_VARIABLES[message.templateKey].includes('payLink')
+      ? { payLink: payLinkText(message.payLinkUrl ?? null, language) }
+      : {}),
+  };
 }
 
 /** The latest consent record per channel of a party, newest first. */
@@ -73,41 +119,17 @@ export function addressFor(
  * [CA-3]); the worker checks consent again when it sends.
  */
 export async function queueMessage(tx: Transaction, message: MessageToQueue): Promise<QueueResult> {
-  const [party] = (await tx
-    .select({
-      name: parties.displayName,
-      phone: parties.phone,
-      email: parties.email,
-      business: organizations.name,
-    })
-    .from(parties)
-    .innerJoin(organizations, eq(organizations.id, parties.organizationId))
-    .where(
-      and(eq(parties.organizationId, message.organizationId), eq(parties.id, message.partyId)),
-    )) as [{ name: string; phone: string | null; email: string | null; business: string }];
-  const address = addressFor(party, message.channel);
-  if (address === null) return { queued: false, reason: 'no_address' };
-  const consent = consentFor(
-    await latestConsents(tx, message.organizationId, message.partyId),
+  const reach = await reachOf(tx, message);
+  if (!reach.ok) return { queued: false, reason: reach.reason };
+  const { party, address, consent } = reach;
+  const variables = variablesOf(message, party, consent.language);
+  const template = await wordingOf(
+    tx,
+    message.organizationId,
+    message.templateKey,
     message.channel,
-    address,
+    consent.language,
   );
-  if (consent === null) return { queued: false, reason: 'no_consent' };
-
-  const [custom] = await tx
-    .select({ body: messageTemplates.body })
-    .from(messageTemplates)
-    .where(
-      and(
-        eq(messageTemplates.organizationId, message.organizationId),
-        eq(messageTemplates.key, message.templateKey),
-        eq(messageTemplates.channel, message.channel),
-        eq(messageTemplates.language, consent.language),
-        eq(messageTemplates.isActive, true),
-      ),
-    );
-  const variables = { name: party.name, business: party.business, ...message.variables };
-  const template = custom?.body ?? DEFAULT_TEMPLATES[message.templateKey][consent.language];
   const [queued] = await tx
     .insert(messageOutbox)
     .values({
@@ -127,6 +149,76 @@ export async function queueMessage(tx: Transaction, message: MessageToQueue): Pr
     .onConflictDoNothing({ target: [messageOutbox.organizationId, messageOutbox.dedupeKey] })
     .returning({ id: messageOutbox.id });
   return queued ? { queued: true, messageId: queued.id } : { queued: false, reason: 'duplicate' };
+}
+
+/**
+ * Whether a message on `channel` would be queued for the party now: it has an address
+ * and its consent there (MSG-1). The reminder run asks before it makes a payment link.
+ */
+export async function canMessage(
+  tx: Transaction,
+  target: Pick<MessageToQueue, 'organizationId' | 'partyId' | 'channel'>,
+): Promise<boolean> {
+  return (await reachOf(tx, target)).ok;
+}
+
+/** Where a message to the party goes and in what language, or why it cannot go. */
+async function reachOf(
+  tx: Transaction,
+  message: Pick<MessageToQueue, 'organizationId' | 'partyId' | 'channel'>,
+): Promise<
+  | {
+      ok: true;
+      party: { name: string; business: string };
+      address: string;
+      consent: { language: MessageLanguage };
+    }
+  | { ok: false; reason: 'no_consent' | 'no_address' }
+> {
+  const [party] = (await tx
+    .select({
+      name: parties.displayName,
+      phone: parties.phone,
+      email: parties.email,
+      business: organizations.name,
+    })
+    .from(parties)
+    .innerJoin(organizations, eq(organizations.id, parties.organizationId))
+    .where(
+      and(eq(parties.organizationId, message.organizationId), eq(parties.id, message.partyId)),
+    )) as [{ name: string; phone: string | null; email: string | null; business: string }];
+  const address = addressFor(party, message.channel);
+  if (address === null) return { ok: false, reason: 'no_address' };
+  const consent = consentFor(
+    await latestConsents(tx, message.organizationId, message.partyId),
+    message.channel,
+    address,
+  );
+  if (consent === null) return { ok: false, reason: 'no_consent' };
+  return { ok: true, party, address, consent };
+}
+
+/**
+ * A message as it would read on WhatsApp in the party's consented language (English
+ * without consent), for a wa.me link a member sends by hand.
+ */
+export async function previewMessage(
+  tx: Transaction,
+  message: Omit<MessageToQueue, 'channel' | 'reference' | 'dedupeKey' | 'memberId'>,
+): Promise<string> {
+  const [party] = (await tx
+    .select({ name: parties.displayName, business: organizations.name })
+    .from(parties)
+    .innerJoin(organizations, eq(organizations.id, parties.organizationId))
+    .where(
+      and(eq(parties.organizationId, message.organizationId), eq(parties.id, message.partyId)),
+    )) as [{ name: string; business: string }];
+  const consents = await latestConsents(tx, message.organizationId, message.partyId);
+  const language = consents.find((consent) => consent.channel === 'whatsapp')?.language ?? 'en';
+  return renderTemplate(
+    await wordingOf(tx, message.organizationId, message.templateKey, 'whatsapp', language),
+    variablesOf(message, party, language),
+  );
 }
 
 /** Who sends on each channel; null where the channel is off. */

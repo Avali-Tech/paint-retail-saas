@@ -6449,6 +6449,7 @@ export const messageTemplateKey = pgEnum('message_template_key', [
   'promise_confirmed',
   'order_ready',
   'points_earned',
+  'payment_request',
 ]);
 
 /**

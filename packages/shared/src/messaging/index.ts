@@ -30,11 +30,13 @@ export {
 export {
   DEFAULT_TEMPLATES,
   MESSAGE_CHANNELS,
+  PAY_LINK_TEXTS,
   MESSAGE_LANGUAGES,
   TEMPLATE_KEYS,
   TEMPLATE_MAX_LENGTH,
   TEMPLATE_VARIABLES,
   emailParts,
+  payLinkText,
   renderTemplate,
   templateProblems,
   variablesIn,
