@@ -30,6 +30,7 @@ import { Notifier } from '../notifications/notifier.js';
 import { canSeeParty, containsPattern } from '../parties/party-access.js';
 import type { ReleaseInput } from './credit-approvals.schemas.js';
 import { releaseHold } from './credit-holds.js';
+import { setCreditTerms } from './credit-terms.js';
 import {
   NO_CREDIT,
   billingLiveOn,
@@ -374,30 +375,9 @@ export class CreditService {
 
   /** Gives the party the requested limit and days; a party on hold stays on hold. */
   approve(auth: AuthContext, requestId: string, note?: string): Promise<CreditRequestView> {
-    return this.decide(auth, requestId, 'approved', note, async (tx, request) => {
-      const terms = {
-        limitPaise: request.limitPaise,
-        creditDays: request.creditDays,
-        approvedByMemberId: auth.memberId,
-        approvedAt: sql`now()`,
-      };
-      await tx
-        .insert(creditProfiles)
-        .values({
-          organizationId: request.organizationId,
-          partyId: request.partyId,
-          status: 'active',
-          ...terms,
-        })
-        .onConflictDoUpdate({
-          target: creditProfiles.partyId,
-          set: {
-            ...terms,
-            status: sql`case when ${creditProfiles.status} = 'on_hold' then 'on_hold'::credit_status else 'active'::credit_status end`,
-            updatedAt: sql`now()`,
-          },
-        });
-    });
+    return this.decide(auth, requestId, 'approved', note, (tx, request) =>
+      setCreditTerms(tx, request.organizationId, request.partyId, request, auth.memberId),
+    );
   }
 
   reject(auth: AuthContext, requestId: string, reason: string): Promise<CreditRequestView> {

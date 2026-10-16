@@ -26,25 +26,34 @@ the defaults below apply until they are answered.
 
 Imports are at **Imports** (`/imports`): download the template, upload, check the preview, apply.
 
-1. [ ] **Stores** with GSTIN and code (`POST /stores`; no screen yet, an operator adds them, [PO-102]),
-       their GST registrations (`/settings/tax`), **tax categories and rates**
-       (`/tax-categories`) and **team** with roles and stores (`/team`). Invoice series follow each
-       store's GSTIN.
+1. [ ] **Stores** on **Settings → Stores** (`/settings/stores`, `stores:manage`, [PO-102]): name,
+       code (up to 5 letters or digits, printed on document numbers, never changed), kind, and the
+       GST registration, state and address in the same step (also editable later, here or on
+       `/settings/tax`). Close a store there rather than deleting it; reopening counts against the
+       plan. Then **tax categories and rates** (`/tax-categories`) and **team** with roles and
+       stores (`/team`; owners and admins work at every store). Invoice series follow each store's
+       GSTIN and are set up with its first document.
 2. [ ] **Products** import (`products`): brand, product, type, HSN, SKU, pack size and unit
        (litres matter: schemes and painter points count millilitres), category, tax category, MRP,
        selling price, barcodes. Brands and categories are created as named — check spellings,
        since brand schemes and profitability group by brand.
 3. [ ] **Parties** import (`parties`): name and roles first; phone or GSTIN is how later imports
-       find a party. Credit limits are **not** in this import (see §2.1, [PO-101]).
+       find a party. Optional **`credit_limit`** (₹) and **`credit_days`** (0–365) give customers
+       credit, for owners and admins (credit approvers) only, recorded in the audit log ([PO-101]).
+       A first limit needs both; blank cells keep what is saved; importing again updates the
+       terms; a waiting credit request must be decided first.
 4. [ ] **Opening stock** import (`opening-stock`): store code, SKU, quantity **and unit cost**.
        Without a cost, profitability counts those units at zero and lists them as uncosted.
 5. [ ] **Opening balances** import (`opening-balances`): phone or GSTIN, amount owed on the go-live
        day, and **`overdue_since`** where part of it is already late. A balance without it is aged
        from go-live by receivables but treated as current by the credit check and reminders
        ([CA-7], [CA-40]). Re-importing replaces a party's figures until go-live.
-6. [ ] **Billing go-live** (`POST /sales/go-live`, `organization:manage`; there is no screen yet —
-       an operator runs it, [PO-100]). Preview (`GET /sales/go-live`) and check every opening against the old
-       books, then post once. From then on exposure, overdue days and ageing come from the ledger.
+6. [ ] **Billing go-live** on **Settings → Billing go-live** (`/settings/go-live`, owners and
+       admins, [PO-100]): pick the date (today or earlier), check every opening against the old
+       books, correct or add one there if needed (an overdue date can be cleared), review the
+       totals, tick that they were checked and go live. It cannot be undone. From then on
+       exposure, overdue days and ageing come from the ledger, and the screen shows what was
+       posted.
 7. [ ] Supplier products and last costs come in with GRNs; enter open purchase orders by hand.
 
 ## 2. Settings

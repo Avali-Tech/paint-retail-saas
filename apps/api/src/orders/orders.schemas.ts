@@ -160,7 +160,7 @@ export const goLiveSchema = z.object({
       z.object({
         partyId: z.uuid(),
         amountPaise: paise,
-        overdueSince: isoDate.optional(),
+        overdueSince: isoDate.nullable().optional(),
       }),
     )
     .max(10_000)
@@ -171,6 +171,9 @@ export const goLiveSchema = z.object({
     .optional(),
 }) satisfies z.ZodType<GoLiveRequest>;
 export type GoLiveInput = z.output<typeof goLiveSchema>;
+
+export const goLivePreviewSchema = z.object({ liveOn: isoDate.optional() });
+export type GoLivePreviewQuery = z.output<typeof goLivePreviewSchema>;
 
 const page = {
   limit: z.coerce.number().int().min(1).max(200).default(50),

@@ -128,13 +128,18 @@ const draftOf = (store: StoreGstRegistration): RegistrationDraft => ({
   pincode: store.pincode ?? '',
 });
 
-/** Edits one store's registration; checks what it can before asking the API. */
-function RegistrationDialog({
+/**
+ * Edits one store's registration, state and address; checks what it can before
+ * asking the API. Settings → Stores uses it too (`onSaved` refreshes its list).
+ */
+export function RegistrationDialog({
   store,
   onClose,
+  onSaved,
 }: {
   readonly store: StoreGstRegistration;
   readonly onClose: () => void;
+  readonly onSaved?: () => Promise<void>;
 }) {
   const api = useApi();
   const { t, label } = useI18n();
@@ -174,6 +179,7 @@ function RegistrationDialog({
     });
     queryClient.setQueryData(REGISTRATIONS_KEY, saved);
     await queryClient.invalidateQueries({ queryKey: TAX_OPTIONS_KEY });
+    await onSaved?.();
     toast({ title: t('taxSettings.stores.saved'), tone: 'success' });
     return undefined;
   };

@@ -26,6 +26,7 @@ import { statementRoutes } from '../brand-statements/routes.js';
 import { receivablesRoutes } from '../receivables/routes.js';
 import { reportRoutes } from '../reports/routes.js';
 import { salesRoutes } from '../sales/routes.js';
+import { setupRoutes } from '../setup/routes.js';
 import { AppShell } from '../shell/AppShell.js';
 import { HomeRedirect, RequireAuth } from '../shell/guards.js';
 import { stockCountRoutes } from '../stock-counts/routes.js';
@@ -113,6 +114,7 @@ export function AppRoutes() {
         {teamRoutes()}
         {supportAccessRoutes()}
         {billingRoutes()}
+        {setupRoutes()}
         {printRoutes()}
         <Route
           path="settings/appearance"

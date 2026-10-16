@@ -65,6 +65,7 @@ export const importsEn = {
       products: 'Open products',
       parties: 'Open customers',
       'opening-stock': 'Open stock',
+      'opening-balances': 'Review the billing go-live',
     },
   },
 };

@@ -1,5 +1,6 @@
 import { schema } from '@paint/db';
 import { z } from 'zod';
+import { MAX_CREDIT_DAYS, MAX_CREDIT_LIMIT_PAISE } from './credit-terms.js';
 
 export const CREDIT_STATUSES = schema.creditStatus.enumValues;
 export const CREDIT_RISKS = schema.creditRisk.enumValues;
@@ -7,9 +8,9 @@ export const CREDIT_REQUEST_STATUSES = schema.creditRequestStatus.enumValues;
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 /** Up to ₹10 crore of credit; exposures may exceed it. */
-const limit = z.number().int().min(1).max(10_000_000_000);
+const limit = z.number().int().min(1).max(MAX_CREDIT_LIMIT_PAISE);
 const paise = z.number().int().min(0).max(100_000_000_000_00);
-const days = z.number().int().min(0).max(365);
+const days = z.number().int().min(0).max(MAX_CREDIT_DAYS);
 
 export const creditRequestSchema = z.object({
   partyId: z.uuid(),
