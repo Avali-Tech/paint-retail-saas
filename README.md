@@ -111,7 +111,10 @@ show on the dashboard, and each has its own screens, as do documents and reports
   WhatsApp;
 - painter points earned on homeowners' bills under earn rules (double on Asian Paints), and taken
   back by a return;
-- our paid subscription invoice for the Standard plan.
+- our paid subscription invoice for the Standard plan;
+- brand schemes for two brands: a quarter with its first slab reached and the rupees to the
+  next, a litres scheme still short of its first slab, and a booster whose claim the brand
+  part-paid by a credit note and is overdue (Purchasing → Brand schemes, and a dashboard tile).
 
 See the walkthrough in [docs/mvp-3/credit-and-receivables.md](docs/mvp-3/credit-and-receivables.md#round-4--money-comes-in-by-itself)
 (4b as built).
