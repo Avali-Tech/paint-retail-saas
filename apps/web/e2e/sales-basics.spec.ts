@@ -108,7 +108,8 @@ test('the GST summary nets the credit note, rate by rate', async ({ page }) => {
   await signIn(page, business);
   await page.goto('/reports/gst-summary');
   const summary = page.getByRole('table', { name: 'GST summary' });
-  const row = summary.getByRole('row', { name: /Taxable/ });
+  // The data row: the header row also says "Taxable".
+  const row = summary.getByRole('row', { name: new RegExp(`^${TELANGANA_GSTIN} AMP Taxable`) });
   await expect(row).toContainText(TELANGANA_GSTIN);
   await expect(row).toContainText('B2C');
   await expect(row).toContainText('14000.00');
