@@ -65,6 +65,7 @@ export {
   DEFAULT_POINT_VALUE_PAISE,
   PROFITABILITY_GROUPS,
   PROFITABILITY_MAX_DAYS,
+  currentQuarter,
   previousQuarter,
   type BrandProfitabilityQuery,
   type BrandProfitabilityRow,

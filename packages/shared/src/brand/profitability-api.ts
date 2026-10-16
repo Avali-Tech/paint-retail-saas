@@ -89,3 +89,11 @@ export function previousQuarter(today: string): { from: string; to: string } {
     to: addDays(thisQuarter, -1),
   };
 }
+
+/** The calendar quarter `today` falls in, from its first day to today. */
+export function currentQuarter(today: string): { from: string; to: string } {
+  dayNumber(today);
+  const month = Number(today.slice(5, 7));
+  const quarterStart = Math.floor((month - 1) / 3) * 3 + 1;
+  return { from: `${today.slice(0, 4)}-${String(quarterStart).padStart(2, '0')}-01`, to: today };
+}

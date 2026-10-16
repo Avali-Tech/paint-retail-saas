@@ -15,6 +15,7 @@ import { estimatorEndpoints } from '../estimator/estimator-api.js';
 import { ordersEndpoints } from '../orders/orders-api.js';
 import { posEndpoints } from '../pos/pos-api.js';
 import { receivablesEndpoints } from '../receivables/receivables-api.js';
+import { brandProfitabilityEndpoints } from '../brand-profitability/profitability-api.js';
 import { collectionsEndpoints, messagingEndpoints } from '../collections/collections-api.js';
 import { paymentLinkEndpoints } from '../payment-links/payment-links-api.js';
 import { tintEndpoints } from '../tint/tint-api.js';
@@ -119,6 +120,7 @@ export function endpoints(api: ApiClient) {
     orders: ordersEndpoints(api),
     books: booksEndpoints(api),
     receivables: receivablesEndpoints(api),
+    brandProfitability: brandProfitabilityEndpoints(api),
     collections: collectionsEndpoints(api),
     messaging: messagingEndpoints(api),
     paymentLinks: paymentLinkEndpoints(api),

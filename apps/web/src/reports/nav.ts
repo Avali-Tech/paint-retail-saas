@@ -1,3 +1,4 @@
+import { BRAND_PROFITABILITY_PERMISSION } from '@paint/shared';
 import type { AnyOf } from '../lib/guard.js';
 import type { NavItem } from '../shell/nav.js';
 
@@ -8,6 +9,7 @@ export const REPORT_PERMISSIONS: AnyOf = [
   'leads:read',
   'projects:read',
   'sales:read',
+  BRAND_PROFITABILITY_PERMISSION,
 ];
 
 /** Reports, after imports in the navigation. */
@@ -18,5 +20,12 @@ export const REPORT_NAV_ITEMS: readonly NavItem[] = [
     path: '/reports',
     icon: 'dashboard',
     permission: REPORT_PERMISSIONS,
+  },
+  {
+    key: 'brandProfitability',
+    label: 'brandProfitability.nav',
+    path: '/reports/brand-profitability',
+    icon: 'dashboard',
+    permission: BRAND_PROFITABILITY_PERMISSION,
   },
 ];

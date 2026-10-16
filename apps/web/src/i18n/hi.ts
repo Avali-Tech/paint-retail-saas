@@ -19,6 +19,7 @@ import { projectsHi } from './hi-projects.js';
 import { ordersHi, ordersEnumsHi } from './hi-orders.js';
 import { estimatorHi, estimatorEnumsHi } from './hi-estimator.js';
 import { receivablesHi, receivablesEnumsHi } from './hi-receivables.js';
+import { brandProfitabilityHi, brandProfitabilityEnumsHi } from './hi-brand-profitability.js';
 import { collectionsHi, collectionsEnumsHi } from './hi-collections.js';
 import { paymentLinksHi, paymentLinksEnumsHi } from './hi-payment-links.js';
 import { posHi } from './hi-pos.js';
@@ -349,6 +350,7 @@ export const hi: Messages = {
   ...booksHi,
   ...estimatorHi,
   ...receivablesHi,
+  ...brandProfitabilityHi,
   ...collectionsHi,
   ...paymentLinksHi,
   enums: {
@@ -387,6 +389,7 @@ export const hi: Messages = {
     ...booksEnumsHi,
     ...estimatorEnumsHi,
     ...receivablesEnumsHi,
+    ...brandProfitabilityEnumsHi,
     ...collectionsEnumsHi,
     ...paymentLinksEnumsHi,
   },

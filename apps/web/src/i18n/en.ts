@@ -16,6 +16,7 @@ import { projectsEn } from './en-projects.js';
 import { ordersEn, ordersEnumsEn } from './en-orders.js';
 import { estimatorEn, estimatorEnumsEn } from './en-estimator.js';
 import { receivablesEn, receivablesEnumsEn } from './en-receivables.js';
+import { brandProfitabilityEn, brandProfitabilityEnumsEn } from './en-brand-profitability.js';
 import { collectionsEn, collectionsEnumsEn } from './en-collections.js';
 import { paymentLinksEn, paymentLinksEnumsEn } from './en-payment-links.js';
 import { posEn } from './en-pos.js';
@@ -351,6 +352,7 @@ export const en = {
   ...booksEn,
   ...estimatorEn,
   ...receivablesEn,
+  ...brandProfitabilityEn,
   ...collectionsEn,
   ...paymentLinksEn,
   /** Names of API values, for label(group, value). */
@@ -391,6 +393,7 @@ export const en = {
     ...booksEnumsEn,
     ...estimatorEnumsEn,
     ...receivablesEnumsEn,
+    ...brandProfitabilityEnumsEn,
     ...collectionsEnumsEn,
     ...paymentLinksEnumsEn,
   },

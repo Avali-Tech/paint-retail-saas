@@ -1,0 +1,62 @@
+/* Brand profitability. Design tokens only (theme-guard.test.ts). */
+
+.profit {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.profit__headline {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.profit__winner {
+  margin: 0;
+  font-size: var(--font-size-xl);
+}
+
+/* One series: the contribution of each brand, as long as its share of the largest. */
+.profit__track {
+  display: block;
+  min-inline-size: 6rem;
+  margin-top: var(--space-1);
+}
+
+.profit__bar {
+  display: block;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-chart-1);
+}
+
+/* A loss: drawn from the right, with a different texture of the same ink. */
+.profit__bar[data-loss='true'] {
+  margin-inline-start: auto;
+  background: repeating-linear-gradient(45deg, var(--color-chart-2) 0 3px, transparent 3px 5px);
+}
+
+.profit__slice th {
+  padding-inline-start: var(--space-6);
+  font-weight: normal;
+}
+
+.profit__terms {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.profit__terms dt {
+  font-weight: 600;
+}
+
+.profit__terms dd {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+@media (min-width: 900px) {
+  .profit__terms {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

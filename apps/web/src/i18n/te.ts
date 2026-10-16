@@ -19,6 +19,7 @@ import { projectsTe } from './te-projects.js';
 import { ordersTe, ordersEnumsTe } from './te-orders.js';
 import { estimatorTe, estimatorEnumsTe } from './te-estimator.js';
 import { receivablesTe, receivablesEnumsTe } from './te-receivables.js';
+import { brandProfitabilityTe, brandProfitabilityEnumsTe } from './te-brand-profitability.js';
 import { collectionsTe, collectionsEnumsTe } from './te-collections.js';
 import { paymentLinksTe, paymentLinksEnumsTe } from './te-payment-links.js';
 import { posTe } from './te-pos.js';
@@ -356,6 +357,7 @@ export const te: Messages = {
   ...booksTe,
   ...estimatorTe,
   ...receivablesTe,
+  ...brandProfitabilityTe,
   ...collectionsTe,
   ...paymentLinksTe,
   enums: {
@@ -394,6 +396,7 @@ export const te: Messages = {
     ...booksEnumsTe,
     ...estimatorEnumsTe,
     ...receivablesEnumsTe,
+    ...brandProfitabilityEnumsTe,
     ...collectionsEnumsTe,
     ...paymentLinksEnumsTe,
   },

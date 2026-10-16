@@ -78,6 +78,11 @@ export const reportsHi: Translation<typeof reportsEn> = {
         title: 'उम्र के हिसाब से खुले बिल',
         description: 'हर बिल जिस पर पैसा बाकी है, सबसे ज़्यादा देरी वाला पहले: किससे वसूली करें',
       },
+      'brand-profitability': {
+        title: 'ब्रांड मुनाफ़ा',
+        description:
+          'लागत, उधार और पॉइंट के बाद किस ब्रांड, प्रोडक्ट और स्टोर ने सबसे ज़्यादा कमाई कराई',
+      },
     },
     columns: {
       'stock-by-location': {
