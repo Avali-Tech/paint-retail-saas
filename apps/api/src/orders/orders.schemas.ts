@@ -172,6 +172,9 @@ export const goLiveSchema = z.object({
 }) satisfies z.ZodType<GoLiveRequest>;
 export type GoLiveInput = z.output<typeof goLiveSchema>;
 
+export const goLivePreviewSchema = z.object({ liveOn: isoDate.optional() });
+export type GoLivePreviewQuery = z.output<typeof goLivePreviewSchema>;
+
 const page = {
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),

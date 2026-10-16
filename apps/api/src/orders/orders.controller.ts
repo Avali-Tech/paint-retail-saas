@@ -44,6 +44,7 @@ import {
   confirmOrderSchema,
   convertQuotationSchema,
   dispatchSchema,
+  goLivePreviewSchema,
   goLiveSchema,
   listOrdersSchema,
   listQuotationsSchema,
@@ -60,6 +61,7 @@ import {
   type ConvertQuotationInput,
   type DispatchInput,
   type GoLiveInput,
+  type GoLivePreviewQuery,
   type ListOrdersQuery,
   type ListQuotationsQuery,
   type QuotationInput,
@@ -374,8 +376,11 @@ export class GoLiveController {
 
   @Get()
   @RequirePermissions('organization:manage')
-  preview(@CurrentAuth() auth: AuthContext): Promise<GoLivePreview> {
-    return this.goLive.preview(auth);
+  preview(
+    @CurrentAuth() auth: AuthContext,
+    @Query(new ZodValidationPipe(goLivePreviewSchema)) query: GoLivePreviewQuery,
+  ): Promise<GoLivePreview> {
+    return this.goLive.preview(auth, query.liveOn);
   }
 
   @Post()

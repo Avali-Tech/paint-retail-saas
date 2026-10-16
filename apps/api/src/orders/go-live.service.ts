@@ -8,7 +8,7 @@ import {
   type Transaction,
 } from '@paint/db';
 import type { GoLiveOpeningView, GoLivePreview, GoLiveResult } from '@paint/shared';
-import { count, eq, gt, or, sql } from 'drizzle-orm';
+import { and, count, eq, gt, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { idempotent } from '../billing/idempotency.js';
 import { indiaToday } from '../billing/invoice-view.js';
@@ -19,7 +19,7 @@ import { importedOpenings } from '../imports/opening-balances.importer.js';
 import { fieldError } from '../tax/tax-lookups.js';
 import type { GoLiveInput } from './orders.schemas.js';
 
-const { creditProfiles, loyaltyAccounts, parties, salesSettings } = schema;
+const { creditProfiles, loyaltyAccounts, parties, partyLedger, salesSettings } = schema;
 
 /**
  * The billing go-live cut-over (spec §4.7): once per business, in one
@@ -32,17 +32,22 @@ const { creditProfiles, loyaltyAccounts, parties, salesSettings } = schema;
 export class GoLiveService {
   constructor(@Inject(DATABASE) private readonly connection: DatabaseConnection) {}
 
-  preview(auth: AuthContext): Promise<GoLivePreview> {
+  /** What going live on `liveOn` (default today) would post, or what the go-live posted. */
+  preview(auth: AuthContext, liveOn?: string): Promise<GoLivePreview> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
       const settings = await this.settings(tx);
       const live = settings.billingLiveOn !== null;
       const today = await indiaToday(tx);
+      if (liveOn !== undefined && liveOn > today) {
+        throw fieldError('liveOn', 'Go live today or on a past date');
+      }
       return {
         billingLiveOn: settings.billingLiveOn,
         live,
         stockPostOn: settings.stockPostOn,
-        openings: live ? [] : await this.openings(tx, today),
+        openings: live ? [] : await this.openings(tx, liveOn ?? today),
         loyaltyAccounts: await this.loyaltyAccounts(tx),
+        posted: live ? await this.posted(tx) : null,
       };
     });
   }
@@ -76,6 +81,12 @@ export class GoLiveService {
             given.partyId,
             `openings.${String(index)}.partyId`,
           );
+          if (given.overdueSince !== undefined && given.overdueSince > liveOn) {
+            throw fieldError(
+              `openings.${String(index)}.overdueSince`,
+              'Cannot be after the go-live date',
+            );
+          }
           const known = openings.get(party.id);
           openings.set(party.id, {
             partyId: party.id,
@@ -93,6 +104,13 @@ export class GoLiveService {
         for (const opening of [...openings.values()].sort((a, b) =>
           a.partyId.localeCompare(b.partyId),
         )) {
+          // An imported overdue date after an earlier go-live date (the import checks today).
+          if (opening.overdueSince !== null && opening.overdueSince > liveOn) {
+            throw fieldError(
+              'liveOn',
+              `${opening.partyName} is overdue since ${opening.overdueSince}, after this date`,
+            );
+          }
           if (opening.overdueSince !== null) {
             await tx
               .insert(creditProfiles)
@@ -186,6 +204,18 @@ export class GoLiveService {
     }
     const key = (opening: GoLiveOpeningView) => `${opening.partyName}\u0000${opening.partyId}`;
     return openings.sort((a, b) => key(a).localeCompare(key(b)));
+  }
+
+  /** The opening entries the go-live posted. */
+  private async posted(tx: Transaction): Promise<{ entries: number; totalPaise: number }> {
+    const [row] = await tx
+      .select({
+        entries: count(),
+        totalPaise: sql<string>`coalesce(sum(${partyLedger.amountPaise}), 0)`,
+      })
+      .from(partyLedger)
+      .where(and(eq(partyLedger.entryType, 'opening'), eq(partyLedger.referenceType, 'go_live')));
+    return { entries: Number(row?.entries), totalPaise: Number(row?.totalPaise) };
   }
 
   private async loyaltyAccounts(tx: Transaction): Promise<number> {
