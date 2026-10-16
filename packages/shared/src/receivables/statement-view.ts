@@ -227,8 +227,7 @@ export function statementShareText(
   const tail =
     ageing.netPaise > 0 && dueNow > 0 ? fillLabel(texts.dueNow, { amount: formatINR(dueNow) }) : '';
   const attachment = linkUrl === null ? texts.attached : fillLabel(texts.linked, { url: linkUrl });
-  const payAmount =
-    payPaise === null || payPaise === ageing.netPaise ? null : formatINR(payPaise);
+  const payAmount = payPaise === null || payPaise === ageing.netPaise ? null : formatINR(payPaise);
   return `${fillLabel(head, params)}${tail}${attachment}${payLinkText(payUrl, language, payAmount)}`;
 }
 
