@@ -242,8 +242,10 @@ export function BillDialog({
           order.paymentTerms === 'postpaid' ? {} : { allocateAdvances: true },
           keys.issue,
         );
-        await refreshOrder(queryClient, order);
+        // The invoice opens at once; the order's figures refresh behind it rather than
+        // holding the move to the invoice until every query on this page has refetched.
         void navigate(`/invoices/${id}`);
+        await refreshOrder(queryClient, order);
         return undefined;
       }}
     >
@@ -321,8 +323,10 @@ export function IssueDialog({
           order.paymentTerms === 'postpaid' ? {} : { allocateAdvances: true },
           key,
         );
-        await refreshOrder(queryClient, order);
+        // The invoice opens at once; the order's figures refresh behind it rather than
+        // holding the move to the invoice until every query on this page has refetched.
         void navigate(`/invoices/${invoiceId}`);
+        await refreshOrder(queryClient, order);
         return undefined;
       }}
     >
