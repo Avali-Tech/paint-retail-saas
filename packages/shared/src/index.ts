@@ -577,3 +577,4 @@ export {
   type ReconciliationTrigger,
 } from './reconciliation-api.js';
 export * from './payment-links/index.js';
+export * from './brand-statements/index.js';
