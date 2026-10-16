@@ -112,6 +112,26 @@ const BULK_CHUNK = 4_000;
 /** Stock in thousandths, so quantities (at most 3 decimals) add exactly. */
 const toMilli = (quantity: number) => Math.round(quantity * 1000);
 
+/**
+ * The weighted-average cost per unit (paise) after a costed receipt of
+ * `quantityMilli` thousandths at `costPaise`, onto `onHandMilli` at `averagePaise`:
+ * the receipt's cost when there was no cost or no stock before, else
+ * round((on hand × average + quantity × cost) / (on hand + quantity)), half up,
+ * exactly as postStockMovements computes it in PostgreSQL. Brand profitability
+ * replays the ledger with it to find the average cost on any past day.
+ */
+export function nextAverageCost(
+  onHandMilli: bigint,
+  averagePaise: bigint | null,
+  quantityMilli: bigint,
+  costPaise: bigint,
+): bigint {
+  if (averagePaise === null || onHandMilli <= 0n) return costPaise;
+  const value = onHandMilli * averagePaise + quantityMilli * costPaise;
+  const onHand = onHandMilli + quantityMilli;
+  return (2n * value + onHand) / (2n * onHand);
+}
+
 interface BulkBalance {
   readonly organizationId: string;
   readonly storeId: string;
@@ -208,14 +228,12 @@ export async function postStockMovementsInBulk(
     }
     const cost = movement.quantity > 0 ? (movement.unitCostPaise ?? null) : null;
     if (cost !== null) {
-      if (balance.avgCostPaise === null || balance.onHand <= 0) {
-        balance.avgCostPaise = BigInt(cost);
-      } else {
-        // round((on hand × average + quantity × cost) / (on hand + quantity)), half up, exactly.
-        const value =
-          BigInt(balance.onHand) * balance.avgCostPaise + BigInt(quantity) * BigInt(cost);
-        balance.avgCostPaise = (2n * value + BigInt(onHand)) / (2n * BigInt(onHand));
-      }
+      balance.avgCostPaise = nextAverageCost(
+        BigInt(balance.onHand),
+        balance.avgCostPaise,
+        BigInt(quantity),
+        BigInt(cost),
+      );
     }
     balance.onHand = onHand;
   }
