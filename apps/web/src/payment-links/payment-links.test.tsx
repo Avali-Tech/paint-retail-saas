@@ -33,6 +33,9 @@ const SUMMARY = (overrides: Partial<PaymentLinkSummary> = {}): PaymentLinkSummar
   url: 'https://app.example.in/pay/plink_log_aaaaaaaaaaaaaaaaaaaaaa',
   expiresAt: '2026-10-23T05:00:00.000Z',
   createdAt: '2026-10-16T05:00:00.000Z',
+  refundedPaise: 0,
+  refundPendingPaise: 0,
+  refundFailed: false,
   ...overrides,
 });
 
@@ -45,6 +48,7 @@ const VIEW: PaymentLinkView = {
   createdBy: 'Anil Kumar',
   documents: [],
   payments: [],
+  refunds: [],
 };
 
 const CREATED = (overrides: Partial<PaymentLinkCreated> = {}): PaymentLinkCreated => ({
@@ -59,8 +63,9 @@ const PAGE = (items: PaymentLinkSummary[], total = items.length): PaymentLinkPag
   total,
 });
 
-const ON = { provider: 'log', expiryDays: 7 };
-const OFF = { provider: null, expiryDays: 7 };
+const RULES = { validityMinutes: 10, capPaise: 10_000_000, amountBasis: 'net' };
+const ON = { provider: 'log', ready: true, ...RULES };
+const OFF = { provider: null, ready: false, ...RULES };
 
 const SALES = profile(SYSTEM_ROLES.find((r) => r.key === 'sales_executive')?.permissions, {
   role: { key: 'sales_executive', name: 'Sales Executive' },
@@ -596,7 +601,11 @@ describe('statement shares with a payment link', { timeout: 30_000 }, () => {
     url: 'https://app.example.in/api/public/statements/abc',
     waMeUrl: null,
     message: { queued: false, reason: 'no_consent' },
-    paymentLink: { number: 'PL-000009', url: 'https://app.example.in/pay/plink_log_x' },
+    paymentLink: {
+      number: 'PL-000009',
+      url: 'https://app.example.in/pay/plink_log_x',
+      amountPaise: 680_00,
+    },
   };
 
   it('shows the UPI link and carries it in the wa.me text', async () => {

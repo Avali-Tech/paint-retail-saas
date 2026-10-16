@@ -1,4 +1,4 @@
-import { PAYMENT_LINK_READ_PERMISSION } from '@paint/shared';
+import { PAYMENT_LINK_READ_PERMISSION, PAYMENT_LINK_SETTINGS_PERMISSION } from '@paint/shared';
 import { Suspense, lazy } from 'react';
 import { Route } from 'react-router';
 import { guarded } from '../app/guarded.js';
@@ -7,14 +7,28 @@ import { guarded } from '../app/guarded.js';
 const PaymentLinksPage = lazy(() =>
   import('./PaymentLinksPage.js').then((module) => ({ default: module.PaymentLinksPage })),
 );
+const PaymentLinkSettingsPage = lazy(() =>
+  import('./PaymentLinkSettingsPage.js').then((module) => ({
+    default: module.PaymentLinkSettingsPage,
+  })),
+);
 const LogCheckoutPage = lazy(() =>
   import('./LogCheckoutPage.js').then((module) => ({ default: module.LogCheckoutPage })),
 );
 
-/** The payment links list, inside the signed-in shell. */
+/** The payment links list and their settings, inside the signed-in shell. */
 export function paymentLinkRoutes() {
   return (
-    <Route path="payment-links" element={guarded(PAYMENT_LINK_READ_PERMISSION, PaymentLinksPage)} />
+    <>
+      <Route
+        path="payment-links"
+        element={guarded(PAYMENT_LINK_READ_PERMISSION, PaymentLinksPage)}
+      />
+      <Route
+        path="settings/payment-links"
+        element={guarded(PAYMENT_LINK_SETTINGS_PERMISSION, PaymentLinkSettingsPage)}
+      />
+    </>
   );
 }
 

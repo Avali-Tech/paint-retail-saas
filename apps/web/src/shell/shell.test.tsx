@@ -131,6 +131,7 @@ describe('navigation by role', () => {
       'Appearance',
       'Tax & GST',
       'Invoice print',
+      'Payment link settings',
       'Support access',
       'Billing',
       // Everyone's own sign-in settings, next to signing out.
@@ -233,6 +234,7 @@ describe('navigation by role', () => {
       'Appearance',
       'Tax & GST',
       'Invoice print',
+      'Payment link settings',
       'Support access',
       'Billing',
       'Account security',

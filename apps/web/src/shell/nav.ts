@@ -108,6 +108,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: 'settings',
     permission: 'organization:manage',
   },
+  {
+    key: 'paymentLinkSettings',
+    label: 'paymentLinkSettings.nav',
+    path: '/settings/payment-links',
+    icon: 'settings',
+    permission: 'organization:manage',
+  },
   ...SUPPORT_ACCESS_NAV_ITEMS,
   ...BILLING_NAV_ITEMS,
 ];

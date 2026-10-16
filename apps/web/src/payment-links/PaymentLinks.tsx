@@ -36,16 +36,52 @@ export const LINK_STATUS_TONE: Readonly<Record<PaymentLinkStatus, Tone>> = {
   cancelled: 'neutral',
 };
 
-/** Whether this server makes payment links (PAYMENT_LINK_PROVIDER), and whether the member may send one. */
-export function usePaymentLinks(): { readonly on: boolean; readonly canSend: boolean } {
+export const PAYMENT_LINK_SETTINGS_KEY = ['payment-link-settings'] as const;
+
+/**
+ * Whether this server makes payment links (PAYMENT_LINK_PROVIDER), whether this business
+ * can make them now (with Razorpay, its own account connected), and whether the member
+ * may send one.
+ */
+export function usePaymentLinks(): {
+  readonly on: boolean;
+  readonly ready: boolean;
+  readonly canSend: boolean;
+} {
   const api = useApi();
   const can = usePermissions();
   const settings = useQuery({
-    queryKey: ['payment-link-settings'],
+    queryKey: PAYMENT_LINK_SETTINGS_KEY,
     queryFn: ({ signal }) => api.paymentLinks.settings(signal),
   });
   const on = (settings.data?.provider ?? null) !== null;
-  return { on, canSend: on && can(PAYMENT_LINK_MANAGE_PERMISSION) };
+  const ready = settings.data?.ready === true;
+  return { on, ready, canSend: ready && can(PAYMENT_LINK_MANAGE_PERMISSION) };
+}
+
+/**
+ * What went back through the gateway ([PO-44]): refunded, still to refund, or a refund
+ * that failed, the money kept as an advance meanwhile. Nothing when nothing went back.
+ */
+export function RefundNote({ link }: { readonly link: PaymentLinkSummary }) {
+  const { t, money } = useI18n();
+  if (link.refundPendingPaise > 0) {
+    return (
+      <Badge tone={link.refundFailed ? 'danger' : 'warning'}>
+        {t(link.refundFailed ? 'paymentLinks.refundFailed' : 'paymentLinks.refundPending', {
+          amount: money(link.refundPendingPaise),
+        })}
+      </Badge>
+    );
+  }
+  if (link.refundedPaise > 0) {
+    return (
+      <Badge tone="neutral">
+        {t('paymentLinks.refunded', { amount: money(link.refundedPaise) })}
+      </Badge>
+    );
+  }
+  return null;
 }
 
 /** A link's status as shown: an open link with money on it reads "part paid". */
@@ -351,7 +387,7 @@ export function PaymentLinksPanel({
             <li key={link.id}>
               <span className="record-list__title">
                 {link.number} · {label('paymentLinkPurpose', link.purpose)} ·{' '}
-                {money(link.amountPaise)} <LinkStatus link={link} />
+                {money(link.amountPaise)} <LinkStatus link={link} /> <RefundNote link={link} />
               </span>
               <span className="record-list__meta">
                 {link.paidPaise > 0 && `${t('paymentLinks.paid')}: ${money(link.paidPaise)} · `}
