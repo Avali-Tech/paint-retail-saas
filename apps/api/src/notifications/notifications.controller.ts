@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { AllowWhenReadOnly } from '../subscriptions/read-only.guard.js';
 import {
   Body,
   Controller,
@@ -27,6 +28,8 @@ import {
 } from './notifications.service.js';
 
 // Every member manages only their own notifications, so no permission is needed.
+// Signing in and out, security and notices keep working while the business is read-only.
+@AllowWhenReadOnly()
 @Controller('notifications')
 export class NotificationsController {
   constructor(@Inject(NotificationsService) private readonly notifications: NotificationsService) {}

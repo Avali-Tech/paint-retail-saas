@@ -115,6 +115,12 @@ describe('sign-in sheet', () => {
         otpauthUri: 'otpauth://totp/x?secret=ABC',
         recoveryCodes: ['aaaa-bbbb', 'cccc-dddd'],
       },
+      trialBusiness: {
+        name: 'Reddy Colour Centre',
+        owner: 'Srinivas Reddy',
+        phone: '+919000000201',
+      },
+      plan: 'Standard, monthly',
       operator: {
         name: 'Meera Iyer',
         email: 'operator@paintretail.demo',
@@ -138,6 +144,13 @@ describe('sign-in sheet', () => {
     expect(sheet).toContain(
       'Platform console (the team that runs the service): http://localhost:5173/platform',
     );
+    expect(sheet).toContain(
+      'Subscription: Sharma Paints & Hardware pays for the Standard, monthly plan (Settings → Billing).',
+    );
+    expect(sheet).toContain(
+      'A business on its free trial: Reddy Colour Centre. Its owner Srinivas Reddy',
+    );
+    expect(sheet).toContain('(+919000000201) signs in with "Mobile code"');
     expect(sheet).toContain('Meera Iyer: operator@paintretail.demo and the password above');
     expect(sheet).toContain('Setup key (same after every reset): XYZ');
     expect(sheet).toContain('otpauth URI: otpauth://totp/p?secret=XYZ');

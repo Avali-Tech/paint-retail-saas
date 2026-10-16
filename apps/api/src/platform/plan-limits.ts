@@ -31,7 +31,7 @@ export async function requireRoomFor(
             );
     if (Number(used?.n) >= limit) {
       throw new ForbiddenException(
-        `The ${plan.name} plan allows ${String(limit)} ${what === 'stores' ? 'active stores' : 'active team members'}. Ask us to upgrade your plan.`,
+        `The ${plan.name} plan allows ${String(limit)} ${what === 'stores' ? 'active stores' : 'active team members'}. The owner can upgrade the plan under Billing.`,
       );
     }
   }

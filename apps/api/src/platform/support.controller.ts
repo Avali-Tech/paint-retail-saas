@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { AllowWhenReadOnly } from '../subscriptions/read-only.guard.js';
 import {
   Body,
   Controller,
@@ -65,6 +66,8 @@ export class PlatformSupportController {
 }
 
 /** The business side: decide, end and review support access. */
+// A read-only business can still let platform support look in, to help it.
+@AllowWhenReadOnly()
 @Controller('support-requests')
 export class SupportRequestsController {
   constructor(@Inject(SupportService) private readonly support: SupportService) {}

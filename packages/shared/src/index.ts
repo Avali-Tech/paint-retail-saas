@@ -110,14 +110,48 @@ export {
   type UpdateSiteAccountRequest,
 } from './credit-api.js';
 export {
+  BILLING_INTERVALS,
   FEATURE_FLAG_KEYS,
   FEATURE_FLAGS,
+  PAID_PLAN_KEYS,
   PLAN_KEYS,
   PLANS,
   resolveFeatures,
+  type BillingInterval,
   type FeatureFlag,
+  type PaidPlanKey,
   type PlanKey,
+  type PlanPrices,
 } from './plans.js';
+export {
+  PAYMENT_GATEWAYS,
+  PLAN_CHANGE_SOURCES,
+  SAAS_GST_RATE_BPS,
+  SUBSCRIPTION_STATUSES,
+  isUpgrade,
+  planBlockers,
+  subscriptionCharge,
+  subscriptionState,
+  type PaymentGatewayName,
+  type PlanBlocker,
+  type PlanChangeSource,
+  type PlanUsage,
+  type SubscriptionCharge,
+  type SubscriptionRecord,
+  type SubscriptionState,
+  type SubscriptionStatus,
+} from './subscriptions.js';
+export type {
+  CheckoutStatus,
+  CheckoutView,
+  PlanChangeResult,
+  PlanChangeView,
+  PlanOffer,
+  SubscriptionInvoiceView,
+  SubscriptionStatusView,
+  SubscriptionView,
+  TenantSubscriptionView,
+} from './subscription-api.js';
 export {
   pointLots,
   pointsForPurchase,

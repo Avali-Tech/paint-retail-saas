@@ -63,7 +63,8 @@ describe('the large demo', () => {
     const businesses = await one<{ count: number }>(
       sql`select count(*)::int as count from ${schema.organizations}`,
     );
-    expect(businesses.count).toBe(1 + scale.otherBusinesses);
+    // The demo business, the one on its trial, and the large demo's others.
+    expect(businesses.count).toBe(2 + scale.otherBusinesses);
     const stores = await get<unknown[]>('/stores');
     expect(stores).toHaveLength(3 + scale.extraStores);
     const products = await get<{ total: number }>('/products?limit=1');

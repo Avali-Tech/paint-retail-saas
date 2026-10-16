@@ -2,6 +2,7 @@ import { EmptyState, Icon, buttonStyle } from '@paint/ui';
 import { lazy } from 'react';
 import { Link, Route, Routes } from 'react-router';
 import { SignInPage } from '../auth/SignInPage.js';
+import { billingRoutes } from '../billing/routes.js';
 import { booksRoutes } from '../books/routes.js';
 import { catalogRoutes } from '../catalog/routes.js';
 import { contractRoutes } from '../contracts/routes.js';
@@ -104,6 +105,7 @@ export function AppRoutes() {
         {reportRoutes()}
         {teamRoutes()}
         {supportAccessRoutes()}
+        {billingRoutes()}
         {printRoutes()}
         <Route
           path="settings/appearance"

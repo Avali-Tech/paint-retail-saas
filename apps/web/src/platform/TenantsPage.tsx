@@ -18,7 +18,7 @@ import { QueryState } from '../lib/QueryState.js';
 import { SEARCH_DELAY_MS } from '../shell/SearchBox.js';
 import type { TenantStatus } from './platform-api.js';
 import { PLATFORM_QUERY, usePlatformApi } from './session.js';
-import { Usage } from './usage.js';
+import { SubscriptionBadges, Usage } from './usage.js';
 
 export const TENANT_PAGE_SIZE = 50;
 const FILTERS = ['q', 'status'] as const;
@@ -95,6 +95,7 @@ export function TenantsPage() {
                       <th scope="col">{t('platform.tenants.name')}</th>
                       <th scope="col">{t('platform.tenants.plan')}</th>
                       <th scope="col">{t('platform.tenants.status')}</th>
+                      <th scope="col">{t('platform.tenants.subscription')}</th>
                       <th scope="col">{t('platform.tenants.stores')}</th>
                       <th scope="col">{t('platform.tenants.members')}</th>
                       <th scope="col">{t('platform.tenants.lastSignIn')}</th>
@@ -114,6 +115,9 @@ export function TenantsPage() {
                           <Badge tone={tenant.status === 'active' ? 'success' : 'danger'}>
                             {t(`platform.tenants.statuses.${tenant.status}`)}
                           </Badge>
+                        </td>
+                        <td>
+                          <SubscriptionBadges subscription={tenant.subscription} />
                         </td>
                         <td>
                           <Usage used={tenant.usage.stores} limit={tenant.plan.maxStores} />

@@ -1,5 +1,5 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import type { LatestReconciliation } from '@paint/shared';
+import type { LatestReconciliation, PlanChangeResult, SubscriptionView } from '@paint/shared';
 import pg from 'pg';
 import { base32Decode, sealSecret, totp } from '../auth/totp.js';
 import { NotificationsWorker } from '../notifications/notifications-worker.js';
@@ -11,10 +11,12 @@ import {
   DEMO_BUSINESS,
   DEMO_OPERATOR,
   DEMO_OPERATOR_TOTP_SECRET,
+  DEMO_PAID_PLAN,
   DEMO_PASSWORD,
   DEMO_SEED,
   DEMO_SLUG,
   DEMO_TOTP_SECRET,
+  DEMO_TRIAL_BUSINESS,
   type DemoSize,
   type TeamMemberPlan,
 } from './plan.js';
@@ -75,6 +77,10 @@ export interface DemoCredentials {
     readonly otpauthUri: string;
     readonly recoveryCodes: readonly string[];
   };
+  /** A second business on its free trial; its owner signs in with a mobile code. */
+  readonly trialBusiness: { readonly name: string; readonly owner: string; readonly phone: string };
+  /** The plan the demo business pays for. */
+  readonly plan: string;
   /** The platform operator for the console at /platform. */
   readonly operator: {
     readonly name: string;
@@ -106,12 +112,12 @@ const ROLE_NAMES: Record<TeamMemberPlan['roleKey'], string> = {
  * three-branch paint dealer in Hyderabad, ending today.
  */
 export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
-  const plan = buildPlan(options.size === 'small' ? 'small' : 'full');
+  const demo = buildPlan(options.size === 'small' ? 'small' : 'full');
   const clock = new HistoryClock(options.databaseUrl);
-  const context = new SeedContext(plan, new Random(DEMO_SEED + 1), new DemoApi(options.app), clock);
+  const context = new SeedContext(demo, new Random(DEMO_SEED + 1), new DemoApi(options.app), clock);
   try {
-    await clock.day(plan.historyDays + 2, () => setUpBusiness(context, options.readSmsCode));
-    await clock.day(plan.historyDays + 1, () => setUpCatalogueAndParties(context));
+    await clock.day(demo.historyDays + 2, () => setUpBusiness(context, options.readSmsCode));
+    await clock.day(demo.historyDays + 1, () => setUpCatalogueAndParties(context));
 
     const timeline = new Timeline();
     scheduleOpeningStock(context, timeline);
@@ -137,6 +143,9 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
     await clock.close();
   }
 
+  // The business signed up on the free trial; today the owner pays for a plan.
+  const plan = await subscribe(context);
+
   if (options.large !== null) {
     await seedLargeShop(context, options.databaseUrl, options.large, new Date());
   }
@@ -147,6 +156,10 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
   assertReconciled(await context.as('owner').get<LatestReconciliation>('/reconciliation/latest'));
   const twoFactor = await enrolAuthenticator(context, options);
   const { operator, token: operatorToken } = await createOperator(options);
+  await new DemoApi(options.app).as(operatorToken).post('/platform/tenants', {
+    ...DEMO_TRIAL_BUSINESS,
+    plan: 'trial',
+  });
   if (options.large !== null) {
     await onboardBusinesses(context, operatorToken, options.large.otherBusinesses);
   }
@@ -157,8 +170,8 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
   context.count('low stock items', low.total);
   context.count('unread notifications for the owner', notifications.unread);
 
-  const storeNames = new Map(plan.stores.map((store) => [store.key, store.name]));
-  const people = [plan.owner, ...plan.team].map((person): DemoPerson => ({
+  const storeNames = new Map(demo.stores.map((store) => [store.key, store.name]));
+  const people = [demo.owner, ...demo.team].map((person): DemoPerson => ({
     name: person.fullName,
     role: ROLE_NAMES[person.roleKey],
     stores: person.allStores
@@ -179,10 +192,34 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
       password: DEMO_PASSWORD,
       people,
       twoFactor,
+      trialBusiness: {
+        name: DEMO_TRIAL_BUSINESS.organizationName,
+        owner: DEMO_TRIAL_BUSINESS.owner.fullName,
+        phone: DEMO_TRIAL_BUSINESS.owner.phone,
+      },
+      plan,
       operator,
     },
     counts: Object.fromEntries(context.created),
   };
+}
+
+/**
+ * The owner moves the business from its free trial to a paid plan the way any owner
+ * does (Settings → Billing): a checkout at the gateway (the fake one in the demo),
+ * paid, which issues the platform's first GST invoice to the business.
+ */
+async function subscribe(context: SeedContext): Promise<string> {
+  const owner = context.as('owner');
+  // On the trial, choosing a plan always opens a checkout.
+  const { checkout } = await owner.post<Extract<PlanChangeResult, { kind: 'checkout' }>>(
+    '/subscription/change',
+    DEMO_PAID_PLAN,
+  );
+  await owner.post(`/subscription/checkouts/${checkout.id}/fake-pay`);
+  const subscription = await owner.get<SubscriptionView>('/subscription');
+  context.count('subscription invoices', 1);
+  return `${subscription.planName}, ${String(subscription.interval)}`;
 }
 
 /**

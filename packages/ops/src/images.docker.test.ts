@@ -70,6 +70,26 @@ beforeAll(async () => {
       DATABASE_URL: databaseUrl(),
       RUN_MIGRATIONS: 'false',
       AUTH_SECRET: 'docker-image-test-secret-of-32-characters-or-more',
+      // Production refuses the fake gateway and placeholder GST details (none are contacted here).
+      PAYMENT_GATEWAY: 'razorpay',
+      RAZORPAY_KEY_ID: 'rzp_test_dist',
+      RAZORPAY_KEY_SECRET: 'razorpay-key-secret-for-tests',
+      RAZORPAY_WEBHOOK_SECRET: 'razorpay-webhook-secret-for-tests',
+      RAZORPAY_PLAN_IDS: JSON.stringify(
+        Object.fromEntries(
+          ['starter', 'standard', 'enterprise'].flatMap((plan) =>
+            ['monthly', 'annual'].map((interval) => [
+              `${plan}_${interval}`,
+              `plan_${plan}${interval}`,
+            ]),
+          ),
+        ),
+      ),
+      PLATFORM_LEGAL_NAME: 'Platform Test Private Limited',
+      PLATFORM_GSTIN: '36AAACP0000P1ZP',
+      PLATFORM_ADDRESS: '1 Test Road',
+      PLATFORM_CITY: 'Hyderabad',
+      PLATFORM_PINCODE: '500001',
       // Production settings: documents on (not contacted until an upload), worker off.
       STORAGE_BUCKET: 'docker-test-documents',
       CLAMAV_HOST: 'clamav',
