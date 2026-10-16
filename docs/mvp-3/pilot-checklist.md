@@ -12,7 +12,7 @@ the defaults below apply until they are answered.
 - [ ] Providers in production (see [environment-variables.md](../environment-variables.md)):
   - `MESSAGING_PROVIDER` and `SMS_PROVIDER` are `disabled` in production (`log` is refused). No
     WhatsApp BSP is chosen yet ([PO-1]), so **reminders go by email only** (`EMAIL_PROVIDER=smtp`)
-    and statements are shared with `wa.me` links from staff's own phones.
+    and statements are shared with `wa.me` links from staff's own phones ([PO-103]).
   - `PAYMENT_LINK_PROVIDER=razorpay` with `GATEWAY_CREDENTIALS_KEY` set, or `disabled` if the shop
     takes no UPI links in the pilot.
   - `SUBSCRIPTION_GATEWAY=manual` (we invoice by hand), with `PLATFORM_*` GST details and our bank
@@ -26,7 +26,7 @@ the defaults below apply until they are answered.
 
 Imports are at **Imports** (`/imports`): download the template, upload, check the preview, apply.
 
-1. [ ] **Stores** with GSTIN and code (`POST /stores`; no screen yet, an operator adds them),
+1. [ ] **Stores** with GSTIN and code (`POST /stores`; no screen yet, an operator adds them, [PO-102]),
        their GST registrations (`/settings/tax`), **tax categories and rates**
        (`/tax-categories`) and **team** with roles and stores (`/team`). Invoice series follow each
        store's GSTIN.
@@ -35,7 +35,7 @@ Imports are at **Imports** (`/imports`): download the template, upload, check th
        selling price, barcodes. Brands and categories are created as named — check spellings,
        since brand schemes and profitability group by brand.
 3. [ ] **Parties** import (`parties`): name and roles first; phone or GSTIN is how later imports
-       find a party. Credit limits are **not** in this import (see §2.1).
+       find a party. Credit limits are **not** in this import (see §2.1, [PO-101]).
 4. [ ] **Opening stock** import (`opening-stock`): store code, SKU, quantity **and unit cost**.
        Without a cost, profitability counts those units at zero and lists them as uncosted.
 5. [ ] **Opening balances** import (`opening-balances`): phone or GSTIN, amount owed on the go-live
@@ -43,7 +43,7 @@ Imports are at **Imports** (`/imports`): download the template, upload, check th
        from go-live by receivables but treated as current by the credit check and reminders
        ([CA-7], [CA-40]). Re-importing replaces a party's figures until go-live.
 6. [ ] **Billing go-live** (`POST /sales/go-live`, `organization:manage`; there is no screen yet —
-       an operator runs it). Preview (`GET /sales/go-live`) and check every opening against the old
+       an operator runs it, [PO-100]). Preview (`GET /sales/go-live`) and check every opening against the old
        books, then post once. From then on exposure, overdue days and ageing come from the ledger.
 7. [ ] Supplier products and last costs come in with GRNs; enter open purchase orders by hand.
 
@@ -117,8 +117,9 @@ Imports are at **Imports** (`/imports`): download the template, upload, check th
 
 ## 3. What the CA and accountant review before go-live
 
-- [ ] The opening balances and the go-live preview against the old books; the rule for balances
-      without `overdue_since` ([CA-7], [CA-40]).
+- [ ] The opening balances and the go-live preview against the old books; one opening per
+      customer rather than bill by bill ([CA-90]); the rule for balances without `overdue_since`
+      ([CA-7], [CA-40]).
 - [ ] Ageing basis and allocation dating: due date ([CA-1]), allocation date ([CA-2]).
 - [ ] Statement wording and language ([CA-5]); consent records for messages ([CA-3]).
 - [ ] UPI receipts into a gateway clearing ledger and the fee ([CA-30]); overpaid links become
@@ -177,6 +178,10 @@ Imports are at **Imports** (`/imports`): download the template, upload, check th
 [PO-80]: credit-and-receivables.md#8-open-questions
 [PO-81]: credit-and-receivables.md#8-open-questions
 [PO-83]: credit-and-receivables.md#8-open-questions
+[PO-100]: credit-and-receivables.md#8-open-questions
+[PO-101]: credit-and-receivables.md#8-open-questions
+[PO-102]: credit-and-receivables.md#8-open-questions
+[PO-103]: credit-and-receivables.md#8-open-questions
 [CA-1]: credit-and-receivables.md#for-the-ca
 [CA-2]: credit-and-receivables.md#for-the-ca
 [CA-3]: credit-and-receivables.md#for-the-ca
@@ -199,3 +204,4 @@ Imports are at **Imports** (`/imports`): download the template, upload, check th
 [CA-62]: credit-and-receivables.md#for-the-ca
 [CA-70]: credit-and-receivables.md#for-the-ca
 [CA-71]: credit-and-receivables.md#for-the-ca
+[CA-90]: credit-and-receivables.md#for-the-ca
