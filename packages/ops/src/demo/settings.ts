@@ -148,6 +148,8 @@ export function apiEnv(settings: DemoSettings): Record<string, string> {
     AUTH_SECRET: DEMO_AUTH_SECRET,
     // Mobile sign-in codes are printed by the API instead of texted.
     SMS_PROVIDER: 'log',
+    // WhatsApp messages to parties (reminders, statements, points) are printed too.
+    MESSAGING_PROVIDER: 'log',
     STORAGE_BUCKET: DEMO_BUCKET,
     STORAGE_ENDPOINT: storageUrl(settings),
     STORAGE_ACCESS_KEY_ID: 'local',

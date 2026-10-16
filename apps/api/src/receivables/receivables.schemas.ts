@@ -19,6 +19,7 @@ export const ageingQuerySchema = z.object({
   ...filters,
   groupBy: z.enum(AGEING_GROUPS).default('customer'),
   q: z.string().trim().min(1).max(100).optional(),
+  projectId: z.uuid().optional(),
   overdueOnly: z
     .enum(['true', 'false'])
     .default('false')

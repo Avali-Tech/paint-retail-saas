@@ -44,6 +44,10 @@ describe('SeedContext', () => {
     expect(seed.daysAgo(0)).toBe(1);
     expect(seed.partiesOf('retail')).toEqual([]);
   });
+
+  it('sends no messages until the seed says how', async () => {
+    await expect(context().sendMessages()).resolves.toBeUndefined();
+  });
 });
 
 describe('Timeline', () => {

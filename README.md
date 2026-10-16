@@ -98,6 +98,24 @@ GSTIN, and every product has its real HSN code (paints 3208/3209, putty 3214, br
 and tax category. Leads, opportunities, projects, contracts and follow-ups are seeded too and
 show on the dashboard, and each has its own screens, as do documents and reports.
 
+**Release 2.1 in the demo** (credit, receivables and collections):
+
+- credit approvals waiting, approved, rejected and used;
+- an account the nightly job put on hold for overdue bills, and a dealer released from one with a
+  two-week waiver;
+- a contractor's two site accounts (one on hold);
+- receivables in every ageing bucket;
+- WhatsApp and SMS consents, reminder schedules and today's reminders;
+- promises to pay kept, broken (escalated) and open;
+- messages in the outbox (printed by the `log` WhatsApp provider), and a statement link sent on
+  WhatsApp;
+- painter points earned on homeowners' bills under earn rules (double on Asian Paints), and taken
+  back by a return;
+- our paid subscription invoice for the Standard plan.
+
+See the walkthrough in [docs/mvp-3/credit-and-receivables.md](docs/mvp-3/credit-and-receivables.md#round-4--money-comes-in-by-itself)
+(4b as built).
+
 **On a fresh Mac** (once):
 
 ```sh
@@ -182,8 +200,10 @@ volume: five more branches with a manager and a salesperson each (8 stores), abo
 products in 10,000 pack sizes across 20 brands, 5,000 more parties, about 100,000 stock ledger
 entries (opening stock, receipts against 2,500 purchase orders, sales and write-offs over six
 months), 6,000 leads, 1,400 opportunities, 800 projects, 30,000 activities, 5,000 documents
-(metadata only, so downloading one fails), 15,000 notifications and 15,000 loyalty entries. It
-takes about half a minute. That bulk part (`apps/api/src/demo/seed-large.ts`) is the second
+(metadata only, so downloading one fails), 15,000 notifications and 15,000 loyalty entries.
+
+It also adds the books of 1,200 credit customers: about 15,000 bills on account, 6,000 payments,
+holds, site accounts and promises to pay. All of it takes about a minute. That bulk part (`apps/api/src/demo/seed-large.ts`) is the second
 exception to "only through the API": it writes in batches inside the business's tenant scope as
 the owner, so row-level security and the audit triggers apply, stock goes through
 `postStockMovementsInBulk` (balances always equal the ledger), and every document number series

@@ -17,6 +17,13 @@ export interface CreditStory {
   readonly nearLimit: boolean;
   /** The first builder: well overdue, its credit on hold. */
   readonly onHold: boolean;
+  /**
+   * Lets its bills lapse (P2-M09, M11): the second builder's opening balance stays
+   * unpaid and the nightly job puts it on hold (`auto_hold`); the second dealer
+   * stops paying, breaks a promise and is released with a waiver (`waived`).
+   * Neither is billed or pays in the regular rounds.
+   */
+  readonly lapse: 'auto_hold' | 'waived' | null;
 }
 
 const storiesOf = new WeakMap<SeedContext, CreditStory[]>();
@@ -48,6 +55,7 @@ export function scheduleCredit(context: SeedContext, timeline: Timeline): void {
       risk: 'low' as const,
       nearLimit: index === 0,
       onHold: false,
+      lapse: null,
     })),
     ...builders.map((party, index) => ({
       party,
@@ -58,8 +66,9 @@ export function scheduleCredit(context: SeedContext, timeline: Timeline): void {
       risk: 'medium' as const,
       nearLimit: false,
       onHold: index === 0,
+      lapse: index === 1 ? ('auto_hold' as const) : null,
     })),
-    ...dealers.slice(1).map((party) => ({
+    ...dealers.slice(1).map((party, index) => ({
       party,
       limitRupees: random.pick([200_000, 300_000, 500_000]),
       days: 30,
@@ -68,6 +77,7 @@ export function scheduleCredit(context: SeedContext, timeline: Timeline): void {
       risk: 'low' as const,
       nearLimit: false,
       onHold: false,
+      lapse: index === 0 ? ('waived' as const) : null,
     })),
   ];
   storiesOf.set(context, stories);

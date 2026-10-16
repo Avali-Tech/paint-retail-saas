@@ -233,12 +233,17 @@ export class CollectionsService {
         )
         .orderBy(activities.recordId, desc(moment), desc(activities.id));
 
+      // By party, so a worklist of thousands of customers is not a search per row.
+      const promiseOf = new Map(promises.map((p) => [p.partyId, p]));
+      // The first open escalation of a party, as before (a later entry in a map wins).
+      const escalationOf = new Map([...escalations].reverse().map((e) => [e.partyId, e.id]));
+      const activityOf = new Map(lastActivities.map((a) => [a.partyId, a]));
       const rows: WorklistRow[] = overdue.map(([partyId, row]) => {
         // Every party aged is looked up.
         const party = lookups.parties.get(partyId) as unknown as PartyInfo;
-        const openPromise = promises.find((p) => p.partyId === partyId) ?? null;
-        const openEscalationId = escalations.find((e) => e.partyId === partyId)?.id ?? null;
-        const activity = lastActivities.find((a) => a.partyId === partyId);
+        const openPromise = promiseOf.get(partyId) ?? null;
+        const openEscalationId = escalationOf.get(partyId) ?? null;
+        const activity = activityOf.get(partyId);
         return {
           partyId,
           name: party.name,

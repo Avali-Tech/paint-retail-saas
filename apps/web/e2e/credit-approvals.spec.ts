@@ -255,3 +255,40 @@ test('a cashier asks for approval at the counter; the owner opens a site account
   await expect(owner.getByText('Nothing billed on this site yet')).toBeVisible();
   await expectUsable(owner);
 });
+
+test('the approval queue, an approval and a site account fit a phone @phone', async ({ page }) => {
+  const { business, storeId, paintId, partyId } = await shop('Phone Approval Paints');
+  const { token } = business;
+  // Two more packs on account: ₹28,000 owed is 93 % of the limit, for a manager to approve.
+  const draft = await call<{ id: string }>('POST', '/invoices', {
+    token,
+    body: { storeId, partyId, lines: [{ variantId: paintId, quantity: 2 }] },
+  });
+  const approval = await call<{ id: string; number: string }>('POST', '/credit-approvals', {
+    token,
+    body: { invoiceId: draft.id, amountPaise: 10_000_00, reason: 'Site needs it today' },
+  });
+  const project = await call<{ id: string }>('POST', '/projects', {
+    token,
+    body: { storeId, customerPartyId: partyId, name: 'Banjara Hills duplex' },
+  });
+  const site = await call<{ id: string }>('POST', `/parties/${partyId}/sites`, {
+    token,
+    body: { projectId: project.id, limitPaise: 10_000_00 },
+  });
+
+  await signInWithPassword(page, business.ownerPhone);
+  await page.goto('/credit/approvals');
+  await expect(page.getByRole('heading', { name: 'Credit approvals', level: 1 })).toBeVisible();
+  await expectUsable(page);
+  await page.goto(`/credit/approvals/${approval.id}`);
+  await expect(
+    page.getByRole('heading', { name: `${approval.number} · Credit approval`, level: 1 }),
+  ).toBeVisible();
+  await expectUsable(page);
+  await page.goto(`/site-accounts/${site.id}`);
+  await expect(
+    page.getByRole('heading', { name: 'Banjara Hills duplex · Site account', level: 1 }),
+  ).toBeVisible();
+  await expectUsable(page);
+});

@@ -74,7 +74,7 @@ export const indiaToday = sql`(now() at time zone 'Asia/Kolkata')::date`;
  * issued invoices, bills of supply and debit notes, less what is allocated
  * to them. `projectId` narrows it to a site (MVP 3 spec §3.3).
  */
-export function openDocumentsOf(partyId: string | SQL, projectId: string | null = null): SQL {
+export function openDocumentsOf(partyId: string | SQL, projectId: string | SQL | null = null): SQL {
   return sql`
     select d.id, d.number, d.kind, d.issued_on, d.due_on, d.total_paise,
       d.total_paise - coalesce((select sum(a.amount_paise) from allocations a where a.document_id = d.id), 0) as outstanding
@@ -85,7 +85,11 @@ export function openDocumentsOf(partyId: string | SQL, projectId: string | null 
 }
 
 /** The unbilled value of a party's open postpaid orders, but `excludeOrderId`'s, optionally on one site. */
-function openOrdersOf(partyId: string, excludeOrderId: string | null, projectId: string | null) {
+function openOrdersOf(
+  partyId: string | SQL,
+  excludeOrderId: string | null,
+  projectId: string | SQL | null,
+) {
   return sql`coalesce((
     select sum(round(l.total_paise * (l.quantity - l.quantity_invoiced - l.quantity_cancelled) / l.quantity))
     from sales_order_lines l
@@ -96,6 +100,16 @@ function openOrdersOf(partyId: string, excludeOrderId: string | null, projectId:
       and (${projectId}::uuid is null or o.project_id = ${projectId}::uuid)
   ), 0)`;
 }
+
+/** One party whose exposure is looked up, with the figures of its credit profile. */
+export interface ExposureQuery {
+  readonly partyId: string;
+  readonly manual: ManualFigures;
+}
+
+/** A PostgreSQL array literal of uuids or dates (none of which needs quoting). */
+const arrayLiteral = (values: readonly (string | null)[]) =>
+  `{${values.map((value) => value ?? 'NULL').join(',')}}`;
 
 /**
  * What a party owes for the credit rules (MVP 2 spec §4.7, MVP 3 spec §4.1).
@@ -111,68 +125,83 @@ export async function exposureOf(
   manual: ManualFigures,
   excludeOrderId: string | null = null,
 ): Promise<Exposure> {
-  const waivedUntil = manual.overdueWaivedUntil ?? null;
-  if ((await billingLiveOn(tx)) === null) {
-    return {
-      source: 'manual',
-      exposurePaise: manual.manualExposurePaise,
-      overdueDays: manual.overdueDays,
-      breakdown: null,
-      overdueWaived: waivedUntil !== null && (await notBefore(tx, waivedUntil)),
-    };
-  }
-  const result = await tx.execute<{
-    balance: string;
-    advance: string;
-    open_orders: string;
-    overdue_days: number;
-    waived: boolean;
-  }>(sql`
-    select
-      coalesce((select b.balance_paise from party_balances b where b.party_id = ${partyId}), 0) as balance,
-      coalesce((select b.advance_paise from party_balances b where b.party_id = ${partyId}), 0) as advance,
-      ${openOrdersOf(partyId, excludeOrderId, null)} as open_orders,
+  const exposures = await exposuresOf(tx, [{ partyId, manual }], excludeOrderId);
+  return exposures.get(partyId) as unknown as Exposure;
+}
+
+/**
+ * exposureOf for many parties at once, in one query whatever their number (a page
+ * of the credit list): by party id.
+ */
+export async function exposuresOf(
+  tx: Transaction,
+  parties: readonly ExposureQuery[],
+  excludeOrderId: string | null = null,
+): Promise<Map<string, Exposure>> {
+  if (parties.length === 0) return new Map();
+  const live = (await billingLiveOn(tx)) !== null;
+  const party = sql.raw('p.party_id');
+  const columns = live
+    ? sql`,
+      coalesce(b.balance_paise, 0) as balance,
+      coalesce(b.advance_paise, 0) as advance,
+      ${openOrdersOf(party, excludeOrderId, null)} as open_orders,
       coalesce(greatest(0, ${indiaToday} - (
         select min(owed.due) from (
-          select o.due_on as due from (${openDocumentsOf(partyId)}) o where o.outstanding > 0
+          select o.due_on as due from (${openDocumentsOf(party)}) o where o.outstanding > 0
           union all
-          select ${manual.openingOverdueSince}::date
+          select p.opening_overdue_since
           where exists (
             select 1 from party_ledger pl
-            where pl.party_id = ${partyId} and pl.entry_type = 'opening'
+            where pl.party_id = p.party_id and pl.entry_type = 'opening'
               and pl.amount_paise > coalesce((select sum(a.amount_paise) from allocations a where a.party_ledger_id = pl.id), 0)
           )
         ) owed
-      )), 0)::int as overdue_days,
-      coalesce(${waivedUntil}::date >= ${indiaToday}, false) as waived
-  `);
-  const [row] = result.rows as [
-    {
-      balance: string;
-      advance: string;
-      open_orders: string;
-      overdue_days: number;
-      waived: boolean;
-    },
-  ];
-  const breakdown = {
-    balancePaise: Number(row.balance),
-    openOrdersPaise: Number(row.open_orders),
-    advancePaise: Number(row.advance),
-  };
-  return {
-    source: 'ledger',
-    exposurePaise: breakdown.balancePaise + breakdown.openOrdersPaise,
-    overdueDays: row.overdue_days,
-    breakdown,
-    overdueWaived: row.waived,
-  };
-}
-
-/** Whether `day` is today or later in India. */
-async function notBefore(tx: Transaction, day: string): Promise<boolean> {
-  const result = await tx.execute<{ ok: boolean }>(sql`select ${day}::date >= ${indiaToday} as ok`);
-  return (result.rows[0] as { ok: boolean }).ok;
+      )), 0)::int as overdue_days`
+    : sql``;
+  const result = await tx.execute<{
+    party_id: string;
+    waived: boolean;
+    balance?: string;
+    advance?: string;
+    open_orders?: string;
+    overdue_days?: number;
+  }>(sql`
+    select p.party_id, coalesce(p.waived_until >= ${indiaToday}, false) as waived ${columns}
+    from unnest(
+      ${arrayLiteral(parties.map((entry) => entry.partyId))}::uuid[],
+      ${arrayLiteral(parties.map((entry) => entry.manual.openingOverdueSince))}::date[],
+      ${arrayLiteral(parties.map((entry) => entry.manual.overdueWaivedUntil ?? null))}::date[]
+    ) as p(party_id, opening_overdue_since, waived_until)
+    left join party_balances b on b.party_id = p.party_id`);
+  const manualOf = new Map(parties.map((entry) => [entry.partyId, entry.manual]));
+  const exposures = new Map<string, Exposure>();
+  for (const row of result.rows) {
+    const manual = manualOf.get(row.party_id) as unknown as ManualFigures;
+    if (!live) {
+      exposures.set(row.party_id, {
+        source: 'manual',
+        exposurePaise: manual.manualExposurePaise,
+        overdueDays: manual.overdueDays,
+        breakdown: null,
+        overdueWaived: row.waived,
+      });
+      continue;
+    }
+    const breakdown = {
+      balancePaise: Number(row.balance),
+      openOrdersPaise: Number(row.open_orders),
+      advancePaise: Number(row.advance),
+    };
+    exposures.set(row.party_id, {
+      source: 'ledger',
+      exposurePaise: breakdown.balancePaise + breakdown.openOrdersPaise,
+      overdueDays: Number(row.overdue_days),
+      breakdown,
+      overdueWaived: row.waived,
+    });
+  }
+  return exposures;
 }
 
 /** The position checkCredit takes, from a profile (or none) and its exposure. */
@@ -224,9 +253,14 @@ export async function siteAccountsOf(
   tx: Transaction,
   where: { partyId: string } | { id: string },
 ): Promise<SiteAccountView[]> {
+  // Each site's figures in the same query, not one query per site.
+  const party = sql.raw('site_credit_accounts.party_id');
+  const siteProject = sql.raw('site_credit_accounts.project_id');
   const rows = await tx
     .select({
       site: siteCreditAccounts,
+      outstanding: sql<string>`coalesce((select sum(o.outstanding) from (${openDocumentsOf(party, siteProject)}) o where o.outstanding > 0), 0)`,
+      openOrders: sql<string>`${openOrdersOf(party, null, siteProject)}`,
       partyName: parties.displayName,
       project: { id: projects.id, number: projects.number, name: projects.name },
       holderName: siteHolderUsers.fullName,
@@ -243,8 +277,12 @@ export async function siteAccountsOf(
     )
     .orderBy(asc(projects.name), asc(siteCreditAccounts.id));
   const views: SiteAccountView[] = [];
-  for (const { site, partyName, project, holderName } of rows) {
-    const exposure = await siteExposureOf(tx, site.partyId, site.projectId);
+  for (const { site, outstanding, openOrders, partyName, project, holderName } of rows) {
+    const exposure = {
+      outstandingPaise: Number(outstanding),
+      openOrdersPaise: Number(openOrders),
+      exposurePaise: Number(outstanding) + Number(openOrders),
+    };
     const available = site.limitPaise - exposure.exposurePaise;
     views.push({
       id: site.id,

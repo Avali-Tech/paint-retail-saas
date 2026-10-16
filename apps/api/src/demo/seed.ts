@@ -6,11 +6,18 @@ import type {
   SubscriptionView,
   TenantBillingView,
 } from '@paint/shared';
+import type { DatabaseConnection } from '@paint/db';
 import pg from 'pg';
 import { base32Decode, sealSecret, totp } from '../auth/totp.js';
-import { NotificationsWorker } from '../notifications/notifications-worker.js';
+import { DATABASE } from '../database/database.module.js';
+import { sendDueMessages } from '../messaging/outbox.js';
+import {
+  NotificationsWorker,
+  WORKER_SETTINGS,
+  type WorkerSettings,
+} from '../notifications/notifications-worker.js';
 import { DemoApi, type MemberApi } from './api-client.js';
-import { HistoryClock } from './history-clock.js';
+import { HistoryClock, indiaDate } from './history-clock.js';
 import type { LargeScale } from './large-plan.js';
 import {
   buildPlan,
@@ -28,6 +35,7 @@ import {
 } from './plan.js';
 import { Random } from './random.js';
 import { scheduleCredit, scheduleDuplicates, scheduleLoyalty } from './seed-accounts.js';
+import { followUpEscalations, scheduleCollections, shareStatements } from './seed-collections.js';
 import { must, SeedContext, Timeline } from './seed-context.js';
 import {
   scheduleContracts,
@@ -44,8 +52,10 @@ import {
 } from './seed-inventory.js';
 import { assertReconciled } from './seed-billing.js';
 import { onboardBusinesses, seedLargeShop } from './seed-large.js';
+import { schedulePainterPoints } from './seed-points.js';
 import { scheduleSales } from './seed-sales.js';
 import { setUpBusiness, setUpCatalogueAndParties, type ReadSmsCode } from './seed-setup.js';
+import { scheduleSites } from './seed-sites.js';
 
 export interface SeedOptions {
   /** The API, created in-process with an SMS sender the seed can read. */
@@ -121,6 +131,9 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
   const demo = buildPlan(options.size === 'small' ? 'small' : 'full');
   const clock = new HistoryClock(options.databaseUrl);
   const context = new SeedContext(demo, new Random(DEMO_SEED + 1), new DemoApi(options.app), clock);
+  const worker = options.app.get<symbol, WorkerSettings>(WORKER_SETTINGS);
+  const { db } = options.app.get<symbol, DatabaseConnection>(DATABASE);
+  context.sendMessages = () => sendDueMessages(db, { ...worker.messaging, email: worker.sender });
   try {
     await clock.day(demo.historyDays + 2, () => setUpBusiness(context, options.readSmsCode));
     await clock.day(demo.historyDays + 1, () => setUpCatalogueAndParties(context));
@@ -139,10 +152,19 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
     scheduleLoyalty(context, timeline);
     scheduleDuplicates(context, timeline);
     scheduleSales(context, timeline);
+    scheduleSites(context, timeline);
+    scheduleCollections(context, timeline);
+    schedulePainterPoints(context, timeline);
     // The owner caught up with notifications a few days ago; newer ones stay unread.
     timeline.at(3, async () => {
       await context.as('owner').post('/notifications/read-all');
     });
+    // Each day's messages to parties go out that day (the running API's worker sends them).
+    for (let daysAgo = demo.historyDays - 1; daysAgo >= 1; daysAgo--) {
+      timeline.at(daysAgo, async () => {
+        await context.sendMessages();
+      });
+    }
     await timeline.play(clock);
     await clock.apply();
   } finally {
@@ -159,8 +181,12 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
   }
 
   // Today's reminders and alerts (stock at its reorder level, follow-ups due,
-  // renewals) and the nightly reconciliation of the books, which must find nothing.
-  await options.app.get(NotificationsWorker).runOnce();
+  // renewals), the nightly reconciliation of the books, which must find nothing, the
+  // overdue holds and the collections run (promises settled, payment reminders),
+  // run at noon India time so messaging hours (spec MSG-6) never depend on the hour.
+  await shareStatements(context);
+  await options.app.get(NotificationsWorker).runOnce(new Date(`${indiaDate(0)}T12:00:00+05:30`));
+  await followUpEscalations(context);
   assertReconciled(await context.as('owner').get<LatestReconciliation>('/reconciliation/latest'));
   const twoFactor = await enrolAuthenticator(context, options);
   await new DemoApi(options.app).as(operatorToken).post('/platform/tenants', {

@@ -1,6 +1,5 @@
 import { formatINR, formatPrintDate, type ReceiptView } from '@paint/shared';
-import PDFDocument from 'pdfkit';
-import { PDF_FONTS } from './render-invoice-pdf.js';
+import { pdfDocument } from './render-invoice-pdf.js';
 
 /**
  * A payment receipt, receipt voucher or refund slip as an A5 PDF, drawn from
@@ -72,14 +71,12 @@ function body(doc: Doc, view: ReceiptView): void {
 
 /** The receipt as an A5 PDF. */
 export function renderReceiptPdf(view: ReceiptView): Promise<Buffer> {
-  const doc = new PDFDocument({
+  const doc = pdfDocument({
     size: 'A5',
     margin: MARGIN,
-    font: PDF_FONTS.regular,
     lang: 'en-IN',
     info: { Title: `${view.title} ${view.number}`, Subject: view.title },
   });
-  for (const [name, path] of Object.entries(PDF_FONTS)) doc.registerFont(name, path);
   const chunks: Buffer[] = [];
   doc.on('data', (chunk: Buffer) => chunks.push(chunk));
   const done = new Promise<Buffer>((resolve) => {

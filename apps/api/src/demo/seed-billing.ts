@@ -90,6 +90,10 @@ export interface SaleOptions {
   readonly payBy: PayBy | 'credit';
   /** Days a bill on account gives the customer to pay. */
   readonly creditDays?: number;
+  /** The site (project) the bill is booked to, for a site account (P2-M09). */
+  readonly projectId?: string;
+  /** The painter or contractor who brought the customer, who earns painter points (P2-M36). */
+  readonly influencer?: SeededParty;
   readonly lines: readonly BasketLine[];
 }
 
@@ -109,6 +113,8 @@ export async function sell(
     ...(options.creditDays === undefined
       ? {}
       : { dueOn: await context.clock.today(options.creditDays) }),
+    ...(options.projectId === undefined ? {} : { projectId: options.projectId }),
+    ...(options.influencer === undefined ? {} : { influencerPartyId: options.influencer.id }),
     lines: options.lines,
   });
   const payments =
@@ -176,27 +182,28 @@ export function approverFor(level: CreditApprovalLevel, managerKey: string): str
 }
 
 /**
- * A bill held for a credit approval nobody has decided yet: the draft, and the
- * request the seller sends, waiting in the approvers' queue.
+ * A bill held for a credit approval: the draft, and the request the seller sends
+ * to the approvers' queue. Answers the request's id.
  */
 export async function billAwaitingApproval(
   context: SeedContext,
   store: StoreKey,
   party: SeededParty,
   lines: readonly BasketLine[],
-): Promise<void> {
+  reason = 'Site needs it before the weekend; pays on the 1st',
+): Promise<string> {
   const api = context.as(context.salesOf(store));
   const draft = await api.post<TaxDocumentView>('/invoices', {
     storeId: context.storeId(store),
     partyId: party.id,
     lines,
   });
-  await api.post('/credit-approvals', {
+  const approval = await api.post('/credit-approvals', {
     invoiceId: draft.id,
     amountPaise: basketTotal(context, lines),
-    reason: 'Site needs it before the weekend; pays on the 1st',
+    reason,
   });
-  context.count('credit approvals waiting');
+  return approval.id;
 }
 
 /** Throws unless the latest reconciliation found the books in balance. */

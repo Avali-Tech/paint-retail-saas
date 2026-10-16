@@ -186,6 +186,16 @@ describe('renderStatementPdf', () => {
     },
   );
 
+  it('draws a busy customer’s year quickly: each font is read once, not once per line', async () => {
+    const view = buildStatementView({ ...DATA, entries: entries(300) }, 'te');
+    const start = performance.now();
+    const pdf = await read(await renderStatementPdf(view));
+    const ms = performance.now() - start;
+    expect(pdf.totalPages).toBeGreaterThan(5);
+    // 2.9 s when every font('regular') read and parsed the font file again; 0.1 s now.
+    expect(ms).toBeLessThan(1_500);
+  });
+
   it('says when a period has no entries, and leaves out what is not known', async () => {
     const pdf = await read(
       await renderStatementPdf(

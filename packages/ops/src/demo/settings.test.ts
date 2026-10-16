@@ -106,6 +106,7 @@ describe('what the demo runs', () => {
     expect(DEMO_AUTH_SECRET.length).toBeGreaterThanOrEqual(32);
     expect(api).toMatchObject({
       SMS_PROVIDER: 'log',
+      MESSAGING_PROVIDER: 'log',
       RUN_MIGRATIONS: 'true',
       APP_URL: 'http://localhost:4981',
     });

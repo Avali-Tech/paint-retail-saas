@@ -10,12 +10,26 @@ import {
   schema,
 } from '@paint/db';
 import {
+  AGEING_BUCKETS,
+  ageingBucket,
   isValidGstin,
+  type AgeingBucket,
+  type AgeingPage,
+  type CreditApprovalPage,
+  type EarnRuleView,
+  type EscalationView,
+  type PartyCreditSummary,
+  type PartyLedgerView,
+  type ReceivablesSummaryView,
+  type ReminderScheduleView,
+  type SiteAccountDetail,
+  type SiteAccountView,
   type SubscriptionInvoiceView,
   type SubscriptionView,
   type GoLivePreview,
   type GstRegistrations,
   type LatestReconciliation,
+  type WorklistPage,
 } from '@paint/shared';
 import { withPgClient } from '@paint/testing';
 import { sql } from 'drizzle-orm';
@@ -25,11 +39,14 @@ import { bearer, startTestApp, TEST_AUTH_SECRET, type TestApp } from '../test-su
 import { DemoApi, DemoApiError } from './api-client.js';
 import { HistoryClock, indiaDate } from './history-clock.js';
 import {
+  buildPlan,
   DEMO_OPERATOR,
   DEMO_OPERATOR_TOTP_SECRET,
   DEMO_PASSWORD,
   DEMO_TOTP_SECRET,
 } from './plan.js';
+import { REMINDER_SCHEDULES } from './seed-collections.js';
+import { SITES } from './seed-sites.js';
 import { runSeedCommand } from './seed-command.js';
 
 const serverUrl = inject('databaseUrl');
@@ -61,6 +78,16 @@ const get = async <T>(url: string, token = owner) => {
   expect(response.statusCode, `${url}: ${response.body}`).toBe(200);
   return response.json<T>();
 };
+const rows = async <T>(query: ReturnType<typeof sql>) =>
+  (await t.connection.db.execute<T & Record<string, unknown>>(query)).rows as T[];
+/** A demo party's id, by its key in the full plan (e.g. contractor-2). */
+const partyId = async (key: string) => {
+  const plan = buildPlan('full').parties.find((party) => party.key === key);
+  const [row] = await rows<{ id: string }>(
+    sql`select id from ${schema.parties} where phone = ${String(plan?.phone)}`,
+  );
+  return String(row?.id);
+};
 const signIn = async (identifier: string) =>
   t.app.inject({
     method: 'POST',
@@ -72,7 +99,8 @@ beforeAll(async () => {
   firstRun = await seed('seed');
   t = await startTestApp(demoUrl);
   owner = (await signIn('+919000000001')).json<{ token: string }>().token;
-}, 300_000);
+  // A minute and a half alone; longer beside the rest of the suite under coverage.
+}, 600_000);
 
 afterAll(async () => {
   await t.close();
@@ -258,11 +286,12 @@ describe('the demo business', () => {
     ).toBeGreaterThan(2);
   });
 
-  it('has credit accounts: one on hold, one near its limit, two requests waiting', async () => {
+  it('has credit accounts: two on hold, one near its limit, two requests waiting', async () => {
     const profiles = await get<{
       items: { status: string; check: { utilizationPercent: number | null } }[];
     }>('/credit-profiles?limit=200');
-    expect(profiles.items.filter((p) => p.status === 'on_hold')).toHaveLength(1);
+    // The builder held by hand, and the one the nightly job held for overdue bills.
+    expect(profiles.items.filter((p) => p.status === 'on_hold')).toHaveLength(2);
     expect(profiles.items.some((p) => (p.check.utilizationPercent ?? 0) >= 90)).toBe(true);
     const pending = await get<{ total: number }>('/credit-requests?status=pending');
     expect(pending.total).toBe(2);
@@ -373,7 +402,8 @@ describe('the demo business', () => {
     expect(invoices?.onAccount).toBeGreaterThan(10);
 
     const notes = await get<{ items: { kind: string }[] }>('/notes?limit=200');
-    expect(notes.items.filter((note) => note.kind === 'credit_note')).toHaveLength(3);
+    // Two returns and a discount on credit bills, and a homeowner's return (painter points).
+    expect(notes.items.filter((note) => note.kind === 'credit_note')).toHaveLength(4);
     expect(notes.items.filter((note) => note.kind === 'debit_note')).toHaveLength(1);
     expect((await get<{ total: number }>('/payments?chequeStatus=bounced')).total).toBe(1);
     expect(
@@ -402,6 +432,17 @@ describe('the demo business', () => {
     expect(await findAllocationMismatches(t.connection.db)).toEqual([]);
   });
 
+  it('pays for its plan with a paid invoice and the renewal to come (manual invoicing)', async () => {
+    const subscription = await get<SubscriptionView>('/subscription');
+    const [invoice] = await get<SubscriptionInvoiceView[]>('/subscription/invoices');
+    expect(invoice).toMatchObject({ issuedOn: indiaDate(0), payment: { paidOn: indiaDate(0) } });
+    // Paid to the end of its month; our renewal invoice is raised 7 days before then.
+    expect(Date.parse(String(subscription.currentPeriodEnd))).toBeGreaterThan(
+      Date.now() + 25 * 86_400_000,
+    );
+    expect(subscription).toMatchObject({ pastDueSince: null, cancelAtPeriodEnd: false });
+  });
+
   it('has near-duplicate parties to merge', async () => {
     const parties = await get<{ items: { displayName: string }[] }>('/parties?limit=200');
     const names = parties.items.map((party) => party.displayName);
@@ -419,6 +460,193 @@ describe('the demo business', () => {
     const clock = new HistoryClock(demoUrl);
     expect(await clock.apply()).toBe(0);
     await clock.close();
+  });
+});
+
+describe('Release 2.1 for a pilot walkthrough', () => {
+  it('asks for credit approvals, which are approved, used, rejected or still waiting', async () => {
+    const page = (query: string) => get<CreditApprovalPage>(`/credit-approvals?${query}`);
+    expect((await page('status=pending')).total).toBe(1);
+    expect((await page('status=used')).total).toBeGreaterThan(0);
+    const rejected = await page('status=rejected');
+    expect(rejected.items).toEqual([
+      expect.objectContaining({
+        kind: 'sale',
+        decisionReason: 'Over the limit already; collect the September bills first',
+      }),
+    ]);
+    const released = await page('status=approved&kind=release');
+    expect(released.items).toEqual([
+      expect.objectContaining({ kind: 'release', waiveOverdueUntil: indiaDate(-14) }),
+    ]);
+  });
+
+  it('holds an overdue account automatically, and released another with a waiver', async () => {
+    const held = await get<PartyCreditSummary>(`/parties/${await partyId('builder-2')}/credit`);
+    expect(held).toMatchObject({ status: 'on_hold', holdKind: 'auto' });
+    expect(held.overdueDays).toBeGreaterThan(30);
+    const manual = await get<PartyCreditSummary>(`/parties/${await partyId('builder-1')}/credit`);
+    expect(manual).toMatchObject({ status: 'on_hold', holdKind: 'manual' });
+    const dealer = await get<PartyCreditSummary>(`/parties/${await partyId('dealer-2')}/credit`);
+    expect(dealer).toMatchObject({
+      status: 'active',
+      holdKind: null,
+      overdueWaivedUntil: indiaDate(-14),
+    });
+    expect(dealer.overdueDays).toBeGreaterThan(30);
+    expect(dealer.check.decision).not.toBe('blocked');
+    const [run] = await rows<{ held: number }>(
+      sql`select held_count as held from ${schema.creditHoldRuns} where run_on = ${indiaDate(0)}`,
+    );
+    expect(run?.held).toBe(2);
+  });
+
+  it('ages receivables in every bucket, each customer exactly as its ledger', async () => {
+    const page = await get<AgeingPage>('/receivables/ageing?limit=500');
+    for (const bucket of AGEING_BUCKETS) {
+      expect({ bucket, filled: page.totals.buckets[bucket] > 0 }).toEqual({ bucket, filled: true });
+    }
+    const balances = await rows<{ party_id: string; balance: string; advance: string }>(
+      sql`select party_id, balance_paise as balance, advance_paise as advance from ${schema.partyBalances}`,
+    );
+    for (const balance of balances) {
+      const row = page.rows.find((entry) => entry.id === balance.party_id);
+      expect({ party: balance.party_id, net: row?.totals.netPaise ?? 0 }).toEqual({
+        party: balance.party_id,
+        net: Number(balance.balance),
+      });
+      expect(row?.totals.unappliedPaise ?? 0).toBe(Number(balance.advance));
+    }
+    const summary = await get<ReceivablesSummaryView>('/receivables/summary');
+    expect(summary.totals).toEqual(page.totals);
+    expect(summary.topCustomers.length).toBeGreaterThan(0);
+  });
+
+  it('keeps site accounts under a contractor, agreeing with the receivables ageing (spec §2.3)', async () => {
+    const contractor = await partyId('contractor-2');
+    const sites = await get<SiteAccountView[]>(`/parties/${contractor}/sites`);
+    expect(sites.map((site) => [site.project.name, site.limitPaise, site.status]).sort()).toEqual(
+      [
+        [SITES[0].name, SITES[0].limitRupees * 100, 'active'],
+        [SITES[1].name, SITES[1].limitRupees * 100, 'on_hold'],
+      ].sort(),
+    );
+    const party = await get<AgeingPage>('/receivables/ageing?limit=500');
+    const total = party.rows.find((row) => row.id === contractor);
+    const sum = Object.fromEntries(AGEING_BUCKETS.map((bucket) => [bucket, 0])) as Record<
+      AgeingBucket,
+      number
+    >;
+    const onSites = new Set<string>();
+    for (const view of sites) {
+      const site = await get<SiteAccountDetail>(`/site-accounts/${view.id}`);
+      expect(site.ledger.length).toBeGreaterThan(0);
+      const filtered = await get<AgeingPage>(
+        `/receivables/ageing?limit=500&projectId=${view.project.id}`,
+      );
+      const row = filtered.rows.find((entry) => entry.id === contractor);
+      expect(row?.totals.buckets ?? site.ageing).toEqual(site.ageing);
+      expect(row?.totals.outstandingPaise ?? 0).toBe(site.outstandingPaise);
+      for (const bucket of AGEING_BUCKETS) sum[bucket] += site.ageing[bucket];
+      for (const document of site.openDocuments) onSites.add(document.documentId);
+    }
+    // The rest of the contractor's bills, on no site, aged from the 2.0 ledger.
+    const ledger = await get<PartyLedgerView>(`/parties/${contractor}/ledger`);
+    for (const document of ledger.openDocuments) {
+      if (document.documentId !== null && onSites.has(document.documentId)) continue;
+      const due = document.dueOn ?? document.issuedOn;
+      const days = Math.round((Date.parse(indiaDate(0)) - Date.parse(due)) / 86_400_000);
+      sum[ageingBucket(days)] += document.outstandingPaise;
+    }
+    expect(sum).toEqual(total?.totals.buckets);
+    expect(total?.totals.netPaise).toBe(ledger.balancePaise);
+  });
+
+  it('collects: promises kept, broken and open, escalations, reminders, messages and links', async () => {
+    const promises = await rows<{ status: string; count: number }>(
+      sql`select status::text, count(*)::int as count from ${schema.promisesToPay} group by 1 order by 1`,
+    );
+    expect(promises).toEqual([
+      { status: 'broken', count: 2 },
+      { status: 'kept', count: 1 },
+      // The site contractor's, running since yesterday; the dealer's, made again today.
+      { status: 'open', count: 2 },
+    ]);
+    // Dated in the past, as they were made; never promised before they were made.
+    const [dates] = await rows<{ bad: number; past: number }>(sql`
+      select count(*) filter (where promised_on < made_on)::int as bad,
+             count(*) filter (where made_on < ${indiaDate(0)}::date)::int as past
+      from ${schema.promisesToPay}`);
+    expect(dates).toEqual({ bad: 0, past: 4 });
+    // The timeline's activity names the promised date as the promise has it.
+    const activities = await rows<{ subject: string; promised: string }>(sql`
+      select a.subject, p.promised_on::text as promised from ${schema.activities} a
+      join ${schema.promisesToPay} p on p.activity_id = a.id`);
+    expect(activities).toHaveLength(5);
+    for (const activity of activities)
+      expect(activity.subject).toContain(`by ${activity.promised}`);
+
+    const escalations = await get<EscalationView[]>('/collections/escalations?open=false');
+    expect(escalations).toHaveLength(2);
+    expect(escalations.filter((e) => e.acknowledgedAt !== null).map((e) => e.party.id)).toEqual([
+      await partyId('dealer-2'),
+    ]);
+    const worklist = await get<WorklistPage>('/collections/worklist?limit=200');
+    expect(worklist.rows[0]?.openEscalationId).toEqual(expect.any(String));
+    expect(worklist.rows.some((row) => row.openPromise !== null)).toBe(true);
+    const schedules = await get<ReminderScheduleView[]>('/collections/reminder-schedules');
+    expect(schedules.map((schedule) => schedule.offsetDays)).toEqual(
+      REMINDER_SCHEDULES.map((schedule) => schedule.offsetDays),
+    );
+
+    const messages = await rows<{ template: string; status: string; reason: string | null }>(sql`
+      select template_key as template, status, skip_reason as reason from ${schema.messageOutbox}
+      group by 1, 2, 3 order by 1, 2, 3`);
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        { template: 'payment_reminder_overdue', status: 'sent', reason: null },
+        { template: 'points_earned', status: 'sent', reason: null },
+        { template: 'points_earned', status: 'skipped', reason: 'no_consent' },
+        { template: 'statement_ready', status: 'sent', reason: null },
+      ]),
+    );
+    const [provider] = await rows<{ providers: string[] }>(sql`
+      select array_agg(distinct provider) as providers from ${schema.messageOutbox}
+      where status = 'sent' and channel = 'whatsapp'`);
+    expect(provider?.providers).toEqual(['log']);
+    const [consents] = await rows<{ granted: number; withdrawn: number }>(sql`
+      select count(*) filter (where state = 'granted')::int as granted,
+             count(*) filter (where state = 'withdrawn')::int as withdrawn
+      from ${schema.messagingConsents}`);
+    expect(consents).toEqual({ granted: 6, withdrawn: 1 });
+    const links = await rows<{ revoked: boolean }>(
+      sql`select revoked_at is not null as revoked from ${schema.statementLinks} order by 1`,
+    );
+    expect(links).toEqual([{ revoked: false }, { revoked: true }]);
+  });
+
+  it('earns painter points by rules, double on one brand, and takes them back on a return', async () => {
+    const rules = await get<EarnRuleView[]>('/loyalty-earn-rules');
+    expect(rules).toHaveLength(3);
+    expect(rules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          multiplierBps: 20_000,
+          brand: expect.objectContaining({ name: 'Asian Paints' }),
+        }),
+      ]),
+    );
+    const [earned] = await rows<{ bills: number; points: number }>(sql`
+      select count(*)::int as bills, sum(points)::int as points from ${schema.loyaltyLedger}
+      where kind::text = 'influencer'`);
+    expect(earned?.bills).toBe(6);
+    expect(earned?.points).toBeGreaterThan(0);
+    const [taken] = await rows<{ count: number }>(sql`
+      select count(*)::int as count from ${schema.loyaltyLedger} l
+      join ${schema.loyaltyAccounts} a on a.id = l.account_id
+      join ${schema.taxDocuments} n on n.id = l.tax_document_id and n.kind = 'credit_note'
+      where l.kind = 'adjust' and l.points < 0 and a.party_id = ${await partyId('painter-1')}`);
+    expect(taken?.count).toBe(1);
   });
 });
 

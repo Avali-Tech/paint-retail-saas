@@ -105,7 +105,8 @@ The ageing invariant 1b tests for every party and every `asOf`:
   keep their signatures (1a may add optional parameters only).
 - Site accounts (§3.3) filter documents by `tax_documents.project_id`. 1b's ageing takes an optional
   `projectId` filter from day one so the site screen can link to it; 1a's site view computes its own
-  figures with the same bucket edges (§2.2), and a round 6 test checks both agree.
+  figures with the same bucket edges (§2.2), and a round 6 test checks both agree. (As built: the
+  filter and the test came in round 4b, `receivables/site-agreement.int.test.ts`.)
 
 ### 2.4 What 1b gives 1a
 
@@ -659,12 +660,51 @@ credit notes for our invoices, a live gateway ([PO-2], [PO-25]).
 
 ### Round 4 — money comes in by itself
 
-| Session                           | Builds                                                                                                                                                                                                                                                     | Depends on |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| 4a [migrations] UPI payment links | P2-M32 payment links on round 3a's payment-gateway port (`PaymentCreator`, `WebhookVerifier`, `receiveGatewayWebhook` and its idempotent `payment_gateway_events`), a `log` adapter, auto-match and allocation; link on reminders, statements and invoices | Round 3a   |
+| Session                           | Builds                                                                                                                                                                                                                                                               | Depends on |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 4a [migrations] UPI payment links | P2-M32 payment links on round 3a's payment-gateway port (`PaymentCreator`, `WebhookVerifier`, `receiveGatewayWebhook` and its idempotent `payment_gateway_events`), a `log` adapter, auto-match and allocation; link on reminders, statements and invoices           | Round 3a   |
+| 4b Pilot readiness, part 1        | The first half of round 6b, brought forward with no migrations: the 2.1 demo seed for rounds 1–3, large-shop scale of receivables, collections, credit and statements, the site-vs-ageing agreement test (§2.3), accessibility and translations of the MVP 3 screens | Rounds 1–3 |
 
 **Demo:** a reminder paid through the `log` gateway's signed webhook is recorded and allocated with no
 manual entry, and a replayed webhook changes nothing.
+
+**4b as built:**
+
+- **Demo seed** (`apps/api/src/demo/seed-sites.ts`, `seed-collections.ts`, `seed-points.ts`, and the
+  credit stories in `seed-accounts.ts` and `seed-sales.ts`). A pilot walkthrough of Sharma Paints shows:
+  - credit approvals used, one waiting, one rejected and an approved release;
+  - an automatic overdue hold (a builder whose opening balance lapsed);
+  - a dealer held automatically, then released with a two-week waiver after its broken promise's
+    escalation is acknowledged;
+  - two site accounts under a contractor, one on hold;
+  - receivables in every ageing bucket;
+  - consents (one withdrawn), reminder schedules, promises kept, broken and open, and today's
+    reminders;
+  - messages sent by the `log` provider and one skipped without consent;
+  - a statement link sent on WhatsApp and another revoked;
+  - painter points rules (a brand multiplier), points earned on homeowners' bills and taken back by
+    a return;
+  - the paid subscription invoice of round 3a.
+
+  `seed.int.test.ts` checks each feature and that every ageing row equals its ledger. The
+  history clock now moves promises' dates (and the date in their activity) with the day they
+  were made. The worker's final run is at noon India time, so the seed never depends on the hour
+  it runs. The seed and the running demo API use the `log` WhatsApp provider.
+
+- **Site agreement (§2.3):** `GET /receivables/ageing?projectId=` ages only the site's bills (no
+  openings, charges or advances). `receivables/site-agreement.int.test.ts` checks, over six random
+  books, that every site's ageing and outstanding equal the filtered ageing, and that the sites
+  plus the bills on no site make up the party's ageing and balance. The demo test checks the same
+  for the demo contractor.
+- **Scale:** the large demo adds 1,200 credit customers' books (`demo/bulk-receivables.ts`).
+  `receivables/receivables-scale.int.test.ts` holds query counts and generous times at 1,500
+  credit customers. Measurements and fixes are in [performance.md](../performance.md#release-21-receivables-collections-credit-and-statements):
+  - the credit list ran a query per customer;
+  - site accounts ran a query per site;
+  - statement and other PDFs re-read their font for every line.
+- **Accessibility and translations:** axe (`expectUsable`) on every MVP 3 screen, on desktop and on
+  a phone in Hindi and Telugu (`languages.spec.ts`, `billing.spec.ts`, `credit-approvals.spec.ts`).
+  No violations or missing keys were found. The hi and te files stay drafts, as marked.
 
 ### Round 5 — brand schemes and profitability
 
@@ -678,10 +718,10 @@ made the most money last quarter.
 
 ### Round 6 — brand statements and pilot readiness
 
-| Session                               | Builds                                                                                                                                                                                | Depends on |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| 6a [migrations] Brand statement recon | P2-M34 templates, import, matching, mismatch list; any CA-driven fixes                                                                                                                | 5a         |
-| 6b Pilot readiness                    | 2.1 demo seed (approvals, holds, sites, promises, schemes), scale of ageing and worklists at large-shop volume, translations, accessibility, the site-vs-ageing agreement test (§2.3) | Rounds 1–5 |
+| Session                               | Builds                                                                                                                                                | Depends on |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 6a [migrations] Brand statement recon | P2-M34 templates, import, matching, mismatch list; any CA-driven fixes                                                                                | 5a         |
+| 6b Pilot readiness, part 2            | What rounds 4–6 add to the 2.1 demo seed (payment links, schemes, brand statements), their scale, translations and accessibility; part 1 was round 4b | Rounds 1–5 |
 
 **Demo:** a month's brand statement reconciles with mismatches listed; a pilot shop's collections
 morning: worklist, two promises, one UPI payment allocated by itself, ageing and statements reconciled.
@@ -726,6 +766,7 @@ morning: worklist, two promises, one UPI payment allocated by itself, ageing and
 | PO-34 | Credit cost in P2-M35: receivables only (spec), or net of the credit days the brand gives us (roadmap "given vs received")?                                                                                                | Receivables only                                                          |
 | PO-35 | How should brand-level scheme money be split across products and stores in P2-M35?                                                                                                                                         | By cost of sales, else net sales, else evenly                             |
 | PO-36 | Slab projection: straight-line run-rate over calendar days, or weighted for quarter-end buying?                                                                                                                            | Straight line                                                             |
+| PO-50 | The pilot demo's subscription is paid today, so its renewal invoice comes in about three weeks. Should the walkthrough instead show a renewal invoice already raised and due (a period that began weeks ago)?              | As round 3a seeds it: paid today, renewal date shown                      |
 
 ### For the CA
 
@@ -742,3 +783,4 @@ morning: worklist, two promises, one UPI payment allocated by itself, ageing and
 | CA-9  | Our renewal invoices are raised 7 days before the period they bill (continuous supply, s.31(5)); an invoice never paid, or for a plan never started, needs a credit note: when, and with what reason? Is SAC 998315 right? | subscriptions.md §3.3, §4 |
 | CA-20 | Scheme-free goods enter stock at zero cost (lowering average cost) and are not added again as a benefit in P2-M35; is that right for stock valuation and input tax?                                                        | §6.3                      |
 | CA-21 | Slab value counts the GRN's taxable value at cost before GST, by GRN date; should it follow the supplier invoice date instead, as brands do?                                                                               | §6.3                      |
+| CA-40 | An opening balance imported without "overdue since": receivables ageing ages it from the go-live date (overdue at once), while the credit check, the nightly hold and reminders treat it as current ([CA-7]). Which one?   | §2.2, §4.5                |

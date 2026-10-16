@@ -13,8 +13,7 @@ import {
   type SalesLineView,
   type SecondLanguage,
 } from '@paint/shared';
-import PDFDocument from 'pdfkit';
-import { PDF_FONTS } from './render-invoice-pdf.js';
+import { pdfDocument } from './render-invoice-pdf.js';
 
 /**
  * A quotation as an A4 PDF (spec §5.3 "Share"), drawn with pdfkit and the invoice
@@ -423,11 +422,10 @@ export function renderQuotationPdf(
   store: QuotationPdfStore,
   second: SecondLanguage | null = null,
 ): Promise<Buffer> {
-  const doc = new PDFDocument({
+  const doc = pdfDocument({
     size: 'A4',
     margin: MARGIN,
     bufferPages: true,
-    font: PDF_FONTS.regular,
     lang: 'en-IN',
     info: {
       Title: `Quotation ${quotation.number} v${String(quotation.version)}`,
@@ -435,7 +433,6 @@ export function renderQuotationPdf(
       Subject: 'Quotation',
     },
   });
-  for (const [name, path] of Object.entries(PDF_FONTS)) doc.registerFont(name, path);
   const chunks: Buffer[] = [];
   doc.on('data', (chunk: Buffer) => chunks.push(chunk));
   const done = new Promise<Buffer>((resolve) => {

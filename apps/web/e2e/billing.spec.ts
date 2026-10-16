@@ -92,3 +92,31 @@ test('a trial business asks for a plan, pays our invoice by bank transfer and is
   await expect(plans.getByRole('button', { name: 'Current plan: Standard' })).toBeDisabled();
   await expectUsable(page);
 });
+
+test('billing and the console’s invoices fit a phone @phone', async ({ page, context }) => {
+  const business = await createBusiness(`Phone Billing Paints ${String(Date.now() % 1_000_000)}`);
+  const id = await tenantId(business);
+  await call('PATCH', `/platform/tenants/${id}`, {
+    token: operatorSession().token,
+    body: { plan: 'trial' },
+  });
+  await signInWithPassword(page, business.ownerPhone);
+  await page.goto('/settings/billing');
+  const plans = page.getByRole('region', { name: 'Plans' });
+  await plans.getByRole('button', { name: 'Upgrade: Standard' }).click();
+  await expect(plans.getByRole('button', { name: 'Requested: Standard' })).toBeDisabled();
+  await expectUsable(page);
+
+  const operatorPage = await context.newPage();
+  await openConsole(operatorPage, `/platform/tenants/${id}`);
+  const billing = operatorPage.getByRole('region', { name: 'Invoices and payments' });
+  await billing.getByRole('button', { name: 'Apply' }).click();
+  await expect(billing.getByRole('table', { name: 'Invoices to the business' })).toContainText(
+    'Due',
+  );
+  await expectUsable(operatorPage);
+
+  await page.reload();
+  await expect(page.getByRole('table', { name: 'Our invoices to you' })).toContainText('Due');
+  await expectUsable(page);
+});

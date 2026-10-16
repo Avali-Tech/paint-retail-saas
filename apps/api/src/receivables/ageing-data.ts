@@ -38,6 +38,12 @@ export interface AgeingScope {
   readonly salespersonId?: string;
   /** Customer name or mobile. */
   readonly q?: string;
+  /**
+   * Only the bills booked to this site (project), as a site account sees them (spec
+   * §2.3, §3.3): no opening balances or charges, and nothing paid ahead, as advances
+   * are not site money. Money set against the site's bills still counts.
+   */
+  readonly projectId?: string;
 }
 
 export interface AgeingInput {
@@ -82,6 +88,13 @@ export async function loadAgeing(
   const asOf = sql`${scope.asOf}::date`;
   const store = (column: SQL) =>
     scope.storeId === undefined ? sql`true` : sql`${column} = ${scope.storeId}`;
+  /** Bills of the site only; nothing that is not a bill with a project. */
+  const site = (column: SQL | null) =>
+    scope.projectId === undefined
+      ? sql`true`
+      : column === null
+        ? sql`false`
+        : sql`${column} = ${scope.projectId}`;
   /** Allocations taking effect by the as-of day, summed; `x` is the dated allocation. */
   const allocated = sql`coalesce(sum(x.amount_paise) filter (where x.eff_on <= ${asOf}), 0)`;
   const dated = sql`coalesce(json_agg(json_build_object('on', x.eff_on, 'amountPaise', x.amount_paise)
@@ -132,6 +145,7 @@ export async function loadAgeing(
       where d.kind in ('invoice', 'bill_of_supply', 'debit_note') and d.status in ('issued', 'cancelled')
         and d.total_paise > 0 and d.issued_on <= ${asOf}
         and d.party_id in (select id from scope) and ${store(sql`d.store_id`)}
+        and ${site(sql`d.project_id`)}
       group by d.id
       union all
       select 'owed', l.id, case l.entry_type when 'opening' then 'opening' else 'charge' end,
@@ -145,7 +159,7 @@ export async function loadAgeing(
       from ${partyLedger} l
       left join x on x.party_ledger_id = l.id
       where l.entry_type in ('opening', 'adjustment') and l.amount_paise > 0 and l.entry_on <= ${asOf}
-        and l.party_id in (select id from scope) and ${store(sql`l.store_id`)}
+        and l.party_id in (select id from scope) and ${store(sql`l.store_id`)} and ${site(null)}
       group by l.id
     ),
     paid as (
@@ -156,7 +170,7 @@ export async function loadAgeing(
       from ${payments} p
       left join x on x.payment_id = p.id
       where p.direction = 'in' and p.received_on <= ${asOf}
-        and p.party_id in (select id from scope) and ${store(sql`p.store_id`)}
+        and p.party_id in (select id from scope) and ${store(sql`p.store_id`)} and ${site(null)}
       group by p.id
       union all
       select 'paid', d.id, 'credit_note', d.party_id, d.store_id, d.number, d.issued_on, null::date,
@@ -166,7 +180,7 @@ export async function loadAgeing(
       left join x on x.credit_note_id = d.id
       where d.kind = 'credit_note' and d.status in ('issued', 'cancelled') and d.total_paise > 0
         and d.issued_on <= ${asOf}
-        and d.party_id in (select id from scope) and ${store(sql`d.store_id`)}
+        and d.party_id in (select id from scope) and ${store(sql`d.store_id`)} and ${site(null)}
       group by d.id
     )
     select side, id, kind, party_id, store_id, number, raised_on::text, due_on::text, total,

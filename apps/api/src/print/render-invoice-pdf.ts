@@ -28,6 +28,19 @@ export const PDF_FONTS = {
   te: fontFile('NotoSansTelugu-Regular.ttf'),
 } as const;
 
+/**
+ * A PDF document with the Noto fonts registered by name (`regular`, `bold`, `hi`,
+ * `te`). It is given no default font file on purpose: pdfkit 0.20 caches a registered
+ * font under its name only when it opens it first, so a default loaded from the same
+ * file made every later `font('regular')` read and parse the file again (a statement of
+ * 300 entries took 2.9 s; now 0.1 s). Every renderer sets the font before it writes.
+ */
+export function pdfDocument(options: PDFKit.PDFDocumentOptions): PDFKit.PDFDocument {
+  const doc = new PDFDocument(options);
+  for (const [name, path] of Object.entries(PDF_FONTS)) doc.registerFont(name, path);
+  return doc;
+}
+
 export interface InvoicePdfAssets {
   /** The logo's bytes (PNG or JPEG; anything else is left out and the name printed alone). */
   readonly logo: Uint8Array | null;
@@ -472,11 +485,10 @@ export function renderInvoicePdf(
   view: InvoiceView,
   assets: InvoicePdfAssets = { logo: null },
 ): Promise<Buffer> {
-  const doc = new PDFDocument({
+  const doc = pdfDocument({
     size: 'A4',
     margin: MARGIN,
     bufferPages: true,
-    font: PDF_FONTS.regular,
     lang: 'en-IN',
     info: {
       Title: `${view.title.text} ${view.number}`,
@@ -484,7 +496,6 @@ export function renderInvoicePdf(
       Subject: view.title.text,
     },
   });
-  for (const [name, path] of Object.entries(PDF_FONTS)) doc.registerFont(name, path);
   const chunks: Buffer[] = [];
   doc.on('data', (chunk: Buffer) => chunks.push(chunk));
   const done = new Promise<Buffer>((resolve) => {

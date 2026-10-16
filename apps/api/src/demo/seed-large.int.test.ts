@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { findStockMismatches, postStockMovementsInBulk, schema, withTenant } from '@paint/db';
+import {
+  findAllocationMismatches,
+  findPartyBalanceMismatches,
+  findStockMismatches,
+  postStockMovementsInBulk,
+  schema,
+  withTenant,
+} from '@paint/db';
 import { withPgClient } from '@paint/testing';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, inject, it, vi } from 'vitest';
@@ -46,7 +53,9 @@ beforeAll(async () => {
     payload: { identifier: '+919000000001', password: DEMO_PASSWORD },
   });
   owner = login.json<{ token: string }>().token;
-}, 300_000);
+  // A minute alone; the full demo plus the large shop's receivables take longer beside the
+  // rest of the suite under coverage.
+}, 600_000);
 
 afterAll(async () => {
   await t.close();
@@ -121,6 +130,57 @@ describe('the large demo', () => {
     expect(low.total).toBeGreaterThan(0);
   });
 
+  it('adds receivables: bills on account, payments, holds, sites and promises, all reconciled', async () => {
+    expect(await findPartyBalanceMismatches(t.connection.db)).toEqual([]);
+    expect(await findAllocationMismatches(t.connection.db)).toEqual([]);
+    const counts = await one<{
+      profiles: number;
+      sites: number;
+      promises: number;
+      escalations: number;
+      numbers: number;
+      invoices: number;
+    }>(sql`
+      select (select count(*)::int from ${schema.creditProfiles} where status <> 'none') as profiles,
+             (select count(*)::int from ${schema.siteCreditAccounts}) as sites,
+             (select count(*)::int from ${schema.promisesToPay}) as promises,
+             (select count(*)::int from ${schema.collectionEscalations}) as escalations,
+             (select count(distinct number)::int from ${schema.taxDocuments} where kind = 'invoice' and number is not null) as numbers,
+             (select count(*)::int from ${schema.taxDocuments} where kind = 'invoice' and number is not null) as invoices`);
+    expect(counts.profiles).toBeGreaterThan(scale.creditCustomers);
+    expect(counts.sites).toBeGreaterThan(2);
+    expect(counts.promises).toBeGreaterThan(5);
+    expect(counts.escalations).toBeGreaterThan(2);
+    expect(counts.numbers).toBe(counts.invoices);
+    const ageing = await get<{ total: number }>('/receivables/ageing?limit=1');
+    expect(ageing.total).toBeGreaterThan(scale.creditCustomers);
+    const worklist = await get<{ total: number }>('/collections/worklist?limit=1');
+    expect(worklist.total).toBeGreaterThan(scale.creditCustomers / 4);
+
+    // The receipt series goes on from the bulk payments.
+    const [last] = (
+      await t.connection.db.execute<{ number: string; party_id: string; store_id: string }>(
+        sql`select number, party_id, store_id from ${schema.payments} order by number desc limit 1`,
+      )
+    ).rows;
+    const modes = await get<{ id: string; kind: string }[]>('/payment-modes');
+    const paid = await t.app.inject({
+      method: 'POST',
+      url: '/payments',
+      headers: bearer(owner),
+      payload: {
+        storeId: last?.store_id,
+        partyId: last?.party_id,
+        modeId: modes.find((mode) => mode.kind === 'upi')?.id,
+        amountPaise: 100_00,
+      },
+    });
+    expect(paid.statusCode, paid.body).toBe(201);
+    expect(paid.json<{ number: string }>().number).toBe(
+      `RC-${String(Number(String(last?.number).slice(3)) + 1).padStart(6, '0')}`,
+    );
+  });
+
   it('writes every row inside the business, so row-level security shows it', async () => {
     const [organization] = (
       await t.connection.db
@@ -137,6 +197,10 @@ describe('the large demo', () => {
       schema.documents,
       schema.notifications,
       schema.loyaltyLedger,
+      schema.taxDocuments,
+      schema.payments,
+      schema.allocations,
+      schema.promisesToPay,
     ]) {
       const outside = await one<{ count: number }>(
         sql`select count(*)::int as count from ${table} where organization_id <> ${organization}`,
