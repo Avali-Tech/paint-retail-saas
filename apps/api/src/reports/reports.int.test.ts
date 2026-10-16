@@ -40,6 +40,14 @@ describe('report list', () => {
       'goods-receipts',
       'leads',
       'projects',
+      'sales-by-period',
+      'sales-by-store',
+      'sales-by-product',
+      'sales-by-brand',
+      'sales-by-category',
+      'sales-by-salesperson',
+      'sales-by-customer',
+      'payments-by-mode',
       'sales-by-influencer',
       'sales-by-site',
       'receivables-ageing',
@@ -47,6 +55,8 @@ describe('report list', () => {
       'brand-profitability',
       'brand-schemes',
       'brand-scheme-claims',
+      'gst-summary',
+      'gst-hsn-summary',
     ]);
     // Each filter says what input it takes, so the app builds them without copying enums.
     expect(owner[0]?.filters).toEqual([
@@ -95,6 +105,14 @@ describe('report list', () => {
       'stock-by-location',
       'stock-ledger',
       'transfers',
+      'sales-by-period',
+      'sales-by-store',
+      'sales-by-product',
+      'sales-by-brand',
+      'sales-by-category',
+      'sales-by-salesperson',
+      'sales-by-customer',
+      'payments-by-mode',
       'sales-by-influencer',
       'sales-by-site',
     ]);
