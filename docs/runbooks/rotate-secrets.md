@@ -14,6 +14,7 @@ except `AUTH_SECRET`, which is rotated only after a leak ([why](#auth_secret)).
 | Origin verify header (CloudFront → ALB)   | Terraform `random_password`           | `terraform apply -replace=module.stack.random_password.origin_verify`                                                                          | A few minutes of 403s while CloudFront updates (do it off-peak)                                                       |
 | `paint-<env>/platform-bootstrap-token`    | Terraform, ephemeral                  | Only exists while `platform_bootstrap_enabled`; turn it off after use                                                                          | —                                                                                                                     |
 | Sentry DSNs                               | Sentry                                | Create a new client key in Sentry, update Terraform `sentry_dsn` / the `WEB_SENTRY_DSN_*` variables, apply and deploy; then revoke the old key | —                                                                                                                     |
+| `paint-<env>/gateway-credentials-key`     | By hand (`openssl rand -base64 32`)   | Read [GATEWAY_CREDENTIALS_KEY](#gateway_credentials_key) first                                                                                 | None: businesses' Razorpay keys keep working                                                                          |
 | GitHub → AWS                              | none: OpenID Connect, no stored keys  | Nothing to rotate                                                                                                                              | —                                                                                                                     |
 
 ## Database password
@@ -68,6 +69,31 @@ aws ecs update-service --cluster paint-prod --service api --force-new-deployment
 ```
 
 Emails queued while tasks restart are sent by the worker on its next run (it retries failures).
+
+## GATEWAY_CREDENTIALS_KEY
+
+It wraps the data keys that seal each business's Razorpay keys for payment links
+([payment-links.md](../mvp-3/payment-links.md#3-credentials-security-design)). Losing it loses
+every business's connection (they reconnect with their keys); rotating it loses nothing:
+
+1. Keep the current value: `aws secretsmanager get-secret-value --secret-id
+paint-<env>/gateway-credentials-key`.
+2. Create a `paint-<env>/gateway-credentials-previous-key` secret with that value, and add it to
+   the API task as `GATEWAY_CREDENTIALS_PREVIOUS_KEY` (a Terraform change to the api module's
+   `api_secrets`, applied).
+3. Put a new value in: `aws secretsmanager put-secret-value --secret-id
+paint-<env>/gateway-credentials-key --secret-string "$(openssl rand -base64 32)"`, then restart.
+4. Each business's keys are sealed again under the new key the next time they are used (a link, a
+   refund, the settings page). When no row is sealed under the old key any more, remove the
+   previous key and restart:
+   ```sql
+   select count(*) from payment_gateway_accounts
+   where credentials_sealed is not null and split_part(credentials_sealed, ':', 2) <> '<new key id>';
+   ```
+   (The key id is the first 12 hex characters of HMAC-SHA256(key, `paint:gateway-credentials:key-id`).)
+
+If the key leaked, the sealed rows alone are still useless without database access; rotate as above
+and ask businesses to roll their Razorpay keys if the database leaked too.
 
 ## If a secret leaked
 

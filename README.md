@@ -752,7 +752,18 @@ statement shares carry a link too (`{{payLink}}`). The gateway's signed webhook
 "UPI link" mode, with no member and no register, allocates it oldest first and keeps the rest as an
 advance, tells the store's staff and sends the customer a receipt. Links are listed on the invoice,
 the customer 360 and `/payment-links`. `PAYMENT_LINK_PROVIDER=log` makes test links paid on the web
-app's `/pay/:reference` page; a real gateway waits for [PO-2]. Migrations 0079–0080.
+app's `/pay/:reference` page. Migrations 0079–0080.
+
+**Each shop's own Razorpay account and gateway refunds** (MVP 3 round 4c,
+[docs/mvp-3/payment-links.md](docs/mvp-3/payment-links.md)): with `PAYMENT_LINK_PROVIDER=razorpay`
+owners and admins connect their own Razorpay account under **Settings → Payment link settings**
+(keys checked, then sealed with envelope encryption under `GATEWAY_CREDENTIALS_KEY`; only their last
+four characters are ever shown) and paste the business's own webhook address
+(`/webhooks/payment-links/razorpay/<reference>`). Links live 10 minutes and ask for at most
+₹1,00,000 by default, net of the advance or for the bills' full outstanding, all settings of the
+business. Money a link took that nothing was owed for is refunded through the gateway by itself,
+booked as MVP 2 refunds (refund voucher, party ledger, Tally), retried, and kept as an advance with
+staff told when it fails. Migrations 0081–0082.
 
 **Loyalty** (roadmap P1-M26, spec §3.23): a party (typically a painter or contractor) gets a
 loyalty account, optionally looked after by a salesperson. Points live only in an append-only ledger
