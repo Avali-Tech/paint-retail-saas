@@ -27,7 +27,7 @@ import {
 } from '../test-support/billing-business.js';
 import { startTestApp, type TestApp } from '../test-support/test-app.js';
 
-const { creditProfiles, goLiveOpenings, loyaltyLedger, loyaltyAccounts } = schema;
+const { creditProfiles, loyaltyLedger, loyaltyAccounts } = schema;
 
 let database: TestDatabase;
 let t: TestApp;
@@ -134,26 +134,6 @@ describe('before go-live', () => {
       loyaltyAccounts: 0,
       posted: null,
     });
-    // An imported overdue date after the chosen go-live date is refused, and nothing is posted.
-    const late = await dbToday(t, -1);
-    const me = ok(await api(t, fresh.owner).get('/auth/me')).json<{ memberId: string }>();
-    await t.connection.db.insert(goLiveOpenings).values({
-      organizationId: fresh.organizationId,
-      partyId: fresh.parties.homeowner,
-      amountPaise: 700,
-      overdueSince: late,
-      importedByMemberId: me.memberId,
-    });
-    const refused = await api(t, fresh.owner).post('/sales/go-live', {
-      liveOn: await dbToday(t, -2),
-    });
-    expect(issuesOf(refused)).toEqual(['liveOn']);
-    expect(refused.json<{ issues: { message: string }[] }>().issues[0]?.message).toBe(
-      `Suresh is overdue since ${late}, after this date`,
-    );
-    await t.connection.db
-      .delete(goLiveOpenings)
-      .where(eq(goLiveOpenings.partyId, fresh.parties.homeowner));
     // Going live with the hand-entered figures as they are: an amount owed, nothing late.
     await t.connection.db.insert(creditProfiles).values({
       organizationId: fresh.organizationId,
@@ -217,14 +197,6 @@ describe('POST /sales/go-live', () => {
         }),
       ),
     ).toEqual(['openings']);
-    expect(
-      issuesOf(
-        await owner().post('/sales/go-live', {
-          liveOn: await dbToday(t, -2),
-          openings: [{ partyId: painter, amountPaise: 1, overdueSince: await dbToday(t, -1) }],
-        }),
-      ),
-    ).toEqual(['openings.0.overdueSince']);
     const staff = await b.member('branch_manager', [b.stores.amp]);
     expect((await api(t, staff).post('/sales/go-live', {})).statusCode).toBe(403);
   });

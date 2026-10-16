@@ -81,12 +81,6 @@ export class GoLiveService {
             given.partyId,
             `openings.${String(index)}.partyId`,
           );
-          if (typeof given.overdueSince === 'string' && given.overdueSince > liveOn) {
-            throw fieldError(
-              `openings.${String(index)}.overdueSince`,
-              'Cannot be after the go-live date',
-            );
-          }
           const known = openings.get(party.id);
           openings.set(party.id, {
             partyId: party.id,
@@ -106,13 +100,6 @@ export class GoLiveService {
         for (const opening of [...openings.values()].sort((a, b) =>
           a.partyId.localeCompare(b.partyId),
         )) {
-          // An imported overdue date after an earlier go-live date (the import checks today).
-          if (opening.overdueSince !== null && opening.overdueSince > liveOn) {
-            throw fieldError(
-              'liveOn',
-              `${opening.partyName} is overdue since ${opening.overdueSince}, after this date`,
-            );
-          }
           if (opening.overdueSince !== null) {
             await tx
               .insert(creditProfiles)

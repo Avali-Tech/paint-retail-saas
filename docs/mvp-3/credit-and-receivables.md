@@ -995,9 +995,9 @@ statements"); payment-link validity (§6.2 PL-19 – PL-20, [PO-60] and [PO-61] 
   from, linked to the `opening-balances` import, corrected or added on the screen (sent as
   `openings` with the post; `overdueSince: null` now clears a date, left out keeps it); the rule
   for a blank overdue date ([CA-7], [CA-40]); totals; a confirmation that it cannot be undone,
-  with a box to tick, posted once with an `Idempotency-Key`. `POST /sales/go-live` refuses an
-  overdue date after the go-live date, given or imported. Changes on the screen are not saved
-  until the post.
+  with a box to tick, posted once with an `Idempotency-Key`. The screen takes an overdue date up to
+  today, as the import does (one after a back-dated go-live date is accepted, [CA-100]). Changes
+  on the screen are not saved until the post.
 - **PO-101, credit in the parties import:** `credit_limit` (₹, up to ₹10 crore) and `credit_days`
   (0–365). For credit approvers (`credit:approve`); the terms are set by the code that applies an
   approved credit request (`credit/credit-terms.ts`: approver and time recorded, a party on hold

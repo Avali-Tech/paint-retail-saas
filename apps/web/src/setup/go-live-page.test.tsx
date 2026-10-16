@@ -170,7 +170,7 @@ describe('GoLivePage (PO-100)', { timeout: 30_000 }, () => {
     await user.type(amount, '40000');
     await user.clear(overdue);
     await user.type(overdue, addDays(today, 1));
-    await problem('Choose a day on or before the go-live date');
+    await problem('Choose today or an earlier day');
     await user.clear(overdue);
     await user.click(save);
 

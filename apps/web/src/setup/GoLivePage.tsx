@@ -97,22 +97,22 @@ function LiveCard({
 /** Edits one customer's opening balance and overdue date (CA-7, CA-40). */
 function OpeningDialog({
   entry,
-  liveOn,
   onClose,
   onSave,
 }: {
   readonly entry: OpeningEntry;
-  readonly liveOn: string;
   readonly onClose: () => void;
   readonly onSave: (entry: OpeningEntry) => void;
 }) {
   const { t } = useI18n();
+  // Not in the future, as the opening-balances import checks.
+  const today = todayInIndia();
   const [amount, setAmount] = useState(rupeesInput(entry.amountPaise));
   const [overdueSince, setOverdueSince] = useState(entry.overdueSince ?? '');
   const submit = () => {
     const amountPaise = parseRupees(amount);
     if (amountPaise === null || amountPaise < 0) return t('goLive.dialog.amountInvalid');
-    if (overdueSince !== '' && (!isDate(overdueSince) || overdueSince > liveOn)) {
+    if (overdueSince !== '' && (!isDate(overdueSince) || overdueSince > today)) {
       return t('goLive.dialog.overdueInvalid');
     }
     if (overdueSince !== '' && amountPaise === 0) return t('goLive.dialog.overdueNothing');
@@ -145,7 +145,7 @@ function OpeningDialog({
         <Field label={t('goLive.dialog.overdueSince')} hint={t('goLive.dialog.overdueHint')}>
           <Input
             type="date"
-            max={liveOn}
+            max={today}
             value={overdueSince}
             onChange={(event) => {
               setOverdueSince(event.target.value);
@@ -367,7 +367,6 @@ function Setup({
       {editing !== null && (
         <OpeningDialog
           entry={editing}
-          liveOn={liveOn}
           onSave={save}
           onClose={() => {
             setEditing(null);

@@ -104,7 +104,7 @@ export const setupEn = {
       overdueSince: 'Overdue since',
       overdueHint:
         'The day the oldest unpaid part fell due. Blank: none of it is late (see the note above).',
-      overdueInvalid: 'Choose a day on or before the go-live date',
+      overdueInvalid: 'Choose today or an earlier day',
       overdueNothing: 'Only for a customer who owes something',
       save: 'Use this balance',
     },

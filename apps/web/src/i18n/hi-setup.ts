@@ -106,7 +106,7 @@ export const setupHi: Translation<typeof setupEn> = {
       overdueSince: 'कब से ओवरड्यू',
       overdueHint:
         'जिस दिन सबसे पुराना बकाया हिस्सा देय हुआ। खाली: कुछ भी देर से नहीं (ऊपर का नोट देखें)।',
-      overdueInvalid: 'गो-लाइव तारीख या उससे पहले का दिन चुनें',
+      overdueInvalid: 'आज या पहले का कोई दिन चुनें',
       overdueNothing: 'सिर्फ उस ग्राहक के लिए जिस पर कुछ बकाया है',
       save: 'यह बैलेंस लें',
     },
