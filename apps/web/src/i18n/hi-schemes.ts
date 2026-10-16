@@ -134,6 +134,7 @@ export const schemesHi = {
       update: 'अपडेट करें',
       grns: 'गिने गए GRN',
       noGrns: 'ब्रांड की अभी कोई खरीद नहीं गिनी गई।',
+      grnPages: 'GRN पंक्तियों के पेज',
       grn: 'GRN',
       countedOn: 'गिनने की तारीख़',
       pack: 'पैक',

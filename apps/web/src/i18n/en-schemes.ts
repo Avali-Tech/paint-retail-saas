@@ -134,6 +134,7 @@ export const schemesEn = {
       update: 'Update',
       grns: 'GRNs counted',
       noGrns: 'No purchase of the brand counts yet.',
+      grnPages: 'GRN line pages',
       grn: 'GRN',
       countedOn: 'Counted on',
       pack: 'Pack',
