@@ -99,7 +99,8 @@ beforeAll(async () => {
   firstRun = await seed('seed');
   t = await startTestApp(demoUrl);
   owner = (await signIn('+919000000001')).json<{ token: string }>().token;
-}, 300_000);
+  // A minute and a half alone; longer beside the rest of the suite under coverage.
+}, 600_000);
 
 afterAll(async () => {
   await t.close();

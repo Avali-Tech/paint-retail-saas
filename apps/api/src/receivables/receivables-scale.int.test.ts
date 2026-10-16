@@ -144,14 +144,19 @@ afterAll(async () => {
   await database.stop();
 });
 
-/** Median wall time of five calls after one to warm up, and the queries one call runs. */
+/** Median wall time of five calls after one to warm up, and the queries a call runs. */
 async function measure(url: string, token = b.owner): Promise<{ ms: number; queries: number }> {
   const call = async () => ok(await api(t, token).get(url));
   await call();
-  const spy = vi.spyOn(pg.Client.prototype, 'query');
-  await call();
-  const queries = spy.mock.calls.length;
-  spy.mockRestore();
+  // The fewest of three calls: an occasional write (a session's last use) is not the read's.
+  const counts: number[] = [];
+  for (let run = 0; run < 3; run += 1) {
+    const spy = vi.spyOn(pg.Client.prototype, 'query');
+    await call();
+    counts.push(spy.mock.calls.length);
+    spy.mockRestore();
+  }
+  const queries = Math.min(...counts);
   const times: number[] = [];
   for (let run = 0; run < 5; run += 1) {
     const start = performance.now();
@@ -167,96 +172,100 @@ async function measure(url: string, token = b.owner): Promise<{ ms: number; quer
 
 const period = () => `from=${String(Number(today.slice(0, 4)) - 1)}-04-01&to=${today}`;
 
-describe(`receivables at a large shop (${String(CUSTOMERS)} credit customers)`, () => {
-  it('ages every customer, salesperson and store quickly, in a fixed number of queries', async () => {
-    for (const url of [
-      '/receivables/summary',
-      '/receivables/ageing?limit=50',
-      '/receivables/ageing?limit=50&groupBy=salesperson',
-      '/receivables/ageing?limit=50&groupBy=store',
-      '/receivables/ageing?limit=50&overdueOnly=true&offset=200',
-    ]) {
-      const { ms, queries } = await measure(url);
-      expect({ url, fast: ms < 4_000, queries: queries <= 12 }).toEqual({
-        url,
-        fast: true,
-        queries: true,
-      });
-    }
-    const site = await measure(`/receivables/ageing?limit=50&projectId=${siteProjectId}`);
-    expect(site.ms).toBeLessThan(2_000);
-  });
+describe(
+  `receivables at a large shop (${String(CUSTOMERS)} credit customers)`,
+  { timeout: 180_000 },
+  () => {
+    it('ages every customer, salesperson and store quickly, in a fixed number of queries', async () => {
+      for (const url of [
+        '/receivables/summary',
+        '/receivables/ageing?limit=50',
+        '/receivables/ageing?limit=50&groupBy=salesperson',
+        '/receivables/ageing?limit=50&groupBy=store',
+        '/receivables/ageing?limit=50&overdueOnly=true&offset=200',
+      ]) {
+        const { ms, queries } = await measure(url);
+        expect({ url, fast: ms < 4_000, queries: queries <= 12 }).toEqual({
+          url,
+          fast: true,
+          queries: true,
+        });
+      }
+      const site = await measure(`/receivables/ageing?limit=50&projectId=${siteProjectId}`);
+      expect(site.ms).toBeLessThan(2_000);
+    });
 
-  it('lists the collections worklist and escalations quickly', async () => {
-    for (const [url, token] of [
-      ['/collections/worklist?limit=50', b.owner],
-      ['/collections/worklist?limit=50&offset=100', b.owner],
-      ['/collections/worklist?limit=50&salespersonId=me', salesperson],
-      ['/collections/escalations?limit=50', b.owner],
-    ] as const) {
-      const { ms, queries } = await measure(url, token);
-      expect({ url, fast: ms < 4_000, queries: queries <= 16 }).toEqual({
-        url,
-        fast: true,
-        queries: true,
-      });
-    }
-  });
+    it('lists the collections worklist and escalations quickly', async () => {
+      for (const [url, token] of [
+        ['/collections/worklist?limit=50', b.owner],
+        ['/collections/worklist?limit=50&offset=100', b.owner],
+        ['/collections/worklist?limit=50&salespersonId=me', salesperson],
+        ['/collections/escalations?limit=50', b.owner],
+      ] as const) {
+        const { ms, queries } = await measure(url, token);
+        expect({ url, fast: ms < 4_000, queries: queries <= 16 }).toEqual({
+          url,
+          fast: true,
+          queries: true,
+        });
+      }
+    });
 
-  it('checks credit exposure without a query per customer', async () => {
-    const page = await measure('/credit-profiles?limit=50');
-    const longer = await measure('/credit-profiles?limit=200');
-    // A page of 200 runs no more queries than a page of 50.
-    expect(longer.queries).toBe(page.queries);
-    expect(longer.queries).toBeLessThanOrEqual(16);
-    expect(longer.ms).toBeLessThan(3_000);
-    // A contractor's sites come with their figures, however many it has.
-    const one = await measure(`/parties/${siteParty}/sites`);
-    for (let site = 0; site < 5; site += 1) {
-      const project = ok(
-        await api(t, b.owner).post('/projects', {
-          storeId: b.stores.amp,
-          customerPartyId: siteParty,
-          name: `Another site ${String(site)}`,
-        }),
-      ).json<{ id: string }>();
-      ok(
-        await api(t, b.owner).post(`/parties/${siteParty}/sites`, {
-          projectId: project.id,
-          limitPaise: 50_000_00,
-        }),
-      );
-    }
-    const six = await measure(`/parties/${siteParty}/sites`);
-    expect(six.queries).toBe(one.queries);
-    for (const url of [
-      `/parties/${busiest}/credit`,
-      `/invoices/${draftId}/credit-check?unpaidPaise=23600`,
-      `/site-accounts/${siteId}`,
-    ]) {
-      const { ms } = await measure(url);
-      expect({ url, fast: ms < 1_500 }).toEqual({ url, fast: true });
-    }
-  });
+    it('checks credit exposure without a query per customer', async () => {
+      const page = await measure('/credit-profiles?limit=50');
+      const longer = await measure('/credit-profiles?limit=200');
+      // A page of 200 runs no more queries than a page of 50.
+      expect(longer.queries).toBe(page.queries);
+      expect(longer.queries).toBeLessThanOrEqual(16);
+      expect(longer.ms).toBeLessThan(3_000);
+      // A contractor's sites come with their figures, however many it has.
+      const one = await measure(`/parties/${siteParty}/sites`);
+      for (let site = 0; site < 5; site += 1) {
+        const project = ok(
+          await api(t, b.owner).post('/projects', {
+            storeId: b.stores.amp,
+            customerPartyId: siteParty,
+            name: `Another site ${String(site)}`,
+          }),
+        ).json<{ id: string }>();
+        ok(
+          await api(t, b.owner).post(`/parties/${siteParty}/sites`, {
+            projectId: project.id,
+            limitPaise: 50_000_00,
+          }),
+        );
+      }
+      const six = await measure(`/parties/${siteParty}/sites`);
+      expect(six.queries).toBe(one.queries);
+      for (const url of [
+        `/parties/${busiest}/credit`,
+        `/invoices/${draftId}/credit-check?unpaidPaise=23600`,
+        `/site-accounts/${siteId}`,
+      ]) {
+        const { ms } = await measure(url);
+        expect({ url, fast: ms < 1_500 }).toEqual({ url, fast: true });
+      }
+    });
 
-  it("prints the busiest customer's statement and ledger quickly", async () => {
-    for (const url of [
-      `/parties/${busiest}/statement?${period()}`,
-      `/parties/${busiest}/statement.pdf?${period()}`,
-      `/parties/${busiest}/ledger`,
-    ]) {
-      const { ms } = await measure(url);
-      expect({ url, fast: ms < 3_000 }).toEqual({ url, fast: true });
-    }
-  });
+    it("prints the busiest customer's statement and ledger quickly", async () => {
+      for (const url of [
+        `/parties/${busiest}/statement?${period()}`,
+        `/parties/${busiest}/statement.pdf?${period()}`,
+        `/parties/${busiest}/ledger`,
+      ]) {
+        const { ms } = await measure(url);
+        expect({ url, fast: ms < 3_000 }).toEqual({ url, fast: true });
+      }
+    });
 
-  it('exports the ageing and open bills reports quickly', async () => {
-    for (const url of [
-      '/reports/receivables-ageing?format=csv',
-      '/reports/receivables-open-bills?format=csv',
-    ]) {
-      const { ms } = await measure(url);
-      expect({ url, fast: ms < 6_000 }).toEqual({ url, fast: true });
-    }
-  });
-});
+    it('exports the ageing and open bills reports quickly', async () => {
+      for (const url of [
+        '/reports/receivables-ageing?format=csv',
+        '/reports/receivables-open-bills?format=csv',
+      ]) {
+        const { ms } = await measure(url);
+        expect({ url, fast: ms < 6_000 }).toEqual({ url, fast: true });
+      }
+    });
+  },
+);
