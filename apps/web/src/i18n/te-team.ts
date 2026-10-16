@@ -143,6 +143,7 @@ export const teamTe: Translation<typeof teamEn> = {
       register: 'క్యాష్ రిజిస్టర్',
       accounting: 'అకౌంటింగ్',
       receivables: 'బకాయిలు',
+      schemes: 'బ్రాండ్ స్కీమ్‌లు',
     },
     organization: {
       manage: 'బిజినెస్ నడపండి: సెట్టింగ్‌లు, రూపురేఖలు, లాగిన్ నియమాలు మరియు సపోర్ట్ యాక్సెస్',
@@ -212,5 +213,9 @@ export const teamTe: Translation<typeof teamEn> = {
       reconcile: 'ఖాతాల రాత్రి సరిపోల్చడం చూసి ఇప్పుడే నడపండి',
     },
     receivables: { read: 'కస్టమర్ల బకాయిలు, వాటి వయస్సు, వసూలు జాబితా చూడండి' },
+    schemes: {
+      manage:
+        'బ్రాండ్ స్కీమ్‌లు, స్లాబ్‌లు నమోదు చేయండి, బ్రాండ్ ఇచ్చినవి నమోదు చేసి క్లెయిమ్‌లను ఫాలో అప్ చేయండి',
+    },
   },
 };

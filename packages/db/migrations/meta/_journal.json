@@ -582,6 +582,27 @@
       "when": 1792145542066,
       "tag": "0082_payment_link_refund_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1792153065879,
+      "tag": "0083_brand_schemes",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1792153088646,
+      "tag": "0084_brand_scheme_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1792153089485,
+      "tag": "0085_grant_schemes_manage",
+      "breakpoints": true
     }
   ]
 }
