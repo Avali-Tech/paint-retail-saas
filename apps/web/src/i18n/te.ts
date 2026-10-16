@@ -23,6 +23,7 @@ import { brandProfitabilityTe, brandProfitabilityEnumsTe } from './te-brand-prof
 import { collectionsTe, collectionsEnumsTe } from './te-collections.js';
 import { paymentLinksTe, paymentLinksEnumsTe } from './te-payment-links.js';
 import { schemesTe, schemesEnumsTe } from './te-schemes.js';
+import { statementsTe, statementsEnumsTe } from './te-statements.js';
 import { posTe } from './te-pos.js';
 import { tintTe } from './te-tint.js';
 import { purchasingEnumsTe, purchasingTe } from './te-purchasing.js';
@@ -362,6 +363,7 @@ export const te: Messages = {
   ...collectionsTe,
   ...paymentLinksTe,
   ...schemesTe,
+  ...statementsTe,
   enums: {
     quickActions: {
       new_customer: '+ కస్టమర్',
@@ -402,6 +404,7 @@ export const te: Messages = {
     ...collectionsEnumsTe,
     ...paymentLinksEnumsTe,
     ...schemesEnumsTe,
+    ...statementsEnumsTe,
   },
   pages: {
     notFound: 'ఈ చిరునామాలో ఏ స్క్రీన్ లేదు. లింక్‌ను చూడండి, లేదా మెనూ లేదా వెతకడం ఉపయోగించండి.',

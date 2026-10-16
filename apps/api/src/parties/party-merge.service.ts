@@ -18,6 +18,7 @@ import { PartiesService, type PartyView } from './parties.service.js';
 
 const {
   activities,
+  brandStatementTemplates,
   creditApprovals,
   creditProfiles,
   creditRequests,
@@ -109,6 +110,10 @@ export const MERGE_HANDLED: readonly string[] = [
   // A payment link asked that party for money, and the gateway may still pay it (round
   // 4a): see collections() below, which refuses a duplicate with any.
   'payment_links.party_id',
+  // Brand statements (round 6a) are the supplier's records, reconciled with its GRNs: a
+  // supplier with a statement template (every statement has one) is never merged away.
+  'brand_statement_templates.supplier_party_id',
+  'brand_statements.supplier_party_id',
 ];
 
 export interface MergeResult {
@@ -403,6 +408,14 @@ export class PartyMergeService {
       .limit(1);
     if (link) {
       throw new ConflictException('This party has payment links; merge the other way');
+    }
+    const [template] = await tx
+      .select({ id: brandStatementTemplates.id })
+      .from(brandStatementTemplates)
+      .where(eq(brandStatementTemplates.supplierPartyId, duplicateId))
+      .limit(1);
+    if (template) {
+      throw new ConflictException('This supplier has brand statements; merge the other way');
     }
     counts['message_outbox.party_id'] = (
       await tx

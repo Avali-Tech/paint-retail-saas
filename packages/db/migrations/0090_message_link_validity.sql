@@ -1,0 +1,2 @@
+ALTER TABLE "sales_settings" ADD COLUMN "message_link_validity_minutes" integer DEFAULT 1440 NOT NULL;--> statement-breakpoint
+ALTER TABLE "sales_settings" ADD CONSTRAINT "sales_settings_message_link_validity" CHECK ("sales_settings"."message_link_validity_minutes" between 5 and 43200);

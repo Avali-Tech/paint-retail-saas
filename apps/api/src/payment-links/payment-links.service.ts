@@ -4,6 +4,7 @@ import { schema, withTenant, type DatabaseConnection, type Transaction } from '@
 import {
   canAccessStore,
   formatINR,
+  minLinkValidityMinutes,
   type LinkPlanProblem,
   type LogCheckoutView,
   type LogWebhook,
@@ -104,17 +105,34 @@ export class PaymentLinksService {
   }
 
   private async statusIn(tx: Transaction, auth: AuthContext): Promise<PaymentLinkSettings> {
+    const provider = await this.gateways.forBusiness(tx, auth.organization.id);
     return {
       provider: this.gateways.provider,
-      ready: (await this.gateways.forBusiness(tx, auth.organization.id)) !== null,
+      ready: provider !== null,
       ...(await linkRulesOf(tx)),
+      minValidityMinutes: minLinkValidityMinutes(provider?.name ?? null),
     };
   }
 
-  /** Owners and admins set how long links live, their cap and their basis ([PO-41] – [PO-43]). */
+  /**
+   * Owners and admins set how long links live (counter links and links in messages), their
+   * cap and their basis ([PO-41] – [PO-43], [PO-61]). With Razorpay connected, neither
+   * validity may be under 15 minutes ([PO-60]).
+   */
   updateSettings(auth: AuthContext, input: UpdateLinkSettingsInput): Promise<PaymentLinkSettings> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      const provider = await this.gateways.forBusiness(tx, auth.organization.id);
+      const least = minLinkValidityMinutes(provider?.name ?? null);
+      for (const field of ['validityMinutes', 'messageValidityMinutes'] as const) {
+        if (input[field] < least) {
+          throw fieldError(
+            field,
+            `Razorpay keeps a link payable for at least ${String(least)} minutes: enter ${String(least)} or more`,
+          );
+        }
+      }
       const values = {
+        messageLinkValidityMinutes: input.messageValidityMinutes,
         paymentLinkValidityMinutes: input.validityMinutes,
         paymentLinkCapPaise: input.capPaise,
         paymentLinkAmountBasis: input.amountBasis,
@@ -205,6 +223,8 @@ export class PaymentLinksService {
       storeId,
       purpose: input.purpose,
       origin: 'staff',
+      // Sent on WhatsApp through the outbox, it waits to be read: a message's validity.
+      validity: input.send === 'whatsapp' ? 'message' : 'counter',
       targets: plan.targets,
       amountPaise: plan.amountPaise,
       memberId: auth.memberId,

@@ -92,7 +92,12 @@ describe('RazorpayPaymentLinkProvider: links', () => {
   it('makes a UPI link with live keys, Basic auth, our reference and at least 16 minutes', async () => {
     const http = recorder({ status: 200, body: { ...LINK, reference_id: 'PL-000007-x' } });
     const created = await provider(LIVE, http.fetch).createPayment(REQUEST);
-    expect(created).toEqual({ gatewayReference: LINK.id, url: LINK.short_url });
+    // Recorded with the expiry Razorpay keeps ([PO-60]).
+    expect(created).toEqual({
+      gatewayReference: LINK.id,
+      url: LINK.short_url,
+      expiresAt: new Date(NOW.getTime() + RAZORPAY_MIN_EXPIRY_MS),
+    });
     const [call] = http.calls;
     expect(call?.method).toBe('POST');
     expect(call?.url).toBe(`${API}/payment_links`);
@@ -119,15 +124,16 @@ describe('RazorpayPaymentLinkProvider: links', () => {
   });
 
   it('keeps a longer expiry, and with test keys offers UPI on a standard link', async () => {
-    const http = recorder({ status: 200, body: LINK });
     const later = new Date(NOW.getTime() + 2 * 60 * 60_000);
+    const http = recorder({ status: 200, body: { ...LINK, expire_by: later.getTime() / 1000 } });
     const test = provider(TEST, http.fetch);
     expect(test.live).toBe(false);
-    await test.createPayment({
+    const created = await test.createPayment({
       ...REQUEST,
       expiresAt: later,
       customer: { name: 'R', mobile: '12' },
     });
+    expect(created.expiresAt).toEqual(later);
     const body = http.calls[0]?.body as Record<string, unknown>;
     expect(body.expire_by).toBe(later.getTime() / 1000);
     expect(body).not.toHaveProperty('upi_link');
@@ -148,10 +154,15 @@ describe('RazorpayPaymentLinkProvider: links', () => {
     const body = http.calls[0]?.body as Record<string, unknown>;
     expect(body).not.toHaveProperty('customer');
     expect(body.expire_by).toBe((NOW.getTime() + RAZORPAY_MIN_EXPIRY_MS) / 1000);
-    await provider(LIVE, recorder({ status: 200, body: LINK }).fetch).createPayment({
+    // A link Razorpay says never expires (expire_by 0) is recorded with what was asked.
+    const forever = await provider(
+      LIVE,
+      recorder({ status: 200, body: { ...LINK, expire_by: 0 } }).fetch,
+    ).createPayment({
       ...REQUEST,
       customer: { name: 'Ravi', mobile: null },
     });
+    expect(forever.expiresAt).toEqual(new Date(NOW.getTime() + RAZORPAY_MIN_EXPIRY_MS));
   });
 
   it('tries again after a timeout or a 5xx, and finds a link a lost answer had made', async () => {
@@ -198,6 +209,7 @@ describe('RazorpayPaymentLinkProvider: links', () => {
     await expect(real.createPayment(REQUEST)).resolves.toEqual({
       gatewayReference: 'plink_found',
       url: LINK.short_url,
+      expiresAt: new Date(NOW.getTime() + RAZORPAY_MIN_EXPIRY_MS),
     });
     await expect(provider(LIVE, found.fetch).createPayment(REQUEST)).rejects.toBeInstanceOf(
       GatewayError,

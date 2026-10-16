@@ -55,13 +55,14 @@ export class FakeRazorpay {
     }
     if (method === 'POST' && path === '/payment_links') {
       const id = this.id('plink');
-      const request = body as { reference_id: string; amount: number };
+      const request = body as { reference_id: string; amount: number; expire_by: number };
       return answer(200, {
         id,
         short_url: `https://rzp.io/i/${id.slice(6)}`,
         status: 'created',
         reference_id: request.reference_id,
         amount: request.amount,
+        expire_by: request.expire_by,
       });
     }
     const cancel = /^\/payment_links\/(plink_\w+)\/cancel$/.exec(path);

@@ -200,11 +200,13 @@ export class StatementLinksService {
       storeId,
       purpose: 'outstanding' as const,
       origin: 'statement' as const,
+      validity: 'message' as const,
       targets: plan.targets,
       amountPaise: plan.amountPaise,
       memberId: auth.memberId,
     };
-    const id = (await reusableLink(tx, link)) ?? (await createLink(tx, provider, link));
+    const id =
+      (await reusableLink(tx, link, provider.name)) ?? (await createLink(tx, provider, link));
     const [row] = (await tx
       .select({
         number: paymentLinks.number,

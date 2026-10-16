@@ -105,12 +105,19 @@ export const paymentLinksEn = {
       submit: 'Connect Razorpay',
       replace: 'Replace keys',
       done: 'Razorpay connected',
+      validityRaised:
+        'Razorpay keeps a link payable for at least {minutes} minutes, so shorter links now last {minutes} minutes.',
     },
     rules: {
       title: 'How links work',
       validity: 'Payable for (minutes)',
-      validityHint: 'How long a customer has to pay; money paid later is still recorded.',
+      validityHint:
+        'Links shown at the counter or shared by hand. Money paid later is still recorded.',
+      messageValidity: 'Links in messages payable for (minutes)',
+      messageValidityHint:
+        'Links sent in reminders, statements and WhatsApp messages, read later: a day (1440) by default.',
       validityRange: 'Enter {min} to {max} minutes',
+      gatewayMinimum: 'Razorpay keeps a link payable for at least {min} minutes.',
       cap: 'Most one link asks for (₹)',
       capHint: 'A link above this is refused. UPI takes at most {max} in one payment.',
       capRange: 'Enter {min} to {max}',

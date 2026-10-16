@@ -8,4 +8,5 @@ export const PURCHASING_SECTIONS: readonly SectionLink[] = [
   { to: '/brand-schemes', label: 'schemes.title', permission: 'purchasing:read' },
   { to: '/brand-schemes/claims', label: 'schemes.claims.title', permission: 'purchasing:read' },
   { to: '/brand-schemes/price-hike', label: 'priceHike.title', permission: 'purchasing:read' },
+  { to: '/brand-statements', label: 'statements.title', permission: 'purchasing:read' },
 ];

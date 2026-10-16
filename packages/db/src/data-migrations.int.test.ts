@@ -620,3 +620,60 @@ describe('0086_profitability_settings: cost of money and point value for every b
     ]);
   });
 });
+
+describe("0091_payment_link_validity_rules: Razorpay's shortest link", () => {
+  it('raises a Razorpay-connected business below 15 minutes to 15, and leaves the rest', async () => {
+    const { connectionString: url } = await freshDatabase();
+    await migrateDatabase(url, migrationsUpTo('0089_brand_statement_rules'));
+    const ids = await withPgClient(url, async (client) => {
+      const make = async (name: string, minutes: number, account: 'connected' | 'off' | null) => {
+        const org = await client.query<{ id: string }>(
+          'INSERT INTO organizations (name) VALUES ($1) RETURNING id',
+          [name],
+        );
+        const id = String(org.rows[0]?.id);
+        await client.query(
+          'INSERT INTO sales_settings (organization_id, payment_link_validity_minutes) VALUES ($1, $2)',
+          [id, minutes],
+        );
+        if (account !== null) {
+          const connected = account === 'connected';
+          await client.query(
+            `INSERT INTO payment_gateway_accounts (organization_id, gateway, webhook_ref, key_id_hint,
+               key_secret_hint, webhook_secret_hint, live, credentials_sealed, connected_at)
+             VALUES ($1, 'razorpay', $2, $3, $3, $3, $4, $5, $6)`,
+            [
+              id,
+              `ref_${name.replaceAll(' ', '_')}`.padEnd(22, 'x').slice(0, 22),
+              connected ? 'abcd' : null,
+              connected ? true : null,
+              connected ? 'v1:k:sealed' : null,
+              connected ? new Date() : null,
+            ],
+          );
+        }
+        return id;
+      };
+      return {
+        short: await make('Short Paints', 10, 'connected'),
+        long: await make('Long Paints', 30, 'connected'),
+        disconnected: await make('Off Paints', 10, 'off'),
+        none: await make('Log Paints', 5, null),
+      };
+    });
+
+    await migrateDatabase(url);
+
+    const rows = await withPgClient(url, async (client) => {
+      const result = await client.query<{ id: string; counter: number; message: number }>(
+        `SELECT organization_id AS id, payment_link_validity_minutes AS counter,
+           message_link_validity_minutes AS message FROM sales_settings`,
+      );
+      return new Map(result.rows.map((row) => [row.id, [row.counter, row.message]]));
+    });
+    expect(rows.get(ids.short)).toEqual([15, 1440]);
+    expect(rows.get(ids.long)).toEqual([30, 1440]);
+    expect(rows.get(ids.disconnected)).toEqual([10, 1440]);
+    expect(rows.get(ids.none)).toEqual([5, 1440]);
+  });
+});

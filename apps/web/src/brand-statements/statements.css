@@ -1,0 +1,42 @@
+/* Brand statements. Design tokens only (theme-guard.test.ts). */
+
+.statement-summary {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (min-width: 900px) {
+  .statement-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* The two sides stack on a phone and sit side by side on a wide screen. */
+.statement-sides {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.statement-sides > * {
+  min-width: 0;
+}
+
+@media (min-width: 1200px) {
+  .statement-sides {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+}
+
+.statement-match {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.statement-problems {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-inline-start: var(--space-4);
+}

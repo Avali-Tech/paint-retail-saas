@@ -27,8 +27,12 @@ export interface PaymentLinkSettings {
   readonly provider: PaymentLinkProviderName | null;
   /** Links can be made now: a provider, and with Razorpay the business's account connected. */
   readonly ready: boolean;
-  /** Minutes a link stays payable ([PO-41]). */
+  /** Minutes a counter or manual link stays payable ([PO-41]). */
   readonly validityMinutes: number;
+  /** Minutes a link sent in a message stays payable ([PO-61]). */
+  readonly messageValidityMinutes: number;
+  /** The shortest validity this business may set: 15 minutes with Razorpay ([PO-60]). */
+  readonly minValidityMinutes: number;
   /** The most one link asks for ([PO-42]). */
   readonly capPaise: number;
   /** Net of the advance, or the bills' full outstanding ([PO-43]). */
@@ -38,6 +42,7 @@ export interface PaymentLinkSettings {
 /** PUT /payment-links/settings. */
 export interface UpdatePaymentLinkSettingsRequest {
   readonly validityMinutes: number;
+  readonly messageValidityMinutes: number;
   readonly capPaise: number;
   readonly amountBasis: LinkAmountBasis;
 }
@@ -60,6 +65,16 @@ export interface GatewayAccountView {
   readonly verifiedAt: string | null;
   /** What to paste in the gateway's webhook settings. */
   readonly webhookUrl: string;
+  /**
+   * Connecting raised the business's link validity to Razorpay's shortest (15 minutes,
+   * [PO-60]): the minutes each had before, null for one that was long enough. Only in
+   * the answer to connecting; null otherwise.
+   */
+  readonly validityRaised: {
+    readonly counterFrom: number | null;
+    readonly messageFrom: number | null;
+    readonly to: number;
+  } | null;
 }
 
 /** PUT /payment-links/gateway-account: the keys from the gateway's dashboard. */

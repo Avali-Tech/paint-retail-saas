@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { BillingModule } from './billing/billing.module.js';
 import { BrandProfitabilityModule } from './brand-profitability/brand-profitability.module.js';
 import { BrandSchemesModule } from './brand-schemes/brand-schemes.module.js';
+import { BrandStatementsModule } from './brand-statements/brand-statements.module.js';
 import { BrandingModule } from './branding/branding.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
 import { ContractsModule } from './contracts/contracts.module.js';
@@ -89,6 +90,7 @@ export class AppModule {
         BrandProfitabilityModule,
         BrandingModule,
         BrandSchemesModule,
+        BrandStatementsModule,
         DashboardModule,
         AuthModule.forRoot({
           settings: authSettingsFrom(config),

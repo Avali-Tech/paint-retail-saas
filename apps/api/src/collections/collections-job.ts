@@ -270,11 +270,13 @@ async function reminderLink(
     storeId: party.store_id,
     purpose: 'bills' as const,
     origin: 'reminder' as const,
+    validity: 'message' as const,
     targets: plan.targets,
     amountPaise: plan.amountPaise,
     memberId: null,
   };
-  const id = (await reusableLink(tx, link)) ?? (await createLink(tx, provider, link));
+  const id =
+    (await reusableLink(tx, link, provider.name)) ?? (await createLink(tx, provider, link));
   const [row] = (
     await tx.execute<{ url: string }>(sql`select url from payment_links where id = ${id}`)
   ).rows as [{ url: string }];

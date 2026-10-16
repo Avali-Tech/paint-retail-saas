@@ -3,6 +3,7 @@ import { schema, type Database, type Transaction } from '@paint/db';
 import {
   DEFAULT_LINK_CAP_PAISE,
   DEFAULT_LINK_VALIDITY_MINUTES,
+  DEFAULT_MESSAGE_LINK_VALIDITY_MINUTES,
   type LinkAmountBasis,
 } from '@paint/shared';
 import { and, eq, isNotNull, sql } from 'drizzle-orm';
@@ -26,9 +27,10 @@ export const PAYMENT_LINK_GATEWAYS = Symbol('PAYMENT_LINK_GATEWAYS');
 /** Where a gateway posts its webhooks: /webhooks/payment-links/<provider>[/<business>]. */
 export const WEBHOOK_PATH = '/webhooks/payment-links';
 
-/** A business's link rules ([PO-41] – [PO-43]), from its sales settings. */
+/** A business's link rules ([PO-41] – [PO-43], [PO-61]), from its sales settings. */
 export interface LinkRules {
   readonly validityMinutes: number;
+  readonly messageValidityMinutes: number;
   readonly capPaise: number;
   readonly amountBasis: LinkAmountBasis;
 }
@@ -38,6 +40,7 @@ export async function linkRulesOf(tx: Transaction): Promise<LinkRules> {
   const [row] = await tx
     .select({
       validityMinutes: salesSettings.paymentLinkValidityMinutes,
+      messageValidityMinutes: salesSettings.messageLinkValidityMinutes,
       capPaise: salesSettings.paymentLinkCapPaise,
       amountBasis: salesSettings.paymentLinkAmountBasis,
     })
@@ -45,6 +48,7 @@ export async function linkRulesOf(tx: Transaction): Promise<LinkRules> {
   return (
     row ?? {
       validityMinutes: DEFAULT_LINK_VALIDITY_MINUTES,
+      messageValidityMinutes: DEFAULT_MESSAGE_LINK_VALIDITY_MINUTES,
       capPaise: DEFAULT_LINK_CAP_PAISE,
       amountBasis: 'net',
     }

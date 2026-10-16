@@ -54,6 +54,7 @@ import { assertReconciled } from './seed-billing.js';
 import { onboardBusinesses, seedLargeShop } from './seed-large.js';
 import { schedulePainterPoints } from './seed-points.js';
 import { seedSchemes } from './seed-schemes.js';
+import { seedStatements } from './seed-statements.js';
 import { scheduleSales } from './seed-sales.js';
 import { setUpBusiness, setUpCatalogueAndParties, type ReadSmsCode } from './seed-setup.js';
 import { scheduleSites } from './seed-sites.js';
@@ -174,6 +175,8 @@ export async function seedDemo(options: SeedOptions): Promise<SeedResult> {
 
   // Brand schemes over the purchases just made (P2-M33), entered today.
   await seedSchemes(context);
+  // A month's statement from the first distributor, reconciled (P2-M34).
+  await seedStatements(context);
 
   // The business signed up on the free trial; today the owner asks for a plan, the
   // platform's operator applies it and records the bank transfer for our invoice.

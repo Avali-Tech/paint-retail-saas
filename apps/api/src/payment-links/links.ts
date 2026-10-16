@@ -4,10 +4,12 @@ import {
   formatDocumentNumber,
   formatINR,
   linkRefundOf,
+  linkValidityMinutes,
   nextLinkState,
   planPaymentLink,
   type LinkPlan,
   type LinkTarget,
+  type LinkValidityKind,
   type PaymentLinkDocumentView,
   type PaymentLinkOrigin,
   type PaymentLinkPaymentView,
@@ -104,6 +106,11 @@ export interface NewLink {
   readonly amountPaise: number;
   /** Null when the reminder run makes it. */
   readonly memberId: string | null;
+  /**
+   * `message` for a link sent in a message (reminders, statement shares, a link sent on
+   * WhatsApp through the outbox), `counter` for one shown or shared by hand ([PO-61]).
+   */
+  readonly validity: LinkValidityKind;
 }
 
 const DESCRIPTIONS: Readonly<Record<PaymentLinkPurpose, string>> = {
@@ -127,15 +134,17 @@ function describe(business: string, link: NewLink): string {
 /**
  * Makes a link at the gateway and stores it with its documents (rule PL-4): numbered
  * PL-000001 in the business's own series, payable for the business's validity minutes
- * ([PO-41]). The gateway is asked inside the transaction; if the transaction then fails,
- * the link the gateway made is never stored and its webhooks are ignored.
+ * for its kind, never below what the gateway accepts (PL-19, PL-20). It is recorded with
+ * the expiry the gateway keeps, so the two agree. The gateway is asked inside the
+ * transaction; if the transaction then fails, the link the gateway made is never stored
+ * and its webhooks are ignored.
  */
 export async function createLink(
   tx: Transaction,
   provider: PaymentLinkProvider,
   link: NewLink,
 ): Promise<string> {
-  const { validityMinutes } = await linkRulesOf(tx);
+  const validityMinutes = linkValidityMinutes(link.validity, await linkRulesOf(tx), provider.name);
   const [context] = (await tx
     .select({
       business: organizations.name,
@@ -176,7 +185,7 @@ export async function createLink(
       provider: provider.name,
       gatewayReference: created.gatewayReference,
       url: created.url,
-      expiresAt: context.expiresAt,
+      expiresAt: created.expiresAt ?? context.expiresAt,
       createdByMemberId: link.memberId,
     })
     .returning({ id: paymentLinks.id })) as [{ id: string }];
@@ -202,12 +211,16 @@ const targetKey = (target: { documentId: string | null; partyLedgerId: string | 
 
 /**
  * An open link the system made earlier for exactly the same ask (rule PL-5): same
- * party, purpose, amount and documents, nothing paid, and payable for at least half its
- * validity (and at most a day) more. The reminder run and statement shares send it
- * again instead of a new one.
+ * party, purpose, amount and documents, nothing paid, and payable for at least half the
+ * validity of a link of its kind (and at most a day) more (PL-19). The reminder run and
+ * statement shares send it again instead of a new one.
  */
-export async function reusableLink(tx: Transaction, link: NewLink): Promise<string | null> {
-  const { validityMinutes } = await linkRulesOf(tx);
+export async function reusableLink(
+  tx: Transaction,
+  link: NewLink,
+  gateway: PaymentLinkProvider['name'],
+): Promise<string | null> {
+  const validityMinutes = linkValidityMinutes(link.validity, await linkRulesOf(tx), gateway);
   const left = Math.min(Math.ceil(validityMinutes / 2), 24 * 60);
   const candidates = await tx
     .select({ id: paymentLinks.id })
