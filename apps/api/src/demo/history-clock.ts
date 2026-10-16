@@ -51,6 +51,27 @@ export const SHIFTED_DATES: readonly {
   },
   { table: 'quotations', writtenAt: 'created_at', columns: ['valid_until', 'priced_on'] },
   { table: 'sales_orders', writtenAt: 'created_at', columns: ['priced_on'] },
+  { table: 'promises_to_pay', writtenAt: 'created_at', columns: ['made_on', 'promised_on'] },
+];
+
+/**
+ * Text that names a business date the API took from the database's today (a
+ * promise's activity says "Promised ₹5,000 by 2026-10-20"): the date in it moves
+ * with the row, as SHIFTED_DATES do.
+ */
+export const SHIFTED_TEXT_DATES: readonly {
+  readonly table: string;
+  readonly writtenAt: string;
+  readonly column: string;
+  /** Which rows carry such a date, as a condition on the table `t`. */
+  readonly only: string;
+}[] = [
+  {
+    table: 'activities',
+    writtenAt: 'created_at',
+    column: 'subject',
+    only: "t.type = 'promise_to_pay'",
+  },
 ];
 
 /** Business hours of a simulated day, in India time. */
@@ -137,6 +158,17 @@ export class HistoryClock {
           `UPDATE "${table}" t SET ${dates.map((date) => `"${date}" = t."${date}" + ${days}`).join(', ')}
              FROM demo_windows w
             WHERE t."${writtenAt}" BETWEEN w.real_start AND w.real_end AND NOT (${except})`,
+        );
+        moved += Number(result.rowCount);
+      }
+      for (const { table, writtenAt, column, only } of SHIFTED_TEXT_DATES) {
+        const days = `((w.sim_start AT TIME ZONE 'Asia/Kolkata')::date - (t."${writtenAt}" AT TIME ZONE 'Asia/Kolkata')::date)`;
+        const date = `substring(t."${column}" from '\\d{4}-\\d{2}-\\d{2}')`;
+        const result = await client.query(
+          `UPDATE "${table}" t SET "${column}" = regexp_replace(t."${column}", '\\d{4}-\\d{2}-\\d{2}', ((${date})::date + ${days})::text)
+             FROM demo_windows w
+            WHERE t."${writtenAt}" BETWEEN w.real_start AND w.real_end AND (${only})
+              AND t."${column}" ~ '\\d{4}-\\d{2}-\\d{2}'`,
         );
         moved += Number(result.rowCount);
       }

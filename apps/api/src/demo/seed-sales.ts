@@ -32,8 +32,11 @@ const rupees = (paise: number) => (paise / 100).toFixed(2);
 export function scheduleSales(context: SeedContext, timeline: Timeline): void {
   const { plan } = context;
   const stories = creditStories(context);
-  // Credit customers still billed on account: not the one at its limit, not the one on hold.
-  const billed = stories.filter((story) => !story.nearLimit && !story.onHold);
+  // Credit customers still billed on account: not the one at its limit, not the one on hold,
+  // not the two whose bills lapse (seed-collections.ts).
+  const billed = stories.filter(
+    (story) => !story.nearLimit && !story.onHold && story.lapse === null,
+  );
   const creditBills: { invoice: IssuedInvoiceView; store: StoreKey; lines: BasketLine[] }[] = [];
 
   timeline.at(plan.historyDays, () => goLive(context, stories));
@@ -102,9 +105,25 @@ function scheduleCreditChecks(
       lines: basket(context, store, 6_000_00),
     });
   });
-  timeline.at(1, () => {
+  // A bill the owner turns down: the account is past its limit and promised nothing.
+  timeline.at(5, async () => {
     const store = homeOf(near);
-    return billAwaitingApproval(context, store, near, basket(context, store, 9_000_00));
+    const approval = await billAwaitingApproval(
+      context,
+      store,
+      near,
+      basket(context, store, 15_000_00),
+      'Wants the stock today; says the payment is on the way',
+    );
+    await context.as('owner').post(`/credit-approvals/${approval}/reject`, {
+      reason: 'Over the limit already; collect the September bills first',
+    });
+    context.count('credit approvals rejected');
+  });
+  timeline.at(1, async () => {
+    const store = homeOf(near);
+    await billAwaitingApproval(context, store, near, basket(context, store, 9_000_00));
+    context.count('credit approvals waiting');
   });
 }
 
@@ -114,9 +133,16 @@ async function goLive(context: SeedContext, stories: readonly CreditStory[]): Pr
   const goLiveDay = context.plan.historyDays;
   const rows = stories.map((story) => {
     const owedPaise = Math.round(story.limitRupees * (story.nearLimit ? 0.94 : story.used)) * 100;
-    // Overdue at go-live: the account on hold (75 days) and the late payers; the account near
-    // its limit pays on time (it buys with approvals, see scheduleCreditChecks).
-    const overdueDays = story.onHold ? 75 : story.nearLimit ? 0 : story.overdueDays;
+    // Overdue at go-live: the account on hold (75 days), the one the nightly job holds
+    // (20 days) and the late payers; the account near its limit pays on time (it buys
+    // with approvals, see scheduleCreditChecks).
+    const overdueDays = story.onHold
+      ? 75
+      : story.lapse === 'auto_hold'
+        ? 20
+        : story.nearLimit
+          ? 0
+          : story.overdueDays;
     return [
       story.party.phone,
       '',

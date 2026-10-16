@@ -192,7 +192,7 @@ export const SEGMENT_COUNTS: Readonly<Record<StorySize, Readonly<Record<Segment,
     dealer: 6,
     supplier: 6,
   },
-  small: { retail: 6, painter: 4, contractor: 3, architect: 2, builder: 2, dealer: 2, supplier: 6 },
+  small: { retail: 6, painter: 4, contractor: 3, architect: 2, builder: 3, dealer: 3, supplier: 6 },
 };
 
 const BUILDERS = [

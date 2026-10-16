@@ -39,6 +39,11 @@ export class SeedContext {
   readonly lowStock = new Map<StoreKey, Set<string>>();
   /** Counters for the summary, by what was created. */
   readonly created = new Map<string, number>();
+  /**
+   * Sends the messages to parties queued so far (the worker's outbox job), so a
+   * simulated day's messages go out that day; set by the seed.
+   */
+  sendMessages: () => Promise<unknown> = () => Promise.resolve();
 
   constructor(
     readonly plan: DemoPlan,

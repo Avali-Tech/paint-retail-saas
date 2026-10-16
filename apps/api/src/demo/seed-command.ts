@@ -145,6 +145,8 @@ async function seed(settings: Settings, largeScale: LargeScale): Promise<SeedRes
     WORKER_INTERVAL_SECONDS: '0',
     // The business starts on the free trial and pays for its plan at the end (seed.ts).
     SIGNUP_PLAN: 'trial',
+    // Messages to parties are written to the log, as the running demo API does.
+    MESSAGING_PROVIDER: 'log',
     PLATFORM_BOOTSTRAP_TOKEN: platformBootstrapToken,
   });
   const sms = new CapturingSmsSender();
