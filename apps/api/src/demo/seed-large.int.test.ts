@@ -53,7 +53,9 @@ beforeAll(async () => {
     payload: { identifier: '+919000000001', password: DEMO_PASSWORD },
   });
   owner = login.json<{ token: string }>().token;
-}, 300_000);
+  // A minute alone; the full demo plus the large shop's receivables take longer beside the
+  // rest of the suite under coverage.
+}, 600_000);
 
 afterAll(async () => {
   await t.close();
