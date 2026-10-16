@@ -863,6 +863,23 @@ describe('a supplier with no brand on its template', () => {
   });
 });
 
+describe('merging suppliers', () => {
+  it('never merges away a supplier with brand statements', async () => {
+    const keep = ok(
+      await owner().post('/parties', {
+        kind: 'organization',
+        displayName: 'Deccan Distributors Pvt Ltd',
+        roles: ['supplier'],
+      }),
+    ).json<{ id: string }>().id;
+    const reply = await owner().post(`/parties/${biz.supplier}/merge`, { intoPartyId: keep });
+    expect(reply.statusCode).toBe(409);
+    expect(reply.json<{ message: string }>().message).toBe(
+      'This supplier has brand statements; merge the other way',
+    );
+  });
+});
+
 describe('with GST', () => {
   it('compares GRNs at their value with GST at their products’ rates', async () => {
     const gst = ok(
