@@ -11,7 +11,8 @@ export interface ReportColumn {
 }
 
 /** What input a filter takes (see apps/api/src/reports/report-filters.ts). */
-export type ReportFilterType = 'store' | 'date' | 'enum' | 'supplier' | 'boolean';
+export type ReportFilterType =
+  'store' | 'date' | 'enum' | 'supplier' | 'boolean' | 'brand' | 'category' | 'member' | 'text';
 
 export interface ReportFilter {
   /** The query parameter, e.g. "storeId". */

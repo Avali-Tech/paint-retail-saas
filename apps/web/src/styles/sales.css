@@ -1,0 +1,61 @@
+/* The dashboard's sales tile. Design tokens only (theme-guard.test.ts). */
+
+/* A whole row of the tiles grid: three periods and the trend side by side, stacked on a phone. */
+.sales-tile {
+  grid-column: 1 / -1;
+}
+
+.sales-tile__periods {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--space-3);
+}
+
+.sales-tile__period {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.sales-tile__label {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.sales-tile__value {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.sales-tile__sub {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.sales-tile__trend {
+  margin: var(--space-2) 0 0;
+}
+
+/* One series of 14 bars, anchored to the baseline, 2px apart, rounded at the data end. */
+.sales-tile__bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  block-size: 3rem;
+  margin-top: var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sales-tile__bar {
+  flex: 1;
+  min-block-size: 1px;
+  border-radius: 4px 4px 0 0;
+  background: var(--color-chart-1);
+}

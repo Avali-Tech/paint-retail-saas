@@ -334,6 +334,51 @@ describe(
       expect(view.uncostedLines).toBe(0);
     });
 
+    it('answers the sales reports, the GST summary and the sales tile quickly, in a fixed number of queries', async () => {
+      // MVP 3 round 7b: each report is one grouped query and its count, whatever the period.
+      const quarter = `from=${await dbToday(t, -90)}&to=${today}`;
+      const year = `from=${await dbToday(t, -SCALE.days + 1)}&to=${today}`;
+      const kinds = [
+        'sales-by-period',
+        'sales-by-store',
+        'sales-by-product',
+        'sales-by-brand',
+        'sales-by-category',
+        'sales-by-salesperson',
+        'sales-by-customer',
+        'payments-by-mode',
+        'gst-summary',
+        'gst-hsn-summary',
+      ];
+      for (const kind of kinds) {
+        const short = await measure(`/reports/${kind}?limit=50&${quarter}`);
+        const long = await measure(`/reports/${kind}?limit=200&${year}`);
+        expect({ kind, queries: long.queries }).toEqual({ kind, queries: short.queries });
+        expect({ kind, fast: long.ms < 4_000 }).toEqual({ kind, fast: true });
+      }
+      const monthly = await measure(`/reports/sales-by-period?interval=month&${year}`);
+      const csv = await measure(`/reports/sales-by-product?format=csv&${year}`);
+      expect(Math.max(monthly.ms, csv.ms)).toBeLessThan(6_000);
+
+      const tile = await measure('/dashboard/sales');
+      const oneStore = await measure(`/dashboard/sales?storeId=${b.stores.amp}`);
+      expect(oneStore.queries).toBe(tile.queries);
+      expect(tile.queries).toBeLessThanOrEqual(12);
+      expect(tile.ms).toBeLessThan(2_000);
+
+      // Every invoice of the year adds up the same by store, by product and as the GST summary.
+      const total = async (kind: string) => {
+        const page = ok(await api(t, b.owner).get(`/reports/${kind}?limit=500&${year}`)).json<{
+          rows: Record<string, string | number | null>[];
+        }>();
+        return page.rows.reduce((sum, row) => sum + Math.round(Number(row.taxable) * 100), 0);
+      };
+      const byStore = await total('sales-by-store');
+      expect(byStore).toBeGreaterThan(0);
+      expect(await total('sales-by-brand')).toBe(byStore);
+      expect(await total('gst-summary')).toBe(byStore);
+    });
+
     it('exports the scheme, claims and profitability reports quickly', async () => {
       for (const url of [
         '/reports/brand-schemes?format=csv',

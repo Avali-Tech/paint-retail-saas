@@ -179,7 +179,7 @@ describe('sales by site', () => {
 
   it('is for members who may read sales', async () => {
     const list = ok(await api(t, b.owner).get('/reports')).json<ReportSummary[]>();
-    const sales = list.filter((r) => r.kind.startsWith('sales-by-'));
+    const sales = list.filter((r) => ['sales-by-influencer', 'sales-by-site'].includes(r.kind));
     expect(sales.map((r) => [r.kind, r.filters.map((f) => f.name)])).toEqual([
       ['sales-by-influencer', ['storeId', 'from', 'to']],
       ['sales-by-site', ['storeId', 'from', 'to']],

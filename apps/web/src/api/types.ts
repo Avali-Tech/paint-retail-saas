@@ -13,6 +13,7 @@ export type {
   PendingSignIn,
   PublicBranding,
   SearchHit,
+  SalesOverview,
   SearchResults,
   SessionGrant,
   SignInResult,

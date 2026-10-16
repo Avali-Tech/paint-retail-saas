@@ -3,9 +3,11 @@ import { z } from 'zod';
 /**
  * What kind of input a report filter takes, so the web app can build it:
  * a store of the member's, an India-time day, one of `values`, a supplier
- * (a party with the supplier role) or yes/no.
+ * (a party with the supplier role), yes/no, a brand, a category, a member
+ * of the team or free text.
  */
-export type ReportFilterType = 'store' | 'date' | 'enum' | 'supplier' | 'boolean';
+export type ReportFilterType =
+  'store' | 'date' | 'enum' | 'supplier' | 'boolean' | 'brand' | 'category' | 'member' | 'text';
 
 /** GET /reports: one filter a report accepts. */
 export interface ReportFilter {
@@ -28,6 +30,20 @@ export const storeFilter = { info: { type: 'store' }, schema: z.uuid().optional(
 /** An India-time calendar day, YYYY-MM-DD. */
 export const dateFilter = { info: { type: 'date' }, schema: z.iso.date().optional() } as const;
 export const supplierFilter = { info: { type: 'supplier' }, schema: z.uuid().optional() } as const;
+export const brandFilter = { info: { type: 'brand' }, schema: z.uuid().optional() } as const;
+export const categoryFilter = { info: { type: 'category' }, schema: z.uuid().optional() } as const;
+/** A member of the business (e.g. the salesperson who issued a bill). */
+export const memberFilter = { info: { type: 'member' }, schema: z.uuid().optional() } as const;
+/** Free text, trimmed; blank is left out. */
+export const textFilter = {
+  info: { type: 'text' },
+  schema: z
+    .string()
+    .trim()
+    .max(100)
+    .optional()
+    .transform((value) => (value === '' ? undefined : value)),
+} as const;
 
 export function enumFilter<const V extends readonly [string, ...string[]]>(values: V) {
   return { info: { type: 'enum', values }, schema: z.enum(values).optional() } as const;
