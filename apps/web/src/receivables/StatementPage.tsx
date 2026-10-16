@@ -162,6 +162,7 @@ function SendOnWhatsApp({
                     choice.lang,
                     shared.url,
                     shared.paymentLink?.url ?? null,
+                    shared.paymentLink?.amountPaise ?? null,
                   ),
                 )
               }

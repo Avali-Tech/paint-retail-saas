@@ -47,5 +47,10 @@ export interface StatementShareResult {
    * A UPI payment link for what the party owes (round 4a), carried by the message and
    * the wa.me text; null without a payment-link provider or with nothing owed.
    */
-  readonly paymentLink: { readonly number: string; readonly url: string } | null;
+  readonly paymentLink: {
+    readonly number: string;
+    readonly url: string;
+    /** What it asks for: the balance, or with the full basis the bills' outstanding ([PO-43]). */
+    readonly amountPaise: number;
+  } | null;
 }

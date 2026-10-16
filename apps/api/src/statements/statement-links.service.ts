@@ -151,7 +151,13 @@ export class StatementLinksService {
             ? null
             : whatsappLink(
                 data.party.phone,
-                statementShareText(data, body.lang, url, paymentLink?.url ?? null),
+                statementShareText(
+                  data,
+                  body.lang,
+                  url,
+                  paymentLink?.url ?? null,
+                  paymentLink?.amountPaise ?? null,
+                ),
               ),
         message,
         paymentLink,
@@ -169,7 +175,7 @@ export class StatementLinksService {
     tx: Transaction,
     auth: AuthContext,
     data: StatementData,
-  ): Promise<{ number: string; url: string } | null> {
+  ): Promise<{ number: string; url: string; amountPaise: number } | null> {
     const provider = await this.gateways.forBusiness(tx, auth.organization.id);
     if (provider === null) return null;
     const plan = await planLink(tx, { partyId: data.party.id, purpose: 'outstanding' });
@@ -200,9 +206,13 @@ export class StatementLinksService {
     };
     const id = (await reusableLink(tx, link)) ?? (await createLink(tx, provider, link));
     const [row] = (await tx
-      .select({ number: paymentLinks.number, url: paymentLinks.url })
+      .select({
+        number: paymentLinks.number,
+        url: paymentLinks.url,
+        amountPaise: paymentLinks.amountPaise,
+      })
       .from(paymentLinks)
-      .where(eq(paymentLinks.id, id))) as [{ number: string; url: string }];
+      .where(eq(paymentLinks.id, id))) as [{ number: string; url: string; amountPaise: number }];
     return row;
   }
 
@@ -213,7 +223,7 @@ export class StatementLinksService {
     linkId: string,
     url: string,
     body: ShareStatementInput,
-    paymentLink: { url: string } | null,
+    paymentLink: { url: string; amountPaise: number } | null,
   ): Promise<QueueResult> {
     return queueMessage(tx, {
       organizationId: auth.organization.id,
@@ -229,6 +239,11 @@ export class StatementLinksService {
       reference: { type: 'statement_link', id: linkId },
       memberId: auth.memberId,
       payLinkUrl: paymentLink?.url ?? null,
+      // The statement names its balance; a link asking for another amount says so ([PO-43]).
+      payLinkAmount:
+        paymentLink === null || paymentLink.amountPaise === data.closingPaise
+          ? null
+          : formatINR(paymentLink.amountPaise),
     });
   }
 
