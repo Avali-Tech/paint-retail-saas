@@ -22,4 +22,5 @@ export const EVENT_TITLES: Record<NotificationEvent, string> = {
   credit_approval_decided: 'Your credit approval request is approved or rejected',
   credit_hold_applied: 'A customer is put on credit hold for overdue bills',
   promise_broken: 'A customer breaks a promise to pay',
+  payment_link_paid: 'A customer pays a payment link at your store',
 };

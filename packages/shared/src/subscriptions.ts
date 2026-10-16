@@ -27,7 +27,15 @@ export type PlanChangeSource = (typeof PLAN_CHANGE_SOURCES)[number];
  * platform operator. `razorpay`: Razorpay Subscriptions. `fake`: a gateway that
  * takes no money, for tests.
  */
-export const PAYMENT_GATEWAYS = ['manual', 'fake', 'razorpay'] as const;
+export const SUBSCRIPTION_GATEWAYS = ['manual', 'fake', 'razorpay'] as const;
+export type SubscriptionGatewayName = (typeof SUBSCRIPTION_GATEWAYS)[number];
+
+/**
+ * Every gateway the database knows (`payment_gateway`): the subscription gateways and
+ * `log`, the payment-link provider of development and demos (P2-M32), which takes no
+ * money and is refused in production.
+ */
+export const PAYMENT_GATEWAYS = [...SUBSCRIPTION_GATEWAYS, 'log'] as const;
 export type PaymentGatewayName = (typeof PAYMENT_GATEWAYS)[number];
 
 /** How a business paid one of our manual invoices. */

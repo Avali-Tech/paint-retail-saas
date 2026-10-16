@@ -4,8 +4,8 @@ import {
   isValidIfsc,
   isValidPincode,
   PAID_PLAN_KEYS,
-  PAYMENT_GATEWAYS,
   PLAN_KEYS,
+  SUBSCRIPTION_GATEWAYS,
   type BillingInterval,
   type PaidPlanKey,
   type PaymentInstructions,
@@ -87,7 +87,7 @@ const environmentSchema = z
      * How subscriptions are collected: "manual" (our invoices, paid by bank transfer or
      * UPI and recorded by an operator), "razorpay", or "fake" (tests; not in production).
      */
-    SUBSCRIPTION_GATEWAY: z.enum(PAYMENT_GATEWAYS).default('manual'),
+    SUBSCRIPTION_GATEWAY: z.enum(SUBSCRIPTION_GATEWAYS).default('manual'),
     RAZORPAY_KEY_ID: z.string().min(8).optional(),
     RAZORPAY_KEY_SECRET: z.string().min(8).optional(),
     RAZORPAY_WEBHOOK_SECRET: z.string().min(8).optional(),

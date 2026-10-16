@@ -123,6 +123,8 @@ const MODE_DEFAULTS: Record<TallyPaymentMode['kind'], { name: string | null; gro
     cheque: { name: 'Cheques in Hand', group: 'Current Assets' },
     bank_transfer: { name: null, group: 'Bank Accounts' },
     other: { name: null, group: 'Current Assets' },
+    // The gateway settles to the bank later, net of its fees: a clearing account until then.
+    upi_link: { name: 'Payment Gateway Clearing', group: 'Current Assets' },
   };
 
 const plain = (purpose: TallyLedgerPurpose, group: TallyGroup): Omit<TallyLedger, 'name'> => ({

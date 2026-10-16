@@ -215,6 +215,7 @@ export const booksEnumsEn = {
     bank_transfer: 'Bank transfer',
     cheque: 'Cheque',
     other: 'Other',
+    upi_link: 'UPI link',
   },
   taxNatures: {
     taxable: 'Taxable',

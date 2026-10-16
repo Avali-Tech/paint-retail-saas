@@ -11,7 +11,8 @@ import {
 describe('payment modes', () => {
   it('starts every business with cash, UPI, card, bank transfer and cheque', () => {
     expect(DEFAULT_PAYMENT_MODES.map((mode) => mode.kind)).toEqual(
-      PAYMENT_MODE_KINDS.filter((kind) => kind !== 'other'),
+      // "Other" is the business's own; a UPI link mode is made when a link is first paid.
+      PAYMENT_MODE_KINDS.filter((kind) => kind !== 'other' && kind !== 'upi_link'),
     );
   });
 });
@@ -92,6 +93,7 @@ describe('tallyReceiptOf', () => {
       },
     ],
     createdByMemberId: 'member1',
+    paymentLinkId: null,
     createdAt: '2026-10-08T05:00:00.000Z',
   };
   const party = {

@@ -217,6 +217,7 @@ export const booksEnumsHi: Translation<typeof booksEnumsEn> = {
     bank_transfer: 'बैंक ट्रांसफ़र',
     cheque: 'चेक',
     other: 'अन्य',
+    upi_link: 'UPI लिंक',
   },
   taxNatures: {
     taxable: 'टैक्स योग्य',

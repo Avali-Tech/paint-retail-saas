@@ -336,6 +336,12 @@ describe('preferences', () => {
         inApp: true,
         email: true,
       },
+      {
+        event: 'payment_link_paid',
+        title: 'A customer pays a payment link at your store',
+        inApp: true,
+        email: true,
+      },
     ]);
     expect(saved.statusCode).toBe(200);
     expect(
@@ -360,6 +366,7 @@ describe('preferences', () => {
       ['credit_approval_decided', true, true],
       ['credit_hold_applied', true, true],
       ['promise_broken', true, true],
+      ['payment_link_paid', true, true],
     ]);
     const duplicate = await api(hydManager).put('/notifications/preferences', {
       preferences: [

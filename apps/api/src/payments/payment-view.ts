@@ -123,6 +123,7 @@ export async function paymentView(tx: Transaction, payment: PaymentRow): Promise
         : 0,
     allocations: rows,
     createdByMemberId: payment.createdByMemberId,
+    paymentLinkId: payment.paymentLinkId,
     createdAt: payment.createdAt.toISOString(),
   };
 }
@@ -150,13 +151,17 @@ export async function receiptView(tx: Transaction, payment: PaymentRow): Promise
       partyPhone: parties.phone,
       partyGstin: parties.gstin,
       balancePaise: sql<number>`coalesce(${partyBalances.balancePaise}, 0)`.mapWith(Number),
+      // Null for money a gateway reported: no member took it.
       receivedBy: users.fullName,
     })
     .from(stores)
     .innerJoin(parties, eq(parties.id, payment.partyId))
     .leftJoin(partyBalances, eq(partyBalances.partyId, payment.partyId))
-    .innerJoin(organizationMembers, eq(organizationMembers.id, payment.createdByMemberId))
-    .innerJoin(users, eq(users.id, organizationMembers.userId))
+    .leftJoin(
+      organizationMembers,
+      sql`${organizationMembers.id} = ${payment.createdByMemberId}::uuid`,
+    )
+    .leftJoin(users, eq(users.id, organizationMembers.userId))
     .where(eq(stores.id, payment.storeId))) as [
     {
       code: string;
@@ -168,7 +173,7 @@ export async function receiptView(tx: Transaction, payment: PaymentRow): Promise
       partyPhone: string | null;
       partyGstin: string | null;
       balancePaise: number;
-      receivedBy: string;
+      receivedBy: string | null;
     },
   ];
   return {

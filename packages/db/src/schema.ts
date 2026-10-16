@@ -1736,6 +1736,7 @@ export const notificationEvent = pgEnum('notification_event', [
   'credit_approval_decided',
   'credit_hold_applied',
   'promise_broken',
+  'payment_link_paid',
 ]);
 
 /** An in-app notification for one member. */
@@ -4007,6 +4008,8 @@ export const paymentModeKind = pgEnum('payment_mode_kind', [
   'bank_transfer',
   'cheque',
   'other',
+  /** Paid online through a payment link (P2-M32): recorded by the gateway's webhook only. */
+  'upi_link',
 ]);
 
 /** How a business takes money: the five base modes, plus its own (a finance company, a wallet). */
@@ -4219,8 +4222,10 @@ export const payments = pgTable(
     chequeBouncedOn: date('cheque_bounced_on', { mode: 'string' }),
     bounceReason: text('bounce_reason'),
     registerSessionId: uuid('register_session_id'),
-    /** A payment gateway's id, for matching (2.1). */
+    /** A payment gateway's id, for matching (2.1): its payment id for a link payment. */
     gatewayReference: text('gateway_reference'),
+    /** The payment link it paid (P2-M32): recorded by the gateway's webhook, with no member. */
+    paymentLinkId: uuid('payment_link_id'),
     note: text('note'),
     /**
      * The GST receipt voucher (an advance, Rule 50) or refund voucher (Rule
@@ -4230,7 +4235,8 @@ export const payments = pgTable(
     voucherFy: text('voucher_fy'),
     voucherSeriesId: uuid('voucher_series_id'),
     supplierGstin: text('supplier_gstin'),
-    createdByMemberId: uuid('created_by_member_id').notNull(),
+    /** Null only for money a gateway reported (a payment link): no member took it. */
+    createdByMemberId: uuid('created_by_member_id'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .default(sql`clock_timestamp()`),
@@ -4264,6 +4270,13 @@ export const payments = pgTable(
     index('payments_register_session_idx')
       .on(table.registerSessionId)
       .where(sql`${table.registerSessionId} is not null`),
+    // A gateway's payment is recorded once, however many events report it.
+    uniqueIndex('payments_link_gateway_reference_unique')
+      .on(table.organizationId, table.gatewayReference)
+      .where(sql`${table.paymentLinkId} is not null`),
+    index('payments_payment_link_idx')
+      .on(table.paymentLinkId)
+      .where(sql`${table.paymentLinkId} is not null`),
     foreignKey({
       name: 'payments_store_fk',
       columns: [table.organizationId, table.storeId],
@@ -4287,6 +4300,11 @@ export const payments = pgTable(
         registerSessions.id,
         registerSessions.storeId,
       ],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'payments_payment_link_fk',
+      columns: [table.organizationId, table.paymentLinkId, table.partyId],
+      foreignColumns: [paymentLinks.organizationId, paymentLinks.id, paymentLinks.partyId],
     }).onDelete('restrict'),
     foreignKey({
       name: 'payments_voucher_series_fk',
@@ -4320,6 +4338,16 @@ export const payments = pgTable(
         and (${table.voucherNumber} is null) = (${table.supplierGstin} is null)
         and ${table.voucherNumber} ~ '^[A-Z0-9/-]{1,16}$'
         and ${table.voucherFy} ~ '^[0-9]{4}-[0-9]{2}$'`,
+    ),
+    // Link payments: money in from a gateway, never into a register; the UPI link mode
+    // is theirs alone (compared as text: the value is new in the same migration).
+    check(
+      'payments_link',
+      sql`(${table.paymentLinkId} is null
+          or (${table.direction} = 'in' and ${table.gatewayReference} is not null
+            and ${table.registerSessionId} is null))
+        and (${table.modeKind}::text = 'upi_link') = (${table.paymentLinkId} is not null)
+        and (${table.createdByMemberId} is not null or ${table.paymentLinkId} is not null)`,
     ),
     check(
       'payments_text_lengths',
@@ -6651,9 +6679,10 @@ export const billingInterval = pgEnum('billing_interval', ['monthly', 'annual'])
 /**
  * How a subscription is collected: `manual` (our invoices, paid by bank transfer or
  * UPI and recorded by a platform operator), or a gateway: `razorpay`, or `fake` for
- * tests. Gateway webhooks name their gateway too.
+ * tests. Gateway webhooks name their gateway too. `log` is the payment-link provider
+ * of development and demos (P2-M32); subscriptions never use it.
  */
-export const paymentGateway = pgEnum('payment_gateway', ['manual', 'fake', 'razorpay']);
+export const paymentGateway = pgEnum('payment_gateway', ['manual', 'fake', 'razorpay', 'log']);
 export const planChangeSource = pgEnum('plan_change_source', [
   'signup',
   'owner',
@@ -7019,4 +7048,191 @@ export const paymentGatewayEvents = pgTable(
     receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.gateway, table.eventId] })],
+).enableRLS();
+
+// ---------------------------------------------------------------------------
+// UPI payment links (roadmap P2-M32, MVP 3 round 4a; docs/mvp-3/credit-and-receivables.md
+// §6.2): a request to a party for money, paid through a gateway whose webhook records
+// and allocates the payment by itself.
+
+/** What a link asks the party to pay. */
+export const paymentLinkPurpose = pgEnum('payment_link_purpose', [
+  /** One invoice, bill of supply or debit note. */
+  'invoice',
+  /** The party's bills past their due date. */
+  'overdue',
+  /** Everything the party owes (a statement's balance). */
+  'outstanding',
+  /** The bills a reminder named. */
+  'bills',
+  /** Money ahead of any bill: allocated to nothing. */
+  'advance',
+]);
+/** Who made the link: a member, the reminder run, or a statement share. */
+export const paymentLinkOrigin = pgEnum('payment_link_origin', ['staff', 'reminder', 'statement']);
+export const paymentLinkStatus = pgEnum('payment_link_status', [
+  'created',
+  'paid',
+  'expired',
+  'cancelled',
+]);
+
+/**
+ * A payment link (P2-M32): an amount asked of a party for some documents, created at a
+ * gateway (`provider`, `gateway_reference`, `url`). Payments the gateway reports are
+ * recorded in `payments` (`payment_link_id`) at the link's store. Only its status and
+ * what was paid change, forward only (trigger, migration 0080).
+ */
+export const paymentLinks = pgTable(
+  'payment_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    /** PL-000001, gap-free per business; sent to the gateway as our reference. */
+    number: text('number').notNull(),
+    /** Where its payments are recorded: the invoice's store, else the party's home store. */
+    storeId: uuid('store_id').notNull(),
+    partyId: uuid('party_id').notNull(),
+    purpose: paymentLinkPurpose('purpose').notNull(),
+    origin: paymentLinkOrigin('origin').notNull(),
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
+    /** What the customer sees at the gateway. */
+    description: text('description').notNull(),
+    provider: paymentGateway('provider').notNull(),
+    /** The gateway's id of the link; its webhooks name it. */
+    gatewayReference: text('gateway_reference').notNull(),
+    url: text('url').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    status: paymentLinkStatus('status').notNull().default('created'),
+    /** Σ payments the gateway reported for it; may pass the amount (the rest is an advance). */
+    paidPaise: bigint('paid_paise', { mode: 'number' }).notNull().default(0),
+    paidAt: timestamp('paid_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    /** Null when the gateway cancelled it. */
+    cancelledByMemberId: uuid('cancelled_by_member_id'),
+    /** Null when the system made it (a reminder). */
+    createdByMemberId: uuid('created_by_member_id'),
+    ...timestamps,
+  },
+  (table) => [
+    unique('payment_links_organization_id_id_unique').on(table.organizationId, table.id),
+    // Payments and documents name the link's own party.
+    unique('payment_links_organization_id_party_unique').on(
+      table.organizationId,
+      table.id,
+      table.partyId,
+    ),
+    unique('payment_links_number_unique').on(table.organizationId, table.number),
+    unique('payment_links_gateway_reference_unique').on(table.provider, table.gatewayReference),
+    index('payment_links_party_idx').on(
+      table.organizationId,
+      table.partyId,
+      table.createdAt.desc().nullsFirst(),
+    ),
+    index('payment_links_organization_created_idx').on(
+      table.organizationId,
+      table.createdAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst(),
+    ),
+    foreignKey({
+      name: 'payment_links_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'payment_links_party_fk',
+      columns: [table.organizationId, table.partyId],
+      foreignColumns: [parties.organizationId, parties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'payment_links_created_by_fk',
+      columns: [table.organizationId, table.createdByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'payment_links_cancelled_by_fk',
+      columns: [table.organizationId, table.cancelledByMemberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('restrict'),
+    check('payment_links_number_format', sql`${table.number} ~ '^PL-[0-9]{6,}$'`),
+    check('payment_links_amount_positive', sql`${table.amountPaise} > 0`),
+    check('payment_links_paid', sql`${table.paidPaise} >= 0`),
+    check('payment_links_expiry', sql`${table.expiresAt} > ${table.createdAt}`),
+    check(
+      'payment_links_status',
+      sql`(${table.status} = 'paid') = (${table.paidAt} is not null)
+        and (${table.status} <> 'cancelled' or ${table.cancelledAt} is not null)
+        and (${table.cancelledAt} is null or ${table.status} in ('cancelled', 'paid'))
+        and (${table.cancelledByMemberId} is null or ${table.cancelledAt} is not null)`,
+    ),
+    check(
+      'payment_links_text_lengths',
+      sql`char_length(${table.description}) between 1 and 200
+        and char_length(${table.gatewayReference}) between 1 and 200
+        and char_length(${table.url}) between 1 and 500`,
+    ),
+    pgPolicy('payment_links_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * The documents a link pays, oldest first (`position`): an invoice, bill of supply or
+ * debit note, or an opening balance or charge in the party ledger, all of the link's
+ * party. Written with the link, never changed (migration 0080).
+ */
+export const paymentLinkDocuments = pgTable(
+  'payment_link_documents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    linkId: uuid('link_id').notNull(),
+    partyId: uuid('party_id').notNull(),
+    documentId: uuid('document_id'),
+    partyLedgerId: uuid('party_ledger_id'),
+    position: integer('position').notNull(),
+    /** What was owed on it when the link was made. */
+    outstandingPaise: bigint('outstanding_paise', { mode: 'number' }).notNull(),
+  },
+  (table) => [
+    unique('payment_link_documents_position_unique').on(table.linkId, table.position),
+    unique('payment_link_documents_document_unique').on(table.linkId, table.documentId),
+    unique('payment_link_documents_ledger_unique').on(table.linkId, table.partyLedgerId),
+    index('payment_link_documents_document_idx')
+      .on(table.documentId)
+      .where(sql`${table.documentId} is not null`),
+    foreignKey({
+      name: 'payment_link_documents_link_fk',
+      columns: [table.organizationId, table.linkId, table.partyId],
+      foreignColumns: [paymentLinks.organizationId, paymentLinks.id, paymentLinks.partyId],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'payment_link_documents_document_fk',
+      columns: [table.organizationId, table.documentId, table.partyId],
+      foreignColumns: [taxDocuments.organizationId, taxDocuments.id, taxDocuments.partyId],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'payment_link_documents_party_ledger_fk',
+      columns: [table.organizationId, table.partyLedgerId, table.partyId],
+      foreignColumns: [partyLedger.organizationId, partyLedger.id, partyLedger.partyId],
+    }).onDelete('restrict'),
+    check(
+      'payment_link_documents_one_target',
+      sql`num_nonnulls(${table.documentId}, ${table.partyLedgerId}) = 1`,
+    ),
+    check(
+      'payment_link_documents_amounts',
+      sql`${table.position} >= 0 and ${table.outstandingPaise} > 0`,
+    ),
+    pgPolicy('payment_link_documents_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
 ).enableRLS();
