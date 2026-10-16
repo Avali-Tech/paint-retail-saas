@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { Global, Module, type DynamicModule } from '@nestjs/common';
 import type { SmsSender } from '../auth/sms.js';
 import type { MessagingProvider } from '../messaging/messaging-provider.js';
-import type { PaymentLinkSettings } from '../payment-links/links.js';
+import type { PaymentLinkGateways } from '../payment-links/payment-link-gateways.js';
 import { SmtpEmailSender } from './email-sender.js';
 import { NotificationsController } from './notifications.controller.js';
 import { NotificationsService } from './notifications.service.js';
@@ -22,8 +22,8 @@ export interface NotificationsOptions {
     readonly whatsapp: MessagingProvider | null;
     readonly sms: SmsSender | null;
   };
-  /** Payment links for the reminders the collections run sends (P2-M32). */
-  readonly paymentLinks: PaymentLinkSettings;
+  /** Payment links for reminders, and their refunds through the gateway (P2-M32). */
+  readonly paymentLinks: PaymentLinkGateways;
 }
 
 /** Global, so any module can inject the Notifier to report events. */

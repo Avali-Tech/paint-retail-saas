@@ -326,8 +326,12 @@ describe('linkRefundOf', () => {
   });
 
   it('keeps an advance link’s money, and refunds nothing when the bills took it all', () => {
-    expect(linkRefundOf({ purpose: 'advance', amountPaise: 5_000, advancePaise: 5_000 })).toBeNull();
-    expect(linkRefundOf({ purpose: 'outstanding', amountPaise: 5_000, advancePaise: 0 })).toBeNull();
+    expect(
+      linkRefundOf({ purpose: 'advance', amountPaise: 5_000, advancePaise: 5_000 }),
+    ).toBeNull();
+    expect(
+      linkRefundOf({ purpose: 'outstanding', amountPaise: 5_000, advancePaise: 0 }),
+    ).toBeNull();
   });
 });
 

@@ -1,6 +1,5 @@
 import {
   BILLING_INTERVALS,
-  DEFAULT_PAYMENT_LINK_DAYS,
   isValidGstin,
   isValidIfsc,
   isValidPincode,
@@ -23,8 +22,11 @@ export const SMS_PROVIDERS = ['disabled', 'log'] as const;
 export const EMAIL_PROVIDERS = ['disabled', 'smtp'] as const;
 /** WhatsApp to parties (P2-M32): a BSP adapter joins `log` when [PO-1] is answered. */
 export const MESSAGING_PROVIDERS = ['disabled', 'log'] as const;
-/** UPI payment links (P2-M32): a gateway adapter joins `log` when [PO-2] is answered. */
-export const PAYMENT_LINK_PROVIDERS = ['disabled', 'log'] as const;
+/**
+ * UPI payment links (P2-M32): `log` (pretend links, not in production) or `razorpay`,
+ * each business connecting its own account ([PO-40]). Cashfree is a later adapter.
+ */
+export const PAYMENT_LINK_PROVIDERS = ['disabled', 'log', 'razorpay'] as const;
 export type SmsProvider = (typeof SMS_PROVIDERS)[number];
 export type MessagingProvider = (typeof MESSAGING_PROVIDERS)[number];
 export type PaymentLinkProviderName = (typeof PAYMENT_LINK_PROVIDERS)[number];
@@ -34,6 +36,12 @@ export const PLAN_ID_KEYS = PAID_PLAN_KEYS.flatMap((plan) =>
   BILLING_INTERVALS.map((interval) => `${plan}_${interval}` as const),
 );
 export type PlanIdKey = `${PaidPlanKey}_${BillingInterval}`;
+
+/** A base64 key of exactly 32 bytes (AES-256), or null. */
+export function credentialsKeyFrom(text: string | undefined): Buffer | null {
+  if (text === undefined || !/^[A-Za-z0-9+/]{43}=$/.test(text)) return null;
+  return Buffer.from(text, 'base64');
+}
 
 /** RAZORPAY_PLAN_IDS read, or null when it is not JSON with a plan id for every key. */
 function planIdsFrom(text: string): Record<PlanIdKey, string> | null {
@@ -87,16 +95,17 @@ const environmentSchema = z
     MESSAGING_PROVIDER: z.enum(MESSAGING_PROVIDERS).default('disabled'),
     /**
      * How UPI payment links are made: "log" makes pretend links paid on a page of the web
-     * app through a signed webhook (development, tests and demos; not in production).
+     * app through a signed webhook (development, tests and demos; not in production);
+     * "razorpay" uses each business's own Razorpay account, connected in Settings.
      */
     PAYMENT_LINK_PROVIDER: z.enum(PAYMENT_LINK_PROVIDERS).default('disabled'),
-    /** Days a payment link stays payable. */
-    PAYMENT_LINK_EXPIRY_DAYS: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(30)
-      .default(DEFAULT_PAYMENT_LINK_DAYS),
+    /**
+     * The key (base64, 32 bytes) that wraps the data keys sealing each business's gateway
+     * credentials; from AWS Secrets Manager in production. Required with "razorpay".
+     */
+    GATEWAY_CREDENTIALS_KEY: z.string().optional(),
+    /** The key before the last rotation: credentials it sealed can still be opened. */
+    GATEWAY_CREDENTIALS_PREVIOUS_KEY: z.string().optional(),
     /** The API's public address, for links sent to customers; default APP_URL + /api. */
     PUBLIC_API_URL: z.url({ protocol: /^https?$/ }).optional(),
     /**
@@ -169,6 +178,33 @@ const environmentSchema = z
     path: ['PAYMENT_LINK_PROVIDER'],
     message: '"log" makes payment links that take no money and is not allowed in production',
   })
+  .refine(
+    (env) =>
+      env.PAYMENT_LINK_PROVIDER !== 'razorpay' ||
+      credentialsKeyFrom(env.GATEWAY_CREDENTIALS_KEY) !== null,
+    {
+      path: ['GATEWAY_CREDENTIALS_KEY'],
+      message: 'is required with PAYMENT_LINK_PROVIDER=razorpay',
+    },
+  )
+  .refine(
+    (env) =>
+      env.GATEWAY_CREDENTIALS_KEY === undefined ||
+      credentialsKeyFrom(env.GATEWAY_CREDENTIALS_KEY) !== null,
+    {
+      path: ['GATEWAY_CREDENTIALS_KEY'],
+      message: 'must be 32 random bytes in base64 (openssl rand -base64 32)',
+    },
+  )
+  .refine(
+    (env) =>
+      env.GATEWAY_CREDENTIALS_PREVIOUS_KEY === undefined ||
+      credentialsKeyFrom(env.GATEWAY_CREDENTIALS_PREVIOUS_KEY) !== null,
+    {
+      path: ['GATEWAY_CREDENTIALS_PREVIOUS_KEY'],
+      message: 'must be 32 random bytes in base64 (openssl rand -base64 32)',
+    },
+  )
   .refine((env) => env.NODE_ENV !== 'production' || env.STORAGE_BUCKET !== undefined, {
     path: ['STORAGE_BUCKET'],
     message: 'is required in production',
@@ -282,14 +318,19 @@ export interface AppConfig {
   readonly signupPlan: PlanKey;
   /** How WhatsApp messages to parties are sent. */
   readonly messagingProvider: MessagingProvider;
-  /** How UPI payment links are made, and how long they stay payable. */
-  readonly paymentLinks: {
-    readonly provider: PaymentLinkProviderName;
-    readonly expiryDays: number;
-  };
+  /** How UPI payment links are made (validity, cap and basis are each business's settings). */
+  readonly paymentLinks: PaymentLinksConfig;
   /** The API's public address (no trailing slash), for links sent to customers. */
   readonly publicApiUrl: string;
   readonly subscriptions: SubscriptionsConfig;
+}
+
+export interface PaymentLinksConfig {
+  readonly provider: PaymentLinkProviderName;
+  /** The keys sealing businesses' gateway credentials; null without Razorpay links. */
+  readonly credentialsKeys: { readonly current: Buffer; readonly previous: Buffer | null } | null;
+  /** Razorpay's API (a fake one in tests). */
+  readonly razorpayApiUrl: string;
 }
 
 export type GatewayConfig =
@@ -391,7 +432,15 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
     messagingProvider: data.MESSAGING_PROVIDER,
     paymentLinks: {
       provider: data.PAYMENT_LINK_PROVIDER,
-      expiryDays: data.PAYMENT_LINK_EXPIRY_DAYS,
+      credentialsKeys:
+        data.GATEWAY_CREDENTIALS_KEY === undefined
+          ? null
+          : {
+              // Checked above: 32 bytes in base64.
+              current: Buffer.from(data.GATEWAY_CREDENTIALS_KEY, 'base64'),
+              previous: credentialsKeyFrom(data.GATEWAY_CREDENTIALS_PREVIOUS_KEY),
+            },
+      razorpayApiUrl: data.RAZORPAY_API_URL.replace(/\/$/, ''),
     },
     publicApiUrl: (data.PUBLIC_API_URL ?? `${appUrl}/api`).replace(/\/$/, ''),
     subscriptions: {

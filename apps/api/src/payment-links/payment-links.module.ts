@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { Global, Module, type DynamicModule } from '@nestjs/common';
-import { PAYMENT_LINK_SETTINGS, type PaymentLinkSettings } from './links.js';
+import { GatewayAccountsService } from './gateway-accounts.service.js';
+import { PAYMENT_LINK_GATEWAYS, type PaymentLinkGateways } from './payment-link-gateways.js';
 import {
   LogCheckoutController,
   PaymentLinksController,
@@ -15,12 +16,16 @@ import { PaymentLinksService } from './payment-links.service.js';
 @Global()
 @Module({})
 export class PaymentLinksModule {
-  static forRoot(settings: PaymentLinkSettings): DynamicModule {
+  static forRoot(gateways: PaymentLinkGateways): DynamicModule {
     return {
       module: PaymentLinksModule,
       controllers: [PaymentLinksController, PaymentLinkWebhooksController, LogCheckoutController],
-      providers: [PaymentLinksService, { provide: PAYMENT_LINK_SETTINGS, useValue: settings }],
-      exports: [PAYMENT_LINK_SETTINGS],
+      providers: [
+        PaymentLinksService,
+        GatewayAccountsService,
+        { provide: PAYMENT_LINK_GATEWAYS, useValue: gateways },
+      ],
+      exports: [PAYMENT_LINK_GATEWAYS],
     };
   }
 }

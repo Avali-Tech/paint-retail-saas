@@ -13,7 +13,7 @@ import {
   type BillingBusiness,
 } from '../test-support/billing-business.js';
 import { startTestApp, uniquePhone, type TestApp } from '../test-support/test-app.js';
-import { PAYMENT_LINK_SETTINGS, type PaymentLinkSettings } from './links.js';
+import { PAYMENT_LINK_GATEWAYS, type PaymentLinkGateways } from './payment-link-gateways.js';
 import { LOG_SIGNATURE_HEADER, type LogPaymentLinkProvider } from './payment-link-provider.js';
 
 // Payment links on the messages that ask for money (spec §6.2 rule PL-12): the
@@ -26,8 +26,13 @@ let t: TestApp;
 let b: BillingBusiness;
 let today: string;
 
-const settings = () => t.app.get<PaymentLinkSettings>(PAYMENT_LINK_SETTINGS, { strict: false });
-const provider = () => settings().provider as LogPaymentLinkProvider;
+const settings = () => t.app.get<PaymentLinkGateways>(PAYMENT_LINK_GATEWAYS, { strict: false });
+/** The log gateway, on in this app. */
+const provider = (): LogPaymentLinkProvider => {
+  const log = settings().log;
+  if (log === null) throw new Error('No log gateway');
+  return log;
+};
 
 async function customer(body: object = {}): Promise<string> {
   return ok(

@@ -240,7 +240,13 @@ export function linkRefundOf(input: {
 }
 
 /** Status of a refund through the gateway (`payment_link_refunds.status`). */
-export const LINK_REFUND_STATUSES = ['pending', 'refunded', 'failed', 'dropped', 'returned'] as const;
+export const LINK_REFUND_STATUSES = [
+  'pending',
+  'refunded',
+  'failed',
+  'dropped',
+  'returned',
+] as const;
 export type LinkRefundStatus = (typeof LINK_REFUND_STATUSES)[number];
 
 /** Minutes before each try after a failed one: 1 minute, then up to a day. */

@@ -4,12 +4,8 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import { indiaToday } from '../credit/credit-lookups.js';
 import { canMessage, queueMessage } from '../messaging/outbox.js';
 import type { Notifier } from '../notifications/notifier.js';
-import {
-  createLink,
-  planLink,
-  reusableLink,
-  type PaymentLinkSettings,
-} from '../payment-links/links.js';
+import { createLink, planLink, reusableLink } from '../payment-links/links.js';
+import type { PaymentLinkGateways } from '../payment-links/payment-link-gateways.js';
 import { PROMISE, paidTowards } from './promises.js';
 
 const {
@@ -21,9 +17,6 @@ const {
   promisesToPay,
   reminderSchedules,
 } = schema;
-
-/** Payment links off: reminders go out without one. */
-const NO_LINKS: PaymentLinkSettings = { provider: null, expiryDays: 7 };
 
 /** Businesses run per pass of the daily job; the next pass takes the rest. */
 const DAILY_BATCH = 200;
@@ -47,7 +40,8 @@ export async function runCollections(
   tx: Transaction,
   notifier: Notifier,
   organizationId: string,
-  links: PaymentLinkSettings = NO_LINKS,
+  /** Payment links for reminders; null (off) sends reminders without one. */
+  links: PaymentLinkGateways | null = null,
 ): Promise<CollectionsRun | null> {
   const [lock] = (
     await tx.execute<{ locked: boolean }>(
@@ -175,7 +169,7 @@ async function branchManagersOf(
 async function queueReminders(
   tx: Transaction,
   organizationId: string,
-  links: PaymentLinkSettings,
+  links: PaymentLinkGateways | null,
 ): Promise<number> {
   const schedules = await tx
     .select({ offsetDays: reminderSchedules.offsetDays, channels: reminderSchedules.channels })
@@ -248,12 +242,13 @@ async function queueReminders(
 /** The UPI link a reminder carries, or null without a provider or anyone to send to. */
 async function reminderLink(
   tx: Transaction,
-  links: PaymentLinkSettings,
+  links: PaymentLinkGateways | null,
   organizationId: string,
   party: { party_id: string; document_ids: string[]; store_id: string },
   channels: readonly ('whatsapp' | 'sms' | 'email')[],
 ): Promise<string | null> {
-  if (links.provider === null) return null;
+  const provider = links === null ? null : await links.forBusiness(tx, organizationId);
+  if (provider === null) return null;
   let reachable = false;
   for (const channel of channels) {
     if (await canMessage(tx, { organizationId, partyId: party.party_id, channel })) {
@@ -279,9 +274,7 @@ async function reminderLink(
     amountPaise: plan.amountPaise,
     memberId: null,
   };
-  const id =
-    (await reusableLink(tx, link)) ??
-    (await createLink(tx, { provider: links.provider, expiryDays: links.expiryDays }, link));
+  const id = (await reusableLink(tx, link)) ?? (await createLink(tx, provider, link));
   const [row] = (
     await tx.execute<{ url: string }>(sql`select url from payment_links where id = ${id}`)
   ).rows as [{ url: string }];
@@ -296,7 +289,7 @@ async function reminderLink(
 export async function runCollectionsForBusinesses(
   db: Database,
   notifier: Notifier,
-  links: PaymentLinkSettings = NO_LINKS,
+  links: PaymentLinkGateways | null = null,
 ): Promise<CollectionsRun> {
   const due = await db
     .select({ id: organizations.id })

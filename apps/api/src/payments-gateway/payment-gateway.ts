@@ -44,7 +44,22 @@ export interface PaymentCreator {
   createPayment(request: PaymentRequest): Promise<CreatedPayment>;
 }
 
-/** Thrown when the gateway refuses or cannot be reached; never carries keys. */
+/**
+ * Thrown when the gateway refuses or cannot be reached; never carries keys. `code` is
+ * the gateway's error code (or `unreachable`, `unauthorized`), safe to store and show;
+ * `retryable` says whether trying the same request again later may work.
+ */
 export class GatewayError extends Error {
   override readonly name = 'GatewayError';
+  readonly code: string;
+  readonly retryable: boolean;
+
+  constructor(
+    message: string,
+    options: { readonly code?: string; readonly retryable?: boolean } = {},
+  ) {
+    super(message);
+    this.code = options.code ?? 'gateway_error';
+    this.retryable = options.retryable ?? false;
+  }
 }

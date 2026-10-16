@@ -166,6 +166,7 @@ describe('low stock', () => {
       // Collections and messages run only by day (India time); nothing is due here either way.
       promisesSettled: 0,
       remindersQueued: 0,
+      linkRefunds: 0,
       messagesSent: 0,
       messagesFailed: 0,
       emailsSent: 1,
@@ -181,6 +182,7 @@ describe('low stock', () => {
       subscriptionInvoices: 0,
       promisesSettled: 0,
       remindersQueued: 0,
+      linkRefunds: 0,
       messagesSent: 0,
       messagesFailed: 0,
       emailsSent: 0,
