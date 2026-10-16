@@ -32,6 +32,7 @@ import { supportAccessEn } from './en-support-access.js';
 import { taxEn, taxEnumsEn } from './en-tax.js';
 import { teamEn } from './en-team.js';
 import { salesEnumsEn, salesEn } from './en-sales.js';
+import { setupEn } from './en-setup.js';
 import { transferEnumsEn, transfersEn } from './en-transfers.js';
 import { workflowEn } from './en-workflow.js';
 import type { Translation } from './shape.js';
@@ -359,6 +360,7 @@ export const en = {
   ...paymentLinksEn,
   ...schemesEn,
   ...statementsEn,
+  ...setupEn,
   /** Names of API values, for label(group, value). */
   enums: {
     /** Quick actions offered with search, by the API's key. */

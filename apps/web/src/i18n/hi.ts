@@ -24,6 +24,7 @@ import { collectionsHi, collectionsEnumsHi } from './hi-collections.js';
 import { paymentLinksHi, paymentLinksEnumsHi } from './hi-payment-links.js';
 import { schemesHi, schemesEnumsHi } from './hi-schemes.js';
 import { statementsHi, statementsEnumsHi } from './hi-statements.js';
+import { setupHi } from './hi-setup.js';
 import { posHi } from './hi-pos.js';
 import { tintHi } from './hi-tint.js';
 import { purchasingEnumsHi, purchasingHi } from './hi-purchasing.js';
@@ -357,6 +358,7 @@ export const hi: Messages = {
   ...paymentLinksHi,
   ...schemesHi,
   ...statementsHi,
+  ...setupHi,
   enums: {
     quickActions: {
       new_customer: '+ ग्राहक',
