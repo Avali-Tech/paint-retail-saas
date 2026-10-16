@@ -5,7 +5,7 @@ import { addDays, todayInIndia } from '../lib/india-time.js';
 import { OWNER, json, type FakeRequest } from '../test-support/fake-api.js';
 import { BARE_PARTY, PARTY } from '../test-support/party-fixtures.js';
 import { renderApp } from '../test-support/render-app.js';
-import { mergeOpenings, openingTotals } from './GoLivePage.js';
+import { mergeOpenings, openingTotals, type OpeningEntry } from './GoLivePage.js';
 
 const today = todayInIndia();
 const earlier = addDays(today, -10);
@@ -76,7 +76,13 @@ function goLive(options: { live?: boolean } = {}) {
 
 describe('mergeOpenings and openingTotals', () => {
   it('lays this page’s changes over the API’s openings and counts what is owed', () => {
-    const changed = { ...PREVIEW.openings[1], amountPaise: 0, source: 'here' } as const;
+    const changed = {
+      partyId: 'party-farhan',
+      partyName: 'Farhan Ali',
+      amountPaise: 0,
+      overdueSince: '2026-03-20',
+      source: 'here',
+    } as const;
     const added = {
       partyId: 'party-new',
       partyName: 'New',
@@ -86,7 +92,7 @@ describe('mergeOpenings and openingTotals', () => {
     } as const;
     const merged = mergeOpenings(
       PREVIEW.openings,
-      new Map([
+      new Map<string, OpeningEntry>([
         [changed.partyId, changed],
         [added.partyId, added],
       ]),
