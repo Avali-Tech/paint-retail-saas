@@ -1,9 +1,45 @@
 import { describe, expect, it } from 'vitest';
+import { gstinCheckCharacter } from '@paint/shared';
 import { ConfigError, loadConfig } from './config.js';
 
 const DATABASE_URL = 'postgres://app:secret@db.internal:5432/paint';
 const AUTH_SECRET = 'test-secret-that-is-at-least-32-characters';
 const required = { DATABASE_URL, AUTH_SECRET };
+const PLAN_IDS = {
+  starter_monthly: 'plan_SM',
+  starter_annual: 'plan_SA',
+  standard_monthly: 'plan_GM',
+  standard_annual: 'plan_GA',
+  enterprise_monthly: 'plan_EM',
+  enterprise_annual: 'plan_EA',
+};
+const PLATFORM_GSTIN = `29AABCA1234B1Z${gstinCheckCharacter('29AABCA1234B1Z')}`;
+const platform = {
+  PLATFORM_LEGAL_NAME: 'Avali Tech Private Limited',
+  PLATFORM_GSTIN,
+  PLATFORM_ADDRESS: '4th Floor, 12 MG Road',
+  PLATFORM_CITY: 'Bengaluru',
+  PLATFORM_PINCODE: '560001',
+};
+const bank = {
+  PLATFORM_BANK_NAME: 'HDFC Bank, MG Road',
+  PLATFORM_BANK_ACCOUNT_NAME: 'Avali Tech Private Limited',
+  PLATFORM_BANK_ACCOUNT_NUMBER: '50200012345678',
+  PLATFORM_BANK_IFSC: 'hdfc0000123',
+};
+const production = {
+  ...required,
+  ...platform,
+  NODE_ENV: 'production',
+  STORAGE_BUCKET: 'docs',
+  CLAMAV_HOST: 'clamav',
+};
+const razorpay = {
+  SUBSCRIPTION_GATEWAY: 'razorpay',
+  RAZORPAY_KEY_ID: 'rzp_live_key',
+  RAZORPAY_KEY_SECRET: 'razorpay-key-secret',
+  RAZORPAY_WEBHOOK_SECRET: 'razorpay-webhook-secret',
+};
 
 describe('loadConfig', () => {
   it('applies defaults when only the required settings are given', () => {
@@ -25,6 +61,29 @@ describe('loadConfig', () => {
       signupPlan: 'trial',
       messagingProvider: 'disabled',
       publicApiUrl: 'http://localhost:5173/api',
+      subscriptions: {
+        gateway: { name: 'manual' },
+        trialDays: 14,
+        graceDays: 7,
+        platform: {
+          legalName: 'Paint Retail SaaS Private Limited (placeholder)',
+          gstin: '36AAACP0000P1ZP',
+          addressLines: ['Placeholder address, set PLATFORM_ADDRESS'],
+          city: 'Hyderabad',
+          pincode: '500001',
+          email: null,
+          invoicePrefix: 'PRS',
+          sacCode: '998315',
+        },
+        bank: {
+          bankName: 'Placeholder Bank, set PLATFORM_BANK_NAME',
+          accountName: 'Paint Retail SaaS Private Limited (placeholder)',
+          accountNumber: '000000000000',
+          ifsc: 'SBIN0000000',
+          upiId: null,
+        },
+        appUrl: 'http://localhost:5173',
+      },
     });
   });
 
@@ -56,6 +115,24 @@ describe('loadConfig', () => {
         SIGNUP_PLAN: 'standard',
         MESSAGING_PROVIDER: 'disabled',
         PUBLIC_API_URL: 'https://api.paintsaas.in/',
+        SUBSCRIPTION_GATEWAY: 'razorpay',
+        RAZORPAY_KEY_ID: 'rzp_live_key',
+        RAZORPAY_KEY_SECRET: 'razorpay-key-secret',
+        RAZORPAY_WEBHOOK_SECRET: 'razorpay-webhook-secret',
+        RAZORPAY_PLAN_IDS: JSON.stringify(PLAN_IDS),
+        RAZORPAY_API_URL: 'https://api.razorpay.example/v1/',
+        SUBSCRIPTION_TRIAL_DAYS: '30',
+        SUBSCRIPTION_GRACE_DAYS: '0',
+        PLATFORM_LEGAL_NAME: 'Avali Tech Private Limited',
+        PLATFORM_GSTIN: PLATFORM_GSTIN.toLowerCase(),
+        PLATFORM_ADDRESS: '4th Floor, 12 MG Road | Ashok Nagar',
+        PLATFORM_CITY: 'Bengaluru',
+        PLATFORM_PINCODE: '560001',
+        PLATFORM_EMAIL: 'billing@paintsaas.in',
+        PLATFORM_INVOICE_PREFIX: 'PS',
+        PLATFORM_SAC: '998314',
+        ...bank,
+        PLATFORM_UPI_ID: 'avalitech@hdfcbank',
       }),
     ).toEqual({
       nodeEnv: 'production',
@@ -84,6 +161,36 @@ describe('loadConfig', () => {
       signupPlan: 'standard',
       messagingProvider: 'disabled',
       publicApiUrl: 'https://api.paintsaas.in',
+      subscriptions: {
+        gateway: {
+          name: 'razorpay',
+          keyId: 'rzp_live_key',
+          keySecret: 'razorpay-key-secret',
+          webhookSecret: 'razorpay-webhook-secret',
+          planIds: PLAN_IDS,
+          apiUrl: 'https://api.razorpay.example/v1',
+        },
+        trialDays: 30,
+        graceDays: 0,
+        platform: {
+          legalName: 'Avali Tech Private Limited',
+          gstin: PLATFORM_GSTIN,
+          addressLines: ['4th Floor, 12 MG Road', 'Ashok Nagar'],
+          city: 'Bengaluru',
+          pincode: '560001',
+          email: 'billing@paintsaas.in',
+          invoicePrefix: 'PS',
+          sacCode: '998314',
+        },
+        bank: {
+          bankName: 'HDFC Bank, MG Road',
+          accountName: 'Avali Tech Private Limited',
+          accountNumber: '50200012345678',
+          ifsc: 'HDFC0000123',
+          upiId: 'avalitech@hdfcbank',
+        },
+        appUrl: 'https://app.paintsaas.in',
+      },
     });
   });
 
@@ -102,6 +209,19 @@ describe('loadConfig', () => {
 
   it('prints WhatsApp messages with the log provider outside production', () => {
     expect(loadConfig({ ...required, MESSAGING_PROVIDER: 'log' }).messagingProvider).toBe('log');
+  });
+
+  it('invoices by hand in production with the platform bank account and no Razorpay keys', () => {
+    const config = loadConfig({ ...production, ...bank });
+    expect(config.subscriptions.gateway).toEqual({ name: 'manual' });
+    expect(config.subscriptions.bank).toMatchObject({ accountNumber: '50200012345678' });
+  });
+
+  it('needs no bank account in production when Razorpay collects', () => {
+    expect(
+      loadConfig({ ...production, ...razorpay, RAZORPAY_PLAN_IDS: JSON.stringify(PLAN_IDS) })
+        .subscriptions.gateway.name,
+    ).toBe('razorpay');
   });
 
   it('accepts port 0 (pick any free port)', () => {
@@ -155,6 +275,41 @@ describe('loadConfig', () => {
       { ...required, PLATFORM_BOOTSTRAP_TOKEN: 'short' },
       /PLATFORM_BOOTSTRAP_TOKEN: must be at least 32/,
     ],
+    [
+      { ...production, ...bank, SUBSCRIPTION_GATEWAY: 'fake' },
+      /SUBSCRIPTION_GATEWAY: must be "manual" or "razorpay" in production/,
+    ],
+    [production, /PLATFORM_BANK_ACCOUNT_NUMBER: PLATFORM_BANK_NAME, PLATFORM_BANK_ACCOUNT_NAME/],
+    [{ ...required, PLATFORM_BANK_ACCOUNT_NUMBER: '12AB' }, /PLATFORM_BANK_ACCOUNT_NUMBER/],
+    [{ ...required, PLATFORM_BANK_IFSC: 'HDFC123' }, /PLATFORM_BANK_IFSC: is not an IFSC/],
+    [{ ...required, PLATFORM_UPI_ID: 'no-at-sign' }, /PLATFORM_UPI_ID: is not a UPI id/],
+    [
+      { ...required, NODE_ENV: 'production' },
+      /PLATFORM_GSTIN: PLATFORM_LEGAL_NAME, PLATFORM_GSTIN/,
+    ],
+    [{ ...required, SUBSCRIPTION_GATEWAY: 'stripe' }, /SUBSCRIPTION_GATEWAY/],
+    [
+      { ...required, SUBSCRIPTION_GATEWAY: 'razorpay' },
+      /RAZORPAY_KEY_ID: RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET/,
+    ],
+    [
+      { ...required, ...razorpay, RAZORPAY_PLAN_IDS: 'not json' },
+      /RAZORPAY_PLAN_IDS: must be JSON/,
+    ],
+    [
+      {
+        ...required,
+        ...razorpay,
+        RAZORPAY_PLAN_IDS: JSON.stringify({ starter_monthly: 'plan_X' }),
+      },
+      /RAZORPAY_PLAN_IDS: must be JSON naming a plan id for each of starter_monthly, starter_annual/,
+    ],
+    [{ ...required, SUBSCRIPTION_TRIAL_DAYS: '0' }, /SUBSCRIPTION_TRIAL_DAYS/],
+    [{ ...required, SUBSCRIPTION_GRACE_DAYS: '31' }, /SUBSCRIPTION_GRACE_DAYS/],
+    [{ ...required, PLATFORM_GSTIN: '36AAACP0000P1ZX' }, /PLATFORM_GSTIN: is not a valid GSTIN/],
+    [{ ...required, PLATFORM_PINCODE: '012345' }, /PLATFORM_PINCODE: is not a PIN code/],
+    [{ ...required, PLATFORM_INVOICE_PREFIX: 'TOOLONG' }, /PLATFORM_INVOICE_PREFIX/],
+    [{ ...required, PLATFORM_SAC: '3208' }, /PLATFORM_SAC: must be a 6-digit SAC/],
   ])('rejects %o, naming the bad variable', (env, variable) => {
     expect(() => loadConfig(env)).toThrow(ConfigError);
     expect(() => loadConfig(env)).toThrow(variable);
@@ -166,6 +321,17 @@ describe('loadConfig', () => {
     for (const variable of [/AUTH_SECRET/, /DATABASE_URL/, /PORT/]) {
       expect(load).toThrow(variable);
     }
+  });
+
+  it('never puts gateway secrets in the error message', () => {
+    try {
+      loadConfig({ ...required, ...razorpay, RAZORPAY_PLAN_IDS: '{"leak": "razorpay-key-secret"' });
+    } catch (error) {
+      expect((error as ConfigError).message).not.toContain('razorpay-key-secret');
+      expect((error as ConfigError).message).not.toContain('razorpay-webhook-secret');
+      return;
+    }
+    throw new Error('Expected loadConfig to throw');
   });
 
   it('never puts secret values in the error message', () => {

@@ -326,11 +326,11 @@ describe('plans and features', () => {
 
     expect([sixthStore.statusCode, message(sixthStore)]).toEqual([
       403,
-      'The Trial plan allows 5 active stores. Ask us to upgrade your plan.',
+      'The Trial plan allows 5 active stores. The owner can upgrade the plan under Billing.',
     ]);
     expect([tooMany.statusCode, message(tooMany)]).toEqual([
       403,
-      'The Trial plan allows 25 active team members. Ask us to upgrade your plan.',
+      'The Trial plan allows 25 active team members. The owner can upgrade the plan under Billing.',
     ]);
     expect(reactivate.statusCode).toBe(403);
 

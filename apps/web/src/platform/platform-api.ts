@@ -1,4 +1,12 @@
-import type { FeatureFlag, PendingSignIn, PlanKey, SessionGrant } from '@paint/shared';
+import type {
+  FeatureFlag,
+  PendingSignIn,
+  PlanKey,
+  RecordSubscriptionPaymentRequest,
+  SessionGrant,
+  TenantBillingView,
+  TenantSubscriptionView,
+} from '@paint/shared';
 import type { ApiClient } from '../api/client.js';
 import type { TwoFactorEnrolment } from '../api/types.js';
 
@@ -42,6 +50,8 @@ export interface TenantView {
   readonly features: Record<FeatureFlag, boolean>;
   readonly featureOverrides: Partial<Record<FeatureFlag, boolean>>;
   readonly usage: TenantUsage;
+  /** How the business pays: its trial, or the paid plan's status. */
+  readonly subscription: TenantSubscriptionView;
   readonly createdAt: string;
 }
 
@@ -109,6 +119,20 @@ export function platformEndpoints(api: ApiClient) {
     suspend: (id: string, reason: string) =>
       api.post<TenantDetail>(`/platform/tenants/${id}/suspend`, { reason }),
     reactivate: (id: string) => api.post<TenantDetail>(`/platform/tenants/${id}/reactivate`),
+    extendTrial: (id: string, days: number) =>
+      api.post<TenantDetail>(`/platform/tenants/${id}/extend-trial`, { days }),
+    /** Manual invoicing: plan requests, our invoices and their payments. */
+    billing: (id: string, signal?: AbortSignal) =>
+      api.get<TenantBillingView>(`/platform/tenants/${id}/billing`, { signal }),
+    applyRequest: (id: string, requestId: string) =>
+      api.post<TenantBillingView>(`/platform/tenants/${id}/plan-requests/${requestId}/apply`),
+    declineRequest: (id: string, requestId: string) =>
+      api.post<TenantBillingView>(`/platform/tenants/${id}/plan-requests/${requestId}/decline`),
+    recordPayment: (id: string, invoiceId: string, payment: RecordSubscriptionPaymentRequest) =>
+      api.post<TenantBillingView>(
+        `/platform/tenants/${id}/invoices/${invoiceId}/payments`,
+        payment,
+      ),
     requestSupport: (tenantId: string, input: { reason: string; minutes: number }) =>
       api.post<GrantView>(`/platform/tenants/${tenantId}/support-requests`, input),
     grants: (tenantId?: string, signal?: AbortSignal) =>

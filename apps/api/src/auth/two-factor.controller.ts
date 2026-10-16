@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { AllowWhenReadOnly } from '../subscriptions/read-only.guard.js';
 import {
   BadRequestException,
   Body,
@@ -39,6 +40,8 @@ function notSupport(auth: AuthContext): void {
 }
 
 /** Two-factor sign-in (TOTP): the sign-in step, the member's own settings, owners' controls. */
+// Signing in and out, security and notices keep working while the business is read-only.
+@AllowWhenReadOnly()
 @Controller()
 export class TwoFactorController {
   constructor(

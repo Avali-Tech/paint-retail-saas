@@ -495,3 +495,44 @@ describe('0069_credit_enforcement: hold kinds', () => {
     });
   });
 });
+
+describe('0078_subscription_rules: a subscription for every business', () => {
+  it('starts a fresh 14-day trial for a trial business and keeps a plan set by hand active', async () => {
+    const { connectionString: url } = await freshDatabase();
+    await migrateDatabase(url, migrationsUpTo('0076_grant_receivables_read'));
+    const ids = await withPgClient(url, async (client) => {
+      const add = async (name: string, plan: string) => {
+        const result = await client.query<{ id: string }>(
+          'INSERT INTO organizations (name, plan) VALUES ($1, $2) RETURNING id',
+          [name, plan],
+        );
+        return String(result.rows[0]?.id);
+      };
+      return {
+        trial: await add('Trial Paints', 'trial'),
+        paid: await add('Paid Paints', 'standard'),
+      };
+    });
+
+    await migrateDatabase(url);
+    await migrateDatabase(url);
+
+    const rows = await withPgClient(url, async (client) => {
+      const result = await client.query<{
+        organization_id: string;
+        status: string;
+        gateway: string | null;
+        trial_days: number | null;
+      }>(
+        `SELECT organization_id, status::text, gateway::text,
+           round(extract(epoch from (trial_ends_at - now())) / 86400)::int AS trial_days
+         FROM subscriptions ORDER BY status`,
+      );
+      return result.rows;
+    });
+    expect(rows).toEqual([
+      { organization_id: ids.paid, status: 'active', gateway: null, trial_days: null },
+      { organization_id: ids.trial, status: 'trialing', gateway: null, trial_days: 14 },
+    ]);
+  });
+});

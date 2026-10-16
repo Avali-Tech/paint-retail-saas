@@ -39,3 +39,29 @@ variable "platform_bootstrap_enabled" {
   type    = bool
   default = false
 }
+
+variable "subscriptions" {
+  description = "SaaS subscriptions (P2-M08): how they are collected (gateway: \"manual\", the default, or \"razorpay\"), trial and grace days, the platform's own GST details printed on its invoices, its bank account for manual invoices (required with \"manual\"), and, with \"razorpay\", the key id and one Razorpay plan id per paid plan and interval (e.g. standard_monthly), whose key secret and webhook secret are Secrets Manager secrets the api module creates; put their values in by hand (docs/mvp-3/subscriptions.md)."
+  type = object({
+    gateway           = optional(string, "manual")
+    razorpay_key_id   = optional(string)
+    razorpay_plan_ids = optional(map(string), {})
+    trial_days        = optional(number, 14)
+    grace_days        = optional(number, 7)
+    platform = object({
+      legal_name = string
+      gstin      = string
+      address    = string
+      city       = string
+      pincode    = string
+      email      = optional(string)
+    })
+    bank = optional(object({
+      name           = string
+      account_name   = string
+      account_number = string
+      ifsc           = string
+      upi_id         = optional(string)
+    }))
+  })
+}

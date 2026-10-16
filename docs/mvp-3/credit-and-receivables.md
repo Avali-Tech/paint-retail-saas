@@ -3,7 +3,7 @@
 |           |                                                                                                                                                                            |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Release   | 2.1 "Credit, Receivables & Multi-Brand Money" ([roadmap](https://github.com/Avali-Tech/paint-retail-saas-roadmap/blob/main/docs/phases/phase-2-commerce-finance-paint.md)) |
-| Modules   | P2-M09 – M12, P2-M32 – M36                                                                                                                                                 |
+| Modules   | P2-M08 (round 3a), P2-M09 – M12, P2-M32 – M36                                                                                                                              |
 | Branch    | feature PRs → `mvp-3`                                                                                                                                                      |
 | Builds on | MVP 2 on `mvp-3` at migration `0068` (commit `1ad6626`)                                                                                                                    |
 | Status    | Draft for product-owner review. Ageing and statement rules need CA sign-off (§8); BSP and payment gateway are open ([PO-1], [PO-2]).                                       |
@@ -19,29 +19,30 @@ screens, §6 the modules that come after round 1, §7 the build order and §8 th
 
 ### 1.1 In Release 2.1
 
-| ID     | Module                                    | What ships                                                                                                                                                                                               | Done when (roadmap)                                                                                                             |
-| ------ | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| P2-M09 | Credit approval, limit enforcement, sites | Live exposure; projected exposure checked at order confirm and at credit-invoice issue; approval requests routed to a manager or the owner; automatic overdue hold with approved release; site accounts  | The spec §6.3 example (limit ₹30,000, outstanding ₹18,000, order ₹15,000) asks for approval, through real invoices and payments |
-| P2-M10 | Receivables & ageing                      | Dashboard (outstanding, due today, due this week, overdue, utilisation, top customers); ageing 0–30 / 31–60 / 61–90 / 90+ by customer, salesperson, store                                                | Ageing figures match the party ledger exactly                                                                                   |
-| P2-M11 | Collections                               | Worklist per salesperson; call / WhatsApp / note / promise-to-pay / record payment / escalate / hold; scheduled reminders (SMS and email until a BSP exists)                                             | A broken promise-to-pay date escalates automatically                                                                            |
-| P2-M12 | Customer ledger & statements              | Statement for any date range, opening and closing balance, PDF in en / hi / te; share by a signed, expiring link and `wa.me`                                                                             | A contractor receives their statement on WhatsApp in 2 clicks                                                                   |
-| P2-M32 | WhatsApp messages & UPI payment links     | Messaging and payment-link provider interfaces with a `log` provider; templates (invoice, receipt, statement, reminder, order ready); opt-in / opt-out; payment links; webhook auto-match and allocation | A reminder paid by UPI is recorded and allocated with no manual entry (with the `log` gateway until [PO-2])                     |
-| P2-M33 | Brand scheme, target & rebate tracker     | Schemes with periods, slabs and benefits; progress to next slab from GRNs; expected vs received benefits; claims with ageing; price-hike planner (research)                                              | Per brand: distance to the next slab and benefits still outstanding                                                             |
-| P2-M34 | Brand statement reconciliation            | Import a brand statement (CSV / Excel; PDF is research) with a mapping template per brand; match against GRNs, scheme credit notes and recorded brand payments; list mismatches                          | A month's brand statement reconciles with mismatches listed                                                                     |
-| P2-M35 | Brand profitability                       | True margin per brand, product and store: sales − cost + schemes − credit cost − loyalty paid; side by side; CSV                                                                                         | The owner answers "which brand makes me the most money?" for any period                                                         |
-| P2-M36 | Painter points from invoices              | Points to the influencer of an invoice by rules (per ₹ or per litre, brand multiplier); reversed by credit notes; WhatsApp notice through P2-M32                                                         | A tagged invoice creates points and queues the painter's WhatsApp notice                                                        |
+| ID     | Module                                           | What ships                                                                                                                                                                                                                                                                                                                                     | Done when (roadmap)                                                                                                             |
+| ------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| P2-M09 | Credit approval, limit enforcement, sites        | Live exposure; projected exposure checked at order confirm and at credit-invoice issue; approval requests routed to a manager or the owner; automatic overdue hold with approved release; site accounts                                                                                                                                        | The spec §6.3 example (limit ₹30,000, outstanding ₹18,000, order ₹15,000) asks for approval, through real invoices and payments |
+| P2-M10 | Receivables & ageing                             | Dashboard (outstanding, due today, due this week, overdue, utilisation, top customers); ageing 0–30 / 31–60 / 61–90 / 90+ by customer, salesperson, store                                                                                                                                                                                      | Ageing figures match the party ledger exactly                                                                                   |
+| P2-M11 | Collections                                      | Worklist per salesperson; call / WhatsApp / note / promise-to-pay / record payment / escalate / hold; scheduled reminders (SMS and email until a BSP exists)                                                                                                                                                                                   | A broken promise-to-pay date escalates automatically                                                                            |
+| P2-M12 | Customer ledger & statements                     | Statement for any date range, opening and closing balance, PDF in en / hi / te; share by a signed, expiring link and `wa.me`                                                                                                                                                                                                                   | A contractor receives their statement on WhatsApp in 2 clicks                                                                   |
+| P2-M32 | WhatsApp messages & UPI payment links            | Messaging and payment-link provider interfaces with a `log` provider; templates (invoice, receipt, statement, reminder, order ready); opt-in / opt-out; payment links; webhook auto-match and allocation                                                                                                                                       | A reminder paid by UPI is recorded and allocated with no manual entry (with the `log` gateway until [PO-2])                     |
+| P2-M33 | Brand scheme, target & rebate tracker            | Schemes with periods, slabs and benefits; progress to next slab from GRNs; expected vs received benefits; claims with ageing; price-hike planner (research)                                                                                                                                                                                    | Per brand: distance to the next slab and benefits still outstanding                                                             |
+| P2-M34 | Brand statement reconciliation                   | Import a brand statement (CSV / Excel; PDF is research) with a mapping template per brand; match against GRNs, scheme credit notes and recorded brand payments; list mismatches                                                                                                                                                                | A month's brand statement reconciles with mismatches listed                                                                     |
+| P2-M35 | Brand profitability                              | True margin per brand, product and store: sales − cost + schemes − credit cost − loyalty paid; side by side; CSV                                                                                                                                                                                                                               | The owner answers "which brand makes me the most money?" for any period                                                         |
+| P2-M36 | Painter points from invoices                     | Points to the influencer of an invoice by rules (per ₹ or per litre, brand multiplier); reversed by credit notes; WhatsApp notice through P2-M32                                                                                                                                                                                               | A tagged invoice creates points and queues the painter's WhatsApp notice                                                        |
+| P2-M08 | SaaS subscriptions (round 3a, from draft PR #50) | Manual invoicing by default (the PO's choice, no gateway live): the owner asks for a plan, an operator applies it; our GST invoices on schedule; bank transfer or UPI recorded by an operator; grace, then read-only. Razorpay and fake adapters behind config, on a payment-gateway port P2-M32 reuses ([subscriptions.md](subscriptions.md)) | A trial business asks for a plan, sees our invoice with how to pay it, an operator records the payment and it is active         |
 
 ### 1.2 Out of Release 2.1
 
-| Out                                                    | Where it goes                  | What 2.1 leaves ready                                                                               |
-| ------------------------------------------------------ | ------------------------------ | --------------------------------------------------------------------------------------------------- |
-| P2-M08 SaaS subscriptions with a gateway               | Manual invoicing (PO decision) | Nothing here depends on it; the platform console keeps plans and flags                              |
-| A real WhatsApp BSP and payment gateway                | When [PO-1] / [PO-2] answer    | Provider interfaces, `log` providers, outbox, webhook endpoint shape, signed statement links (§6.4) |
-| Supplier ledger, purchase invoices, input tax (P2-M17) | 2.2                            | P2-M34 matches GRNs and scheme credit notes; matching supplier invoices waits for P2-M17            |
-| Price lists and discounts by role (P2-M13 – M15)       | 2.2                            | P2-M35 reads the price actually billed on each line                                                 |
-| Credit scoring, credit intelligence (spec §7.4)        | Phase 3                        | Approval history, holds and ageing are kept for it                                                  |
-| Interest on overdue amounts                            | [PO-6]                         | Ageing per document makes it a query                                                                |
-| Loyalty catalogue, KYC, UPI payouts (P2-M27)           | 2.5                            | P2-M36 writes to the P1-M26 points ledger; redemption stays manual                                  |
+| Out                                                    | Where it goes               | What 2.1 leaves ready                                                                                                               |
+| ------------------------------------------------------ | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| A live payment gateway for subscriptions               | When [PO-2] answers         | Round 3a ships manual invoicing; the Razorpay adapter stays behind `SUBSCRIPTION_GATEWAY` ([subscriptions.md](subscriptions.md) §2) |
+| A real WhatsApp BSP and payment gateway                | When [PO-1] / [PO-2] answer | Provider interfaces, `log` providers, outbox, webhook endpoint shape, signed statement links (§6.4)                                 |
+| Supplier ledger, purchase invoices, input tax (P2-M17) | 2.2                         | P2-M34 matches GRNs and scheme credit notes; matching supplier invoices waits for P2-M17                                            |
+| Price lists and discounts by role (P2-M13 – M15)       | 2.2                         | P2-M35 reads the price actually billed on each line                                                                                 |
+| Credit scoring, credit intelligence (spec §7.4)        | Phase 3                     | Approval history, holds and ageing are kept for it                                                                                  |
+| Interest on overdue amounts                            | [PO-6]                      | Ageing per document makes it a query                                                                                                |
+| Loyalty catalogue, KYC, UPI payouts (P2-M27)           | 2.5                         | P2-M36 writes to the P1-M26 points ledger; redemption stays manual                                                                  |
 
 ### 1.3 What 2.1 uses from 2.0
 
@@ -104,7 +105,7 @@ The ageing invariant 1b tests for every party and every `asOf`:
   keep their signatures (1a may add optional parameters only).
 - Site accounts (§3.3) filter documents by `tax_documents.project_id`. 1b's ageing takes an optional
   `projectId` filter from day one so the site screen can link to it; 1a's site view computes its own
-  figures with the same bucket edges (§2.2), and a round 5 test checks both agree.
+  figures with the same bucket edges (§2.2), and a round 6 test checks both agree.
 
 ### 2.4 What 1b gives 1a
 
@@ -181,13 +182,14 @@ statements on WhatsApp (round 2 with P2-M12's share).
 
 ### 3.4 Later rounds (summary; each owning session details its tables before coding)
 
-| Round | Module         | New tables (draft)                                                                                                                     |
-| ----- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| 2a    | P2-M11, P2-M32 | Built: see §3.5 (migrations 0074–0076)                                                                                                 |
-| 2a    | P2-M36         | Built: see §3.5 (migrations 0072–0073)                                                                                                 |
-| 3a    | P2-M32         | `payment_links` (party, documents, amount, provider, status, `gateway_reference`, expiry), `gateway_events` (raw webhooks, idempotent) |
-| 4a    | P2-M33         | `brand_schemes`, `brand_scheme_slabs`, `brand_scheme_benefits`, `brand_claims`, `brand_benefit_receipts`                               |
-| 5a    | P2-M34         | `brand_statement_templates`, `brand_statement_imports`, `brand_statement_lines`, `brand_statement_matches`                             |
+| Round | Module         | New tables (draft)                                                                                                                                                                                      |
+| ----- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2a    | P2-M11, P2-M32 | Built: see §3.5 (migrations 0074–0076)                                                                                                                                                                  |
+| 2a    | P2-M36         | Built: see §3.5 (migrations 0072–0073)                                                                                                                                                                  |
+| 3a    | P2-M08         | Built: [subscriptions.md](subscriptions.md) §7 (migrations 0077–0078), including the shared `payment_gateway_events`                                                                                    |
+| 4a    | P2-M32         | `payment_links` (party, documents, amount, provider, status, `gateway_reference`, expiry); webhook events reuse 3a's `payment_gateway_events` through the shared port (`apps/api/src/payments-gateway`) |
+| 5a    | P2-M33         | `brand_schemes`, `brand_scheme_slabs`, `brand_scheme_benefits`, `brand_claims`, `brand_benefit_receipts`                                                                                                |
+| 6a    | P2-M34         | `brand_statement_templates`, `brand_statement_imports`, `brand_statement_lines`, `brand_statement_matches`                                                                                              |
 
 ### 3.5 Round 2a: new and changed objects, migrations 0072–0076
 
@@ -391,17 +393,17 @@ whose CO rules several of these adopt, as cited):
 | CO-8 | The daily run (promises, escalations, reminders) is the M09 job pattern: advisory lock per business, explicit `organization_id` filters, one transaction per business, recorded in `collection_runs`; it runs only between 09:00 and 20:00 India time (MSG-6)                                                                                              | Job and worker tests (fixed instants for day and night)        |
 | CO-9 | Who: worklist, promises list and schedule read need `receivables:read`; recording and cancelling promises and acknowledging escalations need `credit:manage`; changing the schedule needs `credit:approve`                                                                                                                                                 | API permission tests                                           |
 
-### 6.2 P2-M32 WhatsApp messages and UPI payment links (rounds 2a and 3a)
+### 6.2 P2-M32 WhatsApp messages and UPI payment links (rounds 2a and 4a)
 
-| Piece              | Design                                                                                                                                                                                                                                                |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Messaging provider | `interface MessagingProvider { send(message: TemplateMessage): Promise<{providerRef}> }`, as `SmsSender`: `log` (dev and tests, prints), `disabled` (default), a BSP adapter later ([PO-1]). `MESSAGING_PROVIDER` env, refused as `log` in production |
-| Outbox             | `message_outbox` (party, channel, template, variables, status, attempts, provider ref); the worker sends with retries like email                                                                                                                      |
-| Consent            | `messaging_consents` per party and channel: opted in (when, how), opted out; nothing is sent without opt-in ([CA-3] / DPDP Act)                                                                                                                       |
-| Templates          | invoice, receipt, statement, payment reminder, order ready / dispatched, points earned; variables only, approved by the BSP later                                                                                                                     |
-| Until a BSP        | Every "send on WhatsApp" opens `wa.me/<mobile>?text=…` with a signed, expiring link (statement, invoice, receipt), which needs no BSP                                                                                                                 |
-| Payment provider   | `interface PaymentLinkProvider { create(link): Promise<{url, gatewayReference}>; verify(webhook): GatewayEvent }`: `log` (creates `upi://pay?...` intent links and accepts a signed test webhook) and a gateway adapter later ([PO-2])                |
-| Auto-allocation    | A verified, new `gateway_events` row records a payment (`gateway_reference` unique per business) and allocates it with the 2.0 allocation service to the link's documents, oldest first; the rest is an advance                                       |
+| Piece              | Design                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Messaging provider | `interface MessagingProvider { send(message: TemplateMessage): Promise<{providerRef}> }`, as `SmsSender`: `log` (dev and tests, prints), `disabled` (default), a BSP adapter later ([PO-1]). `MESSAGING_PROVIDER` env, refused as `log` in production                                                                                                                                                                                               |
+| Outbox             | `message_outbox` (party, channel, template, variables, status, attempts, provider ref); the worker sends with retries like email                                                                                                                                                                                                                                                                                                                    |
+| Consent            | `messaging_consents` per party and channel: opted in (when, how), opted out; nothing is sent without opt-in ([CA-3] / DPDP Act)                                                                                                                                                                                                                                                                                                                     |
+| Templates          | invoice, receipt, statement, payment reminder, order ready / dispatched, points earned; variables only, approved by the BSP later                                                                                                                                                                                                                                                                                                                   |
+| Until a BSP        | Every "send on WhatsApp" opens `wa.me/<mobile>?text=…` with a signed, expiring link (statement, invoice, receipt), which needs no BSP                                                                                                                                                                                                                                                                                                               |
+| Payment provider   | On round 3a's payment-gateway port (`apps/api/src/payments-gateway`, [subscriptions.md](subscriptions.md) §5): a link adapter implements `PaymentCreator.createPayment` (→ gateway reference and URL) and `WebhookVerifier`, and `receiveGatewayWebhook` stores each verified event once in `payment_gateway_events`; a `log` adapter (creates `upi://pay?...` intent links and accepts a signed test webhook) and a gateway adapter later ([PO-2]) |
+| Auto-allocation    | A verified, new `payment_gateway_events` row records a payment (`gateway_reference` unique per business) and allocates it with the 2.0 allocation service to the link's documents, oldest first; the rest is an advance                                                                                                                                                                                                                             |
 
 **The messaging half as built in round 2a.** Platform and legal rules adopted from draft PR #51
 §2.7–§2.8, with its sources (Meta pricing and opt-in pages, the DPDP Act 2023 ss.5–7 and the DPDP
@@ -431,7 +433,7 @@ The provider interface follows PR #51 §5.1's port, narrowed to what round 2a se
 Webhooks (delivery receipts, inbound STOP, PR #51 CN-4) and template-approval sync arrive with
 the BSP adapter; until then `whatsapp_reply` withdrawals cannot occur and staff record them.
 
-### 6.3 P2-M33 – M35 Brand money (rounds 3b, 4a, 4b, 5a)
+### 6.3 P2-M33 – M35 Brand money (rounds 3b, 5a, 5b, 6a)
 
 | Module | Design                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -441,8 +443,8 @@ the BSP adapter; until then `whatsapp_reply` withdrawals cannot occur and staff 
 
 #### Brand engines (round 3b)
 
-Pure functions in `packages/shared/src/brand/`, exported from `@paint/shared`, with no database. 4a
-and 4b load the rows and call them. Money is integer paise and volume is integer millilitres; every
+Pure functions in `packages/shared/src/brand/`, exported from `@paint/shared`, with no database. 5a
+and 5b load the rows and call them. Money is integer paise and volume is integer millilitres; every
 product of an amount and a rate is taken in BigInt and divided once, with the rounding stated below.
 Rates are basis points (100 = 1 %).
 
@@ -636,32 +638,50 @@ of P2-M32 (§6.2 MSG-1 – MSG-10), stored statement links (§6.4 SL-1 – SL-6)
 Not in 2a: a screen for rewording templates (the API is there: `GET/PUT/DELETE
 /message-templates`, `organization:manage`), the BSP adapter, webhooks and STOP handling ([PO-1]).
 
-### Round 3 — money comes in by itself
+### Round 3 — subscriptions and brand engines
 
-| Session                           | Builds                                                                                                                                                                       | Depends on |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| 3a [migrations] UPI payment links | P2-M32 payment links, `PaymentLinkProvider` with `log`, webhook endpoint, idempotent `gateway_events`, auto-match and allocation; link on reminders, statements and invoices | Round 2    |
-| 3b Brand engines                  | Pure `packages/shared/src/brand/`: slab progress, expected benefits, price-hike planner (P2-M33) and the margin formula (P2-M35), with property tests; no database           | —          |
+Round 3a was planned as UPI payment links. The product owner chose manual invoicing for SaaS
+subscriptions instead of waiting for a gateway, so 3a brought P2-M08 (draft PR #50, built on MVP 2)
+onto `mvp-3` and switched it to manual invoicing; UPI links move to round 4a and reuse its gateway
+port. Brand schemes, profitability and reconciliation each move one round later, unchanged.
+
+| Session                       | Builds                                                                                                                                                                                                                                                                                                             | Depends on |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| 3a [migrations] Subscriptions | P2-M08 from #50, migrations 0077–0078: manual invoicing by default (plan requests, our GST invoices on schedule, payments recorded in the console, grace then read-only), Razorpay and fake adapters behind config, the shared payment-gateway port; read-only mode checked on every write route, MVP 3's included | Round 2    |
+| 3b Brand engines              | Pure `packages/shared/src/brand/`: slab progress, expected benefits, price-hike planner (P2-M33) and the margin formula (P2-M35), with property tests; no database                                                                                                                                                 | —          |
+
+**Demo:** a trial business asks for the Standard plan, sees our invoice with the platform's bank
+details, the operator records the bank transfer and the business is active; a business whose
+invoice stays unpaid past the grace days is read-only, and paying makes it work again.
+
+**3a as built:** [subscriptions.md](subscriptions.md). Not in 3a: emails about invoices and trials,
+credit notes for our invoices, a live gateway ([PO-2], [PO-25]).
+
+### Round 4 — money comes in by itself
+
+| Session                           | Builds                                                                                                                                                                                                                                                     | Depends on |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 4a [migrations] UPI payment links | P2-M32 payment links on round 3a's payment-gateway port (`PaymentCreator`, `WebhookVerifier`, `receiveGatewayWebhook` and its idempotent `payment_gateway_events`), a `log` adapter, auto-match and allocation; link on reminders, statements and invoices | Round 3a   |
 
 **Demo:** a reminder paid through the `log` gateway's signed webhook is recorded and allocated with no
 manual entry, and a replayed webhook changes nothing.
 
-### Round 4 — brand schemes and profitability
+### Round 5 — brand schemes and profitability
 
 | Session                       | Builds                                                                                                            | Depends on    |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------- |
-| 4a [migrations] Brand schemes | P2-M33 tables, APIs and screens on 3b's engines: schemes, slabs, progress from GRNs, expected vs received, claims | 3b            |
-| 4b Brand profitability        | P2-M35 report and screen (sales, cost, loyalty, credit cost; scheme figures from 4a's committed schema), CSV      | 3b, 4a schema |
+| 5a [migrations] Brand schemes | P2-M33 tables, APIs and screens on 3b's engines: schemes, slabs, progress from GRNs, expected vs received, claims | 3b            |
+| 5b Brand profitability        | P2-M35 report and screen (sales, cost, loyalty, credit cost; scheme figures from 5a's committed schema), CSV      | 3b, 5a schema |
 
 **Demo:** per brand, distance to the next slab and benefits outstanding; the owner sees which brand
 made the most money last quarter.
 
-### Round 5 — brand statements and pilot readiness
+### Round 6 — brand statements and pilot readiness
 
 | Session                               | Builds                                                                                                                                                                                | Depends on |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| 5a [migrations] Brand statement recon | P2-M34 templates, import, matching, mismatch list; any CA-driven fixes                                                                                                                | 4a         |
-| 5b Pilot readiness                    | 2.1 demo seed (approvals, holds, sites, promises, schemes), scale of ageing and worklists at large-shop volume, translations, accessibility, the site-vs-ageing agreement test (§2.3) | Rounds 1–4 |
+| 6a [migrations] Brand statement recon | P2-M34 templates, import, matching, mismatch list; any CA-driven fixes                                                                                                                | 5a         |
+| 6b Pilot readiness                    | 2.1 demo seed (approvals, holds, sites, promises, schemes), scale of ageing and worklists at large-shop volume, translations, accessibility, the site-vs-ageing agreement test (§2.3) | Rounds 1–5 |
 
 **Demo:** a month's brand statement reconciles with mismatches listed; a pilot shop's collections
 morning: worklist, two promises, one UPI payment allocated by itself, ageing and statements reconciled.
@@ -695,6 +715,10 @@ morning: worklist, two promises, one UPI payment allocated by itself, ageing and
 | PO-19 | When a credit note would take back points the painter has already redeemed, forgive them or carry a negative balance against future points?                                                                                | Forgive (the balance never goes below zero)                               |
 | PO-20 | Should editing an earn rule keep the old version for returns against older invoices (versioned rules), or is weighing returns by today's rules acceptable?                                                                 | Today's rules; switch a rule off and add a new one to keep history clear  |
 | PO-21 | A price-only credit note (no goods back) on a per-litre line: take back points by value, as now, or none?                                                                                                                  | By value                                                                  |
+| PO-22 | Subscription prices: the placeholders are ₹799 (Starter), ₹1,499 (Standard) and ₹2,999 (Enterprise) per store a month, annual = ten months, before GST. What are the real prices, and do they stay per store?              | The placeholders, per store                                               |
+| PO-23 | Should the background jobs keep running for a read-only business (the collections run and its reminders to parties, the nightly credit hold), or pause until it pays?                                                      | Keep running                                                              |
+| PO-24 | Should MVP 3 modules be features of a plan (credit control, WhatsApp, painter points), so a smaller plan switches them off?                                                                                                | No: every plan has them                                                   |
+| PO-25 | When a gateway goes live for subscriptions ([PO-2]), do businesses we invoice by hand move to it, and who tells them?                                                                                                      | They stay on manual invoicing until they ask                              |
 | PO-30 | Slab mode default and the incremental band: is "retro" (the slab reached pays on all purchases) the right default, and does incremental slab 1 pay from zero (our reading) or only above its own target?                   | Retro; incremental slab 1 pays from zero                                  |
 | PO-31 | An incremental scheme with a rebate % on a litres target (or ₹/L on a rupee target): split the other basis across bands, or refuse?                                                                                        | Refused; enter such schemes as retro                                      |
 | PO-32 | How many days after a scheme's period is its benefit due, for claim ageing (brands differ)?                                                                                                                                | 45 days, overridable per scheme                                           |
@@ -705,14 +729,16 @@ morning: worklist, two promises, one UPI payment allocated by itself, ageing and
 
 ### For the CA
 
-| #     | Question                                                                                                                                                            | Section |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| CA-1  | Ageing by due date (our default) or by invoice date?                                                                                                                | §2.2    |
-| CA-2  | Is an allocation dated by when it was recorded, or by the payment's date, for ageing as of a past day?                                                              | §4.5    |
-| CA-3  | Consent records needed for WhatsApp reminders under the DPDP Act 2023 and the BSP's rules                                                                           | §6.2    |
-| CA-4  | Scheme-free units: counted toward a slab by litres only, at zero value, and how a later rebate credit note is booked                                                | §6.3    |
-| CA-5  | Does a statement of account need any statutory wording, and is a Telugu or Hindi statement acceptable?                                                              | §5.2    |
-| CA-6  | Brand rebates received as credit notes vs as cash discounts: effect on our purchase cost in P2-M35                                                                  | §6.3    |
-| CA-7  | An opening balance imported without an "overdue since" date: when does it fall due (go-live, go-live + credit days)?                                                | §2.2    |
-| CA-20 | Scheme-free goods enter stock at zero cost (lowering average cost) and are not added again as a benefit in P2-M35; is that right for stock valuation and input tax? | §6.3    |
-| CA-21 | Slab value counts the GRN's taxable value at cost before GST, by GRN date; should it follow the supplier invoice date instead, as brands do?                        | §6.3    |
+| #     | Question                                                                                                                                                                                                                   | Section                   |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| CA-1  | Ageing by due date (our default) or by invoice date?                                                                                                                                                                       | §2.2                      |
+| CA-2  | Is an allocation dated by when it was recorded, or by the payment's date, for ageing as of a past day?                                                                                                                     | §4.5                      |
+| CA-3  | Consent records needed for WhatsApp reminders under the DPDP Act 2023 and the BSP's rules                                                                                                                                  | §6.2                      |
+| CA-4  | Scheme-free units: counted toward a slab by litres only, at zero value, and how a later rebate credit note is booked                                                                                                       | §6.3                      |
+| CA-5  | Does a statement of account need any statutory wording, and is a Telugu or Hindi statement acceptable?                                                                                                                     | §5.2                      |
+| CA-6  | Brand rebates received as credit notes vs as cash discounts: effect on our purchase cost in P2-M35                                                                                                                         | §6.3                      |
+| CA-7  | An opening balance imported without an "overdue since" date: when does it fall due (go-live, go-live + credit days)?                                                                                                       | §2.2                      |
+| CA-8  | A business may deduct TDS (194J or 194C?) from our subscription invoice: we settle the invoice at the amount received; how are the TDS certificates tracked?                                                               | subscriptions.md §3.4     |
+| CA-9  | Our renewal invoices are raised 7 days before the period they bill (continuous supply, s.31(5)); an invoice never paid, or for a plan never started, needs a credit note: when, and with what reason? Is SAC 998315 right? | subscriptions.md §3.3, §4 |
+| CA-20 | Scheme-free goods enter stock at zero cost (lowering average cost) and are not added again as a benefit in P2-M35; is that right for stock valuation and input tax?                                                        | §6.3                      |
+| CA-21 | Slab value counts the GRN's taxable value at cost before GST, by GRN date; should it follow the supplier invoice date instead, as brands do?                                                                               | §6.3                      |

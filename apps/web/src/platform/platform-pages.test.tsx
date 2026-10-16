@@ -1,4 +1,4 @@
-import { resolveFeatures } from '@paint/shared';
+import { resolveFeatures, type TenantBillingView } from '@paint/shared';
 import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GRANT, json, type FakeHandler } from '../test-support/fake-api.js';
@@ -9,6 +9,7 @@ import {
   signInOperator,
   tenant,
 } from '../test-support/platform-fixtures.js';
+import { PLAN_REQUEST, UNPAID_INVOICE } from '../test-support/billing-fixtures.js';
 import { found } from '../test-support/found.js';
 import { renderApp } from '../test-support/render-app.js';
 import { formatBytes } from './TenantDetailPage.js';
@@ -273,6 +274,285 @@ describe('a business', () => {
     await waitFor(() => {
       expect(screen.queryByText(/Suspended on/)).toBeNull();
     });
+  });
+});
+
+describe('a business’s subscription in the console', () => {
+  it('lists each business’s subscription, flagging read-only ones', async () => {
+    renderConsole('/platform/tenants', {
+      'GET /platform/tenants': () =>
+        json({
+          items: [
+            tenant(),
+            tenant({
+              id: 'tenant-3',
+              name: 'Late Paints',
+              subscription: {
+                status: 'past_due',
+                readOnly: true,
+                trialEndsAt: null,
+                currentPeriodEnd: '2026-10-01T04:30:00.000Z',
+                interval: 'monthly',
+                gateway: 'razorpay',
+              },
+            }),
+          ],
+          total: 2,
+        }),
+    });
+    const table = await screen.findByRole('table', { name: 'Businesses' });
+    const [, sharma, late] = within(table).getAllByRole('row');
+    expect(sharma).toHaveTextContent('Free trial');
+    expect(sharma).not.toHaveTextContent('Read-only');
+    expect(late).toHaveTextContent('Payment overdueRead-only');
+  });
+
+  it('extends a trial, also an expired one', async () => {
+    let current = tenant({
+      subscription: { ...tenant().subscription, status: 'expired', readOnly: true },
+    });
+    const { user, requests } = renderConsole(`/platform/tenants/${TENANT_ID}`, {
+      'GET /platform/tenants/:id': () => json(current),
+      'GET /platform/support-grants': () => json([]),
+      'POST /platform/tenants/:id/extend-trial': () => {
+        current = tenant({
+          subscription: { ...tenant().subscription, trialEndsAt: '2026-10-27T04:30:00.000Z' },
+        });
+        return json(current);
+      },
+    });
+    const card = await screen.findByRole('region', { name: 'Subscription' });
+    expect(card).toHaveTextContent('Trial endedRead-only');
+    expect(card).toHaveTextContent('Trial ends20 Oct 2026');
+    expect(card).not.toHaveTextContent('Payment');
+    await user.click(within(card).getByRole('button', { name: 'Extend trial' }));
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Extend the free trial of Sharma Paints',
+    });
+    const days = within(dialog).getByRole('spinbutton', { name: /Days to add/ });
+    expect(days).toHaveValue(14);
+    await user.clear(days);
+    await user.type(days, '120');
+    await user.click(within(dialog).getByRole('button', { name: 'Extend trial' }));
+    expect(await within(dialog).findByText('Enter a number of days from 1 to 90')).toBeVisible();
+    await user.clear(days);
+    await user.type(days, '7');
+    await user.click(within(dialog).getByRole('button', { name: 'Extend trial' }));
+    expect(await screen.findByText('Trial extended to 27 Oct 2026')).toBeVisible();
+    expect(
+      requests.filter((request) => request.method === 'POST').map((request) => request.body),
+    ).toEqual([{ days: 7 }]);
+    expect(
+      await within(screen.getByRole('region', { name: 'Subscription' })).findByText('Free trial'),
+    ).toBeVisible();
+  });
+
+  it('shows how a paying business pays, without offering a trial', async () => {
+    const { unmount } = renderConsole(`/platform/tenants/${TENANT_ID}`, {
+      'GET /platform/tenants/:id': () =>
+        json(
+          tenant({
+            subscription: {
+              status: 'active',
+              readOnly: false,
+              trialEndsAt: null,
+              currentPeriodEnd: '2026-11-16T04:30:00.000Z',
+              interval: 'annual',
+              gateway: 'razorpay',
+            },
+          }),
+        ),
+      'GET /platform/support-grants': () => json([]),
+    });
+    const card = await screen.findByRole('region', { name: 'Subscription' });
+    expect(card).toHaveTextContent('Paid until16 Nov 2026');
+    expect(card).toHaveTextContent('BillingYearly');
+    expect(card).toHaveTextContent('PaymentOnline (razorpay)');
+    expect(within(card).queryByRole('button')).toBeNull();
+    unmount();
+
+    renderConsole(`/platform/tenants/${TENANT_ID}`, {
+      'GET /platform/tenants/:id': () =>
+        json(
+          tenant({
+            subscription: {
+              status: 'active',
+              readOnly: false,
+              trialEndsAt: null,
+              currentPeriodEnd: null,
+              interval: null,
+              gateway: null,
+            },
+          }),
+        ),
+      'GET /platform/support-grants': () => json([]),
+    });
+    expect(await screen.findByRole('region', { name: 'Subscription' })).toHaveTextContent(
+      'PaymentSet by our team',
+    );
+  });
+});
+
+describe('manual invoicing in the console', () => {
+  const invoiced = tenant({
+    subscription: {
+      status: 'active',
+      readOnly: false,
+      trialEndsAt: null,
+      currentPeriodEnd: '2026-11-16T04:30:00.000Z',
+      interval: 'monthly',
+      gateway: 'manual',
+    },
+  });
+  const billing = (overrides: Partial<TenantBillingView> = {}): TenantBillingView => ({
+    collection: 'manual',
+    planRequest: PLAN_REQUEST,
+    requests: [PLAN_REQUEST],
+    invoices: [UNPAID_INVOICE],
+    ...overrides,
+  });
+
+  it('applies the owner’s request and records a bank transfer against our invoice', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-18T20:00:00.000Z') });
+    let paid = false;
+    let current = billing();
+    const { user, requests } = renderConsole(`/platform/tenants/${TENANT_ID}`, {
+      'GET /platform/tenants/:id': () => json(invoiced),
+      'GET /platform/support-grants': () => json([]),
+      'GET /platform/tenants/:id/billing': () => json(current),
+      'POST /platform/tenants/:id/plan-requests/:requestId/apply': () => {
+        current = billing({
+          planRequest: null,
+          requests: [{ ...PLAN_REQUEST, status: 'applied' }],
+        });
+        return json(current);
+      },
+      'POST /platform/tenants/:id/invoices/:invoiceId/payments': () => {
+        if (!paid) {
+          paid = true;
+          return json({ message: 'A payment cannot be dated in the future' }, 400);
+        }
+        current = billing({
+          planRequest: null,
+          invoices: [
+            {
+              ...UNPAID_INVOICE,
+              payment: {
+                mode: 'bank_transfer',
+                amountPaise: 5_200_00,
+                paidOn: '2026-10-19',
+                reference: 'UTR 123',
+              },
+            },
+          ],
+        });
+        return json(current);
+      },
+    });
+    expect(await screen.findByRole('region', { name: 'Subscription' })).toHaveTextContent(
+      'PaymentInvoiced by us (bank transfer or UPI)',
+    );
+    const card = await screen.findByRole('region', { name: 'Invoices and payments' });
+    expect(
+      await within(card).findByText('Standard, Monthly: asked for by Anil Kumar on 16 Oct 2026'),
+    ).toBeVisible();
+    await user.click(within(card).getByRole('button', { name: 'Apply' }));
+    expect(await screen.findByText('Plan request applied')).toBeVisible();
+    await waitFor(() => {
+      expect(within(card).queryByRole('button', { name: 'Apply' })).toBeNull();
+    });
+
+    const table = within(card).getByRole('table', { name: 'Invoices to the business' });
+    expect(table).toHaveTextContent('Due 16 Oct 2026');
+    await user.click(
+      within(table).getByRole('button', { name: 'Record payment: PRS/26-27/000002' }),
+    );
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Record a payment for PRS/26-27/000002',
+    });
+    // Today in India, though it is still the 18th in UTC.
+    expect(within(dialog).getByLabelText(/Received on/)).toHaveValue('2026-10-19');
+    const amount = within(dialog).getByLabelText(/Amount/);
+    expect(amount).toHaveValue('5306.46');
+    await user.clear(amount);
+    await user.type(amount, '6000');
+    await user.click(within(dialog).getByRole('button', { name: 'Record payment' }));
+    expect(await within(dialog).findByText('Enter an amount of at most ₹5,306.46')).toBeVisible();
+    await user.clear(amount);
+    await user.type(amount, '5200');
+    await user.click(within(dialog).getByRole('button', { name: 'Record payment' }));
+    expect(await within(dialog).findByText('Enter the payment’s reference')).toBeVisible();
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Paid by' }), 'upi');
+    await user.type(within(dialog).getByLabelText(/Reference/), 'UTR 123');
+    await user.click(within(dialog).getByRole('button', { name: 'Record payment' }));
+    expect(
+      await within(dialog).findByText('A payment cannot be dated in the future'),
+    ).toBeVisible();
+    await user.click(within(dialog).getByRole('button', { name: 'Record payment' }));
+    expect(await screen.findByText('Payment recorded for PRS/26-27/000002')).toBeVisible();
+    expect(table).toHaveTextContent('Paid 19 Oct 2026');
+    expect(table).toHaveTextContent('₹106.46 short');
+    expect(
+      requests
+        .filter((request) => request.path.endsWith('/payments'))
+        .map((request) => request.body),
+    ).toEqual([
+      { amountPaise: 5_200_00, paidOn: '2026-10-19', mode: 'upi', reference: 'UTR 123' },
+      { amountPaise: 5_200_00, paidOn: '2026-10-19', mode: 'upi', reference: 'UTR 123' },
+    ]);
+    vi.useRealTimers();
+  });
+
+  it('declines a request, shows a refusal, and says when there is nothing to record', async () => {
+    let declined = false;
+    const { user, unmount } = renderConsole(`/platform/tenants/${TENANT_ID}`, {
+      'GET /platform/tenants/:id': () => json(invoiced),
+      'GET /platform/support-grants': () => json([]),
+      'GET /platform/tenants/:id/billing': () =>
+        json(billing(declined ? { planRequest: null, invoices: [] } : { invoices: [] })),
+      'POST /platform/tenants/:id/plan-requests/:requestId/apply': () =>
+        json({ message: 'Invoice PRS/26-27/000002 is not paid yet.' }, 409),
+      'POST /platform/tenants/:id/plan-requests/:requestId/decline': () => {
+        declined = true;
+        return json(billing({ planRequest: null, invoices: [] }));
+      },
+    });
+    const card = await screen.findByRole('region', { name: 'Invoices and payments' });
+    expect(await within(card).findByText('No invoices yet')).toBeVisible();
+    await user.click(within(card).getByRole('button', { name: 'Apply' }));
+    expect(await screen.findByText('Invoice PRS/26-27/000002 is not paid yet.')).toBeVisible();
+    await user.click(within(card).getByRole('button', { name: 'Decline' }));
+    expect(await screen.findByText('Plan request declined')).toBeVisible();
+    unmount();
+
+    renderConsole(`/platform/tenants/${TENANT_ID}`, {
+      'GET /platform/tenants/:id': () => json(invoiced),
+      'GET /platform/support-grants': () => json([]),
+      'GET /platform/tenants/:id/billing': () => json(billing({ collection: 'razorpay' })),
+    });
+    expect(
+      await screen.findByText(
+        'Payments are collected online (razorpay); there is nothing to record here.',
+      ),
+    ).toBeVisible();
+  });
+
+  it('closes the payment dialog without recording', async () => {
+    const { user, requests } = renderConsole(`/platform/tenants/${TENANT_ID}`, {
+      'GET /platform/tenants/:id': () => json(invoiced),
+      'GET /platform/support-grants': () => json([]),
+      'GET /platform/tenants/:id/billing': () => json(billing({ planRequest: null })),
+    });
+    await user.click(
+      await screen.findByRole('button', { name: 'Record payment: PRS/26-27/000002' }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/Received on/), '2026-10-01');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    expect(requests.some((request) => request.method === 'POST')).toBe(false);
   });
 });
 

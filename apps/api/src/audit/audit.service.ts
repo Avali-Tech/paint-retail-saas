@@ -165,6 +165,20 @@ const FIELD_LABELS: Record<string, string> = {
   period_to: 'To',
   kinds: 'Vouchers',
   format: 'Format',
+  billing_interval: 'Billed',
+  store_quantity: 'Stores billed',
+  trial_ends_at: 'Trial ends',
+  current_period_end: 'Paid until',
+  cancel_at_period_end: 'Ends with the period',
+  past_due_since: 'Payment overdue since',
+  gateway: 'Collected by',
+  invoice_id: 'Invoice',
+  amount_paise: 'Amount (paise)',
+  paid_on: 'Paid on',
+  mode: 'Paid by',
+  reference: 'Reference',
+  recorded_by_user_id: 'Recorded by (platform)',
+  decided_by_user_id: 'Decided by (platform)',
 };
 
 // Every named table's records are keyed by a uuid: comparing uuids (not id::text) lets each
@@ -197,6 +211,9 @@ const recordLabel = sql<string | null>`case ${auditLog.tableName}
   when 'document_series' then (select s.code || ' · ' || ds.prefix from document_series ds join stores s on s.id = ds.store_id where ds.id = ${recordUuid})
   when 'tax_documents' then (select coalesce(td.number, 'Draft') from tax_documents td where td.id = ${recordUuid})
   when 'payment_modes' then (select pm.name from payment_modes pm where pm.id = ${recordUuid})
+  when 'subscriptions' then 'Subscription'
+  when 'subscription_payments' then (select i.number from subscription_payments sp join subscription_invoices i on i.id = sp.invoice_id where sp.id = ${recordUuid})
+  when 'subscription_plan_requests' then 'Plan request'
   when 'ledger_mappings' then (select lm.tally_ledger_name from ledger_mappings lm where lm.id = ${recordUuid})
   when 'register_sessions' then (select s.code || ' · ' || rs.register_code from register_sessions rs join stores s on s.id = rs.store_id where rs.id = ${recordUuid})
   when 'payments' then (select p.number from payments p where p.id = ${recordUuid})

@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { AllowWhenReadOnly } from '../subscriptions/read-only.guard.js';
 import { Body, Controller, Get, HttpCode, Inject, Post } from '@nestjs/common';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { toProfile, type AuthContext, type AuthProfile } from './auth-context.js';
@@ -16,6 +17,8 @@ import type { SignInResult } from '@paint/shared';
 import { AuthService, type SessionGrant } from './auth.service.js';
 import { CurrentAuth, Public } from './decorators.js';
 
+// Signing in and out, security and notices keep working while the business is read-only.
+@AllowWhenReadOnly()
 @Controller('auth')
 export class AuthController {
   constructor(@Inject(AuthService) private readonly auth: AuthService) {}

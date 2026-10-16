@@ -6,3 +6,28 @@ email_domain  = "notify.example.in"
 route53_zone_id = null
 alert_emails    = ["ops@example.in"]
 # sentry_dsn    = "https://<key>@o<org>.ingest.sentry.io/<project>"
+
+# SaaS subscriptions (docs/mvp-3/subscriptions.md). Every value here is a placeholder:
+# use the company's own GST details and the bank account businesses pay our invoices into.
+# Manual invoicing is the default; to collect through Razorpay instead, set
+# gateway = "razorpay", razorpay_key_id and razorpay_plan_ids (starter_monthly, starter_annual,
+# standard_monthly, standard_annual, enterprise_monthly, enterprise_annual; test mode on staging),
+# and put the key secret and webhook secret into Secrets Manager by hand, never here.
+subscriptions = {
+  gateway = "manual"
+  platform = {
+    legal_name = "<Company legal name> Private Limited"
+    gstin      = "<15-character GSTIN>"
+    address    = "<street line 1> | <street line 2>"
+    city       = "<city>"
+    pincode    = "<PIN>"
+    email      = "billing@example.in"
+  }
+  bank = {
+    name           = "<Bank, branch>"
+    account_name   = "<Company legal name> Private Limited"
+    account_number = "<account number>"
+    ifsc           = "<IFSC>"
+    upi_id         = "<name@bank>"
+  }
+}

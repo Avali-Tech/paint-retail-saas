@@ -42,6 +42,17 @@ export const DEMO_OPERATOR = {
 export const DEMO_OPERATOR_TOTP_SECRET = 'PAINTRETAILDEMOPLATFORMOPERATOR2';
 
 /**
+ * A second, smaller business on its free trial, onboarded from the platform console,
+ * to show a trial upgrading itself (Settings → Billing). Its owner signs in with a
+ * mobile code. The main demo business pays for the Standard plan, monthly.
+ */
+export const DEMO_TRIAL_BUSINESS = {
+  organizationName: 'Reddy Colour Centre',
+  owner: { fullName: 'Srinivas Reddy', phone: '+919000000201' },
+} as const;
+export const DEMO_PAID_PLAN = { plan: 'standard', interval: 'monthly' } as const;
+
+/**
  * `full` for client demos, `small` for quick tests, and `large`: the full demo
  * plus a large shop's volume in bulk (large-plan.ts), for performance testing.
  */

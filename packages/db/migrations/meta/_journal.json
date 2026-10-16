@@ -540,6 +540,20 @@
       "when": 1792100862190,
       "tag": "0076_grant_receivables_read",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1792111266673,
+      "tag": "0077_subscriptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1792111269794,
+      "tag": "0078_subscription_rules",
+      "breakpoints": true
     }
   ]
 }

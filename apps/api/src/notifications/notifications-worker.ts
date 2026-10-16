@@ -20,6 +20,7 @@ import { expireAccount } from '../loyalty/loyalty-lookups.js';
 import type { MessagingProvider } from '../messaging/messaging-provider.js';
 import { sendDueMessages } from '../messaging/outbox.js';
 import { reconcileDueBusinesses } from '../reconciliation/reconciler.js';
+import { ManualBillingService } from '../subscriptions/manual-billing.js';
 import type { EmailSender } from './email-sender.js';
 import { Notifier } from './notifier.js';
 
@@ -72,6 +73,8 @@ export interface WorkerRun {
   readonly reconciliations: number;
   /** Credit accounts put on hold for overdue bills (MVP 3 spec §4.4). */
   readonly creditHolds: number;
+  /** Our renewal invoices raised to businesses on manual invoicing (P2-M08). */
+  readonly subscriptionInvoices: number;
   /** Promises to pay kept or broken by the daily collections run (P2-M11). */
   readonly promisesSettled: number;
   /** Payment reminders queued by the daily collections run. */
@@ -88,6 +91,7 @@ export interface WorkerRun {
  * that has fallen to its reorder level, reminds people of what is due,
  * expires loyalty points, reconciles each business's books once a day (the
  * nightly reconciliation), puts overdue credit accounts on hold once a day,
+ * raises our renewal invoices to businesses on manual invoicing,
  * sends queued emails with retries and, between 09:00 and 20:00 India time, runs
  * the daily collections (promises, escalations, reminders) and sends messages to
  * parties. Safe to run on several servers at once.
@@ -103,6 +107,7 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
     @Inject(DATABASE) private readonly connection: DatabaseConnection,
     @Inject(Notifier) private readonly notifier: Notifier,
     @Inject(WORKER_SETTINGS) private readonly settings: WorkerSettings,
+    @Inject(ManualBillingService) private readonly manualBilling: ManualBillingService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -144,6 +149,11 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
       () => holdOverdueBusinesses(this.connection.db, this.notifier),
       0,
     );
+    const subscriptionInvoices = await this.attempt(
+      'Subscription renewal invoices',
+      () => this.manualBilling.raiseRenewals(),
+      0,
+    );
     // Parties are never messaged at night (spec MSG-6); both jobs wait for the morning.
     const messagingHour = isMessagingHour(now);
     const collections = messagingHour
@@ -175,6 +185,7 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
       loyaltyExpiries,
       reconciliations,
       creditHolds,
+      subscriptionInvoices,
       promisesSettled: collections.kept + collections.broken,
       remindersQueued: collections.remindersQueued,
       messagesSent: messages.sent,

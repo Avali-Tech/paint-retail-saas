@@ -70,6 +70,17 @@ beforeAll(async () => {
       DATABASE_URL: databaseUrl(),
       RUN_MIGRATIONS: 'false',
       AUTH_SECRET: 'docker-image-test-secret-of-32-characters-or-more',
+      // Production invoices by hand (the default) and refuses placeholder GST and bank
+      // details; it needs no Razorpay keys.
+      PLATFORM_BANK_NAME: 'Test Bank, Hyderabad',
+      PLATFORM_BANK_ACCOUNT_NAME: 'Platform Test Private Limited',
+      PLATFORM_BANK_ACCOUNT_NUMBER: '123456789012',
+      PLATFORM_BANK_IFSC: 'SBIN0020345',
+      PLATFORM_LEGAL_NAME: 'Platform Test Private Limited',
+      PLATFORM_GSTIN: '36AAACP0000P1ZP',
+      PLATFORM_ADDRESS: '1 Test Road',
+      PLATFORM_CITY: 'Hyderabad',
+      PLATFORM_PINCODE: '500001',
       // Production settings: documents on (not contacted until an upload), worker off.
       STORAGE_BUCKET: 'docker-test-documents',
       CLAMAV_HOST: 'clamav',

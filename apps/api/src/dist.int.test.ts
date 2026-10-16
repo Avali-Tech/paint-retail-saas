@@ -55,6 +55,17 @@ beforeAll(async () => {
       LOG_LEVEL: 'error',
       RUN_MIGRATIONS: 'true',
       AUTH_SECRET: 'dist-test-secret-of-at-least-32-characters',
+      // Production invoices by hand (the default) and refuses placeholder GST and bank
+      // details; it needs no Razorpay keys.
+      PLATFORM_BANK_NAME: 'Test Bank, Hyderabad',
+      PLATFORM_BANK_ACCOUNT_NAME: 'Platform Test Private Limited',
+      PLATFORM_BANK_ACCOUNT_NUMBER: '123456789012',
+      PLATFORM_BANK_IFSC: 'SBIN0020345',
+      PLATFORM_LEGAL_NAME: 'Platform Test Private Limited',
+      PLATFORM_GSTIN: '36AAACP0000P1ZP',
+      PLATFORM_ADDRESS: '1 Test Road',
+      PLATFORM_CITY: 'Hyderabad',
+      PLATFORM_PINCODE: '500001',
       STORAGE_BUCKET: 'dist-test-documents',
       STORAGE_ENDPOINT: inject('objectStorageEndpoint'),
       CLAMAV_HOST: inject('virusScannerAddress').split(':')[0],

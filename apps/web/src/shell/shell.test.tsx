@@ -132,6 +132,7 @@ describe('navigation by role', () => {
       'Tax & GST',
       'Invoice print',
       'Support access',
+      'Billing',
       // Everyone's own sign-in settings, next to signing out.
       'Account security',
     ]);
@@ -233,6 +234,7 @@ describe('navigation by role', () => {
       'Tax & GST',
       'Invoice print',
       'Support access',
+      'Billing',
       'Account security',
     ]);
     await user.click(within(more).getByRole('link', { name: 'Leads' }));

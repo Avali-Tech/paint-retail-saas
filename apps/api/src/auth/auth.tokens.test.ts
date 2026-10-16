@@ -4,7 +4,12 @@ import { authSettingsFrom } from './auth.tokens.js';
 describe('authSettingsFrom', () => {
   it('turns config into auth settings with safe OTP limits', () => {
     expect(
-      authSettingsFrom({ authSecret: 's'.repeat(32), sessionTtlDays: 30, signupPlan: 'trial' }),
+      authSettingsFrom({
+        authSecret: 's'.repeat(32),
+        sessionTtlDays: 30,
+        signupPlan: 'trial',
+        subscriptions: { trialDays: 14 },
+      }),
     ).toEqual({
       secret: 's'.repeat(32),
       sessionTtlMs: 30 * 86_400_000,
@@ -13,6 +18,7 @@ describe('authSettingsFrom', () => {
       otpResendCooldownMs: 30_000,
       otpMaxPerHour: 5,
       signupPlan: 'trial',
+      trialDays: 14,
     });
   });
 });

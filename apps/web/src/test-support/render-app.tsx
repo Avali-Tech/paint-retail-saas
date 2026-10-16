@@ -7,6 +7,7 @@ import { AppProviders } from '../app/App.js';
 import { AppRoutes } from '../app/routes.js';
 import { createServices } from '../app/services.js';
 import { SESSION_KEY } from '../auth/session-store.js';
+import { FINE_SUBSCRIPTION } from './billing-fixtures.js';
 import { GRANT, fakeFetch, json, type FakeHandler } from './fake-api.js';
 
 export interface RenderOptions {
@@ -36,6 +37,8 @@ export function renderApp({
   const api = fakeFetch({
     'GET /search/actions': () => json([]),
     'GET /notifications': () => json({ items: [], total: 0, unread: 0 }),
+    // A paid subscription in good standing: no banner, unless a test says otherwise.
+    'GET /subscription/status': () => json(FINE_SUBSCRIPTION),
     ...routes,
   });
   const services = createServices({ fetch: api.fetch, storage: localStorage, apiBaseUrl: '/api' });

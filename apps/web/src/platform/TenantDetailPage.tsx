@@ -15,6 +15,7 @@ import {
   Checkbox,
   EmptyState,
   Field,
+  Input,
   PageHeader,
   Select,
   Textarea,
@@ -32,7 +33,8 @@ import { QueryState } from '../lib/QueryState.js';
 import type { TenantChange, TenantDetail } from './platform-api.js';
 import { PLATFORM_QUERY, usePlatformApi } from './session.js';
 import { GrantTable, RequestAccessDialog, grantsKey } from './support-ui.js';
-import { Usage } from './usage.js';
+import { TenantBillingCard } from './TenantBilling.js';
+import { SubscriptionBadges, Usage } from './usage.js';
 
 const tenantKey = (id: string) => [PLATFORM_QUERY, 'tenant', id];
 
@@ -100,6 +102,101 @@ function UsageCard({ tenant }: { readonly tenant: TenantDetail }) {
             </li>
           ))}
         </ul>
+      )}
+    </Card>
+  );
+}
+
+function SubscriptionCard({ tenant }: { readonly tenant: TenantDetail }) {
+  const { t, date } = useI18n();
+  const api = usePlatformApi();
+  const toast = useToast();
+  const update = useTenantUpdate(tenant);
+  const [extending, setExtending] = useState(false);
+  const [days, setDays] = useState('14');
+  const { subscription } = tenant;
+  const onTrial = subscription.status === 'trialing' || subscription.status === 'expired';
+  return (
+    <Card
+      title={t('platform.tenant.subscriptionTitle')}
+      actions={
+        onTrial ? (
+          <Button
+            size="sm"
+            onClick={() => {
+              setExtending(true);
+            }}
+          >
+            {t('platform.tenant.extendTrial')}
+          </Button>
+        ) : undefined
+      }
+    >
+      <Facts
+        facts={[
+          [t('platform.tenants.status'), <SubscriptionBadges subscription={subscription} />],
+          [
+            t('platform.tenant.trialEnds'),
+            subscription.trialEndsAt === null ? null : date(subscription.trialEndsAt),
+          ],
+          [
+            t('platform.tenant.paidUntil'),
+            subscription.currentPeriodEnd === null ? null : date(subscription.currentPeriodEnd),
+          ],
+          [
+            t('platform.tenant.billing'),
+            subscription.interval === null
+              ? null
+              : t(`subscription.intervals.${subscription.interval}`),
+          ],
+          [
+            t('platform.tenant.collection'),
+            subscription.gateway === 'manual'
+              ? t('platform.tenant.invoiced')
+              : subscription.gateway !== null
+                ? t('platform.tenant.online', { gateway: subscription.gateway })
+                : onTrial
+                  ? null
+                  : t('platform.tenant.manual'),
+          ],
+        ]}
+      />
+      {extending && (
+        <FormDialog
+          open
+          onClose={() => {
+            setExtending(false);
+          }}
+          title={t('platform.tenant.extendTitle', { name: tenant.name })}
+          description={t('platform.tenant.extendHint')}
+          submitLabel={t('platform.tenant.extendTrial')}
+          onSubmit={async () => {
+            const count = Number(days);
+            if (!Number.isInteger(count) || count < 1 || count > 90) {
+              return t('platform.tenant.extendInvalid');
+            }
+            const saved = await update(() => api.extendTrial(tenant.id, count));
+            toast({
+              title: t('platform.tenant.extended', {
+                date: date(String(saved.subscription.trialEndsAt)),
+              }),
+              tone: 'success',
+            });
+            return undefined;
+          }}
+        >
+          <Field label={t('platform.tenant.extendDays')} required>
+            <Input
+              type="number"
+              min={1}
+              max={90}
+              value={days}
+              onChange={(event) => {
+                setDays(event.target.value);
+              }}
+            />
+          </Field>
+        </FormDialog>
       )}
     </Card>
   );
@@ -365,7 +462,10 @@ function SupportCard({ tenant }: { readonly tenant: TenantDetail }) {
   );
 }
 
-/** /platform/tenants/:id — a business's usage, plan, features, suspension and support access. */
+/**
+ * /platform/tenants/:id — a business's usage, plan, subscription, features, suspension,
+ * invoices and payments (manual invoicing) and support access.
+ */
 export function TenantDetailPage() {
   const { t, date } = useI18n();
   const api = usePlatformApi();
@@ -403,9 +503,11 @@ export function TenantDetailPage() {
             <div className="detail-grid">
               <UsageCard tenant={business} />
               <PlanCard key={business.plan.key} tenant={business} />
+              <SubscriptionCard tenant={business} />
               <FeaturesCard tenant={business} />
               <SuspensionCard tenant={business} />
             </div>
+            <TenantBillingCard tenant={business} />
             <SupportCard tenant={business} />
           </>
         )}

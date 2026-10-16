@@ -34,6 +34,9 @@ export const AUDIT_AREAS = {
   register_sessions: 'Cash registers',
   payments: 'Cheques',
   accounting_exports: 'Accounting exports',
+  subscriptions: 'Subscription',
+  subscription_payments: 'Subscription payments',
+  subscription_plan_requests: 'Plan requests',
 } as const;
 export type AuditTable = keyof typeof AUDIT_AREAS;
 
