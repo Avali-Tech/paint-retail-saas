@@ -13,6 +13,8 @@ locals {
   region      = data.aws_region.current.region
   clamav_host = "clamav.${aws_service_discovery_private_dns_namespace.this.name}"
   razorpay    = var.subscriptions.gateway == "razorpay"
+  # Each business's own Razorpay account for payment links ([PO-40]).
+  payment_links_razorpay = var.payment_link_provider == "razorpay"
   api_secrets = merge(
     var.secret_arns,
     { AUTH_SECRET = aws_secretsmanager_secret.auth_secret.arn },
@@ -21,6 +23,7 @@ locals {
       RAZORPAY_WEBHOOK_SECRET = aws_secretsmanager_secret.razorpay["webhook-secret"].arn
     } : {},
     var.platform_bootstrap_enabled ? { PLATFORM_BOOTSTRAP_TOKEN = aws_secretsmanager_secret.platform_bootstrap[0].arn } : {},
+    local.payment_links_razorpay ? { GATEWAY_CREDENTIALS_KEY = aws_secretsmanager_secret.gateway_credentials_key[0].arn } : {},
   )
   secret_arns = values(local.api_secrets)
   api_environment = merge(
@@ -43,6 +46,7 @@ locals {
       SENTRY_ENVIRONMENT      = var.environment
       SENTRY_RELEASE          = var.image_tag
       SUBSCRIPTION_GATEWAY    = var.subscriptions.gateway
+      PAYMENT_LINK_PROVIDER   = var.payment_link_provider
       SUBSCRIPTION_TRIAL_DAYS = tostring(var.subscriptions.trial_days)
       SUBSCRIPTION_GRACE_DAYS = tostring(var.subscriptions.grace_days)
       PLATFORM_LEGAL_NAME     = var.subscriptions.platform.legal_name
@@ -118,6 +122,20 @@ resource "aws_secretsmanager_secret" "razorpay" {
   name                    = "${var.name}/razorpay-${each.value}"
   description             = "Razorpay ${each.value} for SaaS subscriptions; set by hand, never in Terraform state"
   recovery_window_in_days = 7
+}
+
+# The key that seals each business's payment-gateway credentials (envelope encryption,
+# docs/mvp-3/payment-links.md), only with Razorpay payment links. Terraform creates the
+# secret but never sees its value: put 32 random bytes in once with
+#   aws secretsmanager put-secret-value --secret-id <name>/gateway-credentials-key \
+#     --secret-string "$(openssl rand -base64 32)"
+# The API refuses to start with PAYMENT_LINK_PROVIDER=razorpay without it. Rotating it:
+# docs/runbooks/rotate-secrets.md.
+resource "aws_secretsmanager_secret" "gateway_credentials_key" {
+  count                   = local.payment_links_razorpay ? 1 : 0
+  name                    = "${var.name}/gateway-credentials-key"
+  description             = "GATEWAY_CREDENTIALS_KEY: seals businesses' Razorpay keys for payment links; set by hand, never in Terraform state"
+  recovery_window_in_days = 30
 }
 
 # ---- Logs ----

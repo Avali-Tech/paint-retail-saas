@@ -65,3 +65,13 @@ variable "subscriptions" {
     }))
   })
 }
+
+variable "payment_link_provider" {
+  description = "PAYMENT_LINK_PROVIDER for UPI payment links (P2-M32): \"disabled\" (the default) or \"razorpay\", each business connecting its own Razorpay account in Settings. With \"razorpay\" the api module creates the GATEWAY_CREDENTIALS_KEY secret that seals businesses' keys; put its value in by hand (docs/mvp-3/payment-links.md). \"log\" is refused in production."
+  type        = string
+  default     = "disabled"
+  validation {
+    condition     = contains(["disabled", "razorpay"], var.payment_link_provider)
+    error_message = "payment_link_provider must be \"disabled\" or \"razorpay\"."
+  }
+}

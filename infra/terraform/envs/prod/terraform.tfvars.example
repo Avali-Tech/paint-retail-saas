@@ -31,3 +31,7 @@ subscriptions = {
     upi_id         = "<name@bank>"
   }
 }
+
+# UPI payment links (docs/mvp-3/payment-links.md): "razorpay" lets each business connect
+# its own Razorpay account; then put the GATEWAY_CREDENTIALS_KEY secret in by hand.
+payment_link_provider = "disabled"

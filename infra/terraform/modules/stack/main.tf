@@ -139,6 +139,7 @@ module "api" {
   email_from                 = "${var.email_from_name} <${var.email_from_local_part}@${var.email_domain}>"
   signup_plan                = var.signup_plan
   subscriptions              = var.subscriptions
+  payment_link_provider      = var.payment_link_provider
   sentry_dsn                 = var.sentry_dsn
   auth_secret_version        = var.auth_secret_version
   platform_bootstrap_enabled = var.platform_bootstrap_enabled

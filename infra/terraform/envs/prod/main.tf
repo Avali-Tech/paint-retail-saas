@@ -84,4 +84,5 @@ module "stack" {
   auth_secret_version        = var.auth_secret_version
   platform_bootstrap_enabled = var.platform_bootstrap_enabled
   subscriptions              = var.subscriptions
+  payment_link_provider      = var.payment_link_provider
 }
