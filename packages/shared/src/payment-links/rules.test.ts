@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MAX_PAYMENT_LINK_PAISE,
+  DEFAULT_LINK_CAP_PAISE,
+  MAX_REFUND_ATTEMPTS,
   PAYMENT_LINK_MANAGE_PERMISSION,
   PAYMENT_LINK_READ_PERMISSION,
+  PAYMENT_LINK_SETTINGS_PERMISSION,
   PAYMENT_LINK_STATUSES,
+  RAZORPAY_KEY_ID_PATTERN,
   allocateLinkPayment,
   isPermission,
+  linkRefundOf,
   linkStatusAt,
   nextLinkState,
   planPaymentLink,
+  refundRetryMinutes,
   type LinkEventKind,
   type LinkTarget,
   type PaymentLinkStatus,
@@ -138,7 +143,61 @@ describe('planPaymentLink', () => {
         open: OPEN,
         advancePaise: 0,
         today: TODAY,
-        amountPaise: MAX_PAYMENT_LINK_PAISE + 1,
+        amountPaise: DEFAULT_LINK_CAP_PAISE + 1,
+      }),
+    ).toEqual({ ok: false, problem: 'over_limit' });
+  });
+
+  it('asks for the bills’ full outstanding with the full basis, whatever the advance ([PO-43])', () => {
+    expect(
+      planPaymentLink({
+        purpose: 'outstanding',
+        open: OPEN,
+        advancePaise: 15_000,
+        today: TODAY,
+        basis: 'full',
+      }),
+    ).toMatchObject({ ok: true, amountPaise: 65_000, duePaise: 65_000 });
+    expect(
+      planPaymentLink({
+        purpose: 'invoice',
+        open: OPEN,
+        advancePaise: 65_000,
+        today: TODAY,
+        documentIds: ['INV-1'],
+        basis: 'full',
+      }),
+    ).toMatchObject({ ok: true, amountPaise: 10_000 });
+  });
+
+  it('refuses a link above the business’s cap, asked or worked out ([PO-42])', () => {
+    expect(
+      planPaymentLink({
+        purpose: 'outstanding',
+        open: OPEN,
+        advancePaise: 0,
+        today: TODAY,
+        capPaise: 60_000,
+      }),
+    ).toEqual({ ok: false, problem: 'over_limit' });
+    expect(
+      planPaymentLink({
+        purpose: 'outstanding',
+        open: OPEN,
+        advancePaise: 0,
+        today: TODAY,
+        capPaise: 60_000,
+        amountPaise: 60_000,
+      }),
+    ).toMatchObject({ ok: true, amountPaise: 60_000, duePaise: 65_000 });
+    expect(
+      planPaymentLink({
+        purpose: 'advance',
+        open: OPEN,
+        advancePaise: 0,
+        today: TODAY,
+        capPaise: 1_000,
+        amountPaise: 1_001,
       }),
     ).toEqual({ ok: false, problem: 'over_limit' });
   });
@@ -255,9 +314,45 @@ describe('linkStatusAt', () => {
   });
 });
 
+describe('linkRefundOf', () => {
+  it('sends back what the bills no longer owed: all of it when they were settled', () => {
+    expect(linkRefundOf({ purpose: 'invoice', amountPaise: 10_000, advancePaise: 10_000 })).toEqual(
+      { amountPaise: 10_000, reason: 'settled' },
+    );
+    expect(linkRefundOf({ purpose: 'bills', amountPaise: 12_500, advancePaise: 2_500 })).toEqual({
+      amountPaise: 2_500,
+      reason: 'overpaid',
+    });
+  });
+
+  it('keeps an advance link’s money, and refunds nothing when the bills took it all', () => {
+    expect(linkRefundOf({ purpose: 'advance', amountPaise: 5_000, advancePaise: 5_000 })).toBeNull();
+    expect(linkRefundOf({ purpose: 'outstanding', amountPaise: 5_000, advancePaise: 0 })).toBeNull();
+  });
+});
+
+describe('refundRetryMinutes', () => {
+  it('tries again sooner at first, then up to half a day apart, then gives up', () => {
+    const delays = Array.from({ length: MAX_REFUND_ATTEMPTS + 1 }, (_, attempts) =>
+      refundRetryMinutes(attempts),
+    );
+    expect(delays).toEqual([null, 1, 5, 30, 120, 720, null]);
+  });
+});
+
+describe('Razorpay key ids', () => {
+  it('are test or live keys', () => {
+    expect(RAZORPAY_KEY_ID_PATTERN.test('rzp_test_1DP5mmOlF5G5ag')).toBe(true);
+    expect(RAZORPAY_KEY_ID_PATTERN.test('rzp_live_ILgsfZCZoFIKMb')).toBe(true);
+    expect(RAZORPAY_KEY_ID_PATTERN.test('rzp_prod_ILgsfZCZoFIKMb')).toBe(false);
+    expect(RAZORPAY_KEY_ID_PATTERN.test('rzp_live_x')).toBe(false);
+  });
+});
+
 describe('permissions', () => {
   it('are known permissions', () => {
     expect(isPermission(PAYMENT_LINK_MANAGE_PERMISSION)).toBe(true);
     expect(isPermission(PAYMENT_LINK_READ_PERMISSION)).toBe(true);
+    expect(isPermission(PAYMENT_LINK_SETTINGS_PERMISSION)).toBe(true);
   });
 });

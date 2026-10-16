@@ -1,6 +1,9 @@
 import type { QueueResult } from '../messaging/api.js';
 import type { Permission } from '../permissions.js';
 import type {
+  LinkAmountBasis,
+  LinkRefundReason,
+  LinkRefundStatus,
   PaymentLinkOrigin,
   PaymentLinkPurpose,
   PaymentLinkStatus,
@@ -12,12 +15,68 @@ export const PAYMENT_LINK_MANAGE_PERMISSION = 'payments:manage' as const satisfi
 /** Seeing links: as seeing the invoices and statements they come from. */
 export const PAYMENT_LINK_READ_PERMISSION = 'sales:read' as const satisfies Permission;
 
-/** GET /payment-links/settings: whether links can be made, and how long they live. */
+/** Connecting the gateway account and the link settings: owners and admins only ([PO-40]). */
+export const PAYMENT_LINK_SETTINGS_PERMISSION = 'organization:manage' as const satisfies Permission;
+
+/** The gateways a business can connect its own account of. */
+export type PaymentLinkProviderName = 'log' | 'razorpay';
+
+/** GET /payment-links/settings: whether this business can make links, and its link rules. */
 export interface PaymentLinkSettings {
-  /** The provider ("log", or a gateway later), or null when links are off. */
-  readonly provider: string | null;
-  readonly expiryDays: number;
+  /** The platform's provider, or null when links are off for everyone. */
+  readonly provider: PaymentLinkProviderName | null;
+  /** Links can be made now: a provider, and with Razorpay the business's account connected. */
+  readonly ready: boolean;
+  /** Minutes a link stays payable ([PO-41]). */
+  readonly validityMinutes: number;
+  /** The most one link asks for ([PO-42]). */
+  readonly capPaise: number;
+  /** Net of the advance, or the bills' full outstanding ([PO-43]). */
+  readonly amountBasis: LinkAmountBasis;
 }
+
+/** PUT /payment-links/settings. */
+export interface UpdatePaymentLinkSettingsRequest {
+  readonly validityMinutes: number;
+  readonly capPaise: number;
+  readonly amountBasis: LinkAmountBasis;
+}
+
+/**
+ * GET /payment-links/gateway-account: the business's own gateway account, never with a
+ * secret: only the last four characters of each key, and whether it is connected.
+ */
+export interface GatewayAccountView {
+  readonly gateway: 'razorpay';
+  readonly connected: boolean;
+  /** Live keys take real money; test keys do not (and cannot make UPI links). */
+  readonly live: boolean | null;
+  readonly keyIdHint: string | null;
+  readonly keySecretHint: string | null;
+  readonly webhookSecretHint: string | null;
+  readonly connectedAt: string | null;
+  readonly connectedBy: string | null;
+  /** The last time the keys answered a test call. */
+  readonly verifiedAt: string | null;
+  /** What to paste in the gateway's webhook settings. */
+  readonly webhookUrl: string;
+}
+
+/** PUT /payment-links/gateway-account: the keys from the gateway's dashboard. */
+export interface ConnectGatewayRequest {
+  readonly keyId: string;
+  readonly keySecret: string;
+  readonly webhookSecret: string;
+}
+
+/** POST /payment-links/gateway-account/test. */
+export interface GatewayTestResult {
+  readonly ok: true;
+  readonly verifiedAt: string;
+}
+
+/** Razorpay key ids: rzp_test_… or rzp_live_…. */
+export const RAZORPAY_KEY_ID_PATTERN = /^rzp_(test|live)_[A-Za-z0-9]{8,32}$/;
 
 /** POST /payment-links. */
 export interface CreatePaymentLinkRequest {
@@ -52,6 +111,24 @@ export interface PaymentLinkPaymentView {
   readonly advancePaise: number;
 }
 
+/** A refund through the gateway of money a link took that nothing was owed for ([PO-44]). */
+export interface PaymentLinkRefundView {
+  readonly id: string;
+  readonly amountPaise: number;
+  readonly reason: LinkRefundReason;
+  readonly status: LinkRefundStatus;
+  /** The refund payment (RF-…) once booked. */
+  readonly refundPaymentId: string | null;
+  readonly refundPaymentNumber: string | null;
+  readonly gatewayRefundId: string | null;
+  readonly gatewayStatus: string | null;
+  readonly attempts: number;
+  /** Why the last try failed (the gateway's error code). */
+  readonly lastError: string | null;
+  readonly createdAt: string;
+  readonly refundedAt: string | null;
+}
+
 export interface PaymentLinkSummary {
   readonly id: string;
   readonly number: string;
@@ -67,6 +144,11 @@ export interface PaymentLinkSummary {
   readonly url: string;
   readonly expiresAt: string;
   readonly createdAt: string;
+  /** Refunded through the gateway, and still to refund (pending or failed for now). */
+  readonly refundedPaise: number;
+  readonly refundPendingPaise: number;
+  /** A refund failed: the money is kept as an advance until it is refunded or used. */
+  readonly refundFailed: boolean;
 }
 
 export interface PaymentLinkView extends PaymentLinkSummary {
@@ -78,6 +160,7 @@ export interface PaymentLinkView extends PaymentLinkSummary {
   readonly createdBy: string | null;
   readonly documents: readonly PaymentLinkDocumentView[];
   readonly payments: readonly PaymentLinkPaymentView[];
+  readonly refunds: readonly PaymentLinkRefundView[];
 }
 
 /** GET /payment-links. */

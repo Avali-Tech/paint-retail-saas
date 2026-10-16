@@ -27,11 +27,24 @@ export type PaymentLinkOrigin = (typeof PAYMENT_LINK_ORIGINS)[number];
 export const PAYMENT_LINK_STATUSES = ['created', 'paid', 'expired', 'cancelled'] as const;
 export type PaymentLinkStatus = (typeof PAYMENT_LINK_STATUSES)[number];
 
-/** How long a link lives unless PAYMENT_LINK_EXPIRY_DAYS says otherwise ([PO-41]). */
-export const DEFAULT_PAYMENT_LINK_DAYS = 7;
+/** Minutes a link stays payable unless the business sets otherwise ([PO-41]: decided 10). */
+export const DEFAULT_LINK_VALIDITY_MINUTES = 10;
+/** The shortest and longest validity a business may set: 5 minutes to 30 days. */
+export const MIN_LINK_VALIDITY_MINUTES = 5;
+export const MAX_LINK_VALIDITY_MINUTES = 43_200;
 
-/** The most one link may ask for: ₹10,00,000 ([PO-42]: UPI limits are the gateway's). */
-export const MAX_PAYMENT_LINK_PAISE = 100_000_000;
+/** The most one link asks for unless the business sets otherwise ([PO-42]: ₹1,00,000). */
+export const DEFAULT_LINK_CAP_PAISE = 10_000_000;
+/** Razorpay's smallest payment (₹1) and UPI's highest per-payment limit (₹5,00,000). */
+export const MIN_LINK_CAP_PAISE = 100;
+export const MAX_LINK_CAP_PAISE = 50_000_000;
+
+/**
+ * What a link asks for ([PO-43]): `net` of the party's advance (the default: a
+ * statement's balance and its link agree) or the bills' `full` outstanding.
+ */
+export const LINK_AMOUNT_BASES = ['net', 'full'] as const;
+export type LinkAmountBasis = (typeof LINK_AMOUNT_BASES)[number];
 
 /** Something the party owes, oldest first, as the API's `openTargets` gives it. */
 export interface LinkTarget {
@@ -79,19 +92,26 @@ export interface LinkPlanInput {
   readonly documentIds?: readonly string[];
   /** A custom amount; required for an advance. */
   readonly amountPaise?: number;
+  /** The most the link may ask for (the business's cap; default ₹1,00,000). */
+  readonly capPaise?: number;
+  /** Net of the advance (default) or the bills' full outstanding. */
+  readonly basis?: LinkAmountBasis;
 }
 
 const sum = (targets: readonly LinkTarget[]) =>
   targets.reduce((total, target) => total + target.outstandingPaise, 0);
 
 /**
- * What a link asks for (rules PL-2, PL-3): its documents and its amount. A link never
- * asks for more than the party owes net of its advance, so a statement's balance and
- * its link agree; a custom amount may be lower, or anything when it is an advance.
+ * What a link asks for (rules PL-2, PL-3, PL-13): its documents and its amount. With the
+ * `net` basis a link never asks for more than the party owes net of its advance, so a
+ * statement's balance and its link agree; with `full` it asks for the bills' whole
+ * outstanding. A custom amount may be lower, or anything when it is an advance; nothing
+ * above the business's cap.
  */
 export function planPaymentLink(input: LinkPlanInput): LinkPlan {
   const requested = input.amountPaise;
-  if (requested !== undefined && requested > MAX_PAYMENT_LINK_PAISE) {
+  const cap = input.capPaise ?? DEFAULT_LINK_CAP_PAISE;
+  if (requested !== undefined && requested > cap) {
     return { ok: false, problem: 'over_limit' };
   }
   if (input.purpose === 'advance') {
@@ -120,10 +140,12 @@ export function planPaymentLink(input: LinkPlanInput): LinkPlan {
     };
   }
   const balance = sum(input.open) - input.advancePaise;
-  const duePaise = Math.min(owed, balance);
+  const duePaise = input.basis === 'full' ? owed : Math.min(owed, balance);
   if (duePaise <= 0) return { ok: false, problem: 'covered_by_advance' };
   if (requested !== undefined && requested > duePaise) return { ok: false, problem: 'over_due' };
-  return { ok: true, targets, amountPaise: requested ?? duePaise, duePaise };
+  const amountPaise = requested ?? duePaise;
+  if (amountPaise > cap) return { ok: false, problem: 'over_limit' };
+  return { ok: true, targets, amountPaise, duePaise };
 }
 
 /** One allocation of a link payment. */
@@ -194,4 +216,44 @@ export function linkStatusAt(
   now: Date,
 ): PaymentLinkStatus {
   return status === 'created' && Date.parse(expiresAt) <= now.getTime() ? 'expired' : status;
+}
+
+/** Why money a link took goes back through the gateway ([PO-44]). */
+export type LinkRefundReason = 'settled' | 'overpaid';
+
+/**
+ * What of a link payment goes back through the gateway (rule PL-15, [PO-44]): for a
+ * link that pays bills, whatever its bills no longer owed (they were settled some other
+ * way, or more came than they owed). An advance link's money is all wanted. Null when
+ * nothing goes back.
+ */
+export function linkRefundOf(input: {
+  readonly purpose: PaymentLinkPurpose;
+  readonly amountPaise: number;
+  readonly advancePaise: number;
+}): { readonly amountPaise: number; readonly reason: LinkRefundReason } | null {
+  if (input.purpose === 'advance' || input.advancePaise <= 0) return null;
+  return {
+    amountPaise: input.advancePaise,
+    reason: input.advancePaise === input.amountPaise ? 'settled' : 'overpaid',
+  };
+}
+
+/** Status of a refund through the gateway (`payment_link_refunds.status`). */
+export const LINK_REFUND_STATUSES = ['pending', 'refunded', 'failed', 'dropped', 'returned'] as const;
+export type LinkRefundStatus = (typeof LINK_REFUND_STATUSES)[number];
+
+/** Minutes before each try after a failed one: 1 minute, then up to a day. */
+const REFUND_RETRY_MINUTES = [1, 5, 30, 120, 720] as const;
+/** Tries before a refund is given up and the money stays an advance (rule PL-16). */
+export const MAX_REFUND_ATTEMPTS = REFUND_RETRY_MINUTES.length + 1;
+
+/**
+ * When to try a refund again after `attempts` failed tries (rule PL-16): sooner at first,
+ * then up to half a day apart; null once the tries are used up.
+ */
+export function refundRetryMinutes(attempts: number): number | null {
+  return attempts >= 1 && attempts < MAX_REFUND_ATTEMPTS
+    ? (REFUND_RETRY_MINUTES[attempts - 1] as number)
+    : null;
 }
