@@ -1,0 +1,98 @@
+// English messages for UPI payment links (MVP 3 round 4a, P2-M32; spread into en.ts).
+
+export const paymentLinksEn = {
+  paymentLinks: {
+    send: 'Send payment link',
+    sendName: 'Send a payment link to {name}',
+    title: 'Payment links',
+    description:
+      'UPI links sent to customers, newest first; a paid link records its payment by itself.',
+    panelTitle: 'UPI payment links',
+    none: 'No payment link has been sent yet.',
+    error: 'Could not load the payment links',
+    table: 'Payment links',
+    number: 'Link',
+    customer: 'Customer',
+    purpose: 'For',
+    amount: 'Amount',
+    paid: 'Paid',
+    status: 'Status',
+    expires: 'Payable until',
+    actions: 'Actions',
+    pages: 'Payment link pages',
+    allStatuses: 'All',
+    partPaid: 'Part paid',
+    copy: 'Copy link',
+    copyName: 'Copy link {number}',
+    copied: 'Link copied',
+    cancel: 'Cancel link',
+    cancelName: 'Cancel link {number}',
+    cancelled: 'Link cancelled: it can no longer be paid',
+    open: 'Payment links',
+    dialog: {
+      title: 'Send a UPI payment link',
+      description: 'The customer pays by UPI; the payment is recorded and allocated by itself.',
+      invoice: 'For invoice {number}',
+      purpose: 'Ask for',
+      amount: 'Amount (₹)',
+      amountHint: 'Leave empty to ask for everything owed.',
+      amountAdvanceHint: 'An advance needs an amount.',
+      amountInvalid: 'Enter an amount above zero, such as 2500',
+      whatsapp: 'Also send it on WhatsApp',
+      create: 'Make link',
+    },
+    result: {
+      title: 'Payment link {number}',
+      summary: '{amount}, payable until {date}.',
+      sent: 'Sent on WhatsApp.',
+      notSent: {
+        no_consent:
+          'Not sent on WhatsApp: the customer has not agreed to messages. Share it instead.',
+        no_address: 'Not sent on WhatsApp: the customer has no mobile number. Share it instead.',
+        duplicate: 'Already sent on WhatsApp.',
+      },
+      whatsapp: 'Share on WhatsApp',
+      done: 'Done',
+    },
+    dayEnd: 'Money paid by UPI link goes to no register: find it under Payments, mode "UPI link".',
+    dayEndLink: 'Payments by UPI link',
+    statementLink: 'UPI payment link: {url}',
+  },
+  /** The `log` provider's pretend payment page (development and demos only). */
+  logCheckout: {
+    title: 'Test payment page',
+    notice:
+      'This is a test gateway: no money moves. Paying sends the signed webhook a real gateway would.',
+    error: 'This payment link does not exist.',
+    business: 'Pay to',
+    customer: 'Customer',
+    link: 'Link',
+    for: 'For',
+    amount: 'Amount',
+    paid: 'Paid so far',
+    status: 'Status',
+    payAmount: 'Amount to pay (₹)',
+    amountInvalid: 'Enter an amount above zero',
+    pay: 'Pay by UPI (test)',
+    applied: 'Paid: the payment is recorded and allocated.',
+    duplicate: 'Sent again: it was already recorded, so nothing changed.',
+    ignored: 'Received, but nothing was recorded.',
+    replay: 'Send the same payment again',
+  },
+};
+
+export const paymentLinksEnumsEn = {
+  paymentLinkStatus: {
+    created: 'Open',
+    paid: 'Paid',
+    expired: 'Expired',
+    cancelled: 'Cancelled',
+  },
+  paymentLinkPurpose: {
+    invoice: 'Invoice',
+    overdue: 'Overdue bills',
+    outstanding: 'Everything owed',
+    bills: 'Reminded bills',
+    advance: 'Advance',
+  },
+};

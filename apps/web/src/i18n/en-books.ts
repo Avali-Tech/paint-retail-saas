@@ -93,6 +93,9 @@ export const booksEn = {
       pdf: 'PDF',
       pdfOf: 'Receipt PDF {number}',
       pages: 'Payment pages',
+      modeKind: 'Mode',
+      allModes: 'All modes',
+      links: 'Payment links',
     },
     accounting: {
       title: 'Tally export',

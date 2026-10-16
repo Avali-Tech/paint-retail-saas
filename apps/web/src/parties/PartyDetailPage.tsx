@@ -10,6 +10,7 @@ import { stageLabel, useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
 import { CollectionsPanel } from '../collections/CollectionsPanel.js';
 import { MessagingPanel } from '../collections/MessagingPanel.js';
+import { PaymentLinksPanel } from '../payment-links/PaymentLinks.js';
 import { CreditPanel } from '../credit/CreditPanel.js';
 import { DocumentsPanel } from '../documents/DocumentsPanel.js';
 import { timelinePath } from '../followups/activity-helpers.js';
@@ -224,6 +225,7 @@ function Overview({
         {can(RECEIVABLES_PERMISSION) && (
           <CollectionsPanel party={{ id: party.id, name: party.displayName }} />
         )}
+        <PaymentLinksPanel party={{ id: party.id, name: party.displayName }} />
         <MessagingPanel partyId={party.id} />
         {loyalty !== null && <LoyaltyPanel partyId={party.id} loyalty={loyalty} />}
         <Section

@@ -155,7 +155,15 @@ function SendOnWhatsApp({
               {...buttonStyle('secondary', 'sm')}
               href={
                 shared.waMeUrl ??
-                whatsappLink(null, statementShareText(data, choice.lang, shared.url))
+                whatsappLink(
+                  null,
+                  statementShareText(
+                    data,
+                    choice.lang,
+                    shared.url,
+                    shared.paymentLink?.url ?? null,
+                  ),
+                )
               }
               target="_blank"
               rel="noreferrer"
@@ -168,6 +176,11 @@ function SendOnWhatsApp({
           <div>
             {t('statementShare.link')}: <code>{shared.url}</code>
           </div>
+          {shared.paymentLink !== null && (
+            <div>
+              <code>{t('paymentLinks.statementLink', { url: shared.paymentLink.url })}</code>
+            </div>
+          )}
         </Alert>
       )}
     </>

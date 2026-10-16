@@ -24,6 +24,7 @@ import { ListPager, ListRefreshing } from '../lib/ListPager.js';
 import { QueryState } from '../lib/QueryState.js';
 import { storeLabel, useStoreAccess } from '../stock/StoreSelect.js';
 import { useStores } from '../stock/stores.js';
+import { usePaymentLinks } from '../payment-links/PaymentLinks.js';
 import { VARIANCE_TONE, varianceKind } from './day-end.js';
 
 const CODE = /^[A-Z0-9-]{1,20}$/;
@@ -234,6 +235,7 @@ export function RegistersPage() {
   const { t } = useI18n();
   const stores = useStores();
   const access = useStoreAccess();
+  const links = usePaymentLinks();
   const [chosen, setChosen] = useState('');
   return (
     <>
@@ -241,6 +243,16 @@ export function RegistersPage() {
         title={t('books.registers.title')}
         description={t('books.registers.description')}
       />
+      {links.on && (
+        <div className="page-notice">
+          <Alert
+            tone="info"
+            action={<Link to="/payments?modeKind=upi_link">{t('paymentLinks.dayEndLink')}</Link>}
+          >
+            {t('paymentLinks.dayEnd')}
+          </Alert>
+        </div>
+      )}
       <QueryState query={stores} error="books.registers.error">
         {(list) => {
           const choices = list.filter(

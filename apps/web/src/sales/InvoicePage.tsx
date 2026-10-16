@@ -13,6 +13,7 @@ import { useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
 import { STATUS_TONE } from './InvoicesPage.js';
 import { DispatchPanel } from '../orders/DispatchPanel.js';
+import { PaymentLinksPanel } from '../payment-links/PaymentLinks.js';
 import { usePageLanding } from './focus-landing.js';
 import { LinesTable } from './LinesTable.js';
 import { NoteDialog } from './NoteDialog.js';
@@ -64,6 +65,18 @@ function Adjustments({
         )}
       </div>
     </Card>
+  );
+}
+
+/** An issued bill to a customer, who can be asked to pay it by link (P2-M32). */
+function payable(
+  invoice: TaxDocumentView,
+): invoice is TaxDocumentView & { buyer: { partyId: string; name: string }; number: string } {
+  return (
+    invoice.status === 'issued' &&
+    invoice.buyer.partyId !== null &&
+    invoice.buyer.name !== null &&
+    invoice.number !== null
   );
 }
 
@@ -128,6 +141,12 @@ function InvoiceDetail({ invoice }: { readonly invoice: TaxDocumentView }) {
         {(data) => <Adjustments invoice={invoice} adjustments={data} />}
       </QueryState>
       {invoice.status === 'issued' && <DispatchPanel invoice={invoice} />}
+      {payable(invoice) && (
+        <PaymentLinksPanel
+          party={{ id: invoice.buyer.partyId, name: invoice.buyer.name }}
+          invoice={{ id: invoice.id, number: invoice.number }}
+        />
+      )}
     </>
   );
 }

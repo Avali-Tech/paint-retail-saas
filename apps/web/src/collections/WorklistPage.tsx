@@ -23,6 +23,7 @@ import { useI18n } from '../i18n/i18n.js';
 import { FormDialog } from '../lib/FormDialog.js';
 import { useUrlFilters } from '../lib/hooks.js';
 import { QueryState } from '../lib/QueryState.js';
+import { SendPaymentLinkButton } from '../payment-links/PaymentLinks.js';
 import { PromiseDialog, refreshCollections } from './PromiseDialog.js';
 
 export const WORKLIST_PAGE_SIZE = 50;
@@ -172,6 +173,7 @@ function Rows({ page }: { readonly page: Page }) {
                       {t('collections.acknowledge')}
                     </Button>
                   )}
+                  <SendPaymentLinkButton party={{ id: row.partyId, name: row.name }} size="sm" />
                   {manage && row.openPromise === null && (
                     <Button
                       size="sm"

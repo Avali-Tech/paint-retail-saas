@@ -10,10 +10,12 @@ import {
   PageHeader,
   Select,
   Table,
+  buttonStyle,
 } from '@paint/ui';
-import { PAYMENT_DIRECTIONS, type PaymentSummary } from '@paint/shared';
+import { PAYMENT_DIRECTIONS, PAYMENT_MODE_KINDS, type PaymentSummary } from '@paint/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { errorMessage } from '../api/errors.js';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
@@ -24,7 +26,7 @@ import { ListPager, ListRefreshing } from '../lib/ListPager.js';
 import { QueryState } from '../lib/QueryState.js';
 
 export const PAYMENTS_PAGE_SIZE = 50;
-const FILTERS = ['direction', 'from', 'to', 'q'] as const;
+const FILTERS = ['direction', 'modeKind', 'from', 'to', 'q'] as const;
 
 /** Downloads one receipt as a PDF; a failure shows above the list. */
 function ReceiptButton({
@@ -70,6 +72,7 @@ export function PaymentsPage() {
   const { t, label, money, date } = useI18n();
   const filters = useUrlFilters(FILTERS);
   const direction = PAYMENT_DIRECTIONS.find((value) => value === filters.values.direction);
+  const modeKind = PAYMENT_MODE_KINDS.find((value) => value === filters.values.modeKind);
   const from = isDate(filters.values.from) ? filters.values.from : undefined;
   const to = isDate(filters.values.to) ? filters.values.to : undefined;
   const q = useDebouncedValue(filters.values.q.trim(), 300);
@@ -77,12 +80,13 @@ export function PaymentsPage() {
   const payments = useQuery({
     queryKey: [
       'payments',
-      { direction, from, to, q, offset: filters.offset, cursor: filters.cursor },
+      { direction, modeKind, from, to, q, offset: filters.offset, cursor: filters.cursor },
     ],
     queryFn: ({ signal }) =>
       api.books.payments(
         {
           direction,
+          modeKind,
           from,
           to,
           q: q === '' ? undefined : q,
@@ -96,7 +100,15 @@ export function PaymentsPage() {
   });
   return (
     <>
-      <PageHeader title={t('books.payments.title')} description={t('books.payments.description')} />
+      <PageHeader
+        title={t('books.payments.title')}
+        description={t('books.payments.description')}
+        actions={
+          <Link to="/payment-links" {...buttonStyle('secondary')}>
+            {t('books.payments.links')}
+          </Link>
+        }
+      />
       <Card>
         <div className="stack">
           <div className="filters">
@@ -120,6 +132,21 @@ export function PaymentsPage() {
                 {PAYMENT_DIRECTIONS.map((value) => (
                   <option key={value} value={value}>
                     {label('paymentDirections', value)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label={t('books.payments.modeKind')}>
+              <Select
+                value={modeKind ?? ''}
+                onChange={(event) => {
+                  filters.set('modeKind', event.target.value);
+                }}
+              >
+                <option value="">{t('books.payments.allModes')}</option>
+                {PAYMENT_MODE_KINDS.map((value) => (
+                  <option key={value} value={value}>
+                    {label('paymentModeKinds', value)}
                   </option>
                 ))}
               </Select>

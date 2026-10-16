@@ -97,6 +97,9 @@ export const booksTe: Translation<typeof booksEn> = {
       pdf: 'పీడీఎఫ్',
       pdfOf: 'రసీదు పీడీఎఫ్ {number}',
       pages: 'చెల్లింపుల పేజీలు',
+      modeKind: 'విధానం',
+      allModes: 'అన్ని విధానాలు',
+      links: 'చెల్లింపు లింకులు',
     },
     accounting: {
       title: 'టాలీ ఎగుమతి',
