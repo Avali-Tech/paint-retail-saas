@@ -447,6 +447,7 @@ export * from './receivables/index.js';
 export * from './collections/index.js';
 export * from './messaging/index.js';
 export * from './painter-points/index.js';
+export * from './brand/index.js';
 export {
   assertPaise,
   formatINR,
