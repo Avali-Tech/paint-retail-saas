@@ -583,3 +583,40 @@ describe('0081_payment_gateway_accounts: link settings for every business', () =
     ]);
   });
 });
+
+describe('0086_profitability_settings: cost of money and point value for every business', () => {
+  it('gives existing settings 12 % a year and ₹1 a point, keeping what they had', async () => {
+    const { connectionString: url } = await freshDatabase();
+    await migrateDatabase(url, migrationsUpTo('0085_grant_schemes_manage'));
+    const organizationId = await withPgClient(url, async (client) => {
+      const org = await client.query<{ id: string }>(
+        "INSERT INTO organizations (name) VALUES ('Old Paints') RETURNING id",
+      );
+      const id = String(org.rows[0]?.id);
+      await client.query(
+        'INSERT INTO sales_settings (organization_id, quote_validity_days) VALUES ($1, 30)',
+        [id],
+      );
+      await client.query(
+        'INSERT INTO loyalty_settings (organization_id, earn_points) VALUES ($1, 2)',
+        [id],
+      );
+      return id;
+    });
+
+    await migrateDatabase(url);
+
+    const rows = await withPgClient(url, async (client) => {
+      const result = await client.query<Record<string, number>>(
+        `SELECT s.quote_validity_days, s.cost_of_money_bps, l.earn_points, l.point_value_paise
+         FROM sales_settings s JOIN loyalty_settings l USING (organization_id)
+         WHERE organization_id = $1`,
+        [organizationId],
+      );
+      return result.rows;
+    });
+    expect(rows).toEqual([
+      { quote_validity_days: 30, cost_of_money_bps: 1200, earn_points: 2, point_value_paise: 100 },
+    ]);
+  });
+});

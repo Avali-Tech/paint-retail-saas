@@ -267,7 +267,7 @@ through the gateway ([PO-44]); [payment-links.md](payment-links.md) has the desi
 | `sales_settings` (changed)       | add `payment_link_validity_minutes` (5 – 43,200, default 10), `payment_link_cap_paise` (₹1 – ₹5,00,000, default ₹1,00,000), `payment_link_amount_basis` (`net` default / `full`)                                                                                                                                                                                                                              | Audited with the other sales settings                                                                                                                                                                                                                                                                                        |
 | `payments` (changed)             | `payments_link`                                                                                                                                                                                                                                                                                                                                                                                               | A link payment may be a refund out through the gateway: still the UPI link mode, a gateway reference, no register, no member                                                                                                                                                                                                 |
 
-### 3.8 Round 5a: new and changed objects, migrations 0083–0085
+### 3.8 Round 5a: new and changed objects, migrations 0083–0087
 
 Brand schemes, targets and rebates (P2-M33). Progress and expected benefits are not stored:
 the API loads the scheme and the brand's GRN lines and calls 3b's engines (§6.3).
@@ -277,6 +277,8 @@ the API loads the scheme and the brand's GRN lines and calls 3b's engines (§6.3
 | 0083      | `brand_schemes`, `brand_scheme_items`, `brand_scheme_slabs`, `brand_scheme_benefits`, `brand_claims`, `brand_benefit_receipts` with their enums; `notification_event` gains `scheme_slab_near` and `scheme_claim_overdue` (committed first, alone, for session 5b: branch `mvp3-r5-schema`)    |
 | 0084      | Rules: schemes forward only, keep their brand and are never deleted; items, slabs and benefits change only while the scheme is a draft or active; received benefits append-only and only on an active or closed scheme; claims forward only; audit triggers. The new enum values are not named |
 | 0085      | Data migration: `schemes:manage` to the Owner and Organization Admin system roles                                                                                                                                                                                                              |
+| 0086      | For 5b (P2-M35): `sales_settings.cost_of_money_bps` (0–10,000, default 1,200, [PO-5]) and `loyalty_settings.point_value_paise` (≥ 0, default 100: ₹1 a point); existing businesses get the defaults                                                                                            |
+| 0087      | Both columns audited with the other settings of their tables                                                                                                                                                                                                                                   |
 
 | Table                          | Key columns                                                                                                                                                                                                                                                                                                              | Rules                                                                                                                                                                                                                            |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -854,6 +856,40 @@ Design, security and how a shop connects: [payment-links.md](payment-links.md). 
 **Demo:** per brand, distance to the next slab and benefits outstanding; the owner sees which brand
 made the most money last quarter.
 
+**5a as built:** migrations 0083–0085 (§3.8) and the module `apps/api/src/brand-schemes`:
+
+- **Progress from GRNs** (`scheme-data.ts`): a scheme counts its brand's GRN lines in its period
+  (taxable value = paid units × the GRN's unit cost, before GST; litres = paid + scheme-free
+  units, [CA-4]) and its purchase returns (`purchase_return` stock movements, negative, at their
+  own cost, else their GRN's, [PO-70]). Which day counts is a setting per scheme ([CA-21]):
+  the GRN's India date by default, or the supplier invoice date (the GRN date when the invoice
+  has none). The 3b engines compute progress, the benefit earned and the claim.
+- **API** (`/brand-schemes`, `purchasing:read` to see, `schemes:manage` to change): create and
+  edit a scheme with its slabs, checked with the engine's `assertScheme` (rising targets; an
+  incremental scheme refuses a benefit on the other basis, [PO-31]); activate, close, cancel;
+  record what the brand issued (credit note or payment, free goods, points; a minus amount
+  reverses; `Idempotency-Key`); file a claim (by default for the money still owed) and follow it
+  up; `GET /brand-schemes/claims` (expected vs received, ageing of active schemes' open claims);
+  `GET /brand-schemes/overview` (the dashboard tile); `POST /brand-schemes/price-hike-plan` (the
+  3b planner fed with stock on hand, units sold less returned over the window, and the last price
+  paid, else the average cost); CSV reports `brand-schemes` and `brand-scheme-claims`.
+- **For 5b** (`scheme-money.ts`): `schemeMoneyByBrand(tx, organizationId, from, to, asOf?)` gives
+  the engine's `BrandSchemeMoney` per brand: money received and still expected (not below 0, 0
+  for a closed scheme) on active and closed schemes overlapping the period, as they stand on
+  `asOf` (today by default), each prorated by its days inside the period ([PO-72]).
+- **Notices** (`scheme-notices.ts`, the worker, once a day): `scheme_slab_near` when an active
+  scheme in its last 7 days is within 20 % of its next slab, `scheme_claim_overdue` when its claim
+  is open past the due date; each once per scheme, to everyone with `schemes:manage` ([PO-73]).
+- **Screens:** Purchasing → Brand schemes (cards with a progress bar, "₹X to slab N, ₹Y a day
+  needed", earned and still owed), the scheme editor, the scheme's page (progress, slabs, expected
+  vs received, what the brand issued, claims, GRNs counted, with dialogs to record what came,
+  file and follow up a claim, activate, close and cancel), Scheme claims, the Price-hike
+  planner, and a dashboard tile (what brands owe, overdue claims, the nearest slab). en, hi, te.
+- **Demo** (`demo/seed-schemes.ts`): the first distributor's brand has a running quarter with its
+  first slab reached and the next ahead, and a booster that ended mid-history, claimed,
+  acknowledged, part-paid by a credit note and overdue; the second brand's litres scheme is short
+  of its first slab. `seed.int.test.ts` checks the distance and what is outstanding per brand.
+
 ### Round 6 — brand statements and pilot readiness
 
 | Session                               | Builds                                                                                                                                                | Depends on |
@@ -918,6 +954,13 @@ morning: worklist, two promises, one UPI payment allocated by itself, ageing and
 | PO-64 | A waiting refund whose money staff partly allocated meanwhile is dropped whole, and staff refund the rest by hand. Should it instead refund what is left?                                                                                                           | Dropped whole                                                                                                                       |
 | PO-65 | Razorpay keeps its fee on a payment it refunds. Should the shop be told the fee it loses on automatic refunds, or the cap on links be lowered to avoid overpayments?                                                                                                | Not shown; the shop sees Razorpay's settlement report                                                                               |
 | PO-50 | The pilot demo's subscription is paid today, so its renewal invoice comes in about three weeks. Should the walkthrough instead show a renewal invoice already raised and due (a period that began weeks ago)?                                                       | As round 3a seeds it: paid today, renewal date shown                                                                                |
+| PO-70 | There is no purchase return document yet: a return to the supplier is only a `purchase_return` stock movement. Schemes count such movements at their unit cost (else their GRN's). Build a purchase return with the supplier's credit note?                         | Count the stock movements; a document later                                                                                         |
+| PO-71 | A member who works at some stores sees a scheme's business-wide figures but only the GRN lines of their stores. Should scheme figures be hidden from members without access to every store?                                                                         | Business-wide figures, own stores' lines                                                                                            |
+| PO-72 | Brand profitability takes scheme money for a period: a scheme running past either end counts in proportion to its days inside (so a year's scheme gives a quarter about a quarter). Or count a scheme only in the period its end falls in?                          | Prorated by days                                                                                                                    |
+| PO-73 | Scheme notices: "slab within reach" in a scheme's last 7 days when within 20 % of the next slab; "claim overdue" once a claim is open past its due date; each told once per scheme. Other thresholds, or repeat weekly?                                             | As built, once each                                                                                                                 |
+| PO-74 | Closing a scheme writes off what is still owed (left out of the ageing and of profitability's expected money). Should closing record the written-off amount, or need an approver?                                                                                   | An optional note                                                                                                                    |
+| PO-75 | Free goods a slab gives may arrive on a later GRN as scheme-free units, and then also count as litres toward the slab ([CA-4]). Leave them out of progress (they cannot be told apart from invoice-level free units today)?                                         | They count                                                                                                                          |
+| PO-8  | Should a branch manager approve manager-level sales only at their own stores?                                                                                                                                                                                       | Yes (store access applies)                                                                                                          |
 | PO-80 | Brand profitability shows cost, margin and receivables together. No permission guards margins, and a new one needs a data migration granting it: reuse `accounting:export` (owners, admins), or add `reports:margins`?                                              | `accounting:export`                                                                                                                 |
 | PO-81 | What is one loyalty or painter point worth in rupees, for brand profitability's points cost? The programme has no point value; a `loyalty_settings.point_value_paise` column would hold it                                                                          | ₹1 a point, overridable per request                                                                                                 |
 | PO-82 | A product and store whose credit notes took back more points in a period than its sales earned there: count the take-back as a gain, or as nothing (the margin engine takes no negative points)?                                                                    | Nothing                                                                                                                             |
@@ -945,5 +988,8 @@ morning: worklist, two promises, one UPI payment allocated by itself, ageing and
 | CA-51 | A gateway refund that fails after it was booked comes back as a new receipt (with a new receipt voucher at a registered store) beside the refund voucher already issued, rather than cancelling the refund voucher. Right, or should the refund voucher be cancelled? | §6.2 PL-17                |
 | CA-52 | Razorpay keeps its fee (and the GST on it) on a payment it refunds: the clearing ledger then settles short of receipts less refunds. How is that lost fee booked?                                                                                                     | §6.2 PL-11, PL-15         |
 | CA-40 | An opening balance imported without "overdue since": receivables ageing ages it from the go-live date (overdue at once), while the credit check, the nightly hold and reminders treat it as current ([CA-7]). Which one?                                              | §2.2, §4.5                |
+| CA-60 | Scheme money received as a payment rather than a credit note: other income, or a reduction of purchase cost like a credit note ([CA-6])? The app records which it was                                                                                                 | §6.3                      |
+| CA-61 | Free goods a slab gives after the period (not on the original invoice): received at zero cost into stock like scheme-free units ([CA-20])? Any input-tax effect?                                                                                                      | §6.3                      |
+| CA-62 | Progress counts the GRN date by default, with the supplier invoice date as a per-scheme option ([CA-21]). Is the GRN date the right default for the books (purchases are booked by invoice date)?                                                                     | §6.3                      |
 | CA-70 | Goods returned on a credit note are taken off cost at the average cost on the note's day (the value they re-enter stock at), not the cost booked when sold; goods returned damaged stay in cost. Right?                                                               | §6.3                      |
 | CA-71 | Brand profitability counts debit notes (undercharges) as sales, and its credit cost runs on outstanding including GST. Right?                                                                                                                                         | §6.3                      |

@@ -214,7 +214,7 @@ export interface SchemeClaimsReport {
 export interface SchemesOverview {
   readonly asOf: string;
   readonly activeSchemes: number;
-  /** The running scheme closest to its next slab, measured in days of buying left. */
+  /** The running scheme closest to its next slab: the smallest share of that target still to buy. */
   readonly nearest: {
     readonly schemeId: string;
     readonly schemeName: string;

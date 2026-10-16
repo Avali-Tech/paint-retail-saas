@@ -22,6 +22,7 @@ import { receivablesHi, receivablesEnumsHi } from './hi-receivables.js';
 import { brandProfitabilityHi, brandProfitabilityEnumsHi } from './hi-brand-profitability.js';
 import { collectionsHi, collectionsEnumsHi } from './hi-collections.js';
 import { paymentLinksHi, paymentLinksEnumsHi } from './hi-payment-links.js';
+import { schemesHi, schemesEnumsHi } from './hi-schemes.js';
 import { posHi } from './hi-pos.js';
 import { tintHi } from './hi-tint.js';
 import { purchasingEnumsHi, purchasingHi } from './hi-purchasing.js';
@@ -353,6 +354,7 @@ export const hi: Messages = {
   ...brandProfitabilityHi,
   ...collectionsHi,
   ...paymentLinksHi,
+  ...schemesHi,
   enums: {
     quickActions: {
       new_customer: '+ ग्राहक',
@@ -392,6 +394,7 @@ export const hi: Messages = {
     ...brandProfitabilityEnumsHi,
     ...collectionsEnumsHi,
     ...paymentLinksEnumsHi,
+    ...schemesEnumsHi,
   },
   pages: {
     notFound: 'इस पते पर कोई स्क्रीन नहीं है। लिंक जांचें, या मेन्यू या खोज का इस्तेमाल करें।',

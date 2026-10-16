@@ -20,6 +20,7 @@ import { useApi } from '../app/services.js';
 import { stageLabel, useI18n } from '../i18n/i18n.js';
 import { ReceivablesTile } from '../receivables/ReceivablesTile.js';
 import { BrandProfitabilityTile } from '../brand-profitability/BrandProfitabilityTile.js';
+import { SchemesTile } from '../brand-schemes/SchemesTile.js';
 
 export const dashboardKey = (storeId: string | null) => ['dashboard', storeId ?? 'all'] as const;
 
@@ -156,6 +157,7 @@ function Tiles({
       <FollowUpTile followUps={dashboard.followUps} storeId={storeId} />
       <ReceivablesTile storeId={storeId} />
       <BrandProfitabilityTile storeId={storeId} />
+      <SchemesTile />
     </section>
   );
 }

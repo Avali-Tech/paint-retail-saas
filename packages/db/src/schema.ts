@@ -2670,6 +2670,8 @@ export const loyaltySettings = pgTable(
     tiers: jsonb('tiers').$type<{ name: string; minPoints: number }[]>().notNull().default([]),
     expiryDays: integer('expiry_days'),
     minRedemptionPoints: integer('min_redemption_points').notNull().default(0),
+    /** What one point is worth in paise when paid out (brand profitability's loyalty cost). */
+    pointValuePaise: integer('point_value_paise').notNull().default(100),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -2679,6 +2681,7 @@ export const loyaltySettings = pgTable(
     ),
     check('loyalty_settings_expiry_positive', sql`${table.expiryDays} > 0`),
     check('loyalty_settings_min_redemption', sql`${table.minRedemptionPoints} >= 0`),
+    check('loyalty_settings_point_value', sql`${table.pointValuePaise} >= 0`),
     check('loyalty_settings_tiers_array', sql`jsonb_typeof(${table.tiers}) = 'array'`),
     pgPolicy('loyalty_settings_tenant_isolation', {
       for: 'all',
@@ -3253,6 +3256,8 @@ export const salesSettings = pgTable(
     paymentLinkAmountBasis: paymentLinkAmountBasis('payment_link_amount_basis')
       .notNull()
       .default('net'),
+    /** The business's cost of money a year, basis points ([PO-5]; brand profitability's credit cost). */
+    costOfMoneyBps: integer('cost_of_money_bps').notNull().default(1200),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -3273,6 +3278,7 @@ export const salesSettings = pgTable(
       sql`${table.upiId} is null or ${table.bankName} is not null`,
     ),
     check('sales_settings_invoice_terms', sql`cardinality(${table.invoiceTerms}) <= 10`),
+    check('sales_settings_cost_of_money', sql`${table.costOfMoneyBps} between 0 and 10000`),
     check(
       'sales_settings_payment_links',
       sql`${table.paymentLinkValidityMinutes} between 5 and 43200

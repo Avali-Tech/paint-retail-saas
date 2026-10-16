@@ -132,6 +132,9 @@ describe('read-only mode', () => {
         'POST /statement-links/:id/revoke',
         'POST /loyalty-earn-rules',
         'PUT /loyalty-earn-rules/:id',
+        'POST /brand-schemes',
+        'POST /brand-schemes/:id/receipts',
+        'POST /brand-schemes/claims/:claimId/status',
       ]),
     );
     const answers = [];
