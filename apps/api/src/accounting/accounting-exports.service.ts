@@ -236,8 +236,11 @@ export class AccountingExportsService {
     };
   }
 
-  /** The period's documents and money (receipts, refunds, bounces) and the mapping rules. */
-  private async gather(
+  /**
+   * The period's documents and money (receipts, refunds, bounces) and the mapping rules.
+   * Public so the GST summary's reconciliation test can build the same export.
+   */
+  async gather(
     tx: Transaction,
     auth: AuthContext,
     query: {
