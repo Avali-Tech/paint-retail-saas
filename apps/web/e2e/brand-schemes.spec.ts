@@ -70,7 +70,7 @@ test('a scheme entered with slabs, its progress from a GRN, and a credit note fr
   // ₹40,000 bought: slab 1 reached, ₹20,000 to slab 2 over the 19 days left.
   await expect(page.getByText('₹20,000.00 to slab 2, ₹1,052.64 a day needed')).toBeVisible();
   await expect(page.getByRole('table', { name: 'GRNs counted' })).toContainText(
-    'ULT-1010 + 1 free₹40,000.00110 L',
+    'ULT-10L10 + 1 free₹40,000.00110 L',
   );
   await expectUsable(page);
 
