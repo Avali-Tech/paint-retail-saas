@@ -193,6 +193,8 @@ test('Settings → Payment link settings: the business’s link rules, on deskto
   page,
   browser,
 }) => {
+  // Two more browsers sign in (the phones): room for that beside the rest of the suite.
+  test.setTimeout(90_000);
   const books = await shop('Link Rules Paints');
   await signIn(page, books);
   await page.goto('/settings/payment-links');
