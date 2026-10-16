@@ -78,9 +78,10 @@ Imports are at **Imports** (`/imports`): download the template, upload, check th
 - [ ] **Settings → Payment link settings** (`/settings/payment-links`, owners and admins): connect
       the shop's own Razorpay account (live keys after KYC), add the webhook address shown there with
       the five events, **Test connection** ([payment-links.md §1](payment-links.md#1-how-a-shop-connects-razorpay)).
-- [ ] Rules on the same screen: validity, the most one link asks for, and net of advance vs full
-      outstanding. Review the validity against [PO-41] and [PO-61] before links go out in reminders
-      (round 6a may change these defaults).
+- [ ] Rules on the same screen: how long counter links stay payable (10 minutes by default), how
+      long links sent in messages stay payable (a day by default, [PO-61]), the most one link asks
+      for, and net of advance vs full outstanding. With Razorpay neither validity may be under
+      15 minutes: connecting raises a shorter one and says so ([PO-60]).
 - [ ] Pay one small live link end to end, then refund it, before telling customers.
 
 ### 2.4 Subscription (P2-M08)
@@ -101,8 +102,16 @@ Imports are at **Imports** (`/imports`): download the template, upload, check th
 - [ ] **Reports → Brand profitability** (`/reports/brand-profitability`, `accounting:export` today,
       [PO-80]): set **cost of money** (default 12 %, [PO-5], [PO-83]) and **point value** (default
       ₹1, [PO-81]).
-- [ ] Brand statement reconciliation (P2-M34): set up its templates only if shipped in this
-      release (round 6a).
+- [ ] **Purchasing → Brand statements → Statement templates** (`/brand-statements/templates`,
+      `schemes:manage`, [PO-90]): one template per distributor, its column headings copied from a
+      statement exported from the brand portal (CSV or Excel; PDF is not read, [PO-91]), the
+      date format, the words for credit notes and payments, the brand of its scheme credit notes,
+      the date window and amount tolerance, and whether GRNs compare with GST ([PO-94]).
+- [ ] Each month: **Upload a statement**, **Check the file**, **Import and match**; then on the
+      reconciliation settle what is left: match by hand, explain (our payments show as not
+      tracked until P2-M17, [PO-92]), or record an unrecorded scheme credit note in one step.
+      Download the mismatches for the distributor. Keep ClamAV and storage up so the original
+      file is kept ([PO-93]).
 
 ### 2.6 Loyalty and painter points (P2-M36)
 
