@@ -315,7 +315,11 @@ describe('statement shares with payment links', () => {
       amountPaise: 23_600,
       storeId: b.stores.amp,
     });
-    expect(shared.paymentLink).toEqual({ number: link?.number, url: link?.url, amountPaise: 23_600 });
+    expect(shared.paymentLink).toEqual({
+      number: link?.number,
+      url: link?.url,
+      amountPaise: 23_600,
+    });
     expect(decodeURIComponent(String(shared.waMeUrl))).toContain(
       `View the statement: ${shared.url} Pay by UPI: ${String(link?.url)}`,
     );

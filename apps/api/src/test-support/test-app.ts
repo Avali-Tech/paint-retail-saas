@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm';
 import { createApp } from '../app.js';
 import { hashPassword } from '../auth/credentials.js';
 import type { SmsSender } from '../auth/sms.js';
+import { PaymentLinkGateways } from '../payment-links/payment-link-gateways.js';
 import { loadConfig } from '../config.js';
 
 export const TEST_AUTH_SECRET = 'integration-test-secret-of-at-least-32-chars';
@@ -35,7 +36,14 @@ export interface TestApp {
 export async function startTestApp(
   databaseUrl: string,
   env: Record<string, string> = {},
-  { fakeSms = true } = {},
+  {
+    fakeSms = true,
+    gatewayFetch,
+  }: {
+    fakeSms?: boolean;
+    /** Payment-link gateways talk to this instead of the network (a fake Razorpay). */
+    gatewayFetch?: typeof globalThis.fetch;
+  } = {},
 ): Promise<TestApp> {
   const connection = createDatabase(databaseUrl);
   const sms = new FakeSmsSender();
@@ -50,7 +58,18 @@ export async function startTestApp(
     SIGNUP_PLAN: 'enterprise',
     ...env,
   });
-  const app = await createApp(config, connection, fakeSms ? { smsSender: sms } : {});
+  const app = await createApp(config, connection, {
+    ...(fakeSms ? { smsSender: sms } : {}),
+    ...(gatewayFetch === undefined
+      ? {}
+      : {
+          paymentLinkGateways: PaymentLinkGateways.fromConfig(
+            config.paymentLinks,
+            { appUrl: config.appUrl, publicApiUrl: config.publicApiUrl },
+            gatewayFetch,
+          ),
+        }),
+  });
   return { app, connection, sms, close: () => app.close() };
 }
 

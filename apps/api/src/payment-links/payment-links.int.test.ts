@@ -203,6 +203,23 @@ afterAll(async () => {
 });
 
 describe('payment link settings', () => {
+  it('have no Razorpay account to connect with the log gateway', async () => {
+    expect(ok(await api(t, b.owner).get('/payment-links/gateway-account')).json()).toBeNull();
+    const connect = await api(t, b.owner).put('/payment-links/gateway-account', {
+      keyId: 'rzp_test_1DP5mmOlF5G5ag',
+      keySecret: 'abcdefghijklmnopqrst',
+      webhookSecret: 'webhook-secret',
+    });
+    expect(connect.statusCode).toBe(409);
+    expect(connect.json<{ code: string }>().code).toBe('gateway_not_razorpay');
+    for (const reply of [
+      await api(t, b.owner).post('/payment-links/gateway-account/test'),
+      await api(t, b.owner).delete('/payment-links/gateway-account'),
+    ]) {
+      expect(reply.json<{ code: string }>().code).toBe('gateway_not_razorpay');
+    }
+  });
+
   it('say whether links can be made, and the business’s rules: 10 minutes, ₹1,00,000, net', async () => {
     const defaults = {
       validityMinutes: 10,
@@ -839,6 +856,27 @@ describe('a payment reported by the gateway', () => {
       ).statusCode,
     ).toBe(404);
     expect((await deliver(unknownLink.body, unknownLink.signature, off)).statusCode).toBe(404);
+    expect(
+      (
+        await deliver(
+          unknownLink.body,
+          unknownLink.signature,
+          off,
+          '/webhooks/payment-links/disabled',
+        )
+      ).statusCode,
+    ).toBe(404);
+    // The log gateway names no business in its route.
+    expect(
+      (
+        await deliver(
+          unknownLink.body,
+          unknownLink.signature,
+          t,
+          '/webhooks/payment-links/log/aaaaaaaaaaaaaaaaaaaaaa',
+        )
+      ).statusCode,
+    ).toBe(404);
     // Another process's log provider signs with another secret.
     expect((await deliver(unknownLink.body, unknownLink.signature, quiet)).statusCode).toBe(400);
   });

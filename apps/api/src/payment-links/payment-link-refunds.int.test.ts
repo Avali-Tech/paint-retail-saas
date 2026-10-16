@@ -8,9 +8,15 @@ import {
 import { MAX_REFUND_ATTEMPTS, type PaymentLinkCreated, type PaymentLinkView } from '@paint/shared';
 import { createIsolatedDatabase, type TestDatabase } from '@paint/testing';
 import { and, eq, sql } from 'drizzle-orm';
-import { afterAll, afterEach, beforeAll, describe, expect, inject, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from 'vitest';
 import { Notifier } from '../notifications/notifier.js';
-import { api, billingBusiness, dbToday, ok, type BillingBusiness } from '../test-support/billing-business.js';
+import {
+  api,
+  billingBusiness,
+  dbToday,
+  ok,
+  type BillingBusiness,
+} from '../test-support/billing-business.js';
 import { startTestApp, uniquePhone, type TestApp } from '../test-support/test-app.js';
 import { attemptLinkRefund, runDueLinkRefunds } from './link-refunds.js';
 import { PAYMENT_LINK_GATEWAYS, type PaymentLinkGateways } from './payment-link-gateways.js';
@@ -67,24 +73,35 @@ async function bill(partyId: string, quantity: number) {
   }>();
 }
 
-/** A ₹118.00 invoice link, paid ₹200.00 by the gateway: ₹82.00 is not owed. */
-async function overpaid(name: string) {
+/** A ₹118.00 invoice link at a store (Ameerpet by default). */
+async function invoiceLink(name: string, linkStore?: string) {
   const party = await customer(name);
   const invoice = await bill(party, 1);
   const { link } = ok(
-    await api(t, b.owner).post('/payment-links', {
-      partyId: party,
-      purpose: 'invoice',
-      invoiceId: invoice.id,
-    }),
+    await api(t, b.owner).post(
+      '/payment-links',
+      linkStore === undefined
+        ? { partyId: party, purpose: 'invoice', invoiceId: invoice.id }
+        : { partyId: party, purpose: 'outstanding', storeId: linkStore },
+    ),
   ).json<PaymentLinkCreated>();
+  return { party, link, invoice };
+}
+
+/** The gateway reports ₹200.00 paid on a link of ₹118.00: ₹82.00 is not owed. */
+async function payOver(link: { url: string }) {
   const paid = gateway().webhook({
     type: 'payment.captured',
     linkId: referenceOf(link),
     payment: { amountPaise: 20_000 },
   });
   expect(await received(paid)).toBe('applied');
-  return { party, link, invoice };
+}
+
+async function overpaid(name: string) {
+  const made = await invoiceLink(name);
+  await payOver(made.link);
+  return made;
 }
 
 const view = async (id: string) =>
@@ -290,6 +307,52 @@ describe('a refund through the gateway', () => {
   });
 });
 
+describe('refunds in odd places', () => {
+  it('keeps the gateway’s error code only, whatever else fails', async () => {
+    gateway().refundBehaviour = 'unreachable';
+    const { link } = await overpaid('Odd Failure');
+    const [refund] = await refundsOf(link.id);
+    const broken = {
+      name: 'log' as const,
+      refundPayment: () => Promise.reject(new Error('socket hang up with key rzp_secret')),
+    } as unknown as LogPaymentLinkProvider;
+    await withTenant(t.connection.db, b.organizationId, (tx) =>
+      attemptLinkRefund(tx, String(refund?.id), broken, notifier()),
+    );
+    expect((await refundsOf(link.id))[0]).toMatchObject({ lastError: 'error', attempts: 2 });
+  });
+
+  it('needs no refund voucher at a store that gives no GST vouchers', async () => {
+    const { party, link } = await invoiceLink('Unregistered', b.stores.unr);
+    await payOver(link);
+    const rows = await t.connection.db
+      .select()
+      .from(payments)
+      .where(eq(payments.paymentLinkId, link.id))
+      .orderBy(payments.createdAt, payments.id);
+    expect(rows.map((row) => [row.direction, row.storeId, row.voucherNumber])).toEqual([
+      ['in', b.stores.unr, null],
+      ['out', b.stores.unr, null],
+    ]);
+    expect(await balanceOf(party)).toEqual({ balance: 0, advance: 0 });
+  });
+
+  it('leaves a refund to the worker when trying it at once fails', async () => {
+    const { party, link } = await invoiceLink('Worker Later');
+    const spy = vi
+      .spyOn(gateways(), 'forBusiness')
+      .mockRejectedValueOnce(new Error('database away'));
+    try {
+      await payOver(link);
+      expect(await balanceOf(party)).toEqual({ balance: -8_200, advance: 8_200 });
+      expect(await run()).toBe(1);
+      expect((await view(link.id)).refundedPaise).toBe(8_200);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
 describe('the gateway’s refund news', () => {
   it('notes a processed refund once, and ignores news of refunds it does not have', async () => {
     const { link } = await overpaid('Processed');
@@ -378,7 +441,9 @@ describe('the gateway’s refund news', () => {
     expect(await noticesOf('Returned')).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: expect.stringMatching(/^Refund failed at the gateway, kept as an advance/) as string,
+          title: expect.stringMatching(
+            /^Refund failed at the gateway, kept as an advance/,
+          ) as string,
           body: expect.stringContaining('It is tried again.') as string,
         }),
       ]),
