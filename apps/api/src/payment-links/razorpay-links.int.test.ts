@@ -563,6 +563,8 @@ describe('credentials the API cannot open', () => {
       );
       expect((await settingsOf(b.owner, both)).ready).toBe(true);
       await both.close();
+      // Opened once under the new key, they are sealed again with it: the old key can go.
+      expect((await settingsOf(b.owner, rotated)).ready).toBe(true);
     } finally {
       await rotated.close();
     }

@@ -5,7 +5,7 @@ import {
   DEFAULT_LINK_VALIDITY_MINUTES,
   type LinkAmountBasis,
 } from '@paint/shared';
-import { and, eq, isNotNull } from 'drizzle-orm';
+import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import type {
   PaymentLinkProviderName as ConfiguredProvider,
   PaymentLinksConfig,
@@ -130,7 +130,22 @@ export class PaymentLinkGateways {
       .select({ sealed: paymentGatewayAccounts.credentialsSealed })
       .from(paymentGatewayAccounts)
       .where(eq(paymentGatewayAccounts.organizationId, organizationId));
-    return account?.sealed ? this.opened(organizationId, account.sealed) : null;
+    if (!account?.sealed) return null;
+    const provider = this.opened(organizationId, account.sealed);
+    // Sealed under the previous key (a rotation): sealed again under the current one.
+    if (provider !== null && !this.vault.isCurrent(account.sealed)) {
+      await tx
+        .update(paymentGatewayAccounts)
+        .set({
+          credentialsSealed: this.vault.seal(
+            organizationId,
+            this.vault.open(organizationId, account.sealed),
+          ),
+          updatedAt: sql`now()`,
+        })
+        .where(eq(paymentGatewayAccounts.organizationId, organizationId));
+    }
+    return provider;
   }
 
   /**
