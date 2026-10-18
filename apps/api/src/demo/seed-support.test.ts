@@ -91,12 +91,12 @@ describe('history dates', () => {
 describe('sign-in sheet', () => {
   it('lists everyone with how they sign in, and the authenticator details', () => {
     const credentials: DemoCredentials = {
-      business: 'Sharma Paints & Hardware',
-      slug: 'sharma-paints',
+      business: 'Sri Rama Hardware & Paints',
+      slug: 'sri-rama-paints',
       password: 'Demo@2026',
       people: [
         {
-          name: 'Rajesh Sharma',
+          name: 'K. Ranjith Kumar',
           role: 'Owner',
           stores: 'All stores',
           phone: '+919000000001',
@@ -135,11 +135,11 @@ describe('sign-in sheet', () => {
     };
     const sheet = formatCredentials(credentials, 'http://localhost:5173');
     expect(sheet).toContain(
-      "Branded sign-in page (the business's own name and colours): http://localhost:5173/sign-in?b=sharma-paints",
+      "Branded sign-in page (the business's own name and colours): http://localhost:5173/sign-in?b=sri-rama-paints",
     );
     expect(sheet).toContain('Open http://localhost:5173');
     expect(sheet).toContain('Password for everyone with one: Demo@2026');
-    expect(sheet).toMatch(/Rajesh Sharma\s+Owner\s+\+919000000001\s+All stores\s+password/);
+    expect(sheet).toMatch(/K\. Ranjith Kumar\s+Owner\s+\+919000000001\s+All stores\s+password/);
     expect(sheet).toMatch(/Ravi Teja\s+Store Employee\s+\+919000000041\s+Ameerpet\s+mobile code/);
     expect(sheet).toContain('[SMS]');
     expect(sheet).toContain('Setup key (same after every reset): ABC');
@@ -149,7 +149,7 @@ describe('sign-in sheet', () => {
       'Platform console (the team that runs the service): http://localhost:5173/platform',
     );
     expect(sheet).toContain(
-      'Subscription: Sharma Paints & Hardware pays for the Standard, monthly plan by bank transfer against our invoice (Settings → Billing).',
+      'Subscription: Sri Rama Hardware & Paints pays for the Standard, monthly plan by bank transfer against our invoice (Settings → Billing).',
     );
     expect(sheet).toContain(
       'A business on its free trial: Reddy Colour Centre. Its owner Srinivas Reddy',

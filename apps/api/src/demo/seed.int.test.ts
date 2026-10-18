@@ -118,7 +118,7 @@ afterAll(async () => {
 describe('demo seed command', () => {
   it('creates the database, seeds it and writes the sign-in sheet', async () => {
     expect(firstRun.code).toBe(0);
-    expect(firstRun.output).toContain('Seeding Sharma Paints & Hardware (full)');
+    expect(firstRun.output).toContain('Seeding Sri Rama Hardware & Paints (full)');
     expect(firstRun.output).toMatch(/Seeded in \d+ s: 3 stores, 13 team members/);
     const sheet = readFileSync(credentialsFile, 'utf8');
     expect(sheet).toContain('Open http://localhost:4981');
@@ -148,15 +148,15 @@ describe('the demo business', () => {
     const security = await get<{ twoFactorRequired: boolean }>('/organization/security');
     expect(security.twoFactorRequired).toBe(false);
     const branding = await get<{ branding: { appName: string } }>('/organization/branding');
-    expect(branding.branding.appName).toBe('Sharma Paints');
+    expect(branding.branding.appName).toBe('Sri Rama Paints');
     // Its branded sign-in page, printed on the sheet, shows the same look before sign-in.
     const identity = await get<{ slug: string }>('/organization/identity');
-    expect(identity.slug).toBe('sharma-paints');
+    expect(identity.slug).toBe('sri-rama-paints');
     expect(readFileSync(credentialsFile, 'utf8')).toContain(
-      'http://localhost:4981/sign-in?b=sharma-paints',
+      'http://localhost:4981/sign-in?b=sri-rama-paints',
     );
-    const page = await t.app.inject({ method: 'GET', url: '/public/branding/sharma-paints' });
-    expect(page.json<{ branding: { appName: string } }>().branding.appName).toBe('Sharma Paints');
+    const page = await t.app.inject({ method: 'GET', url: '/public/branding/sri-rama-paints' });
+    expect(page.json<{ branding: { appName: string } }>().branding.appName).toBe('Sri Rama Paints');
   });
 
   it('pays our GST invoice for the Standard plan by bank transfer; a second business is on its trial', async () => {
@@ -344,7 +344,7 @@ describe('the demo business', () => {
 
   it('is registered for GST in Telangana, with HSN codes, tax categories and customers by state', async () => {
     const registrations = await get<GstRegistrations>('/gst-registrations');
-    expect(registrations.legalName).toBe('Sharma Paints & Hardware');
+    expect(registrations.legalName).toBe('Sri Rama Hardware & Paints');
     expect(registrations.pan).toMatch(/^[A-Z]{3}F[A-Z]\d{4}[A-Z]$/);
     expect(
       registrations.stores.map((store) => [store.code, store.registrationType, store.stateCode]),

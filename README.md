@@ -81,8 +81,8 @@ API's console.
 
 ## Run the demo
 
-One command starts everything on a Mac with a realistic demo business, **Sharma Paints &
-Hardware**: three branches in Hyderabad (Ameerpet, Kukatpally, Secunderabad), a 13-person team,
+One command starts everything on a Mac with a realistic demo business, **Sri Rama Hardware &
+Paints**: three branches in Hyderabad (Ameerpet, Kukatpally, Secunderabad), a 13-person team,
 about 300 products and pack sizes from Asian Paints, Berger, Nerolac, Dulux, Indigo and Birla Opus,
 84 customers (two of them across the border in Andhra Pradesh, for inter-state sales), contractors, painters, architects, dealers and distributors, and two months of
 history ending today: opening stock, purchase orders and goods receipts (with scheme units free),
@@ -164,9 +164,9 @@ Compose project (`paint-demo`) and database (`paint_demo`), separate from develo
 and the sign-in sheet are in `.demo/`. Remove it all with `docker compose -p paint-demo down -v`.
 
 **Signing in.** Everyone signs in with their mobile number (or email) and the password
-`Demo@2026`, for example the owner **Rajesh Sharma, 9000000001**; `pnpm demo` prints the whole
+`Demo@2026`, for example the owner **K. Ranjith Kumar, 9000000001**; `pnpm demo` prints the whole
 team with roles and stores, and the business's branded sign-in page,
-**http://localhost:5173/sign-in?b=sharma-paints** (its name and colours before anyone signs in). Counter staff (Ravi Teja 9000000041, Suresh Yadav 9000000042, Farhan
+**http://localhost:5173/sign-in?b=sri-rama-paints** (its name and colours before anyone signs in). Counter staff (Ravi Teja 9000000041, Suresh Yadav 9000000042, Farhan
 Ali 9000000043) have no password: choose **Mobile code**; with the local SMS provider the code is
 printed in the `pnpm demo` terminal (a line with `[SMS]`) and in `.demo/api.log`.
 
@@ -297,7 +297,7 @@ page while support access runs or a request waits.
 
 **Receivables and statements** (MVP 3, P2-M10 and P2-M12): a pure ageing engine (`packages/shared/src/receivables`) ages what parties owe as of any day from their due dates, exactly as the party ledger has it ([docs/mvp-3/receivables-and-statements.md](docs/mvp-3/receivables-and-statements.md)). The **Receivables** screen (`/receivables`, `receivables:read` since round 2a) shows the dashboard figures, who owes most, and the ageing by customer, salesperson or store, each customer linking to its ledger and statement, with a CSV; the dashboard has a receivables tile. A customer's **Statement** (`/parties/:id/statement`, `sales:read`, linked from the customer record and the ledger) shows the period's A4 statement in English, or with Hindi or Telugu labels, to print, download as PDF, or **Share on WhatsApp**: a `wa.me` link with a short message, the PDF saved at the same moment to attach.
 
-**Subscriptions** (P2-M08, [docs/mvp-3/subscriptions.md](docs/mvp-3/subscriptions.md)): a business signs up on a free trial (`SUBSCRIPTION_TRIAL_DAYS`, 14) and its owner sees the plan, usage, trial days and our invoices under **Settings → Billing** (`/settings/billing`): plans priced per store, monthly or annual, GST at 18% (placeholder prices); a plan is refused while the business uses more than it allows. **Manual invoicing is the default** (`SUBSCRIPTION_GATEWAY=manual`): the owner asks for a plan, a platform operator applies it in the console, which raises the platform's GST tax invoice (`PRS/26-27/000001`, SAC 998315 pending a CA, a PDF with the platform's bank account and UPI id), and records the bank transfer or UPI payment (amount, date, mode, reference), which starts or extends the plan; each next period's invoice is raised by the worker a week before the paid period ends. Unpaid past the paid period, the business has `SUBSCRIPTION_GRACE_DAYS` (7), then it is read-only, as it is once a trial or subscription ends; the shell warns the owner. A Razorpay Subscriptions adapter and a fake one stay behind config, on a payment-gateway port shared with P2-M32 (`apps/api/src/payments-gateway`: HMAC-checked webhooks, each event stored and applied once). In the demo, Sharma Paints pays our Standard monthly invoice by bank transfer and **Reddy Colour Centre** (owner Srinivas Reddy, 9000000201, mobile code) is on its trial.
+**Subscriptions** (P2-M08, [docs/mvp-3/subscriptions.md](docs/mvp-3/subscriptions.md)): a business signs up on a free trial (`SUBSCRIPTION_TRIAL_DAYS`, 14) and its owner sees the plan, usage, trial days and our invoices under **Settings → Billing** (`/settings/billing`): plans priced per store, monthly or annual, GST at 18% (placeholder prices); a plan is refused while the business uses more than it allows. **Manual invoicing is the default** (`SUBSCRIPTION_GATEWAY=manual`): the owner asks for a plan, a platform operator applies it in the console, which raises the platform's GST tax invoice (`PRS/26-27/000001`, SAC 998315 pending a CA, a PDF with the platform's bank account and UPI id), and records the bank transfer or UPI payment (amount, date, mode, reference), which starts or extends the plan; each next period's invoice is raised by the worker a week before the paid period ends. Unpaid past the paid period, the business has `SUBSCRIPTION_GRACE_DAYS` (7), then it is read-only, as it is once a trial or subscription ends; the shell warns the owner. A Razorpay Subscriptions adapter and a fake one stay behind config, on a payment-gateway port shared with P2-M32 (`apps/api/src/payments-gateway`: HMAC-checked webhooks, each event stored and applied once). In the demo, Sri Rama Paints pays our Standard monthly invoice by bank transfer and **Reddy Colour Centre** (owner Srinivas Reddy, 9000000201, mobile code) is on its trial.
 
 **Invoice print** (MVP 2 round 2b, [docs/mvp-2/print.md](docs/mvp-2/print.md)): `buildInvoiceView()` in
 `@paint/shared` turns the GST engine's invoice and the document's header data into a print-ready view
@@ -869,7 +869,7 @@ default-src 'none'; sandbox`, cached for a year under an address that changes wi
 ETag), and shows in the header (on a light plate in dark mode), on the sign-in page and as the browser
 tab's and home-screen icon (the installed app's manifest icon stays the product's).
 
-Each business has a **slug**, its sign-in link name (`sharma-paints`): derived from its name when it is
+Each business has a **slug**, its sign-in link name (`sri-rama-paints`): derived from its name when it is
 created (`generate_organization_slug()` in migration 0048, numbered `-2`, `-3`… when taken, never a
 reserved name), unique ignoring case, and changeable by its owners (audited). Its branded sign-in page
 is **`/sign-in?b=<slug>`**: a query parameter rather than `/<slug>/sign-in`, so slugs can never collide

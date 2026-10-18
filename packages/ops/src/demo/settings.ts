@@ -4,7 +4,7 @@ import { join } from 'node:path';
 export const DEMO_COMMANDS = ['start', 'stop', 'reset', 'seed'] as const;
 export type DemoCommand = (typeof DEMO_COMMANDS)[number];
 
-export const DEMO_USAGE = `Local demo of Paint Retail with the Sharma Paints & Hardware demo business.
+export const DEMO_USAGE = `Local demo of Paint Retail with the Sri Rama Hardware & Paints demo business.
 
   pnpm demo              start everything (services, API, web app); Ctrl-C stops the app
   pnpm demo --fresh      the same, but re-create the demo data first (dates move to today)
@@ -160,7 +160,7 @@ export function apiEnv(settings: DemoSettings): Record<string, string> {
     APP_URL: webUrl(settings),
     EMAIL_PROVIDER: 'smtp',
     SMTP_URL: `smtp://localhost:${String(settings.ports.smtp)}`,
-    EMAIL_FROM: 'Sharma Paints <alerts@sharmapaints.example>',
+    EMAIL_FROM: 'Sri Rama Paints <alerts@sriramapaints.example>',
     WORKER_INTERVAL_SECONDS: '10',
   };
 }
