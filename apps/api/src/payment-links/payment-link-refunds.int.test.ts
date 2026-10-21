@@ -329,7 +329,7 @@ describe('refunds in odd places', () => {
       .select()
       .from(payments)
       .where(eq(payments.paymentLinkId, link.id))
-      .orderBy(payments.createdAt, payments.id);
+      .orderBy(payments.createdAt, payments.direction, payments.id);
     expect(rows.map((row) => [row.direction, row.storeId, row.voucherNumber])).toEqual([
       ['in', b.stores.unr, null],
       ['out', b.stores.unr, null],
@@ -492,7 +492,7 @@ describe('gateway refunds in the books', () => {
       .select()
       .from(payments)
       .where(eq(payments.paymentLinkId, link.id))
-      .orderBy(payments.createdAt, payments.id);
+      .orderBy(payments.createdAt, payments.direction, payments.id);
     expect(refund).toMatchObject({ direction: 'out' });
     const today = await dbToday(t);
     const xml = ok(

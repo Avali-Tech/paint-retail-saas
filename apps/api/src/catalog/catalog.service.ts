@@ -68,6 +68,8 @@ export interface VariantView {
   readonly label: string | null;
   readonly mrpPaise: number | null;
   readonly sellingPricePaise: number | null;
+  /** g per ml (round 8a); null when not known. */
+  readonly densityGPerMl: number | null;
   readonly isActive: boolean;
   readonly barcodes: string[];
 }
@@ -117,6 +119,7 @@ const toVariant = (
   label: variant.label,
   mrpPaise: variant.mrpPaise,
   sellingPricePaise: variant.sellingPricePaise,
+  densityGPerMl: variant.densityGPerMl,
   isActive: variant.isActive,
   barcodes: barcodeRows
     .filter((row) => row.variantId === variant.id)

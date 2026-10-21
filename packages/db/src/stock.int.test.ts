@@ -14,8 +14,16 @@ import {
   type StockMovement,
 } from './index.js';
 
-const { brands, organizations, productVariants, products, stockBalances, stockLedger, stores } =
-  schema;
+const {
+  brands,
+  organizations,
+  productVariants,
+  products,
+  salesSettings,
+  stockBalances,
+  stockLedger,
+  stores,
+} = schema;
 
 let database: TestDatabase;
 let connection: DatabaseConnection;
@@ -468,6 +476,15 @@ describe('postStockMovementsInBulk', () => {
   });
 });
 
+describe('tinting machine units (round 8a)', () => {
+  it.each([[{ tintShotMl: 0 }], [{ tintYMl: -0.5 }]])('refuses a dose of %o ml', async (values) => {
+    const message = await failureMessage(
+      connection.db.insert(salesSettings).values({ organizationId: org, ...values }),
+    );
+    expect(message).toMatch(/sales_settings_tint_units_positive/);
+  });
+});
+
 describe('stock ledger rules', () => {
   it.each([
     ['opening', -1],
@@ -476,6 +493,8 @@ describe('stock ledger rules', () => {
     ['sale', 2],
     ['transfer_out', 1],
     ['adjustment', 0],
+    ['tint_use', 1],
+    ['tint_use', 0],
   ] as const)('refuses a %s of %d', async (movementType, quantity) => {
     const message = await failureMessage(
       connection.db

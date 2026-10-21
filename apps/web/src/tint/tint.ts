@@ -101,6 +101,8 @@ export interface FormulaRow {
   readonly colorant: string;
   readonly amount: string;
   readonly unit: ColorantUnit;
+  /** The loose colorant the dose is taken from (round 8a); "" when not taken from stock. */
+  readonly colorantVariantId: string;
 }
 
 export interface TintForm {
@@ -115,7 +117,12 @@ export interface TintForm {
   readonly note: string | null;
 }
 
-export const EMPTY_ROW: FormulaRow = { colorant: '', amount: '', unit: COLORANT_UNITS[0] };
+export const EMPTY_ROW: FormulaRow = {
+  colorant: '',
+  amount: '',
+  unit: COLORANT_UNITS[0],
+  colorantVariantId: '',
+};
 
 /** The form filled from a tint (or empty, with one formula row). */
 export function formOf(tint: TintChoice | null): TintForm {
@@ -145,6 +152,7 @@ export function formOf(tint: TintChoice | null): TintForm {
             colorant: part.colorant,
             amount: String(part.amount),
             unit: part.unit,
+            colorantVariantId: part.colorantVariantId ?? '',
           })),
     note: tint.note,
   };
@@ -176,7 +184,12 @@ function formulaOf(rows: readonly FormulaRow[]): TintFormulaComponent[] | TintPr
     if (colorant === '' || colorant.length > COLORANT_MAX_LENGTH || amount === null) {
       return 'formulaRow';
     }
-    formula.push({ colorant, amount, unit: row.unit });
+    formula.push({
+      colorant,
+      amount,
+      unit: row.unit,
+      ...(row.colorantVariantId === '' ? {} : { colorantVariantId: row.colorantVariantId }),
+    });
   }
   return formula;
 }

@@ -1,5 +1,10 @@
 import { schema, type Transaction } from '@paint/db';
-import type { LineTintView, TintFormulaComponent, TintLineKind } from '@paint/shared';
+import {
+  isLooseColorantPack,
+  type LineTintView,
+  type TintFormulaComponent,
+  type TintLineKind,
+} from '@paint/shared';
 import { eq, inArray } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { fieldError } from '../tax/tax-lookups.js';
@@ -57,6 +62,7 @@ export async function writeLineTints(
         lines.map((line) => line.variantId),
       ),
     );
+  await assertLooseColorants(tx, lines);
   const brandIds = lines.flatMap((line) => (line.tint.brandId ? [line.tint.brandId] : []));
   const known =
     brandIds.length === 0
@@ -93,6 +99,46 @@ export async function writeLineTints(
   });
   const rows = await tx.insert(tintRecords).values(values).returning({ id: tintRecords.id });
   return rows.map((row) => row.id);
+}
+
+/**
+ * A formula's dose can name the colorant it comes out of (round 8a): it must be
+ * a colorant product stocked loose (one ml or one g a unit), so the dose can be
+ * taken from stock when the pack leaves.
+ */
+async function assertLooseColorants(tx: Transaction, lines: readonly LineTint[]): Promise<void> {
+  const ids = [
+    ...new Set(
+      lines.flatMap((line) =>
+        (line.tint.formula ?? []).flatMap((dose) =>
+          dose.colorantVariantId === undefined ? [] : [dose.colorantVariantId],
+        ),
+      ),
+    ),
+  ];
+  if (ids.length === 0) return;
+  const colorants = await tx
+    .select({
+      id: productVariants.id,
+      type: products.type,
+      packSize: productVariants.packSize,
+      unit: productVariants.unit,
+    })
+    .from(productVariants)
+    .innerJoin(products, eq(products.id, productVariants.productId))
+    .where(inArray(productVariants.id, ids));
+  for (const line of lines) {
+    (line.tint.formula ?? []).forEach((dose, index) => {
+      if (dose.colorantVariantId === undefined) return;
+      const colorant = colorants.find((row) => row.id === dose.colorantVariantId);
+      if (colorant?.type !== 'colorant' || !isLooseColorantPack(colorant)) {
+        throw fieldError(
+          `${line.path}formula.${String(index)}.colorantVariantId`,
+          'Choose a colorant stocked loose, by the ml or by the g',
+        );
+      }
+    });
+  }
 }
 
 /** The tints of these lines, by line id, as read with the lines. */

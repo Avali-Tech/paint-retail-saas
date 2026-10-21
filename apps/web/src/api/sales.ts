@@ -68,11 +68,17 @@ export interface InvoicePrintSettingsInput {
   readonly invoiceTerms: readonly string[];
 }
 
+/** PUT /sales/settings: the tinting machine's units, in ml; null clears one. */
+export interface TintSettingsInput {
+  readonly tintShotMl: number | null;
+  readonly tintYMl: number | null;
+}
+
 export function salesEndpoints(api: ApiClient) {
   return {
     /** GET /sales/settings (organization:manage). */
     settings: (signal?: AbortSignal) => api.get<SalesSettingsView>('/sales/settings', { signal }),
-    saveSettings: (input: InvoicePrintSettingsInput) =>
+    saveSettings: (input: InvoicePrintSettingsInput | TintSettingsInput) =>
       api.put<SalesSettingsView>('/sales/settings', input),
     /** Tax invoices and bills of supply only: notes have their own list. */
     invoices: (query: InvoiceQuery, signal?: AbortSignal) =>

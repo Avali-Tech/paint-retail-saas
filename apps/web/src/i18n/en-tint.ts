@@ -2,6 +2,17 @@
 
 export const tintEn = {
   tint: {
+    settings: {
+      title: 'Tinting',
+      description:
+        'How much one shot and one Y of your tinting machine dose, so colorant comes out of stock as tinted packs leave',
+      shot: 'One shot, in ml',
+      y: 'One Y, in ml',
+      hint: 'From the machine’s manual, e.g. 0.616; leave blank if it does not dose in this unit',
+      invalid: 'Enter ml above 0 and up to 100, with at most 4 decimals',
+      saved: 'Tinting settings saved',
+      error: 'Could not load the tinting settings',
+    },
     button: 'Tint',
     edit: 'Edit tint',
     buttonOf: 'Tint {name}',
@@ -26,6 +37,8 @@ export const tintEn = {
     unit: 'Unit {number}',
     addColorant: 'Add colorant',
     removeColorant: 'Remove colorant {number}',
+    takenFrom: 'Colorant {number} taken from',
+    notFromStock: 'Not taken from stock',
     apply: 'Apply tint',
     remove: 'Remove tint',
     summary: {

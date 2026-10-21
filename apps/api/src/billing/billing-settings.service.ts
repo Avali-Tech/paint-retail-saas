@@ -35,6 +35,8 @@ const DEFAULT_SETTINGS: SalesSettingsView = {
   billingLiveOn: null,
   cashNeedsRegister: true,
   registerVarianceAlertPaise: 0,
+  tintShotMl: null,
+  tintYMl: null,
   invoiceBank: null,
   invoiceTerms: [],
 };
@@ -48,6 +50,8 @@ const settingsFields = {
   billingLiveOn: salesSettings.billingLiveOn,
   cashNeedsRegister: salesSettings.cashNeedsRegister,
   registerVarianceAlertPaise: salesSettings.registerVarianceAlertPaise,
+  tintShotMl: salesSettings.tintShotMl,
+  tintYMl: salesSettings.tintYMl,
   ...printFields,
 };
 

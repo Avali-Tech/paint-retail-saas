@@ -645,6 +645,13 @@
       "when": 1792169620708,
       "tag": "0091_payment_link_validity_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1792606097837,
+      "tag": "0092_colorant_stock",
+      "breakpoints": true
     }
   ]
 }

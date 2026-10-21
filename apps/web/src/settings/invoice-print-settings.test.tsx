@@ -14,6 +14,8 @@ const SETTINGS: SalesSettingsView = {
   billingLiveOn: null,
   cashNeedsRegister: true,
   registerVarianceAlertPaise: 0,
+  tintShotMl: null,
+  tintYMl: null,
   invoiceBank: null,
   invoiceTerms: [],
 };

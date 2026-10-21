@@ -144,6 +144,15 @@ export type ListInvoicesQuery = z.output<typeof listInvoicesSchema>;
 /** `Idempotency-Key` header: any client-chosen string, e.g. a UUID per bill. */
 export const idempotencyKeySchema = z.string().trim().min(1).max(200).optional();
 
+/** A machine unit in ml: more than 0, at most 100, 4 decimals as stored. */
+const tintUnitMl = z
+  .number()
+  .positive()
+  .max(100)
+  .refine((value) => Math.abs(Math.round(value * 10_000) - value * 10_000) < 1e-6, {
+    message: 'Use at most 4 decimals',
+  });
+
 export const salesSettingsSchema = z.object({
   stockPostOn: z.enum(STOCK_POST_ON).optional(),
   walkInPartyId: z.uuid().nullable().optional(),
@@ -153,6 +162,9 @@ export const salesSettingsSchema = z.object({
   billingLiveOn: isoDate.nullable().optional(),
   cashNeedsRegister: z.boolean().optional(),
   registerVarianceAlertPaise: z.number().int().min(0).max(100_000_000).optional(),
+  /** ml in one shot / one Y of the tinting machine (round 8a); null clears it. */
+  tintShotMl: tintUnitMl.nullable().optional(),
+  tintYMl: tintUnitMl.nullable().optional(),
   /** Printed on the A4 invoice; null removes them. */
   invoiceBank: z
     .object({

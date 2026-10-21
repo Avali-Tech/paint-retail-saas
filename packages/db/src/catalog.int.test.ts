@@ -283,6 +283,8 @@ describe('catalog: rules', () => {
     [{ sku: 'A' }, /product_variants_sku_format/],
     [{ packSize: 0 }, /product_variants_pack_size_positive/],
     [{ mrpPaise: -1 }, /product_variants_prices_not_negative/],
+    [{ densityGPerMl: 0 }, /product_variants_density_range/],
+    [{ densityGPerMl: 25.5 }, /product_variants_density_range/],
   ])('rejects variant %o', async (values, constraint) => {
     const message = await failureMessage(
       connection.db.insert(productVariants).values({

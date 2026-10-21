@@ -63,6 +63,15 @@ export const updateCategorySchema = z
   .object({ name: name.optional(), isActive: z.boolean().optional() })
   .refine((body) => Object.keys(body).length > 0, { message: 'Nothing to change' });
 
+/** Grams per ml (round 8a): more than 0, at most 25, 4 decimals as stored. */
+const density = z
+  .number()
+  .positive()
+  .max(25)
+  .refine((value) => Math.abs(Math.round(value * 10_000) - value * 10_000) < 1e-6, {
+    message: 'Use at most 4 decimals',
+  });
+
 export const variantSchema = z
   .object({
     sku,
@@ -71,6 +80,7 @@ export const variantSchema = z
     label: variantLabel.nullable().optional(),
     mrpPaise: paise.optional(),
     sellingPricePaise: paise.optional(),
+    densityGPerMl: density.optional(),
     barcodes: barcodes.default([]),
   })
   .refine(withinMrp, withinMrpMessage);
@@ -83,6 +93,8 @@ export const updateVariantSchema = z
     label: variantLabel.nullable().optional(),
     mrpPaise: paise.nullable().optional(),
     sellingPricePaise: paise.nullable().optional(),
+    /** g per ml, to dose a colorant by weight or volume; null removes it. */
+    densityGPerMl: density.nullable().optional(),
     isActive: z.boolean().optional(),
     /** Replaces the variant's barcodes. */
     barcodes: barcodes.optional(),

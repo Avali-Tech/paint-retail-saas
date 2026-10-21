@@ -16,6 +16,7 @@ export const PRODUCT_TYPES = [
   'thinner',
   'tool',
   'other',
+  'colorant',
 ] as const;
 export type ProductType = (typeof PRODUCT_TYPES)[number];
 
@@ -45,6 +46,8 @@ export interface Variant {
   readonly label: string | null;
   readonly mrpPaise: number | null;
   readonly sellingPricePaise: number | null;
+  /** g per ml (round 8a); null when not known. */
+  readonly densityGPerMl: number | null;
   readonly isActive: boolean;
   readonly barcodes: string[];
 }
@@ -72,6 +75,7 @@ export interface VariantInput {
   readonly label?: string | null;
   readonly mrpPaise?: number;
   readonly sellingPricePaise?: number;
+  readonly densityGPerMl?: number;
   readonly barcodes: string[];
 }
 
@@ -80,6 +84,7 @@ export interface VariantChanges {
   readonly label?: string | null;
   readonly mrpPaise?: number | null;
   readonly sellingPricePaise?: number | null;
+  readonly densityGPerMl?: number | null;
   readonly isActive?: boolean;
   readonly barcodes?: string[];
 }

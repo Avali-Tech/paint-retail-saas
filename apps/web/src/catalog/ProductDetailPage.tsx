@@ -114,6 +114,13 @@ function VariantDialog({
         </Field>
       </div>
       <Field
+        label={t('products.form.density')}
+        hint={t('products.form.densityHint')}
+        error={errors.density?.message}
+      >
+        <Input inputMode="decimal" {...form.register('density')} />
+      </Field>
+      <Field
         label={t('products.form.barcodes')}
         hint={t('products.form.barcodesHint')}
         error={errors.barcodes?.message}

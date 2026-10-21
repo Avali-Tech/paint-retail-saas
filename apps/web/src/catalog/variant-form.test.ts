@@ -3,6 +3,7 @@ import { createI18n } from '../i18n/i18n.js';
 import { variant } from '../test-support/inventory-fixtures.js';
 import {
   EMPTY_VARIANT,
+  parseDensity,
   splitBarcodes,
   toVariantChanges,
   toVariantInput,
@@ -69,6 +70,16 @@ describe('variant form', () => {
     ]);
   });
 
+  it('reads a density in g per ml above 0 and up to 25, 4 decimals at most', () => {
+    expect(parseDensity(' 1.6 ')).toBe(1.6);
+    expect(parseDensity('25')).toBe(25);
+    expect(parseDensity('')).toBeNull();
+    expect(parseDensity('0')).toBeUndefined();
+    expect(parseDensity('25.5')).toBeUndefined();
+    expect(parseDensity('1.23456')).toBeUndefined();
+    expect(parseDensity('heavy')).toBeUndefined();
+  });
+
   it('reads barcodes separated by commas, semicolons, bars or spaces, once each', () => {
     expect(splitBarcodes(' A1, B2;C3 | D4  A1 ')).toEqual(['A1', 'B2', 'C3', 'D4']);
     expect(splitBarcodes('  ')).toEqual([]);
@@ -98,9 +109,15 @@ describe('variant form', () => {
       label: null,
       mrpPaise: null,
       sellingPricePaise: 45_000,
+      densityGPerMl: null,
       barcodes: [],
       isActive: false,
     });
+    // A colorant's density, sent when given and cleared when blank.
+    expect(toVariantInput({ ...draft, unit: 'ml', density: ' 1.25 ' })).toMatchObject({
+      densityGPerMl: 1.25,
+    });
+    expect(toVariantChanges({ ...draft, density: '1.6' }).densityGPerMl).toBe(1.6);
   });
 
   it('fills the form from a saved pack size', () => {
@@ -111,9 +128,11 @@ describe('variant form', () => {
       label: '',
       mrp: '',
       sellingPrice: '450.00',
+      density: '',
       barcodes: '8901234567890',
       isActive: true,
     });
+    expect(variantDraft(variant({ densityGPerMl: 1.6 })).density).toBe('1.6');
     expect(variantDraft(variant({ unit: 'piece', label: 'Grit 120' }))).toMatchObject({
       unit: 'piece',
       label: 'Grit 120',

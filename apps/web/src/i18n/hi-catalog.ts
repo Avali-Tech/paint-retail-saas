@@ -66,6 +66,10 @@ export const catalogHi: Translation<typeof catalogEn> = {
       labelTooLong: 'ज्यादा से ज्यादा {max} अक्षर इस्तेमाल करें',
       mrp: 'MRP (₹)',
       sellingPrice: 'बिक्री कीमत (₹)',
+      density: 'घनत्व (g प्रति ml)',
+      densityHint:
+        'कलरेंट और पुट्टी के लिए: ml में डाली गई मात्रा g में रखे स्टॉक से घटे, या उल्टा',
+      densityInvalid: '0 से ज़्यादा और 25 तक ग्राम प्रति ml डालें, ज़्यादा से ज़्यादा 4 दशमलव',
       priceInvalid: 'रुपये में रकम डालें',
       aboveMrp: 'बिक्री कीमत MRP से ज्यादा नहीं हो सकती',
       barcodes: 'बारकोड',
@@ -145,6 +149,7 @@ export const catalogEnumsHi: Translation<typeof catalogEnumsEn> = {
     thinner: 'थिनर',
     tool: 'टूल',
     other: 'अन्य',
+    colorant: 'कलरेंट',
   },
   units: { ml: 'ml', l: 'l', g: 'g', kg: 'kg', piece: 'पीस', set: 'सेट', m: 'm' },
 };

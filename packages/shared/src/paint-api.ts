@@ -120,6 +120,11 @@ export interface TintFormulaComponent {
   /** More than 0, at most 3 decimals. */
   readonly amount: number;
   readonly unit: ColorantUnit;
+  /**
+   * The colorant product (stocked loose, by the ml or g) this dose comes out of
+   * when the pack leaves the store (round 8a); absent: recorded, not deducted.
+   */
+  readonly colorantVariantId?: string;
 }
 
 /**

@@ -67,6 +67,10 @@ export const catalogTe: Translation<typeof catalogEn> = {
       labelTooLong: 'గరిష్ఠంగా {max} అక్షరాలు వాడండి',
       mrp: 'MRP (₹)',
       sellingPrice: 'అమ్మకం ధర (₹)',
+      density: 'సాంద్రత (ml కు g)',
+      densityHint:
+        'కలరెంట్, పుట్టీ కోసం: ml లో వేసిన మోతాదు g లో ఉంచిన స్టాక్ నుంచి తగ్గడానికి, లేదా తిరిగి',
+      densityInvalid: '0 కంటే ఎక్కువ, 25 వరకు ml కు గ్రాములు ఇవ్వండి, గరిష్ఠంగా 4 దశాంశాలు',
       priceInvalid: 'రూపాయల్లో మొత్తం ఇవ్వండి',
       aboveMrp: 'అమ్మకం ధర MRP కంటే ఎక్కువ ఉండకూడదు',
       barcodes: 'బార్‌కోడ్‌లు',
@@ -147,6 +151,7 @@ export const catalogEnumsTe: Translation<typeof catalogEnumsEn> = {
     thinner: 'థిన్నర్',
     tool: 'టూల్',
     other: 'ఇతరం',
+    colorant: 'కలరెంట్',
   },
   units: { ml: 'ml', l: 'l', g: 'g', kg: 'kg', piece: 'పీస్', set: 'సెట్', m: 'm' },
 };

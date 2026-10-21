@@ -26,4 +26,5 @@ export const EVENT_TITLES: Record<NotificationEvent, string> = {
   payment_link_refund: 'Money paid by link goes back to a customer, or a refund fails',
   scheme_slab_near: "A brand scheme's next slab is within reach as its period ends",
   scheme_claim_overdue: 'A brand scheme claim is past its due date',
+  colorant_short: 'A tinted pack takes more colorant than the store has in stock',
 };

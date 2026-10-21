@@ -20,6 +20,8 @@ import {
 import { asc, eq, inArray } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { idempotent } from '../billing/idempotency.js';
+import { Notifier } from '../notifications/notifier.js';
+import { postColorantUse } from '../paint/colorant-use.js';
 import { loadDocument, type TaxDocumentRow } from '../billing/invoice-view.js';
 import { DATABASE } from '../database/database.module.js';
 import { fieldError } from '../tax/tax-lookups.js';
@@ -43,7 +45,10 @@ type DispatchRow = typeof dispatches.$inferSelect;
  */
 @Injectable()
 export class DispatchesService {
-  constructor(@Inject(DATABASE) private readonly connection: DatabaseConnection) {}
+  constructor(
+    @Inject(DATABASE) private readonly connection: DatabaseConnection,
+    @Inject(Notifier) private readonly notifier: Notifier,
+  ) {}
 
   create(
     auth: AuthContext,
@@ -144,6 +149,21 @@ export class DispatchesService {
               createdByMemberId: auth.memberId,
             })),
           );
+          // The colorant in the tinted packs leaves with them (round 8a).
+          await postColorantUse(tx, this.notifier, {
+            organizationId: auth.organization.id,
+            storeId: invoice.storeId,
+            invoiceId,
+            invoiceNumber: String(invoice.number),
+            referenceType: 'dispatch',
+            referenceId: dispatch.id,
+            memberId: auth.memberId,
+            lines: going.map((item) => ({
+              invoiceLineId: item.line.id,
+              quantity: item.quantity,
+              lineQuantity: item.line.quantity,
+            })),
+          });
         }
         const [view] = (await this.views(tx, invoice, [dispatch])) as [DispatchView];
         return view;
