@@ -27,6 +27,14 @@ interface Slow extends Item {
   daysIdle: number;
   valuePaise: number | null;
 }
+interface Suggestion extends Item {
+  soldQuantity: number;
+  dailyRate: number;
+  leadTimeDays: number;
+  supplierName: string | null;
+  current: { minQuantity: number; reorderLevel: number; maxQuantity: number } | null;
+  suggested: { minQuantity: number; reorderLevel: number; maxQuantity: number };
+}
 interface Page<T> {
   items: T[];
   total: number;
@@ -135,7 +143,7 @@ async function history(
   storeId: string,
   variantId: string,
   entries: {
-    type: 'opening' | 'sale' | 'transfer_out' | 'damage';
+    type: 'opening' | 'sale' | 'sale_return' | 'transfer_out' | 'damage';
     quantity: number;
     daysAgo: number;
     cost?: number;
@@ -448,5 +456,140 @@ describe('another business', () => {
     expect((await api(rival).get('/stock/slow-movers?days=1')).json<Page<Slow>>().items).toEqual(
       [],
     );
+  });
+});
+
+/** A supplier who delivers in `leadTimeDays` (null: none on record), last received `daysAgo`. */
+async function supplier(
+  name: string,
+  leadTimeDays: number | null,
+  supplies: { variantId: string; daysAgo: number | null }[],
+) {
+  const [party] = await t.connection.db
+    .insert(schema.parties)
+    .values({ organizationId, displayName: name, kind: 'organization' })
+    .returning({ id: schema.parties.id });
+  const partyId = String(party?.id);
+  await t.connection.db
+    .insert(schema.supplierProfiles)
+    .values({ organizationId, partyId, leadTimeDays });
+  for (const item of supplies) {
+    await t.connection.db.insert(schema.supplierProducts).values({
+      organizationId,
+      supplierPartyId: partyId,
+      variantId: item.variantId,
+      lastReceivedAt:
+        item.daysAgo === null ? null : sql`now() - make_interval(days => ${item.daysAgo})`,
+    });
+  }
+}
+
+describe('GET /reorder-rules/suggestions', () => {
+  it('works levels out from net sales and the last supplier’s lead time, fastest first', async () => {
+    const { store, ids, skus } = await setup(3);
+    const [fast, slow, unsupplied] = ids as [string, string, string];
+    // 90 sold, 0 returned in 90 days: one a day. Sales before the window do not count.
+    await history(store, fast, [
+      { type: 'opening', quantity: 200, daysAgo: 120 },
+      { type: 'sale', quantity: -50, daysAgo: 100 },
+      { type: 'sale', quantity: -95, daysAgo: 25 },
+      { type: 'sale_return', quantity: 5, daysAgo: 20 },
+      // Transfers and damage are not demand.
+      { type: 'transfer_out', quantity: -10, daysAgo: 5 },
+      { type: 'damage', quantity: -1, daysAgo: 2 },
+    ]);
+    await history(store, slow, [
+      { type: 'opening', quantity: 10, daysAgo: 120 },
+      { type: 'sale', quantity: -9, daysAgo: 10 },
+    ]);
+    await history(store, unsupplied, [
+      { type: 'opening', quantity: 10, daysAgo: 120 },
+      { type: 'sale', quantity: -2, daysAgo: 10 },
+    ]);
+    // The fast seller last came from the 5-day supplier; the older one takes 12 days.
+    await supplier('Shah Distributors', 5, [{ variantId: fast, daysAgo: 3 }]);
+    await supplier('Old Depot', 12, [
+      { variantId: fast, daysAgo: 200 },
+      { variantId: slow, daysAgo: null },
+    ]);
+    // Someone with no lead time on record supplies the third: the default 7 days applies.
+    await supplier('No Lead Time Traders', null, [{ variantId: unsupplied, daysAgo: 1 }]);
+    expect(
+      (
+        await api(owner).put('/reorder-rules', {
+          rules: [
+            { storeId: store, variantId: fast, minQuantity: 2, reorderLevel: 4, maxQuantity: 10 },
+          ],
+        })
+      ).statusCode,
+    ).toBe(200);
+
+    const reply = await api(owner).get(`/reorder-rules/suggestions?storeId=${store}`);
+    expect(reply.statusCode).toBe(200);
+    const page = reply.json<Page<Suggestion>>();
+    expect(page.total).toBe(3);
+    expect(
+      page.items.map((i) => [
+        i.variant.sku,
+        i.soldQuantity,
+        i.dailyRate,
+        i.leadTimeDays,
+        i.supplierName,
+        i.current,
+        i.suggested,
+      ]),
+    ).toEqual([
+      [
+        skus[0],
+        90,
+        1,
+        5,
+        'Shah Distributors',
+        { minQuantity: 2, reorderLevel: 4, maxQuantity: 10 },
+        { minQuantity: 5, reorderLevel: 12, maxQuantity: 42 },
+      ],
+      [skus[1], 9, 0.1, 12, 'Old Depot', null, { minQuantity: 2, reorderLevel: 2, maxQuantity: 5 }],
+      [skus[2], 2, 0.022, 7, null, null, { minQuantity: 1, reorderLevel: 1, maxQuantity: 2 }],
+    ]);
+
+    // A shorter window and more safety days; pages.
+    const tighter = (
+      await api(owner).get(
+        `/reorder-rules/suggestions?storeId=${store}&days=30&safetyDays=0&limit=1&offset=1`,
+      )
+    ).json<Page<Suggestion>>();
+    expect(tighter.total).toBe(3);
+    expect(tighter.items.map((i) => [i.variant.sku, i.soldQuantity, i.suggested])).toEqual([
+      [skus[1], 9, { minQuantity: 4, reorderLevel: 4, maxQuantity: 13 }],
+    ]);
+  });
+
+  it('answers an empty page for a store that sold nothing', async () => {
+    const { store } = await setup(1);
+    expect(
+      (await api(owner).get(`/reorder-rules/suggestions?storeId=${store}`)).json<
+        Page<Suggestion>
+      >(),
+    ).toEqual({ items: [], total: 0 });
+  });
+
+  it('needs a store the member works at, and a sensible window', async () => {
+    const { store } = await setup(1);
+    const other = await setup(1);
+    const manager = await hire('branch_manager', [store]);
+    expect((await api(manager).get(`/reorder-rules/suggestions?storeId=${store}`)).statusCode).toBe(
+      200,
+    );
+    expect(
+      (await api(manager).get(`/reorder-rules/suggestions?storeId=${other.store}`)).statusCode,
+    ).toBe(404);
+    expect((await api(owner).get('/reorder-rules/suggestions')).statusCode).toBe(400);
+    expect(
+      (await api(owner).get(`/reorder-rules/suggestions?storeId=${store}&days=7`)).statusCode,
+    ).toBe(400);
+    expect(
+      (await api(owner).get(`/reorder-rules/suggestions?storeId=${store}&safetyDays=61`))
+        .statusCode,
+    ).toBe(400);
   });
 });

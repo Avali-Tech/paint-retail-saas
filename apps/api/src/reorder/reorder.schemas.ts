@@ -46,3 +46,14 @@ export const slowMoversSchema = z.object({
   ...paging,
 });
 export type SlowMoversQuery = z.output<typeof slowMoversSchema>;
+
+export const reorderSuggestionsSchema = z.object({
+  /** Levels are per store, so one store at a time. */
+  storeId: z.uuid(),
+  /** Sales over this many past days set the daily rate. */
+  days: z.coerce.number().int().min(14).max(365).default(90),
+  /** Extra days of stock on top of the supplier's lead time. */
+  safetyDays: z.coerce.number().int().min(0).max(60).default(7),
+  ...paging,
+});
+export type ReorderSuggestionsQuery = z.output<typeof reorderSuggestionsSchema>;

@@ -45,6 +45,22 @@ describe('checkLevels', () => {
 });
 
 describe('ReorderRulesPage', () => {
+  it('links to suggestions from sales, for the store in view', async () => {
+    renderRules();
+    expect(await screen.findByRole('link', { name: 'Suggest from sales' })).toHaveAttribute(
+      'href',
+      '/stock/reorder-rules/suggestions',
+    );
+  });
+
+  it('opens suggestions for the chosen store', async () => {
+    renderRules({}, { path: '/stock/reorder-rules?store=store-hyd' });
+    expect(await screen.findByRole('link', { name: 'Suggest from sales' })).toHaveAttribute(
+      'href',
+      '/stock/reorder-rules/suggestions?store=store-hyd',
+    );
+  });
+
   it('lists the rules, filtered by store and search in the address', async () => {
     const { user, requests } = renderRules();
     const table = await screen.findByRole('table', { name: 'Reorder rules' });
