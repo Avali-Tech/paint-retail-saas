@@ -32,6 +32,7 @@ import type {
   StartCountInput,
   VARIANCE_REASONS,
 } from './stock-counts.schemas.js';
+import { costFor } from '../auth/costs.js';
 
 const {
   brands,
@@ -76,8 +77,10 @@ export interface CountSummary {
   readonly matchingLines: number;
   /** Share of counted products whose count matched the books; null before any count. */
   readonly accuracyPercent: number | null;
-  readonly netVarianceValuePaise: number;
-  readonly absoluteVarianceValuePaise: number;
+  /** Null without costs:read. */
+  readonly netVarianceValuePaise: number | null;
+  /** Null without costs:read. */
+  readonly absoluteVarianceValuePaise: number | null;
 }
 
 export interface CountView {
@@ -585,8 +588,10 @@ export class StockCountsService {
           expectedQuantity: line.expectedQuantity,
           countedQuantity: line.countedQuantity,
           variance,
-          varianceValuePaise:
+          varianceValuePaise: costFor(
+            auth,
             variance === null || avgCostPaise === null ? null : Math.round(variance * avgCostPaise),
+          ),
           reason: line.reason,
         };
       },
@@ -633,8 +638,14 @@ export class StockCountsService {
         matchingLines: matching,
         accuracyPercent:
           counted.length === 0 ? null : Math.round((matching / counted.length) * 1000) / 10,
-        netVarianceValuePaise: values.reduce((total, value) => total + value, 0),
-        absoluteVarianceValuePaise: values.reduce((total, value) => total + Math.abs(value), 0),
+        netVarianceValuePaise: costFor(
+          auth,
+          values.reduce((total, value) => total + value, 0),
+        ),
+        absoluteVarianceValuePaise: costFor(
+          auth,
+          values.reduce((total, value) => total + Math.abs(value), 0),
+        ),
       },
       lines,
     };

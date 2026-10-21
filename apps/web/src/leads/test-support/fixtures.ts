@@ -115,6 +115,7 @@ const member = (id: string, fullName: string, role: string, isActive = true): Me
   allStores: role === 'owner',
   storeIds: role === 'owner' ? [] : ['store-hyd'],
   isActive,
+  exceptions: { granted: [], denied: [] },
   twoFactorEnabled: false,
 });
 

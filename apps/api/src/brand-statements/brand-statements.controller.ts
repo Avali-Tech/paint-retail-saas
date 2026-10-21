@@ -168,7 +168,7 @@ export class BrandStatementsController {
   }
 
   @Get(':id/mismatches.csv')
-  @RequirePermissions('purchasing:read')
+  @RequirePermissions('purchasing:read', 'data:export')
   async exportCsv(
     @CurrentAuth() auth: AuthContext,
     @Param('id', id()) statementId: string,

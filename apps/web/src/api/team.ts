@@ -1,4 +1,10 @@
-import type { AssignableMember, MemberView, Permission, RoleView } from '@paint/shared';
+import type {
+  AssignableMember,
+  MemberView,
+  Permission,
+  PermissionExceptions,
+  RoleView,
+} from '@paint/shared';
 import type { ApiClient } from './client.js';
 
 // Team members and roles. Shapes are shared with apps/api/src/members.
@@ -37,6 +43,8 @@ export interface MemberChange {
   readonly roleId?: string;
   readonly allStores?: boolean;
   readonly storeIds?: readonly string[];
+  /** Replaces the member's own exceptions to their role. */
+  readonly exceptions?: PermissionExceptions;
   readonly isActive?: boolean;
 }
 

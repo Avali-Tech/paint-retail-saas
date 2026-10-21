@@ -1,5 +1,5 @@
 import type { Branding } from './branding.js';
-import type { Permission } from './permissions.js';
+import type { Permission, PermissionExceptions } from './permissions.js';
 import type { QuickAction } from './quick-actions.js';
 import type { ThemeAdjustment } from './theme.js';
 
@@ -87,7 +87,8 @@ export interface StorePosition {
   readonly store: { readonly id: string; readonly code: string; readonly name: string };
   /** Null without inventory:read. */
   readonly stock: {
-    readonly valuePaise: number;
+    /** Null without costs:read. */
+    readonly valuePaise: number | null;
     readonly units: number;
     readonly skus: number;
     /** In stock but without a cost, so missing from the value. */
@@ -270,6 +271,8 @@ export interface MemberView {
   readonly role: { readonly id: string; readonly key: string; readonly name: string };
   readonly allStores: boolean;
   readonly storeIds: string[];
+  /** Their own exceptions to the role: permissions granted on top of it, or denied. */
+  readonly exceptions: PermissionExceptions;
   readonly isActive: boolean;
   /** Whether the person has a confirmed authenticator app. */
   readonly twoFactorEnabled: boolean;

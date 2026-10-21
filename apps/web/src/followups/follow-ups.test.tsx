@@ -19,6 +19,7 @@ const member = (id: string, userId: string, fullName: string, isActive = true): 
   allStores: true,
   storeIds: [],
   isActive,
+  exceptions: { granted: [], denied: [] },
   twoFactorEnabled: false,
 });
 const MEMBERS: Member[] = [

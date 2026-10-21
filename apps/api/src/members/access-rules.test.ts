@@ -28,6 +28,7 @@ const hydLead = manager('hyd_lead', ['members:read', 'members:manage', 'stores:r
 const grant = (overrides: Partial<AccessGrant> = {}): AccessGrant => ({
   roleKey: 'store_employee',
   rolePermissions: ['stores:read'],
+  exceptions: { granted: [], denied: [] },
   allStores: false,
   storeIds: [HYD],
   ...overrides,
@@ -54,6 +55,29 @@ describe('grantProblem', () => {
     expect(
       grantProblem(hydLead, grant({ rolePermissions: ['stores:read', 'stores:manage'] })),
     ).toBe('You cannot give permissions you do not have');
+  });
+
+  it('counts what is granted on top of the role, but lets anyone take a permission away', () => {
+    expect(
+      grantProblem(hydLead, grant({ exceptions: { granted: ['stores:manage'], denied: [] } })),
+    ).toBe('You cannot give permissions you do not have');
+    expect(
+      grantProblem(
+        hydLead,
+        grant({ exceptions: { granted: ['members:read'], denied: ['costs:read'] } }),
+      ),
+    ).toBeNull();
+  });
+
+  it('keeps owners whole: no exceptions for an owner', () => {
+    for (const exceptions of [
+      { granted: [], denied: ['costs:read' as const] },
+      { granted: ['costs:read' as const], denied: [] },
+    ]) {
+      expect(
+        grantProblem(owner, grant({ roleKey: 'owner', rolePermissions: PERMISSIONS, exceptions })),
+      ).toBe('Owners hold every permission, with no exceptions');
+    }
   });
 
   it('stops a store-scoped manager giving all-store access', () => {

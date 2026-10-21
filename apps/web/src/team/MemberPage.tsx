@@ -10,6 +10,7 @@ import { useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
 import { useStores } from '../stock/stores.js';
 import { AccessFields, accessProblems, type Access, type AccessErrors } from './AccessFields.js';
+import { ExceptionsCard } from './ExceptionsCard.js';
 import { membersKey, rolesKey, storeSummary } from './team-data.js';
 
 const memberKey = (id: string) => [...membersKey, id] as const;
@@ -307,6 +308,11 @@ function MemberDetail({ member }: { readonly member: Member }) {
         {/* Keyed by the saved access, so the form starts again from what was saved. */}
         <AccessCard
           key={`${member.role.id}:${String(member.allStores)}:${member.storeIds.join()}`}
+          member={member}
+          editable={manage}
+        />
+        <ExceptionsCard
+          key={`${member.role.key}:${member.exceptions.granted.join()}:${member.exceptions.denied.join()}`}
           member={member}
           editable={manage}
         />

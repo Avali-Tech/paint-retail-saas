@@ -286,6 +286,8 @@ function CsvButton({ filters }: { readonly filters: ProfitabilityFilters }) {
   const { t } = useI18n();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  // Downloads need data:export (the API refuses them too).
+  if (!usePermissions()('data:export')) return null;
   return (
     <Button
       variant="secondary"

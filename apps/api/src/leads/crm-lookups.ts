@@ -3,9 +3,10 @@ import { schema, type Transaction } from '@paint/db';
 import { canAccessStore, type MemberAccess, type Permission } from '@paint/shared';
 import { and, eq, inArray, or, type AnyColumn, type SQL } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
+import { holdsPermission } from '../members/member-permission.js';
 import { canSeeParty } from '../parties/party-access.js';
 
-const { categories, memberStores, organizationMembers, parties, rolePermissions, stores } = schema;
+const { categories, memberStores, organizationMembers, parties, stores } = schema;
 
 /** An active store the member works at; 404 otherwise. */
 export async function requireStore(
@@ -53,16 +54,10 @@ export async function requireSalesperson(
   const [member] = await tx
     .select({ id: organizationMembers.id })
     .from(organizationMembers)
-    .innerJoin(
-      rolePermissions,
-      and(
-        eq(rolePermissions.roleId, organizationMembers.roleId),
-        eq(rolePermissions.permission, permission),
-      ),
-    )
     .where(
       and(
         eq(organizationMembers.id, memberId),
+        holdsPermission(tx, permission),
         eq(organizationMembers.isActive, true),
         storeId === null
           ? undefined

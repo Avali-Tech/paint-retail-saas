@@ -2,7 +2,8 @@ import 'reflect-metadata';
 import { Inject, Injectable } from '@nestjs/common';
 import { schema, type Transaction } from '@paint/db';
 import type { Permission } from '@paint/shared';
-import { and, eq, exists, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
+import { holdsPermission } from '../members/member-permission.js';
 import type { NotificationEvent } from './events.js';
 
 const {
@@ -11,7 +12,6 @@ const {
   notificationPreferences,
   notifications,
   organizationMembers,
-  rolePermissions,
   roles,
   users,
 } = schema;
@@ -126,17 +126,7 @@ export class Notifier {
       );
     }
     return and(
-      exists(
-        tx
-          .select({ one: sql`1` })
-          .from(rolePermissions)
-          .where(
-            and(
-              eq(rolePermissions.roleId, organizationMembers.roleId),
-              eq(rolePermissions.permission, to.permission),
-            ),
-          ),
-      ),
+      holdsPermission(tx, to.permission),
       to.storeId === null
         ? undefined
         : or(

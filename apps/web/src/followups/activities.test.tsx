@@ -27,6 +27,7 @@ const member = (id: string, fullName: string, isActive = true): Member => ({
   allStores: true,
   storeIds: [],
   isActive,
+  exceptions: { granted: [], denied: [] },
   twoFactorEnabled: false,
 });
 const MEMBERS = [member(RAVI.memberId, RAVI.name), member('member-9', 'Gone Person', false)];

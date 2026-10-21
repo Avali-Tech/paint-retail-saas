@@ -10,6 +10,7 @@ import {
 } from './index.js';
 
 const {
+  memberPermissionExceptions,
   memberStores,
   organizationMembers,
   organizations,
@@ -71,6 +72,7 @@ beforeEach(async () => {
   for (const table of [
     otpChallenges,
     sessions,
+    memberPermissionExceptions,
     memberStores,
     organizationMembers,
     rolePermissions,
@@ -132,6 +134,10 @@ beforeEach(async () => {
   await db
     .insert(memberStores)
     .values({ organizationId: orgA, memberId: memberA, storeId: storeA });
+  await db.insert(memberPermissionExceptions).values([
+    { organizationId: orgA, memberId: memberA, permission: 'stores:manage', granted: true },
+    { organizationId: orgA, memberId: memberA, permission: 'stores:read', granted: false },
+  ]);
   const expiresAt = new Date(Date.now() + 60_000);
   await db.insert(sessions).values([
     { tokenHash: 'hash-a', userId: shared, organizationId: orgA, expiresAt },
@@ -161,6 +167,7 @@ describe('tenant isolation of identity data', () => {
         permissions: (await tx.select().from(rolePermissions)).length,
         members: (await tx.select().from(organizationMembers)).length,
         storeAccess: (await tx.select().from(memberStores)).length,
+        exceptions: (await tx.select().from(memberPermissionExceptions)).length,
         sessions: (await tx.select().from(sessions)).length,
       }));
 
@@ -169,6 +176,7 @@ describe('tenant isolation of identity data', () => {
       permissions: 1,
       members: 2,
       storeAccess: 1,
+      exceptions: 2,
       sessions: 1,
     });
     expect(await counts(seed.orgB)).toEqual({
@@ -176,6 +184,7 @@ describe('tenant isolation of identity data', () => {
       permissions: 2,
       members: 2,
       storeAccess: 0,
+      exceptions: 0,
       sessions: 1,
     });
   });

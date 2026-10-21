@@ -326,6 +326,45 @@ function gate() {
 }
 
 describe('PosPage: the customer', () => {
+  it('without the permissions, gives no discount and leaves nothing on account', async () => {
+    const strict = profile(
+      CASHIER_POS.permissions.filter(
+        (permission) => permission !== 'billing:discount' && permission !== 'billing:on_account',
+      ),
+      { role: CASHIER_POS.role, allStores: false, storeIds: [...CASHIER_POS.storeIds] },
+    );
+    const { user, requests } = renderPos(
+      {
+        'GET /parties': () => json({ items: [party()], total: 1 }),
+        'GET /parties/:id/overview': () => json(overview(credit('active', 2_000_000), null)),
+      },
+      strict,
+    );
+    const box = await scanBox();
+    await user.type(box, 'APX-20L{Enter}');
+    const discount = await screen.findByRole('textbox', { name: `Discount on ${APEX_NAME}` });
+    expect(discount).toBeDisabled();
+    expect(discount).toHaveAttribute('title', 'Your role cannot give discounts');
+
+    await user.click(screen.getByRole('button', { name: 'Find customer' }));
+    await user.type(screen.getByRole('textbox', { name: 'Customer mobile' }), '98480 12345{Enter}');
+    expect(await screen.findByText('Ravi Contractor · +919848012345')).toBeInTheDocument();
+    await user.keyboard('{F8}');
+    const dialog = await screen.findByRole('dialog', { name: 'Payment' });
+    const amount = within(dialog).getByRole('textbox', { name: 'Amount of payment 1' });
+    await user.clear(amount);
+    await user.type(amount, '450');
+    await user.click(within(dialog).getByRole('button', { name: 'Remove payment 2' }));
+    expect(within(dialog).getByText('Still to pay: ₹10,000.00')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Issue bill' }));
+    expect(
+      within(dialog).getByText(
+        'Take the full bill: your role cannot leave ₹10,000.00 on the customer’s account',
+      ),
+    ).toBeInTheDocument();
+    expect(requests.some((request) => request.path.endsWith('/issue'))).toBe(false);
+  });
+
   it('finds a customer by mobile with their credit and points, and goes back to walk-in', async () => {
     const { user, requests } = renderPos({
       'GET /parties': () =>

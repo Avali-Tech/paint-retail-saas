@@ -50,6 +50,7 @@ import type {
   ListQuotationsQuery,
   QuotationInput,
 } from './orders.schemas.js';
+import { assertMayDiscount } from '../billing/discount-permission.js';
 import { priceHeader, pricedColumns, saleHeader, storedHeader } from './sale-header.js';
 import { discountOf } from './sale-pricing.js';
 
@@ -71,7 +72,10 @@ export class QuotationsService {
   ): Promise<QuotationView> {
     const request = { method: 'POST', path: '/quotations', body: input };
     return withTenant(this.connection.db, auth.organization.id, (tx) =>
-      idempotent(tx, auth, idempotencyKey, request, () => this.createIn(tx, auth, input)),
+      idempotent(tx, auth, idempotencyKey, request, async () => {
+        await assertMayDiscount(tx, auth, input);
+        return this.createIn(tx, auth, input);
+      }),
     );
   }
 
@@ -112,6 +116,7 @@ export class QuotationsService {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
       const current = await loadQuotation(tx, auth, id, true);
       this.assertDraft(current);
+      await assertMayDiscount(tx, auth, input);
       const today = await indiaToday(tx);
       const values = await this.priced(tx, auth, input, today);
       const [row] = (await tx

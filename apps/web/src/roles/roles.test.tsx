@@ -48,11 +48,11 @@ describe('roles list', () => {
       .slice(1)
       .map((row) => [...row.querySelectorAll('th, td')].map((cell) => cell.textContent));
     expect(rows).toEqual([
-      ['Organization Admin', 'System', '40 of 40', '1'],
-      ['Branch Manager', 'System', '27 of 40', '1'],
-      ['Cashier', 'Custom', '2 of 40', '0'],
-      ['Owner', 'System', '40 of 40', '1'],
-      ['Store Employee', 'System', '8 of 40', '1'],
+      ['Organization Admin', 'System', '44 of 44', '1'],
+      ['Branch Manager', 'System', '31 of 44', '1'],
+      ['Cashier', 'Custom', '2 of 44', '0'],
+      ['Owner', 'System', '44 of 44', '1'],
+      ['Store Employee', 'System', '12 of 44', '1'],
     ]);
     expect(screen.getByRole('link', { name: '+ Role' })).toHaveAttribute('href', '/team/roles/new');
   });

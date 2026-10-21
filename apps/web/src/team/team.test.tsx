@@ -317,6 +317,68 @@ describe('a member’s page', () => {
     });
   });
 
+  it('grants and denies permissions on top of the role, and says why saving failed', async () => {
+    let answer: FakeHandler = () =>
+      json({ statusCode: 403, message: 'You cannot give permissions you do not have' }, 403);
+    const { user, requests } = renderTeam(`/team/${SURESH.id}`, ADMIN, {
+      'GET /members/:id': () => json(SURESH),
+      'PATCH /members/:id': (request) => answer(request),
+    });
+    const card = await screen.findByRole('region', { name: 'Exceptions to the role' });
+    const costs = within(card).getByRole('combobox', {
+      name: 'See costs: average cost, stock value at cost and margins',
+    });
+    const cancel = within(card).getByRole('combobox', {
+      name: 'Cancel an invoice on the day it was issued',
+    });
+    await waitFor(() => {
+      expect(within(costs).getByRole('option', { name: 'As the role: allowed' })).toBeVisible();
+    });
+    expect(within(cancel).getByRole('option', { name: 'As the role: not allowed' })).toBeVisible();
+    // Nobody can allow what they do not hold: this admin has no audit:read.
+    const audit = within(card).getByRole('combobox', { name: 'See the audit log' });
+    expect(within(audit).getByRole('option', { name: 'Allow' })).toBeDisabled();
+
+    await user.selectOptions(costs, 'deny');
+    await user.selectOptions(cancel, 'allow');
+    await user.selectOptions(audit, 'deny');
+    await user.selectOptions(audit, 'role');
+    expect(within(card).getByText('1 allowed, 1 denied beyond the role')).toBeInTheDocument();
+    await user.click(within(card).getByRole('button', { name: 'Save exceptions' }));
+    expect(await within(card).findByRole('alert')).toHaveTextContent(
+      'You cannot give permissions you do not have',
+    );
+
+    answer = (request) => json({ ...SURESH, ...(request.body as object) });
+    await user.click(within(card).getByRole('button', { name: 'Save exceptions' }));
+    expect(await screen.findByText('Exceptions saved')).toBeInTheDocument();
+    expect(requests.filter((request) => request.method === 'PATCH').at(-1)?.body).toEqual({
+      exceptions: { granted: ['billing:cancel'], denied: ['costs:read'] },
+    });
+  });
+
+  it('shows no exceptions for an owner', async () => {
+    const coOwner = member('m-co', 'Co Owner', OWNER_ROLE, { allStores: true, storeIds: [] });
+    renderTeam(`/team/${coOwner.id}`, OWNER, { 'GET /members/:id': () => json(coOwner) });
+    expect(
+      await screen.findByText('Owners hold every permission, with no exceptions.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows a branch manager the exceptions without a way to change them', async () => {
+    renderTeam(`/team/${SURESH.id}`, MANAGER, {
+      'GET /members/:id': () =>
+        json({ ...SURESH, exceptions: { granted: [], denied: ['billing:discount'] } }),
+    });
+    const card = await screen.findByRole('region', { name: 'Exceptions to the role' });
+    const discount = within(card).getByRole('combobox', {
+      name: 'Give discounts and change prices on bills, quotations and orders',
+    });
+    expect(discount).toHaveValue('deny');
+    expect(discount).toBeDisabled();
+    expect(within(card).queryByRole('button', { name: 'Save exceptions' })).toBeNull();
+  });
+
   it('deactivates after confirming, and reactivates', async () => {
     let current = SURESH;
     let fail = true;

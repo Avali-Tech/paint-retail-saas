@@ -25,6 +25,7 @@ import type {
   SaveRulesInput,
   SlowMoversQuery,
 } from './reorder.schemas.js';
+import { costFor } from '../auth/costs.js';
 
 const { brands, productVariants, products, reorderRules, stockBalances, stockLedger, stores } =
   schema;
@@ -318,7 +319,7 @@ export class ReorderService {
           onHand: row.onHand,
           lastDemandAt: row.lastDemandAt ? new Date(row.lastDemandAt).toISOString() : null,
           daysIdle: row.daysIdle,
-          valuePaise: row.valuePaise === null ? null : Number(row.valuePaise),
+          valuePaise: costFor(auth, row.valuePaise === null ? null : Number(row.valuePaise)),
         })),
         total: Number(totals?.total),
       };

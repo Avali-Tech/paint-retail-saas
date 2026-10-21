@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import {
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   UnprocessableEntityException,
@@ -623,6 +624,16 @@ export class InvoiceIssueService {
     if (order?.prepaid && view.outstandingPaise > 0) {
       throw new ConflictException(
         `This order is prepaid: take the full ${formatINR(view.totalPaise)} with the bill (or use advances)`,
+      );
+    }
+    // Selling on account needs its own permission; an order's terms were agreed when it was confirmed.
+    if (
+      order === null &&
+      view.outstandingPaise > 0 &&
+      !auth.permissions.has('billing:on_account')
+    ) {
+      throw new ForbiddenException(
+        `You cannot leave a bill on account: take the full ${formatINR(view.totalPaise)} (or use advances)`,
       );
     }
     return view;

@@ -20,6 +20,7 @@ describe('MembersService.create', () => {
         roleId: '0b6f8f1e-6a2b-4c1d-9e3f-1a2b3c4d5e6f',
         allStores: false,
         storeIds: [],
+        exceptions: { granted: [], denied: [] },
       }),
     ).rejects.toBe(outage);
   });

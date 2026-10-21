@@ -106,20 +106,26 @@ function Tiles({
   return (
     <section className="tiles" aria-label={t('dashboard.total')}>
       <SalesTile storeId={storeId} />
-      {stock && (
-        <Tile
-          title={t('dashboard.stockValue')}
-          value={<span title={money(stock.valuePaise)}>{compactMoney(stock.valuePaise)}</span>}
-        >
-          <Figure label={t('dashboard.units')} value={number(stock.units)} />
-          <span className="muted">{plural('dashboard.skus', stock.skus)}</span>
-          {stock.uncostedSkus > 0 && (
-            <Badge tone="warning">
-              {t('dashboard.uncosted', { count: number(stock.uncostedSkus) })}
-            </Badge>
-          )}
-        </Tile>
-      )}
+      {stock &&
+        (stock.valuePaise === null ? (
+          // Without costs:read: what is on hand, not what it is worth.
+          <Tile title={t('dashboard.stockOnHand')} value={number(stock.units)}>
+            <span className="muted">{plural('dashboard.skus', stock.skus)}</span>
+          </Tile>
+        ) : (
+          <Tile
+            title={t('dashboard.stockValue')}
+            value={<span title={money(stock.valuePaise)}>{compactMoney(stock.valuePaise)}</span>}
+          >
+            <Figure label={t('dashboard.units')} value={number(stock.units)} />
+            <span className="muted">{plural('dashboard.skus', stock.skus)}</span>
+            {stock.uncostedSkus > 0 && (
+              <Badge tone="warning">
+                {t('dashboard.uncosted', { count: number(stock.uncostedSkus) })}
+              </Badge>
+            )}
+          </Tile>
+        ))}
       {lowStock && (
         <Tile
           title={t('dashboard.lowStock')}
@@ -171,7 +177,9 @@ function StoresTable({ dashboard }: { readonly dashboard: Dashboard }) {
     <>
       {row.stock && (
         <>
-          <td className="ui-num">{money(row.stock.valuePaise)}</td>
+          {row.stock.valuePaise !== null && (
+            <td className="ui-num">{money(row.stock.valuePaise)}</td>
+          )}
           <td className="ui-num">{number(row.stock.units)}</td>
           <td className="ui-num">{number(row.stock.skus)}</td>
         </>
@@ -199,9 +207,11 @@ function StoresTable({ dashboard }: { readonly dashboard: Dashboard }) {
             <th scope="col">{t('dashboard.store')}</th>
             {totals.stock && (
               <>
-                <th scope="col" className="ui-num">
-                  {t('dashboard.stockValue')}
-                </th>
+                {totals.stock.valuePaise !== null && (
+                  <th scope="col" className="ui-num">
+                    {t('dashboard.stockValue')}
+                  </th>
+                )}
                 <th scope="col" className="ui-num">
                   {t('dashboard.units')}
                 </th>

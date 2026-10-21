@@ -403,14 +403,16 @@ function ReconcileView({ detail }: { readonly detail: BrandStatementDetail }) {
             {t('statements.reconcile.rematch')}
           </Button>
         )}
-        <Button
-          variant="secondary"
-          onClick={() => {
-            download('csv');
-          }}
-        >
-          {t('statements.reconcile.export')}
-        </Button>
+        {can('data:export') && (
+          <Button
+            variant="secondary"
+            onClick={() => {
+              download('csv');
+            }}
+          >
+            {t('statements.reconcile.export')}
+          </Button>
+        )}
         {detail.statement.fileKept ? (
           <Button
             variant="ghost"

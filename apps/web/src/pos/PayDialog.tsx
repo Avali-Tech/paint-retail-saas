@@ -1,6 +1,7 @@
 import { paiseToRupees, type IssuePaymentRequest, type PaymentModeView } from '@paint/shared';
 import { Alert, Button, Dialog, Field, Input } from '@paint/ui';
 import { useState, type SyntheticEvent } from 'react';
+import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { parseRupees } from '../lib/inputs.js';
 import { nextMode, settle } from './tender.js';
@@ -52,6 +53,8 @@ function PaymentForm({
   readonly error: string | null;
 }) {
   const { t, money } = useI18n();
+  // Leaving money on the customer's account needs billing:on_account (the API refuses it too).
+  const onAccount = usePermissions()('billing:on_account');
   const [rows, setRows] = useState<Row[]>(() => [
     { modeId: String(nextMode(modes, [])), text: rupees(totalPaise) },
   ]);
@@ -104,6 +107,10 @@ function PaymentForm({
     const short = settled.shortPaise;
     if (short > 0 && room.name === null) {
       setProblem(t('pos.pay.walkInShort'));
+      return;
+    }
+    if (short > 0 && !onAccount) {
+      setProblem(t('pos.pay.noOnAccount', { amount: money(short) }));
       return;
     }
     if (short > 0 && room.availablePaise !== null && short > room.availablePaise) {
@@ -212,7 +219,7 @@ function PaymentForm({
           )}
           {settled.shortPaise > 0 && (
             <li>
-              {room.name === null
+              {room.name === null || !onAccount
                 ? t('pos.pay.short', { amount: money(settled.shortPaise) })
                 : t('pos.pay.onCredit', { amount: money(settled.shortPaise), name: room.name })}
             </li>

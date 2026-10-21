@@ -54,6 +54,7 @@ import {
   type StoredCreditCheck,
 } from './order-views.js';
 import { carryTints } from '../paint/tint-lines.js';
+import { assertMayDiscount } from '../billing/discount-permission.js';
 import { insertOrder, replaceOrder } from './order-writes.js';
 import type {
   BillOrderInput,
@@ -101,9 +102,10 @@ export class SalesOrdersService {
   ): Promise<SalesOrderView> {
     const request = { method: 'POST', path: '/sales-orders', body: input };
     return withTenant(this.connection.db, auth.organization.id, (tx) =>
-      idempotent(tx, auth, idempotencyKey, request, async () =>
-        salesOrderView(tx, await insertOrder(tx, auth, input, await indiaToday(tx), null)),
-      ),
+      idempotent(tx, auth, idempotencyKey, request, async () => {
+        await assertMayDiscount(tx, auth, input);
+        return salesOrderView(tx, await insertOrder(tx, auth, input, await indiaToday(tx), null));
+      }),
     );
   }
 
@@ -111,6 +113,7 @@ export class SalesOrdersService {
   update(auth: AuthContext, id: string, input: SalesOrderInput): Promise<SalesOrderView> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
       this.assertDraft(await this.writable(tx, auth, id));
+      await assertMayDiscount(tx, auth, input);
       return salesOrderView(tx, await replaceOrder(tx, auth, id, input, await indiaToday(tx)));
     });
   }
@@ -291,6 +294,11 @@ export class SalesOrdersService {
         await lockParty(tx, auth.organization.id, billToPartyId);
         const order = await this.writable(tx, auth, id);
         this.assertDraft(order);
+        if (order.paymentTerms !== 'prepaid' && !auth.permissions.has('billing:on_account')) {
+          throw new ForbiddenException(
+            'You cannot sell on account: make the order prepaid, or ask someone who can',
+          );
+        }
         const changes: PgUpdateSetSource<typeof salesOrders> = {};
 
         if (order.paymentTerms === 'postpaid') {

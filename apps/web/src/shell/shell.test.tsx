@@ -31,6 +31,13 @@ describe('visibleNav', () => {
       visibleNav((permission) => permission === 'parties:manage').map((item) => item.key),
     ).toEqual(['imports']);
   });
+
+  it('shows a page about margins only with costs:read as well', () => {
+    const keys = (held: readonly string[]) =>
+      visibleNav((permission) => held.includes(permission)).map((item) => item.key);
+    expect(keys(['accounting:export'])).not.toContain('brandProfitability');
+    expect(keys(['accounting:export', 'costs:read'])).toContain('brandProfitability');
+  });
 });
 
 describe('RequireAuth', () => {

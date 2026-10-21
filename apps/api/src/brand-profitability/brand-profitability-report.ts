@@ -46,6 +46,7 @@ export const brandProfitabilityReport: ComputedReportKind<BrandProfitabilityInpu
   kind: 'brand-profitability',
   title: 'Brand profitability',
   permission: BRAND_PROFITABILITY_PERMISSION,
+  needsCosts: true,
   columns: [
     { key: 'brand', header: 'Brand' },
     { key: 'product', header: 'Product' },

@@ -10,6 +10,7 @@ export const AUDIT_AREAS = {
   role_permissions: 'Role permissions',
   organization_members: 'Member access',
   member_stores: 'Member stores',
+  member_permission_exceptions: 'Member permission exceptions',
   stock_ledger: 'Stock adjustments',
   organizations: 'Plan and account',
   support_grants: 'Support access',

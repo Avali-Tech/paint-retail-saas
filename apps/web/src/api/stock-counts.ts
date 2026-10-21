@@ -37,8 +37,10 @@ export interface CountSummary {
   readonly matchingLines: number;
   /** Share of counted products whose count matched the books; null before any count. */
   readonly accuracyPercent: number | null;
-  readonly netVarianceValuePaise: number;
-  readonly absoluteVarianceValuePaise: number;
+  /** Null without costs:read. */
+  readonly netVarianceValuePaise: number | null;
+  /** Null without costs:read. */
+  readonly absoluteVarianceValuePaise: number | null;
 }
 
 /** A team member named on a count. */

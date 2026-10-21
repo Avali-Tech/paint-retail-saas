@@ -63,18 +63,22 @@ export class DashboardService {
       const lowList = perStore(low, { outOfStock: 0, belowMinimum: 0, reorder: 0 });
       const transferList = perStore(moving, { awaitingApproval: 0, toDispatch: 0, incoming: 0 });
       const orderList = perStore(buying, { open: 0, dueValuePaise: 0 });
+      // Stock's value is at cost, so it is shown only with costs:read.
+      const atCost = <T extends { valuePaise: number }>(figures: T) =>
+        can('costs:read') ? figures : { ...figures, valuePaise: null };
+      const stockShown = stockList?.map(atCost) ?? null;
 
       return {
         generatedAt: new Date().toISOString(),
         stores: shown.map((store, index) => ({
           store,
-          stock: stockList?.[index] ?? null,
+          stock: stockShown?.[index] ?? null,
           lowStock: lowList?.[index] ?? null,
           transfers: transferList?.[index] ?? null,
           purchaseOrders: orderList?.[index] ?? null,
         })),
         totals: {
-          stock: stockList && sumEach(stockList),
+          stock: stockList && atCost(sumEach(stockList)),
           lowStock: lowList && sumEach(lowList),
           transfers: transferList && sumEach(transferList),
           purchaseOrders: orderList && sumEach(orderList),

@@ -58,6 +58,7 @@ const FIELD_LABELS: Record<string, string> = {
   key: 'Key',
   name: 'Name',
   permission: 'Permission',
+  granted: 'Granted (or denied)',
   role_id: 'Role',
   all_stores: 'All stores',
   is_active: 'Active',
