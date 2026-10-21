@@ -20,6 +20,7 @@ import {
 import { asc, eq, inArray } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { idempotent } from '../billing/idempotency.js';
+import { assertNotHeldForDispatch } from '../credit/dispatch-hold.js';
 import { Notifier } from '../notifications/notifier.js';
 import { postColorantUse } from '../paint/colorant-use.js';
 import { loadDocument, type TaxDocumentRow } from '../billing/invoice-view.js';
@@ -60,6 +61,7 @@ export class DispatchesService {
     return withTenant(this.connection.db, auth.organization.id, (tx) =>
       idempotent(tx, auth, idempotencyKey, request, async () => {
         const invoice = await this.issuedInvoice(tx, auth, invoiceId);
+        await assertNotHeldForDispatch(tx, invoice);
         const lines = await this.lines(tx, invoiceId);
         const sent = await dispatchedByLine(tx, invoiceId);
         const pending = (line: (typeof lines)[number]) =>

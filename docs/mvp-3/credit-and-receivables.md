@@ -177,7 +177,14 @@ project; it never holds its own ledger. Everything else is a view over documents
 | Roll-up     | The contractor's own exposure already includes every site; a sale on a site is checked against both (§4.2)                          |
 
 **Built in 1a (core):** the table, CRUD, hold / release, site exposure and its check at confirm and
-issue, the site view with ledger and ageing, and the screen. **Research, later:** sites billed to a
+issue, the site view with ledger and ageing, and the screen.
+
+**Dispatch hold.** Credit is checked when a bill is issued, but a hold can come later (a bounced
+cheque, the nightly overdue hold). So goods on a bill that still has money owing do not leave while
+the customer's credit is on hold, or while the site account of the bill's own site is on hold or
+closed (409, saying what is owed and why). Only the bill's site counts: a contractor held on one site
+still takes delivery on another. A bill paid in full always goes
+(`apps/api/src/credit/dispatch-hold.ts`). **Research, later:** sites billed to a
 homeowner but guaranteed by the contractor (a second liable party), per-site credit days, and site
 statements on WhatsApp (round 2 with P2-M12's share).
 
