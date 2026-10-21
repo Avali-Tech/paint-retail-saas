@@ -839,7 +839,7 @@ gateway, links on the demo seed (a later round).
 **4b as built:**
 
 - **Demo seed** (`apps/api/src/demo/seed-sites.ts`, `seed-collections.ts`, `seed-points.ts`, and the
-  credit stories in `seed-accounts.ts` and `seed-sales.ts`). A pilot walkthrough of Sharma Paints shows:
+  credit stories in `seed-accounts.ts` and `seed-sales.ts`). A pilot walkthrough of Sri Rama Paints shows:
   - credit approvals used, one waiting, one rejected and an approved release;
   - an automatic overdue hold (a builder whose opening balance lapsed);
   - a dealer held automatically, then released with a two-week waiver after its broken promise's

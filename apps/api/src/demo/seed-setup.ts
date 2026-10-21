@@ -52,7 +52,7 @@ export async function setUpBusiness(context: SeedContext, readSmsCode: ReadSmsCo
   context.tokens.set(owner.key, await passwordSignIn(context, owner.phone));
   const o = context.as(owner.key);
   await o.put('/organization/branding', DEMO_BRANDING);
-  // Shorter than the one sign-up derives from the name (sharma-paints-hardware).
+  // Shorter than the one sign-up derives from the name (sri-rama-hardware-paints).
   await o.put('/organization/slug', { slug: DEMO_SLUG });
 
   // GST: registered in Telangana (state 36), one GSTIN for the three branches.

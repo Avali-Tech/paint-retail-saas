@@ -66,7 +66,7 @@ afterAll(async () => {
 
 describe('the large demo', () => {
   it('adds the large shop on top of the full demo', async () => {
-    expect(output).toContain('Seeding Sharma Paints & Hardware (large)');
+    expect(output).toContain('Seeding Sri Rama Hardware & Paints (large)');
     expect(output).toMatch(new RegExp(`Seeded in \\d+ s: ${String(3 + scale.extraStores)} stores`));
     expect(output).toContain(`${String(scale.otherBusinesses)} other businesses`);
     const businesses = await one<{ count: number }>(
@@ -186,7 +186,7 @@ describe('the large demo', () => {
       await t.connection.db
         .select({ id: schema.organizations.id })
         .from(schema.organizations)
-        .where(sql`${schema.organizations.name} = 'Sharma Paints & Hardware'`)
+        .where(sql`${schema.organizations.name} = 'Sri Rama Hardware & Paints'`)
     ).map((row) => row.id);
     for (const table of [
       schema.parties,

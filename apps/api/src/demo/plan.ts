@@ -16,10 +16,10 @@ import { Random } from './random.js';
 /** Fixed, so the demo business is identical every time it is created. */
 export const DEMO_SEED = 20_261_004;
 
-export const DEMO_BUSINESS = 'Sharma Paints & Hardware';
-export const DEMO_APP_NAME = 'Sharma Paints';
-/** The demo business's sign-in link name: its branded sign-in page is /sign-in?b=sharma-paints. */
-export const DEMO_SLUG = 'sharma-paints';
+export const DEMO_BUSINESS = 'Sri Rama Hardware & Paints';
+export const DEMO_APP_NAME = 'Sri Rama Paints';
+/** The demo business's sign-in link name: its branded sign-in page is /sign-in?b=sri-rama-paints. */
+export const DEMO_SLUG = 'sri-rama-paints';
 /** Every demo account with a password uses this one. */
 export const DEMO_PASSWORD = 'Demo@2026';
 
@@ -102,14 +102,21 @@ export interface TeamMemberPlan {
 }
 
 /** The owner, who signs the business up. Names and mobiles are fixed so the sign-in sheet never changes. */
-export const OWNER: TeamMemberPlan = member('owner', 'Rajesh Sharma', '9000000001', 'owner', [], {
-  email: 'rajesh@sharmapaints.example',
-});
+export const OWNER: TeamMemberPlan = member(
+  'owner',
+  'K. Ranjith Kumar',
+  '9000000001',
+  'owner',
+  [],
+  {
+    email: 'ranjith@sriramapaints.example',
+  },
+);
 
 /** Everyone else on the team. */
 export const TEAM: readonly TeamMemberPlan[] = [
   member('admin', 'Priya Sharma', '9000000002', 'org_admin', [], {
-    email: 'priya@sharmapaints.example',
+    email: 'priya@sriramapaints.example',
   }),
   member('secureAdmin', 'Vikram Rao', '9000000003', 'org_admin', [], { twoFactor: true }),
   member('inventory', 'Mohammed Imran', '9000000004', 'inventory_manager', ['AMP', 'KPL', 'SEC']),
@@ -230,7 +237,7 @@ export interface DemoPlan {
 export function buildPlan(size: StorySize, seed = DEMO_SEED): DemoPlan {
   const random = new Random(seed);
   const phones = new PhoneBook(random);
-  const businessPan = panFor(random, 'Sharma', 'F');
+  const businessPan = panFor(random, 'Sri Rama', 'F');
   const stores: StorePlan[] = (
     [
       ['AMP', 'Ameerpet', LOCALITIES[0]],
