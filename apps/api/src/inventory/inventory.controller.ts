@@ -15,6 +15,7 @@ import {
 import {
   InventoryService,
   type Availability,
+  type FreeStock,
   type LedgerPage,
   type StockPage,
 } from './inventory.service.js';
@@ -39,6 +40,15 @@ export class InventoryController {
     @Query(new ZodValidationPipe(availabilitySchema)) query: { variantId: string },
   ): Promise<Availability[]> {
     return this.inventory.availability(auth, query.variantId);
+  }
+
+  @Get('free-elsewhere')
+  @RequirePermissions('inventory:read')
+  freeElsewhere(
+    @CurrentAuth() auth: AuthContext,
+    @Query(new ZodValidationPipe(availabilitySchema)) query: { variantId: string },
+  ): Promise<FreeStock[]> {
+    return this.inventory.freeElsewhere(auth, query.variantId);
   }
 
   @Get('ledger')

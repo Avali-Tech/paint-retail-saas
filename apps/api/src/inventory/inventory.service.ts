@@ -78,6 +78,12 @@ export interface Availability {
   readonly available: number;
 }
 
+/** A store's free quantity of one product, and nothing else about its stock. */
+export interface FreeStock {
+  readonly store: { readonly id: string; readonly code: string; readonly name: string };
+  readonly available: number;
+}
+
 export interface LedgerEntry {
   readonly id: string;
   readonly createdAt: string;
@@ -269,6 +275,35 @@ export class InventoryService {
         onHand: Number(row.onHand),
         reserved: Number(row.reserved),
         available: Number(row.onHand) - Number(row.reserved),
+      }));
+    });
+  }
+
+  /**
+   * Where else one product is free to sell: every open store with some on hand
+   * and not held for orders, most first. Answers only the free quantity, so a
+   * counter at one store can point a customer to another (or ask for a transfer)
+   * without seeing that store's stock, costs or value.
+   */
+  freeElsewhere(auth: AuthContext, variantId: string): Promise<FreeStock[]> {
+    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      const [variant] = await tx
+        .select({ id: productVariants.id })
+        .from(productVariants)
+        .where(eq(productVariants.id, variantId));
+      if (!variant) throw new NotFoundException('Product variant not found');
+      const free = sql<string>`${stockBalances.onHand} - ${stockBalances.reserved}`;
+      const rows = await tx
+        .select({ id: stores.id, code: stores.code, name: stores.name, available: free })
+        .from(stockBalances)
+        .innerJoin(stores, eq(stores.id, stockBalances.storeId))
+        .where(
+          and(eq(stockBalances.variantId, variantId), eq(stores.isActive, true), sql`${free} > 0`),
+        )
+        .orderBy(sql`${free} desc`, stores.code);
+      return rows.map((row) => ({
+        store: { id: row.id, code: row.code, name: row.name },
+        available: Number(row.available),
       }));
     });
   }
