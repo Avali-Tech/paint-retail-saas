@@ -74,6 +74,7 @@ describe('migrateDatabase', () => {
       'loyalty_earn_rules',
       'loyalty_ledger',
       'loyalty_settings',
+      'member_permission_exceptions',
       'member_stores',
       'message_outbox',
       'message_templates',

@@ -55,6 +55,10 @@ interface ReportBase<F> {
   readonly title: string;
   readonly permission: Permission;
   readonly columns: readonly ReportColumn[];
+  /** Columns at cost (average cost, value at cost), left out without costs:read. */
+  readonly costColumns?: readonly string[];
+  /** The whole report is about cost and margin: it needs costs:read too. */
+  readonly needsCosts?: true;
   /** The filters this report understands, besides format and paging. */
   readonly filters: z.ZodType<F, Record<string, unknown>>;
   /** The same filters described for the web app (GET /reports). */
@@ -111,6 +115,7 @@ const stockByLocation: ReportKind<{ storeId?: string; inStockOnly: boolean }> = 
     { key: 'averageCost', header: 'Average cost (₹)' },
     { key: 'value', header: 'Value (₹)' },
   ],
+  costColumns: ['averageCost', 'value'],
   ...reportFilters({ ...store, inStockOnly: booleanFilter(true) }),
   query: (tx, auth, filters) =>
     tx
@@ -175,6 +180,7 @@ const ledger: ReportKind<{
     { key: 'note', header: 'Note' },
     { key: 'by', header: 'By' },
   ],
+  costColumns: ['unitCost'],
   ...reportFilters({ ...store, ...dateRange, movementType: enumFilter(MOVEMENT_TYPES) }),
   query: (tx, auth, filters) =>
     tx
@@ -241,6 +247,7 @@ const transferReport: ReportKind<{
     { key: 'products', header: 'Products' },
     { key: 'value', header: 'Dispatched value (₹)' },
   ],
+  costColumns: ['value'],
   ...reportFilters({ ...store, ...dateRange, status: enumFilter(TRANSFER_STATUSES) }),
   query: (tx, auth, filters) =>
     tx

@@ -386,7 +386,10 @@ describe('BrandProfitabilityPage', { timeout: 30_000 }, () => {
   it('shows the settings only to owners and admins', async () => {
     renderApp({
       path: '/reports/brand-profitability',
-      routes: { ...routes(), 'GET /auth/me': () => json(profile(['accounting:export'])) },
+      routes: {
+        ...routes(),
+        'GET /auth/me': () => json(profile(['accounting:export', 'costs:read'])),
+      },
     });
     await screen.findByRole('table', { name: 'Contribution by brand' });
     expect(screen.queryByRole('button', { name: 'Settings' })).toBeNull();

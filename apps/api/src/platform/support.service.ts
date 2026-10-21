@@ -7,6 +7,7 @@ import type { AuthContext } from '../auth/auth-context.js';
 import { generateSessionToken, hashSessionToken } from '../auth/credentials.js';
 import { only } from '../common/only.js';
 import { DATABASE } from '../database/database.module.js';
+import { holdsPermission } from '../members/member-permission.js';
 import { Notifier } from '../notifications/notifier.js';
 import { grantStatus, type GrantStatus } from './grant-status.js';
 import type { Operator } from './platform-auth.service.js';
@@ -86,15 +87,12 @@ export class SupportService {
       const deciders = await tx
         .select({ id: organizationMembers.id })
         .from(organizationMembers)
-        .innerJoin(
-          rolePermissions,
-          and(
-            eq(rolePermissions.roleId, organizationMembers.roleId),
-            eq(rolePermissions.permission, 'organization:manage'),
-          ),
-        )
         .where(
-          and(eq(organizationMembers.isActive, true), eq(organizationMembers.isSupport, false)),
+          and(
+            eq(organizationMembers.isActive, true),
+            eq(organizationMembers.isSupport, false),
+            holdsPermission(tx, 'organization:manage'),
+          ),
         );
       await this.notifier.notify(tx, {
         organizationId: business.id,

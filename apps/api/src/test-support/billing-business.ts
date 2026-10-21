@@ -57,7 +57,12 @@ export interface BillingBusiness {
   readonly apex: string;
   readonly parties: { contractor: string; homeowner: string };
   readonly modes: Record<'cash' | 'upi' | 'card' | 'bank' | 'cheque', PaymentModeView>;
-  member(roleKey: string, storeIds: string[]): Promise<string>;
+  /** A member's session; `exceptions` are their own grants and denials on top of the role. */
+  member(
+    roleKey: string,
+    storeIds: string[],
+    exceptions?: { granted?: string[]; denied?: string[] },
+  ): Promise<string>;
   /** An issued invoice for `quantity` litres at a store (Ameerpet by default). */
   invoice(options?: {
     partyId?: string;
@@ -176,7 +181,7 @@ export async function billingBusiness(t: TestApp): Promise<BillingBusiness> {
         await api(t, token).post(`/invoices/${document.id}/issue`, issue),
       ).json<IssuedInvoiceView>();
     },
-    async member(roleKey, storeIds) {
+    async member(roleKey, storeIds, exceptions) {
       const phone = uniquePhone();
       ok(
         await o.post('/members', {
@@ -185,6 +190,7 @@ export async function billingBusiness(t: TestApp): Promise<BillingBusiness> {
           password: 'Staff@2026',
           roleId: roles.find((role) => role.key === roleKey)?.id,
           storeIds,
+          exceptions,
         }),
       );
       const login = await t.app.inject({

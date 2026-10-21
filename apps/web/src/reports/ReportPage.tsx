@@ -18,6 +18,7 @@ import { Link, useParams } from 'react-router';
 import { errorMessage } from '../api/errors.js';
 import type { ReportFilter, ReportFilters, ReportSummary, ReportValue } from '../api/reports.js';
 import { useApi } from '../app/services.js';
+import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { saveFile } from '../lib/download.js';
 import { useUrlFilters, type UrlFilters } from '../lib/hooks.js';
@@ -171,6 +172,7 @@ function Report({ report }: { readonly report: ReportSummary }) {
   const toast = useToast();
   const filters = useUrlFilters(report.filters.map((filter) => filter.name));
   const [downloading, setDownloading] = useState(false);
+  const can = usePermissions();
   const { title, description } = reportText(t, report);
   const problems = dateRangeProblems(filters.values.from ?? '', filters.values.to ?? '');
   const errors: Record<string, string | undefined> = {
@@ -224,14 +226,16 @@ function Report({ report }: { readonly report: ReportSummary }) {
             <Link to="/reports" {...buttonStyle('ghost')}>
               {t('reports.all')}
             </Link>
-            <Button
-              loading={downloading}
-              onClick={() => {
-                void download();
-              }}
-            >
-              {t('reports.csv')}
-            </Button>
+            {can('data:export') && (
+              <Button
+                loading={downloading}
+                onClick={() => {
+                  void download();
+                }}
+              >
+                {t('reports.csv')}
+              </Button>
+            )}
           </>
         }
       />

@@ -36,7 +36,7 @@ export class BrandProfitabilityController {
   ) {}
 
   @Get()
-  @RequirePermissions(BRAND_PROFITABILITY_PERMISSION)
+  @RequirePermissions(BRAND_PROFITABILITY_PERMISSION, 'costs:read')
   async view(
     @CurrentAuth() auth: AuthContext,
     @Query() query: Record<string, unknown>,

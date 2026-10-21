@@ -377,14 +377,19 @@ function CountView({ count }: { readonly count: StockCount }) {
                       })}
                 </dd>
               </div>
-              <div>
-                <dt>{t('stockCounts.detail.netVariance')}</dt>
-                <dd>{money(summary.netVarianceValuePaise)}</dd>
-              </div>
-              <div>
-                <dt>{t('stockCounts.detail.absoluteVariance')}</dt>
-                <dd>{money(summary.absoluteVarianceValuePaise)}</dd>
-              </div>
+              {/* Values at cost: null without costs:read. */}
+              {summary.netVarianceValuePaise !== null && (
+                <div>
+                  <dt>{t('stockCounts.detail.netVariance')}</dt>
+                  <dd>{money(summary.netVarianceValuePaise)}</dd>
+                </div>
+              )}
+              {summary.absoluteVarianceValuePaise !== null && (
+                <div>
+                  <dt>{t('stockCounts.detail.absoluteVariance')}</dt>
+                  <dd>{money(summary.absoluteVarianceValuePaise)}</dd>
+                </div>
+              )}
             </dl>
             <ol className="timeline">
               {steps

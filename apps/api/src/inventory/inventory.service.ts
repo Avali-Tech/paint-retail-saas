@@ -34,6 +34,7 @@ import { DATABASE } from '../database/database.module.js';
 import { variantOrder } from '../catalog/variant-order.js';
 import { containsPattern } from '../parties/party-access.js';
 import type { CreateMovementInput, LedgerQuery, ListStockQuery } from './inventory.schemas.js';
+import { costFor } from '../auth/costs.js';
 
 const {
   brands,
@@ -232,8 +233,8 @@ export class InventoryService {
           onHand: row.onHand,
           reserved: row.reserved,
           available: Number(row.available),
-          avgCostPaise: row.avgCostPaise,
-          valuePaise: row.valuePaise === null ? null : Number(row.valuePaise),
+          avgCostPaise: costFor(auth, row.avgCostPaise),
+          valuePaise: costFor(auth, row.valuePaise === null ? null : Number(row.valuePaise)),
         })),
         total: Number(totals?.total),
       };
@@ -323,7 +324,7 @@ export class InventoryService {
         createdAt: row.createdAt.toISOString(),
         movementType: row.movementType,
         quantity: row.quantity,
-        unitCostPaise: row.unitCostPaise,
+        unitCostPaise: costFor(auth, row.unitCostPaise),
         note: row.note,
         store: { id: row.storeId, code: row.storeCode },
         variant: { id: row.variantId, sku: row.sku },

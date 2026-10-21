@@ -36,6 +36,7 @@ const MEMBERS: Member[] = [
     allStores: true,
     storeIds: [],
     isActive: true,
+    exceptions: { granted: [], denied: [] },
     twoFactorEnabled: false,
   },
 ];

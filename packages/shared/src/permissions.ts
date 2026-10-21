@@ -37,12 +37,16 @@ export const PERMISSIONS = [
   'billing:issue',
   'billing:cancel',
   'billing:notes',
+  'billing:discount',
+  'billing:on_account',
   'payments:manage',
   'register:manage',
   'accounting:export',
   'accounting:reconcile',
   'receivables:read',
   'schemes:manage',
+  'costs:read',
+  'data:export',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -94,9 +98,13 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'billing:issue',
       'billing:cancel',
       'billing:notes',
+      'billing:discount',
+      'billing:on_account',
       'payments:manage',
       'register:manage',
       'receivables:read',
+      'costs:read',
+      'data:export',
     ],
     allStores: false,
   },
@@ -113,6 +121,8 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'purchasing:read',
       'purchasing:manage',
       'contracts:read',
+      'costs:read',
+      'data:export',
     ],
     allStores: false,
   },
@@ -137,8 +147,12 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'sales:read',
       'sales:manage',
       'billing:issue',
+      'billing:discount',
+      'billing:on_account',
       'payments:manage',
       'receivables:read',
+      'costs:read',
+      'data:export',
     ],
     allStores: false,
   },
@@ -160,6 +174,7 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'credit:manage',
       'loyalty:read',
       'loyalty:manage',
+      'data:export',
     ],
     allStores: false,
   },
@@ -174,7 +189,11 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'loyalty:read',
       'sales:read',
       'billing:issue',
+      'billing:discount',
+      'billing:on_account',
       'register:manage',
+      'costs:read',
+      'data:export',
     ],
     allStores: false,
   },
@@ -199,4 +218,22 @@ export function canAccessStore(access: MemberAccess, storeId: string): boolean {
 export function can(access: MemberAccess, permission: Permission, storeId?: string): boolean {
   if (!access.permissions.has(permission)) return false;
   return storeId === undefined || canAccessStore(access, storeId);
+}
+
+/** A member's own exceptions to their role: permissions added, and permissions taken away. */
+export interface PermissionExceptions {
+  readonly granted: readonly Permission[];
+  readonly denied: readonly Permission[];
+}
+
+/**
+ * What a member may do: their role's permissions, plus what is granted to
+ * them, less what is denied (a denial wins).
+ */
+export function effectivePermissions(
+  rolePermissions: Iterable<Permission>,
+  exceptions: PermissionExceptions,
+): Set<Permission> {
+  const denied = new Set(exceptions.denied);
+  return new Set([...rolePermissions, ...exceptions.granted].filter((p) => !denied.has(p)));
 }

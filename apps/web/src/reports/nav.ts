@@ -27,5 +27,6 @@ export const REPORT_NAV_ITEMS: readonly NavItem[] = [
     path: '/reports/brand-profitability',
     icon: 'dashboard',
     permission: BRAND_PROFITABILITY_PERMISSION,
+    alsoNeeds: 'costs:read',
   },
 ];

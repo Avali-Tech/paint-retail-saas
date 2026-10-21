@@ -92,7 +92,7 @@ export class BrandSchemesController {
 
   @Post('price-hike-plan')
   @HttpCode(200)
-  @RequirePermissions('purchasing:read')
+  @RequirePermissions('purchasing:read', 'costs:read')
   plan(
     @CurrentAuth() auth: AuthContext,
     @Body(new ZodValidationPipe(priceHikeSchema)) body: PriceHikeBody,

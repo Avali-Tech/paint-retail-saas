@@ -118,7 +118,10 @@ async function costedReceipt(storeId: string, variantId: string, quantity: numbe
 /** A member whose only permission is the books', at Kukatpally only. */
 async function accountsMember(): Promise<string> {
   const role = ok(
-    await owner().post('/roles', { name: 'Accounts', permissions: ['accounting:export'] }),
+    await owner().post('/roles', {
+      name: 'Accounts',
+      permissions: ['accounting:export', 'costs:read'],
+    }),
   ).json<{ id: string }>();
   const phone = uniquePhone();
   ok(

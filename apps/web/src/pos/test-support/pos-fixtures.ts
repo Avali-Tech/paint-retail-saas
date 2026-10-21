@@ -33,7 +33,16 @@ export const GODOWN: Store = { ...store('store-gdn', 'GDN', 'Godown', TS_GSTIN),
 
 /** A counter cashier: a store employee at Ameerpet. */
 export const CASHIER_POS = profile(
-  ['stores:read', 'parties:read', 'catalog:read', 'inventory:read', 'sales:read', 'billing:issue'],
+  [
+    'stores:read',
+    'parties:read',
+    'catalog:read',
+    'inventory:read',
+    'sales:read',
+    'billing:issue',
+    'billing:discount',
+    'billing:on_account',
+  ],
   {
     role: { key: 'store_employee', name: 'Store Employee' },
     allStores: false,

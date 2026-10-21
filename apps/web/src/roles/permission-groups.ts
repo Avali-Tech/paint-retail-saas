@@ -40,12 +40,16 @@ export const PERMISSION_LABELS: Record<Permission, MessageKey> = {
   'billing:issue': 'permissions.billing.issue',
   'billing:cancel': 'permissions.billing.cancel',
   'billing:notes': 'permissions.billing.notes',
+  'billing:discount': 'permissions.billing.discount',
+  'billing:on_account': 'permissions.billing.onAccount',
   'payments:manage': 'permissions.payments.manage',
   'register:manage': 'permissions.register.manage',
   'accounting:export': 'permissions.accounting.export',
   'accounting:reconcile': 'permissions.accounting.reconcile',
   'receivables:read': 'permissions.receivables.read',
   'schemes:manage': 'permissions.schemes.manage',
+  'costs:read': 'permissions.costs.read',
+  'data:export': 'permissions.data.export',
 };
 
 /** Names of the areas, in the order the checklist shows them. */
@@ -72,6 +76,8 @@ export const AREA_LABELS: Record<PermissionArea, MessageKey> = {
   accounting: 'permissions.areas.accounting',
   receivables: 'permissions.areas.receivables',
   schemes: 'permissions.areas.schemes',
+  costs: 'permissions.areas.costs',
+  data: 'permissions.areas.data',
 };
 
 export interface PermissionGroup {

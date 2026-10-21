@@ -18,22 +18,26 @@ import {
 } from '@paint/db';
 import {
   canAccessStore,
+  effectivePermissions,
   isPermission,
   type AssignableMember,
   type MemberView,
   type Permission,
+  type PermissionExceptions,
 } from '@paint/shared';
 import { and, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { hashPassword } from '../auth/credentials.js';
 import { DATABASE } from '../database/database.module.js';
 import { recordPermissions } from '../documents/record-access.js';
+import { toExceptions } from './member-permission.js';
 import { requireRoomFor } from '../platform/plan-limits.js';
 import { SUPPORT_ROLE_KEY } from '../platform/support-role.js';
 import { canSeeMember, grantProblem, manageProblem } from './access-rules.js';
 import type { AssignableQuery, CreateMemberInput, UpdateMemberInput } from './members.schemas.js';
 
 const {
+  memberPermissionExceptions,
   memberStores,
   organizationMembers,
   rolePermissions,
@@ -117,7 +121,9 @@ export class MembersService {
     return members
       .filter(
         (member) =>
-          member.isActive && member.rolePermissions.includes(assignee) && worksWhere(member),
+          member.isActive &&
+          effectivePermissions(member.rolePermissions, member.exceptions).has(assignee) &&
+          worksWhere(member),
       )
       .map((member) => ({
         id: member.id,
@@ -161,6 +167,7 @@ export class MembersService {
         const problem = grantProblem(auth, {
           roleKey: role.key,
           rolePermissions: role.permissions,
+          exceptions: input.exceptions,
           allStores: input.allStores,
           storeIds: input.storeIds,
         });
@@ -175,6 +182,7 @@ export class MembersService {
           allStores: input.allStores,
         });
         await this.replaceStores(tx, organizationId, memberId, input.storeIds);
+        await this.replaceExceptions(tx, organizationId, memberId, input.exceptions);
         return this.loadMember(tx, memberId);
       });
       return await this.toView(record);
@@ -197,6 +205,7 @@ export class MembersService {
         userId: target.user.id,
         roleKey: target.role.key,
         rolePermissions: target.rolePermissions,
+        exceptions: target.exceptions,
         allStores: target.allStores,
         storeIds: target.storeIds,
       });
@@ -207,10 +216,15 @@ export class MembersService {
         : { id: target.role.id, key: target.role.key, permissions: target.rolePermissions };
       const allStores = input.allStores ?? target.allStores;
       const storeIds = input.storeIds ?? target.storeIds;
+      // Someone made an owner drops their exceptions: owners hold everything.
+      const exceptions =
+        input.exceptions ??
+        (role.key === 'owner' ? { granted: [], denied: [] } : target.exceptions);
       if (input.storeIds) await this.assertStoresExist(tx, input.storeIds);
       const grantIssue = grantProblem(auth, {
         roleKey: role.key,
         rolePermissions: role.permissions,
+        exceptions,
         allStores,
         storeIds,
       });
@@ -229,6 +243,9 @@ export class MembersService {
         })
         .where(eq(organizationMembers.id, memberId));
       if (input.storeIds) await this.replaceStores(tx, organizationId, memberId, input.storeIds);
+      if (exceptions !== target.exceptions) {
+        await this.replaceExceptions(tx, organizationId, memberId, exceptions);
+      }
       if (input.isActive === false) {
         // Sign them out everywhere in this business.
         await tx
@@ -301,6 +318,7 @@ export class MembersService {
       .orderBy(users.fullName, organizationMembers.id);
     const storeRows = await tx.select().from(memberStores);
     const permissionRows = await tx.select().from(rolePermissions);
+    const exceptionRows = await tx.select().from(memberPermissionExceptions);
     return rows.map((row) => ({
       id: row.id,
       user: { id: row.userId, fullName: row.fullName, phone: row.phone, email: row.email },
@@ -310,6 +328,7 @@ export class MembersService {
         .filter((store) => store.memberId === row.id)
         .map((store) => store.storeId)
         .sort(),
+      exceptions: toExceptions(exceptionRows.filter((exception) => exception.memberId === row.id)),
       isActive: row.isActive,
       rolePermissions: permissionRows
         .filter((permission) => permission.roleId === row.roleId)
@@ -389,6 +408,38 @@ export class MembersService {
         .insert(memberStores)
         .values(storeIds.map((storeId) => ({ organizationId, memberId, storeId })))
         .onConflictDoNothing();
+    }
+  }
+
+  /** Sets the member's exceptions, writing only what changed so the audit log shows it. */
+  private async replaceExceptions(
+    tx: Transaction,
+    organizationId: string,
+    memberId: string,
+    exceptions: PermissionExceptions,
+  ): Promise<void> {
+    const wanted = [
+      ...exceptions.granted.map((permission) => ({ permission, granted: true })),
+      ...exceptions.denied.map((permission) => ({ permission, granted: false })),
+    ];
+    await tx.delete(memberPermissionExceptions).where(
+      and(
+        eq(memberPermissionExceptions.memberId, memberId),
+        notInArray(
+          memberPermissionExceptions.permission,
+          wanted.map((row) => row.permission),
+        ),
+      ),
+    );
+    if (wanted.length > 0) {
+      await tx
+        .insert(memberPermissionExceptions)
+        .values(wanted.map((row) => ({ organizationId, memberId, ...row })))
+        .onConflictDoUpdate({
+          target: [memberPermissionExceptions.memberId, memberPermissionExceptions.permission],
+          set: { granted: sql`excluded.granted` },
+          setWhere: sql`${memberPermissionExceptions.granted} <> excluded.granted`,
+        });
     }
   }
 }

@@ -26,6 +26,8 @@ export interface NavItem {
   readonly icon: IconName;
   /** Shown only to members holding this permission (or any of these). */
   readonly permission: Permission | AnyOf;
+  /** And this one as well, e.g. costs:read for a page about margins. */
+  readonly alsoNeeds?: Permission;
 }
 
 /** The main sections, in order. Phones show the first four in the bottom bar and the rest under "More". */
@@ -132,7 +134,9 @@ export const BOTTOM_BAR_SIZE = 4;
 
 /** The sections a member may open. */
 export function visibleNav(can: (permission: Permission) => boolean): NavItem[] {
-  return NAV_ITEMS.filter((item) =>
-    typeof item.permission === 'string' ? can(item.permission) : item.permission.some(can),
+  return NAV_ITEMS.filter(
+    (item) =>
+      (typeof item.permission === 'string' ? can(item.permission) : item.permission.some(can)) &&
+      (item.alsoNeeds === undefined || can(item.alsoNeeds)),
   );
 }

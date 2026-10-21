@@ -125,6 +125,27 @@ describe('DashboardPage', () => {
     expect(screen.queryByRole('combobox', { name: 'Store' })).toBeNull();
   });
 
+  it('shows stock on hand, not its value, without costs:read', async () => {
+    const noCosts: Dashboard = {
+      ...DASHBOARD,
+      stores: DASHBOARD.stores.map((row) => ({
+        ...row,
+        stock: row.stock && { ...row.stock, valuePaise: null },
+      })),
+      totals: {
+        ...DASHBOARD.totals,
+        stock: DASHBOARD.totals.stock && { ...DASHBOARD.totals.stock, valuePaise: null },
+      },
+    };
+    renderDashboard(() => json(noCosts));
+    const totals = await screen.findByRole('region', { name: 'Total' });
+    expect(within(totals).getByRole('heading', { name: 'Stock on hand' })).toBeVisible();
+    expect(within(totals).queryByRole('heading', { name: 'Stock value' })).toBeNull();
+    const table = screen.getByRole('table', { name: 'Stores' });
+    expect(within(table).queryByRole('columnheader', { name: 'Stock value' })).toBeNull();
+    expect(within(table).getByRole('columnheader', { name: 'Units' })).toBeVisible();
+  });
+
   it('leaves out what the member’s role cannot see', async () => {
     const limited: Dashboard = {
       ...DASHBOARD,

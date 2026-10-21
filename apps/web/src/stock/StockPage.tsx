@@ -30,6 +30,8 @@ export function StockPage() {
   const api = useApi();
   const { t, number, money } = useI18n();
   const can = usePermissions();
+  // Value is at cost: shown only with costs:read.
+  const costs = can('costs:read');
   const filters = useUrlFilters(FILTERS);
   const { store, inStock } = filters.values;
   const q = useDebouncedValue(filters.values.q.trim(), 300);
@@ -123,9 +125,11 @@ export function StockPage() {
                       <th scope="col" className="ui-num">
                         {t('stock.available')}
                       </th>
-                      <th scope="col" className="ui-num">
-                        {t('stock.value')}
-                      </th>
+                      {costs && (
+                        <th scope="col" className="ui-num">
+                          {t('stock.value')}
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -143,9 +147,11 @@ export function StockPage() {
                         <td className="ui-num">{number(row.onHand)}</td>
                         <td className="ui-num">{number(row.reserved)}</td>
                         <td className="ui-num">{number(row.available)}</td>
-                        <td className="ui-num">
-                          {row.valuePaise === null ? t('common.none') : money(row.valuePaise)}
-                        </td>
+                        {costs && (
+                          <td className="ui-num">
+                            {row.valuePaise === null ? t('common.none') : money(row.valuePaise)}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

@@ -82,6 +82,19 @@ export const teamEn = {
         'Their authenticator app and recovery codes are removed and they are signed out. This is recorded in the audit log.',
       resetConfirm: 'Reset',
       resetDone: 'Two-factor sign-in reset for {name}',
+      exceptions: {
+        title: 'Exceptions to the role',
+        description:
+          'Give {name} something their role does not, or take something away. A denial wins over the role. Changes apply from their next action.',
+        owner: 'Owners hold every permission, with no exceptions.',
+        asRoleYes: 'As the role: allowed',
+        asRoleNo: 'As the role: not allowed',
+        allow: 'Allow',
+        deny: 'Deny',
+        count: '{granted} allowed, {denied} denied beyond the role',
+        save: 'Save exceptions',
+        saved: 'Exceptions saved',
+      },
     },
   },
   roles: {
@@ -142,6 +155,8 @@ export const teamEn = {
       accounting: 'Accounting',
       receivables: 'Receivables',
       schemes: 'Brand schemes',
+      costs: 'Costs and margins',
+      data: 'Data downloads',
     },
     organization: {
       manage: 'Run the business: settings, appearance, sign-in rules and support access',
@@ -194,6 +209,8 @@ export const teamEn = {
       issue: 'Make and issue invoices and bills of supply',
       cancel: 'Cancel an invoice on the day it was issued',
       notes: 'Raise credit and debit notes and take returns',
+      discount: 'Give discounts and change prices on bills, quotations and orders',
+      onAccount: 'Leave a bill or an order on the customer’s account (sell on credit)',
     },
     payments: {
       manage: 'Record payments, allocate them to bills, clear or bounce cheques and refund',
@@ -207,5 +224,7 @@ export const teamEn = {
     schemes: {
       manage: "Enter brands' schemes and slabs, record what the brand issued and follow up claims",
     },
+    costs: { read: 'See costs: average cost, stock value at cost and margins' },
+    data: { export: 'Download lists and reports as CSV files' },
   },
 };

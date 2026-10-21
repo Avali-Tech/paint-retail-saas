@@ -18,6 +18,7 @@ import { fieldError } from '../tax/tax-lookups.js';
 import type { DiscountInput, DraftInvoiceInput, ListInvoicesQuery } from './billing.schemas.js';
 import { idempotent } from './idempotency.js';
 import { INFLUENCER_ROLES, requireSaleParty, requireSaleSite } from './sale-parties.js';
+import { assertMayDiscount } from './discount-permission.js';
 import { documentView, loadDocument, type TaxDocumentRow } from './invoice-view.js';
 import { tintsOf, writeLineTints } from '../paint/line-tints.js';
 
@@ -45,6 +46,7 @@ export class InvoicesService {
         idempotencyKey,
         { method: 'POST', path: '/invoices', body: input },
         async () => {
+          await assertMayDiscount(tx, auth, input);
           const header = await this.header(tx, auth, input);
           const [document] = (await tx
             .insert(taxDocuments)
@@ -73,6 +75,7 @@ export class InvoicesService {
           'This bill comes from a sales order: discard it and bill the order again',
         );
       }
+      await assertMayDiscount(tx, auth, input);
       const header = await this.header(tx, auth, input);
       const [updated] = (await tx
         .update(taxDocuments)

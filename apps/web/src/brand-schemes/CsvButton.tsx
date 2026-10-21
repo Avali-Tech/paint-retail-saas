@@ -2,6 +2,7 @@ import { Button, useToast } from '@paint/ui';
 import { useState } from 'react';
 import { errorMessage } from '../api/errors.js';
 import { useApi } from '../app/services.js';
+import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { saveFile } from '../lib/download.js';
 
@@ -11,6 +12,8 @@ export function CsvButton({ kind }: { readonly kind: 'brand-schemes' | 'brand-sc
   const { t } = useI18n();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  // Downloads need data:export (the API refuses them too).
+  if (!usePermissions()('data:export')) return null;
   return (
     <Button
       variant="secondary"

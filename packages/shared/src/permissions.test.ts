@@ -4,6 +4,7 @@ import {
   SYSTEM_ROLES,
   can,
   canAccessStore,
+  effectivePermissions,
   isPermission,
   type MemberAccess,
   type Permission,
@@ -108,6 +109,34 @@ describe('SYSTEM_ROLES', () => {
         true,
       );
       expect(new Set(role.permissions).size).toBe(role.permissions.length);
+    }
+  });
+});
+
+describe('effectivePermissions', () => {
+  it('adds what is granted to the role and takes away what is denied, a denial winning', () => {
+    const effective = effectivePermissions(['sales:read', 'billing:issue', 'billing:discount'], {
+      granted: ['billing:cancel', 'costs:read'],
+      denied: ['billing:discount', 'costs:read'],
+    });
+    expect([...effective].sort()).toEqual(['billing:cancel', 'billing:issue', 'sales:read']);
+  });
+
+  it('is the role as it is without exceptions', () => {
+    expect([...effectivePermissions(['sales:read'], { granted: [], denied: [] })]).toEqual([
+      'sales:read',
+    ]);
+  });
+});
+
+describe('split-out permissions', () => {
+  it('come with what they were part of, so standard roles keep what they could do', () => {
+    for (const role of SYSTEM_ROLES) {
+      const has = (permission: Permission) => role.permissions.includes(permission);
+      expect(has('billing:discount')).toBe(has('billing:issue'));
+      expect(has('billing:on_account')).toBe(has('billing:issue'));
+      expect(has('costs:read')).toBe(has('inventory:read') || has('purchasing:read'));
+      expect(has('data:export')).toBe(true);
     }
   });
 });

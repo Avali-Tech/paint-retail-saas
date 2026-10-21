@@ -3,6 +3,7 @@ import { lazy, type ReactNode } from 'react';
 import { Route } from 'react-router';
 import { guarded } from '../app/guarded.js';
 import { RequireAnyPermission } from '../lib/guard.js';
+import { RequirePermission } from '../shell/guards.js';
 import { REPORT_PERMISSIONS } from './nav.js';
 
 // Reports. Each screen is its own chunk, loaded when first opened.
@@ -28,7 +29,12 @@ export function reportRoutes() {
       <Route path="reports" element={guard(<ReportsPage />)} />
       <Route
         path="reports/brand-profitability"
-        element={guarded(BRAND_PROFITABILITY_PERMISSION, BrandProfitabilityPage)}
+        element={
+          // Margins are costs: it needs costs:read too.
+          <RequirePermission permission="costs:read">
+            {guarded(BRAND_PROFITABILITY_PERMISSION, BrandProfitabilityPage)}
+          </RequirePermission>
+        }
       />
       <Route path="reports/:kind" element={guard(<ReportPage />)} />
     </>

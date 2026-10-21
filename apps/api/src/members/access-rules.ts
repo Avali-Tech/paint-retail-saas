@@ -1,10 +1,12 @@
-import { canAccessStore, type Permission } from '@paint/shared';
+import { canAccessStore, type Permission, type PermissionExceptions } from '@paint/shared';
 import type { AuthContext } from '../auth/auth-context.js';
 
 /** The access a member has, or would have after a change. */
 export interface AccessGrant {
   readonly roleKey: string;
   readonly rolePermissions: readonly Permission[];
+  /** The member's own exceptions to the role. */
+  readonly exceptions: PermissionExceptions;
   readonly allStores: boolean;
   readonly storeIds: readonly string[];
 }
@@ -17,7 +19,14 @@ export function grantProblem(manager: AuthContext, grant: AccessGrant): string |
   if (grant.roleKey === 'owner' && manager.role.key !== 'owner') {
     return 'Only an owner can make someone an owner';
   }
-  if (!grant.rolePermissions.every((permission) => manager.permissions.has(permission))) {
+  if (
+    grant.roleKey === 'owner' &&
+    grant.exceptions.granted.length + grant.exceptions.denied.length > 0
+  ) {
+    return 'Owners hold every permission, with no exceptions';
+  }
+  const given = [...grant.rolePermissions, ...grant.exceptions.granted];
+  if (!given.every((permission) => manager.permissions.has(permission))) {
     return 'You cannot give permissions you do not have';
   }
   if (grant.allStores && !manager.allStores) {

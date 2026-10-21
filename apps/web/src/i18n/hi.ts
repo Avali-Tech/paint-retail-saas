@@ -231,6 +231,7 @@ export const hi: Messages = {
     emptyTitle: 'अभी कोई स्टोर नहीं है',
     emptyDescription: 'स्टोर जुड़ते ही उनका स्टॉक, ट्रांसफर और ऑर्डर यहां दिखेंगे।',
     stockValue: 'स्टॉक वैल्यू',
+    stockOnHand: 'हाथ में स्टॉक',
     units: 'यूनिट',
     skus: { one: '{count} SKU', other: '{count} SKU' },
     skuColumn: 'SKU',

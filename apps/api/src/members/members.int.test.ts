@@ -1,10 +1,11 @@
-import { migrateDatabase, schema } from '@paint/db';
+import { migrateDatabase, schema, withTenant } from '@paint/db';
 import { PERMISSIONS, SYSTEM_ROLES } from '@paint/shared';
 import { createIsolatedDatabase, type TestDatabase } from '@paint/testing';
 import { and, eq, isNull } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from 'vitest';
 import { bearer, startTestApp, uniquePhone, type TestApp } from '../test-support/test-app.js';
 import { finishSignIn } from '../test-support/two-factor.js';
+import { holdsPermission } from './member-permission.js';
 
 interface Grant {
   token: string;
@@ -16,6 +17,7 @@ interface Member {
   role: { id: string; key: string; name: string };
   allStores: boolean;
   storeIds: string[];
+  exceptions: { granted: string[]; denied: string[] };
   isActive: boolean;
   twoFactorEnabled: boolean;
 }
@@ -584,6 +586,140 @@ describe('PATCH /members/:id', () => {
       ).statusCode,
     ).toBe(404);
     expect((await api(owner.token).get('/members/nope')).statusCode).toBe(400);
+  });
+});
+
+describe('a member’s own exceptions to their role', () => {
+  const permissionsOf = async (token: string) =>
+    (await api(token).get('/auth/me')).json<{ permissions: string[] }>().permissions;
+
+  it('grants and denies on top of the role, effective on the next request', async () => {
+    const staff = await hire('store_employee', [hyd], {
+      exceptions: { granted: ['billing:cancel', 'billing:cancel'], denied: ['costs:read'] },
+    });
+
+    expect(staff.member.exceptions).toEqual({
+      granted: ['billing:cancel'],
+      denied: ['costs:read'],
+    });
+    let permissions = await permissionsOf(staff.token);
+    expect(permissions).toContain('billing:cancel');
+    expect(permissions).not.toContain('costs:read');
+    expect(permissions).toContain('billing:issue');
+
+    const changed = await api(owner.token).patch(`/members/${staff.member.id}`, {
+      exceptions: { denied: ['stores:read'] },
+    });
+    expect(changed.json<Member>().exceptions).toEqual({ granted: [], denied: ['stores:read'] });
+    permissions = await permissionsOf(staff.token);
+    expect(permissions).not.toContain('billing:cancel');
+    expect(permissions).toContain('costs:read');
+    // A denial closes the screens and the API alike.
+    expect((await api(staff.token).get('/stores')).statusCode).toBe(403);
+    expect(
+      (await api(owner.token).get(`/members/${staff.member.id}`)).json<Member>(),
+    ).toMatchObject({ exceptions: { granted: [], denied: ['stores:read'] } });
+  });
+
+  it('refuses a permission both granted and denied, or an unknown one', async () => {
+    const staff = await hire('store_employee', [hyd]);
+    const both = await api(owner.token).patch(`/members/${staff.member.id}`, {
+      exceptions: { granted: ['costs:read'], denied: ['costs:read'] },
+    });
+    const unknown = await api(owner.token).patch(`/members/${staff.member.id}`, {
+      exceptions: { granted: ['stores:delete'] },
+    });
+
+    expect(both.statusCode).toBe(400);
+    expect(unknown.statusCode).toBe(400);
+  });
+
+  it('keeps owners whole: none for an owner, and a new owner loses theirs', async () => {
+    const phone = uniquePhone();
+    const coOwner = await api(owner.token).post('/members', {
+      fullName: 'Co-owner',
+      phone,
+      roleId: roleId.owner,
+      allStores: true,
+      exceptions: { denied: ['costs:read'] },
+    });
+    expect(coOwner.statusCode).toBe(403);
+    expect(coOwner.json<{ message: string }>().message).toBe(
+      'Owners hold every permission, with no exceptions',
+    );
+
+    const staff = await hire('store_employee', [hyd], { exceptions: { denied: ['costs:read'] } });
+    const promoted = await api(owner.token).patch(`/members/${staff.member.id}`, {
+      roleId: roleId.owner,
+      allStores: true,
+    });
+    expect(promoted.json<Member>().exceptions).toEqual({ granted: [], denied: [] });
+  });
+
+  it('lets a manager take away what they could not give, but not give it', async () => {
+    const employee = SYSTEM_ROLES.find((role) => role.key === 'store_employee');
+    const key = await customManagerRole([
+      ...(employee?.permissions ?? []),
+      'members:read',
+      'members:manage',
+    ]);
+    const lead = await hire(key, [hyd]);
+    const staff = await hire('store_employee', [hyd]);
+
+    const give = await api(lead.token).patch(`/members/${staff.member.id}`, {
+      exceptions: { granted: ['billing:cancel'] },
+    });
+    const takeAway = await api(lead.token).patch(`/members/${staff.member.id}`, {
+      exceptions: { denied: ['billing:discount'] },
+    });
+
+    expect(give.statusCode).toBe(403);
+    expect(give.json<{ message: string }>().message).toBe(
+      'You cannot give permissions you do not have',
+    );
+    expect(takeAway.statusCode).toBe(200);
+    // Granted by the owner, the cancel permission puts the person out of the lead's reach.
+    await api(owner.token).patch(`/members/${staff.member.id}`, {
+      exceptions: { granted: ['billing:cancel'] },
+    });
+    expect(
+      (await api(lead.token).patch(`/members/${staff.member.id}`, { isActive: false })).statusCode,
+    ).toBe(403);
+  });
+
+  it('hands records only to people who hold the permission after their exceptions', async () => {
+    const me = await hire('sales_executive', [hyd]);
+    const denied = await hire('sales_executive', [hyd], {
+      exceptions: { denied: ['leads:manage'] },
+    });
+    const granted = await hire('store_employee', [hyd], {
+      exceptions: { granted: ['leads:manage'] },
+    });
+
+    const ids = (await api(me.token).get(`/members/assignable?for=lead&storeId=${hyd}`))
+      .json<{ id: string }[]>()
+      .map((m) => m.id);
+
+    expect(ids).toContain(granted.member.id);
+    expect(ids).not.toContain(denied.member.id);
+  });
+  it('counts exceptions wherever people are found by permission (notices, assignees, support)', async () => {
+    const plain = await hire('store_employee', [hyd]);
+    const denied = await hire('store_employee', [hyd], { exceptions: { denied: ['costs:read'] } });
+    const granted = await hire('crm_executive', [hyd], { exceptions: { granted: ['costs:read'] } });
+    const crm = await hire('crm_executive', [hyd]);
+
+    const holders = await withTenant(t.connection.db, owner.organizationId, (tx) =>
+      tx
+        .select({ id: schema.organizationMembers.id })
+        .from(schema.organizationMembers)
+        .where(holdsPermission(tx, 'costs:read')),
+    );
+    const ids = holders.map((m) => m.id);
+
+    expect(ids).toEqual(expect.arrayContaining([plain.member.id, granted.member.id]));
+    expect(ids).not.toContain(denied.member.id);
+    expect(ids).not.toContain(crm.member.id);
   });
 });
 

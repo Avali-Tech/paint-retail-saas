@@ -312,6 +312,35 @@ export const memberStores = pgTable(
 ).enableRLS();
 
 /**
+ * A member's own exceptions to their role: a permission granted on top of it,
+ * or one taken away from it (a denial wins). Owners have none.
+ */
+export const memberPermissionExceptions = pgTable(
+  'member_permission_exceptions',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    memberId: uuid('member_id').notNull(),
+    permission: text('permission').notNull(),
+    /** True to grant the permission, false to deny it. */
+    granted: boolean('granted').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.memberId, table.permission] }),
+    foreignKey({
+      name: 'member_permission_exceptions_member_fk',
+      columns: [table.organizationId, table.memberId],
+      foreignColumns: [organizationMembers.organizationId, organizationMembers.id],
+    }).onDelete('cascade'),
+    pgPolicy('member_permission_exceptions_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
  * A signed-in device. The client holds a random token; only its SHA-256 hash is
  * stored, so a database leak does not reveal usable tokens.
  */

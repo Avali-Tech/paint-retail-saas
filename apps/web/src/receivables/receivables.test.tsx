@@ -303,6 +303,19 @@ describe('ReceivablesPage', { timeout: 30_000 }, () => {
     expect(await screen.findByText('Could not download the ageing')).toBeVisible();
   });
 
+  it('offers no CSV without data:export', async () => {
+    renderApp({
+      path: '/receivables',
+      routes: {
+        ...receivables(),
+        'GET /auth/me': () =>
+          json(profile(['receivables:read', 'stores:read', 'parties:read', 'sales:read'])),
+      },
+    });
+    expect(await screen.findByRole('heading', { name: 'Receivables', level: 1 })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Download CSV' })).toBeNull();
+  });
+
   it('says when nobody owes anything, and when there are no credit limits', async () => {
     renderApp({
       path: '/receivables',

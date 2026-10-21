@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
   type RefObject,
 } from 'react';
+import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { parsePositiveQuantity } from '../lib/quantity.js';
 import { TintControl } from '../tint/TintPanel.js';
@@ -46,6 +47,8 @@ function LineRow({
   readonly dispatch: Dispatch<BillAction>;
 }) {
   const { t, money, number } = useI18n();
+  // Discounts need billing:discount (the API refuses them too).
+  const mayDiscount = usePermissions()('billing:discount');
   const quantity = useEditing();
   const discount = useEditing();
   const name = line.name;
@@ -69,6 +72,9 @@ function LineRow({
     discount.setText(null);
     dispatch({ type: 'discount', index, discount: parsed.discount });
   };
+  let discountTitle: string | undefined;
+  if (!mayDiscount) discountTitle = t('pos.lines.noDiscount');
+  else if (discount.invalid) discountTitle = t('pos.lines.discountInvalid');
 
   return (
     <li
@@ -132,9 +138,10 @@ function LineRow({
       <Input
         className="pos-line__discount"
         aria-label={t('pos.lines.discountOf', { name })}
-        placeholder={t('pos.lines.discountHint')}
+        placeholder={mayDiscount ? t('pos.lines.discountHint') : undefined}
+        disabled={!mayDiscount}
         aria-invalid={discount.invalid || undefined}
-        title={discount.invalid ? t('pos.lines.discountInvalid') : undefined}
+        title={discountTitle}
         value={discount.text ?? discountText(line.discount)}
         onFocus={() => {
           discount.setText(discountText(line.discount));

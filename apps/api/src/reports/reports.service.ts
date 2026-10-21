@@ -52,8 +52,25 @@ export interface ReportSummary {
   readonly filters: readonly ReportFilter[];
 }
 
-const columnsOf = (report: ReportKind<unknown>): ReportColumnView[] =>
-  report.columns.map((column) => ({ id: `${report.kind}.${column.key}`, ...column }));
+/** Whether the member may run the report at all. */
+const mayRun = (auth: AuthContext, report: ReportKind<unknown>) =>
+  auth.permissions.has(report.permission) &&
+  (report.needsCosts === undefined || auth.permissions.has('costs:read'));
+
+/** The report's columns the member may see: those at cost only with costs:read. */
+const visibleColumns = (auth: AuthContext, report: ReportKind<unknown>) =>
+  auth.permissions.has('costs:read')
+    ? report.columns
+    : report.columns.filter((column) => !report.costColumns?.includes(column.key));
+
+const columnsOf = (auth: AuthContext, report: ReportKind<unknown>): ReportColumnView[] =>
+  visibleColumns(auth, report).map((column) => ({ id: `${report.kind}.${column.key}`, ...column }));
+
+/** The row without the columns the member may not see. */
+const shownRow = (auth: AuthContext, report: ReportKind<unknown>, row: ReportRow): ReportRow =>
+  auth.permissions.has('costs:read')
+    ? row
+    : Object.fromEntries(Object.entries(row).filter(([key]) => !report.costColumns?.includes(key)));
 
 /** Basic reports with CSV export (roadmap P1-M22). */
 @Injectable()
@@ -62,14 +79,12 @@ export class ReportsService {
 
   /** The reports the member may run. */
   list(auth: AuthContext): ReportSummary[] {
-    return REPORT_KINDS.filter((report) => auth.permissions.has(report.permission)).map(
-      (report) => ({
-        kind: report.kind,
-        title: report.title,
-        columns: columnsOf(report),
-        filters: report.filterInfo,
-      }),
-    );
+    return REPORT_KINDS.filter((report) => mayRun(auth, report)).map((report) => ({
+      kind: report.kind,
+      title: report.title,
+      columns: columnsOf(auth, report),
+      filters: report.filterInfo,
+    }));
   }
 
   /** One page of a report. */
@@ -78,10 +93,14 @@ export class ReportsService {
     const filters = parse(report.filters, query);
     const { limit, offset } = parse(paging, query);
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
-      const header = { kind: report.kind, title: report.title, columns: columnsOf(report) };
+      const header = { kind: report.kind, title: report.title, columns: columnsOf(auth, report) };
       if ('rows' in report) {
         const rows = await report.rows(tx, auth, filters);
-        return { ...header, rows: rows.slice(offset, offset + limit), total: rows.length };
+        return {
+          ...header,
+          rows: rows.slice(offset, offset + limit).map((row) => shownRow(auth, report, row)),
+          total: rows.length,
+        };
       }
       const base = report.query(tx, auth, filters);
       const records = (await base.limit(limit).offset(offset)) as Record<string, unknown>[];
@@ -90,7 +109,7 @@ export class ReportsService {
         .from(report.query(tx, auth, filters).as('report'));
       return {
         ...header,
-        rows: records.map((record) => report.toRow(record)),
+        rows: records.map((record) => shownRow(auth, report, report.toRow(record))),
         total: Number(totals?.total),
       };
     });
@@ -102,6 +121,9 @@ export class ReportsService {
     kind: string,
     query: Record<string, unknown>,
   ): Promise<{ filename: string; body: string }> {
+    if (!auth.permissions.has('data:export')) {
+      throw new ForbiddenException('You cannot download data');
+    }
     const report = this.report(auth, kind);
     const filters = parse(report.filters, query);
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
@@ -111,9 +133,10 @@ export class ReportsService {
           : ((await report.query(tx, auth, filters)) as Record<string, unknown>[]).map((record) =>
               report.toRow(record),
             );
+      const columns = visibleColumns(auth, report);
       const body = toCsv([
-        report.columns.map((column) => column.header),
-        ...rows.map((row) => report.columns.map((column) => cell(row[column.key]))),
+        columns.map((column) => column.header),
+        ...rows.map((row) => columns.map((column) => cell(row[column.key]))),
       ]);
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
       return { filename: `${report.kind}-${today}.csv`, body: `${BOM}${body}` };
@@ -123,7 +146,7 @@ export class ReportsService {
   private report(auth: AuthContext, kind: string): ReportKind<unknown> {
     const report = REPORT_KINDS.find((candidate) => candidate.kind === kind);
     if (!report) throw new NotFoundException('Unknown report');
-    if (!auth.permissions.has(report.permission)) {
+    if (!mayRun(auth, report)) {
       throw new ForbiddenException('You do not have permission to see this report');
     }
     return report;

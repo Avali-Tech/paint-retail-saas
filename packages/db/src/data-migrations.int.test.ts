@@ -677,3 +677,57 @@ describe("0091_payment_link_validity_rules: Razorpay's shortest link", () => {
     expect(rows.get(ids.none)).toEqual([5, 1440]);
   });
 });
+
+describe('0093_member_permission_exceptions: split-out permissions', () => {
+  it('gives every role, custom ones too, the new permission for what it could already do', async () => {
+    const { connectionString: url } = await freshDatabase();
+    await migrateDatabase(url, migrationsUpTo('0092_colorant_stock'));
+    await withPgClient(url, async (client) => {
+      const org = await client.query<{ id: string }>(
+        "INSERT INTO organizations (name) VALUES ('Old Paints') RETURNING id",
+      );
+      const organizationId = org.rows[0]?.id;
+      const roles: [string, string[]][] = [
+        ['counter', ['billing:issue']],
+        ['quotes', ['sales:manage']],
+        ['stock', ['inventory:read']],
+        ['buyer', ['purchasing:read']],
+        ['books', ['accounting:export']],
+        ['none', []],
+      ];
+      for (const [key, permissions] of roles) {
+        const role = await client.query<{ id: string }>(
+          'INSERT INTO roles (organization_id, key, name) VALUES ($1, $2, $2) RETURNING id',
+          [organizationId, key],
+        );
+        for (const permission of permissions) {
+          await client.query(
+            'INSERT INTO role_permissions (organization_id, role_id, permission) VALUES ($1, $2, $3)',
+            [organizationId, role.rows[0]?.id, permission],
+          );
+        }
+      }
+    });
+
+    await migrateDatabase(url);
+    await migrateDatabase(url);
+
+    const granted = await withPgClient(url, async (client) => {
+      const result = await client.query<{ key: string; permissions: string[] }>(
+        `SELECT r.key, array_agg(rp.permission ORDER BY rp.permission) AS permissions
+         FROM roles r JOIN role_permissions rp ON rp.role_id = r.id
+         WHERE rp.permission IN ('billing:discount', 'billing:on_account', 'costs:read', 'data:export')
+         GROUP BY r.key ORDER BY r.key`,
+      );
+      return Object.fromEntries(result.rows.map((row) => [row.key, row.permissions]));
+    });
+    expect(granted).toEqual({
+      books: ['costs:read', 'data:export'],
+      buyer: ['costs:read', 'data:export'],
+      counter: ['billing:discount', 'billing:on_account', 'data:export'],
+      none: ['data:export'],
+      quotes: ['billing:discount', 'billing:on_account', 'data:export'],
+      stock: ['costs:read', 'data:export'],
+    });
+  });
+});

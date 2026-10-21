@@ -14,6 +14,7 @@ import {
 const {
   auditLog,
   brands,
+  memberPermissionExceptions,
   memberStores,
   organizationMembers,
   organizations,
@@ -204,6 +205,19 @@ describe('what is audited', () => {
         .insert(memberStores)
         .values({ organizationId: org, memberId: member, storeId: store });
       await tx.delete(memberStores).where(eq(memberStores.memberId, member));
+      await tx.insert(memberPermissionExceptions).values({
+        organizationId: org,
+        memberId: member,
+        permission: 'costs:read',
+        granted: false,
+      });
+      await tx
+        .update(memberPermissionExceptions)
+        .set({ granted: true })
+        .where(eq(memberPermissionExceptions.memberId, member));
+      await tx
+        .delete(memberPermissionExceptions)
+        .where(eq(memberPermissionExceptions.memberId, member));
       await tx.delete(roles).where(eq(roles.id, custom));
     });
 
@@ -217,6 +231,14 @@ describe('what is audited', () => {
       ['organization_members', 'update', { all_stores: false }, { all_stores: true }],
       ['member_stores', 'insert', null, { store_id: store }],
       ['member_stores', 'delete', { store_id: store }, null],
+      [
+        'member_permission_exceptions',
+        'insert',
+        null,
+        { permission: 'costs:read', granted: false },
+      ],
+      ['member_permission_exceptions', 'update', { granted: false }, { granted: true }],
+      ['member_permission_exceptions', 'delete', { permission: 'costs:read', granted: true }, null],
       ['roles', 'delete', { key: 'custom', name: 'Counter Team' }, null],
     ]);
   });

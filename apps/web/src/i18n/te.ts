@@ -233,6 +233,7 @@ export const te: Messages = {
     emptyDescription:
       'మీ స్టోర్లు జోడించిన తర్వాత, వాటి స్టాక్, ట్రాన్స్‌ఫర్‌లు మరియు ఆర్డర్‌లు ఇక్కడ కనిపిస్తాయి.',
     stockValue: 'స్టాక్ విలువ',
+    stockOnHand: 'చేతిలో ఉన్న స్టాక్',
     units: 'యూనిట్లు',
     skus: { one: '{count} SKU', other: '{count} SKUలు' },
     skuColumn: 'SKUలు',

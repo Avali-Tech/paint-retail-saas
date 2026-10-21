@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { isUniqueViolation, schema, type DatabaseConnection, type Transaction } from '@paint/db';
 import {
+  effectivePermissions,
   isPermission,
   normalizeEmail,
   normalizePhone,
@@ -21,6 +22,7 @@ import {
 import { and, desc, eq, gt, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { only } from '../common/only.js';
 import { DATABASE } from '../database/database.module.js';
+import { toExceptions } from '../members/member-permission.js';
 import { setUpOrganization } from './organization-setup.js';
 import type { AuthContext } from './auth-context.js';
 import type {
@@ -43,6 +45,7 @@ import type { SmsSender } from './sms.js';
 import { TwoFactorService, type Enrolment } from './two-factor.service.js';
 
 const {
+  memberPermissionExceptions,
   memberStores,
   organizationMembers,
   organizations,
@@ -291,10 +294,26 @@ export class AuthService {
       );
     if (!row) return null;
 
+    // The role's permissions (granted null) and the member's own exceptions, in one query.
     const permissionRows = await db
-      .select({ permission: rolePermissions.permission })
+      .select({
+        permission: rolePermissions.permission,
+        granted: sql<boolean | null>`null::boolean`,
+      })
       .from(rolePermissions)
-      .where(eq(rolePermissions.roleId, row.roleId));
+      .where(eq(rolePermissions.roleId, row.roleId))
+      .unionAll(
+        db
+          .select({
+            permission: memberPermissionExceptions.permission,
+            granted: sql<boolean | null>`${memberPermissionExceptions.granted}`,
+          })
+          .from(memberPermissionExceptions)
+          .where(eq(memberPermissionExceptions.memberId, row.memberId)),
+      );
+    const exceptionRows = permissionRows.filter(
+      (r): r is { permission: string; granted: boolean } => r.granted !== null,
+    );
     const storeRows = row.allStores
       ? []
       : await db
@@ -308,7 +327,13 @@ export class AuthService {
       user: { id: row.userId, fullName: row.fullName, phone: row.phone, email: row.email },
       organization: { id: row.organizationId, name: row.organizationName },
       role: { key: row.roleKey, name: row.roleName },
-      permissions: new Set(permissionRows.map((r) => r.permission).filter(isPermission)),
+      permissions: effectivePermissions(
+        permissionRows
+          .filter((r) => r.granted === null)
+          .map((r) => r.permission)
+          .filter(isPermission),
+        toExceptions(exceptionRows),
+      ),
       allStores: row.allStores,
       storeIds: new Set(storeRows.map((r) => r.storeId)),
       ...(row.supportGrantId ? { supportGrantId: row.supportGrantId } : {}),

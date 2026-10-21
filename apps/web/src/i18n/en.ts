@@ -233,6 +233,7 @@ export const en = {
     emptyTitle: 'No stores yet',
     emptyDescription: 'Once your stores are added, their stock, transfers and orders appear here.',
     stockValue: 'Stock value',
+    stockOnHand: 'Stock on hand',
     units: 'Units',
     skus: { one: '{count} SKU', other: '{count} SKUs' },
     skuColumn: 'SKUs',

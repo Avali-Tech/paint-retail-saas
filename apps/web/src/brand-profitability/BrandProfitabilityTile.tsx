@@ -13,7 +13,7 @@ import { useI18n } from '../i18n/i18n.js';
  */
 export function BrandProfitabilityTile({ storeId }: { readonly storeId: string | null }) {
   const can = usePermissions();
-  if (!can(BRAND_PROFITABILITY_PERMISSION)) return null;
+  if (!can(BRAND_PROFITABILITY_PERMISSION) || !can('costs:read')) return null;
   return <TopBrand storeId={storeId} />;
 }
 

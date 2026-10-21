@@ -507,9 +507,11 @@ export {
   SYSTEM_ROLES,
   can,
   canAccessStore,
+  effectivePermissions,
   isPermission,
   type MemberAccess,
   type Permission,
+  type PermissionExceptions,
   type SystemRole,
 } from './permissions.js';
 export {

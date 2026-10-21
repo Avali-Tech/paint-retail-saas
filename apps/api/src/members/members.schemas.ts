@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@paint/shared';
 import { z } from 'zod';
 import { ACTIVITY_RECORD_TYPES } from '../activities/activities.schemas.js';
 import { email, password, phone } from '../auth/auth.schemas.js';
@@ -7,6 +8,20 @@ const storeIds = z
   .array(z.uuid())
   .max(500)
   .transform((ids) => [...new Set(ids)]);
+
+/** Permission keys, de-duplicated. */
+const permissionList = z
+  .array(z.enum(PERMISSIONS))
+  .max(PERMISSIONS.length)
+  .transform((keys) => [...new Set(keys)].sort());
+
+/** A member's own exceptions to their role. */
+const exceptions = z
+  .object({ granted: permissionList.default([]), denied: permissionList.default([]) })
+  .refine((body) => !body.granted.some((permission) => body.denied.includes(permission)), {
+    path: ['denied'],
+    message: 'A permission cannot be both granted and denied',
+  });
 
 export const createMemberSchema = z
   .object({
@@ -18,6 +33,7 @@ export const createMemberSchema = z
     roleId: z.uuid(),
     allStores: z.boolean().default(false),
     storeIds: storeIds.default([]),
+    exceptions: exceptions.default({ granted: [], denied: [] }),
   })
   .refine((body) => body.phone !== undefined || body.email !== undefined, {
     path: ['phone'],
@@ -31,6 +47,8 @@ export const updateMemberSchema = z
     allStores: z.boolean().optional(),
     /** Replaces the member's stores. */
     storeIds: storeIds.optional(),
+    /** Replaces the member's exceptions. */
+    exceptions: exceptions.optional(),
     isActive: z.boolean().optional(),
   })
   .refine(
@@ -38,6 +56,7 @@ export const updateMemberSchema = z
       body.roleId !== undefined ||
       body.allStores !== undefined ||
       body.storeIds !== undefined ||
+      body.exceptions !== undefined ||
       body.isActive !== undefined,
     { message: 'Nothing to change' },
   );

@@ -44,6 +44,7 @@ export function member(
     allStores: false,
     storeIds: ['store-hyd'],
     isActive: true,
+    exceptions: { granted: [], denied: [] },
     twoFactorEnabled: false,
     ...overrides,
   };

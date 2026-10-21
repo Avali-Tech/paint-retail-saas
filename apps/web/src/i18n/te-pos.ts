@@ -49,6 +49,7 @@ export const posTe: Translation<typeof posEn> = {
       remove: '{name} తీసేయండి',
       quantityInvalid: 'సున్నా కంటే ఎక్కువ క్వాంటిటీ ఇవ్వండి, గరిష్టంగా 3 దశాంశాలు',
       discountInvalid: '10% లేదా 50 లాంటి డిస్కౌంట్ ఇవ్వండి, లైన్ మొత్తం కంటే ఎక్కువ కాదు',
+      noDiscount: 'మీ పాత్ర డిస్కౌంట్ ఇవ్వలేదు',
       unknownItem: 'ఐటమ్ {number} (వేరే డివైస్‌లో హోల్డ్ చేసింది)',
       count: { one: '{count} ఐటమ్', other: '{count} ఐటమ్‌లు' },
     },
@@ -108,6 +109,7 @@ export const posTe: Translation<typeof posEn> = {
       short: 'ఇంకా రావాల్సింది: {amount}',
       onCredit: '{amount} {name} ఖాతాలోకి వెళ్తుంది',
       walkInShort: 'పూర్తి మొత్తం తీసుకోండి: వాక్-ఇన్ కస్టమర్ బాకీ ఉంచలేరు.',
+      noOnAccount: 'పూర్తి బిల్లు తీసుకోండి: మీ పాత్ర {amount}ను కస్టమర్ ఖాతాలో ఉంచలేదు',
       creditShort: '{name}కి {amount}కి సరిపడా క్రెడిట్ లేదు.',
       overpaid:
         'కార్డ్ లేదా UPI బిల్ కంటే ఎక్కువ ఉండకూడదు. దాన్ని తగ్గించండి, లేదా ఎక్కువది క్యాష్‌గా తీసుకోండి.',

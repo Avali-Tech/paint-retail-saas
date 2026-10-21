@@ -9,7 +9,7 @@ import { CLAIMS, LITRES, MONSOON, schemeDetail } from '../test-support/scheme-fi
 // Brand schemes (P2-M33): the list with progress, the editor, a scheme's detail with
 // what came and the claims, and the claims list.
 
-const BUYER = profile(['stores:read', 'catalog:read', 'purchasing:read'], {
+const BUYER = profile(['stores:read', 'catalog:read', 'purchasing:read', 'costs:read'], {
   role: { key: 'inventory_manager', name: 'Inventory Manager' },
   allStores: false,
 });
