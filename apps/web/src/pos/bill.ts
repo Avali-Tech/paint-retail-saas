@@ -1,5 +1,6 @@
 import { isValidGstin, type Discount, type PriceMode, type TaxDocumentKind } from '@paint/shared';
 import { lineTint, withTint, type LineTint, type TintChoice } from '../tint/tint.js';
+import type { ChosenParty } from '../orders/sales-doc.js';
 import type { DraftInput } from './pos-api.js';
 
 // The bill on the counter, as a pure reducer: what is on it, who it is for, and
@@ -54,6 +55,11 @@ export interface Bill {
   readonly draftId: string | null;
   readonly lines: readonly BillLine[];
   readonly buyer: Buyer;
+  /**
+   * The painter, contractor or architect who brought the sale: they earn its
+   * points (P2-M36). Kept apart from the buyer, who is often a walk-in.
+   */
+  readonly painter: ChosenParty | null;
   /** The line the keyboard acts on (+, −, Delete); the last one added by default. */
   readonly selected: number | null;
   /** Bumped on every change the server must hear about. */
@@ -68,6 +74,7 @@ export const newBill = (key: string): Bill => ({
   draftId: null,
   lines: [],
   buyer: WALK_IN,
+  painter: null,
   selected: null,
   version: 0,
   kind: null,
@@ -83,6 +90,7 @@ export type BillAction =
   | { readonly type: 'remove'; readonly index: number }
   | { readonly type: 'select'; readonly index: number }
   | { readonly type: 'buyer'; readonly buyer: Partial<Buyer> }
+  | { readonly type: 'painter'; readonly painter: ChosenParty | null }
   | {
       readonly type: 'saved';
       readonly key: string;
@@ -147,6 +155,8 @@ export function billReducer(bill: Bill, action: BillAction): Bill {
       return { ...bill, selected: action.index };
     case 'buyer':
       return changed(bill, { buyer: { ...bill.buyer, ...action.buyer } });
+    case 'painter':
+      return changed(bill, { painter: action.painter });
     case 'saved':
       // An answer for a bill that has since been finished or swapped is ignored.
       if (action.key !== bill.key) return bill;
@@ -186,6 +196,7 @@ export function draftInput(bill: Bill, storeId: string): DraftInput {
   return {
     storeId,
     ...(buyer.partyId === null ? {} : { partyId: buyer.partyId }),
+    ...(bill.painter === null ? {} : { influencerPartyId: bill.painter.id }),
     buyer: Object.fromEntries(Object.entries(typed).filter(([, value]) => value !== undefined)),
     lines: bill.lines.map((line) => ({
       variantId: line.variantId,

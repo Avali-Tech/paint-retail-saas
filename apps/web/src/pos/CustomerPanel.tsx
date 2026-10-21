@@ -7,8 +7,10 @@ import type { Party } from '../api/parties.js';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { stateLabel } from '../lib/gst-states.js';
+import { PartyField } from '../orders/SalesDocEditor.js';
+import { INFLUENCER_ROLES } from '../orders/sales-doc.js';
 import { useLandingOnChange } from '../sales/focus-landing.js';
-import { WALK_IN, buyerGstin, type BillAction, type Buyer } from './bill.js';
+import { WALK_IN, buyerGstin, type Bill, type BillAction, type Buyer } from './bill.js';
 
 /** The customer 360 summary (credit and loyalty), shared with the customer's page. */
 export function usePartyOverview(partyId: string | null) {
@@ -52,10 +54,13 @@ function CustomerFacts({ partyId }: { readonly partyId: string }) {
  */
 export function CustomerPanel({
   buyer,
+  painter,
   dispatch,
   detailsNeeded,
 }: {
   readonly buyer: Buyer;
+  /** The painter who brought the sale, who earns its points. */
+  readonly painter: Bill['painter'];
   readonly dispatch: Dispatch<BillAction>;
   /** Rule 46(e): a B2C bill of ₹50,000 or more needs the buyer's name, address and state. */
   readonly detailsNeeded: boolean;
@@ -244,6 +249,19 @@ export function CustomerPanel({
           </fieldset>
         )}
       </div>
+      <PartyField
+        label={t('pos.painter.label')}
+        hint={t('pos.painter.hint')}
+        value={painter}
+        check={(party) =>
+          party.roles.some((role) => (INFLUENCER_ROLES as readonly string[]).includes(role))
+            ? null
+            : t('orders.editor.notInfluencer', { name: party.displayName })
+        }
+        onChange={(chosen) => {
+          dispatch({ type: 'painter', painter: chosen });
+        }}
+      />
     </Card>
   );
 }

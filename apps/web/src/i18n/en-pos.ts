@@ -63,6 +63,11 @@ export const posEn = {
       quantityInvalid: 'Enter a quantity from 1 to {available}',
       requested: 'Transfer {number} requested: it waits for the other store to approve it',
     },
+    painter: {
+      label: 'Painter',
+      hint: 'The painter, contractor or architect who sent the customer: they earn the points',
+      unknown: 'A painter (chosen on another counter)',
+    },
     customer: {
       title: 'Customer',
       mobile: 'Customer mobile',
@@ -118,6 +123,7 @@ export const posEn = {
       change: 'Change to give: {amount}',
       short: 'Still to pay: {amount}',
       onCredit: '{amount} goes on {name}’s account',
+      allOnAccount: 'Put all {amount} on {name}’s account',
       walkInShort: 'Take the full amount: a walk-in customer cannot owe.',
       noOnAccount: 'Take the full bill: your role cannot leave {amount} on the customer’s account',
       creditShort: '{name} does not have enough credit for {amount}.',

@@ -66,6 +66,11 @@ export const posTe: Translation<typeof posEn> = {
       quantityInvalid: '1 నుంచి {available} వరకు పరిమాణం ఇవ్వండి',
       requested: 'ట్రాన్స్‌ఫర్ {number} అడిగారు: వేరే స్టోర్ ఆమోదం కోసం వేచి ఉంది',
     },
+    painter: {
+      label: 'పెయింటర్',
+      hint: 'కస్టమర్‌ను పంపిన పెయింటర్, కాంట్రాక్టర్ లేదా ఆర్కిటెక్ట్: పాయింట్లు వారికే వస్తాయి',
+      unknown: 'ఒక పెయింటర్ (వేరే కౌంటర్‌లో ఎంచుకున్నారు)',
+    },
     customer: {
       title: 'కస్టమర్',
       mobile: 'కస్టమర్ మొబైల్',
@@ -121,6 +126,7 @@ export const posTe: Translation<typeof posEn> = {
       change: 'తిరిగి ఇవ్వాల్సింది: {amount}',
       short: 'ఇంకా రావాల్సింది: {amount}',
       onCredit: '{amount} {name} ఖాతాలోకి వెళ్తుంది',
+      allOnAccount: 'మొత్తం {amount} {name} ఖాతాలో వేయండి',
       walkInShort: 'పూర్తి మొత్తం తీసుకోండి: వాక్-ఇన్ కస్టమర్ బాకీ ఉంచలేరు.',
       noOnAccount: 'పూర్తి బిల్లు తీసుకోండి: మీ పాత్ర {amount}ను కస్టమర్ ఖాతాలో ఉంచలేదు',
       creditShort: '{name}కి {amount}కి సరిపడా క్రెడిట్ లేదు.',

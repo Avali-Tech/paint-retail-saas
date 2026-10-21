@@ -230,6 +230,22 @@ function PaymentForm({
       <Button type="submit" loading={pending}>
         {t('pos.pay.issue')}
       </Button>
+      {onAccount &&
+        room.name !== null &&
+        (room.availablePaise === null || totalPaise <= room.availablePaise) && (
+          <Button
+            variant="secondary"
+            disabled={pending}
+            onClick={() => {
+              setPending(true);
+              void onIssue([]).finally(() => {
+                setPending(false);
+              });
+            }}
+          >
+            {t('pos.pay.allOnAccount', { amount: money(totalPaise), name: room.name })}
+          </Button>
+        )}
     </form>
   );
 }

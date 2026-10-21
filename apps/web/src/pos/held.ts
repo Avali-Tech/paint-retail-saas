@@ -16,6 +16,8 @@ export interface BillSnapshot {
   /** Each line's pack, and its shade when tinted. */
   readonly items: readonly (BillItem & Pick<BillLine, 'tint'>)[];
   readonly buyer: Buyer;
+  /** Absent in snapshots saved before the counter kept the painter. */
+  readonly painter?: Bill['painter'];
   readonly payablePaise: number;
 }
 
@@ -31,7 +33,12 @@ function read(storage: Storage, key: string): unknown {
 
 export function saveSnapshot(storage: Storage, bill: Bill, payablePaise: number): void {
   if (bill.draftId === null) return;
-  const snapshot: BillSnapshot = { items: bill.lines, buyer: bill.buyer, payablePaise };
+  const snapshot: BillSnapshot = {
+    items: bill.lines,
+    buyer: bill.buyer,
+    painter: bill.painter,
+    payablePaise,
+  };
   storage.setItem(billKey(bill.draftId), JSON.stringify(snapshot));
 }
 
@@ -60,6 +67,8 @@ export function billFromDraft(
   snapshot: BillSnapshot | null,
   key: string,
   unknownName: (lineNo: number) => string,
+  /** Shown for a painter on a draft this device did not save. */
+  unknownPainter = '',
 ): Bill {
   const remembered = (variantId: string, index: number) => {
     // The same base can be on the bill twice in two shades: the line at the same place first.
@@ -103,6 +112,11 @@ export function billFromDraft(
     draftId: draft.id,
     lines,
     buyer,
+    painter:
+      snapshot?.painter ??
+      (draft.influencerPartyId === null
+        ? null
+        : { id: draft.influencerPartyId, name: unknownPainter }),
     selected: lines.length === 0 ? null : lines.length - 1,
     kind: draft.kind,
     priceMode: draft.priceMode,

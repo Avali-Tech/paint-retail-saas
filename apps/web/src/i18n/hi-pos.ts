@@ -66,6 +66,11 @@ export const posHi: Translation<typeof posEn> = {
       quantityInvalid: '1 से {available} तक मात्रा डालें',
       requested: 'ट्रांसफर {number} मांगा गया: दूसरे स्टोर की मंज़ूरी का इंतज़ार है',
     },
+    painter: {
+      label: 'पेंटर',
+      hint: 'वह पेंटर, ठेकेदार या आर्किटेक्ट जिसने ग्राहक भेजा: पॉइंट उन्हें मिलते हैं',
+      unknown: 'एक पेंटर (दूसरे काउंटर पर चुना गया)',
+    },
     customer: {
       title: 'ग्राहक',
       mobile: 'ग्राहक का मोबाइल',
@@ -121,6 +126,7 @@ export const posHi: Translation<typeof posEn> = {
       change: 'वापस देने हैं: {amount}',
       short: 'अभी बाकी: {amount}',
       onCredit: '{amount} {name} के खाते में जाएगा',
+      allOnAccount: 'पूरे {amount} {name} के खाते में डालें',
       walkInShort: 'पूरी रकम लें: वॉक-इन ग्राहक उधार नहीं रख सकता।',
       noOnAccount: 'पूरा बिल लें: आपकी भूमिका {amount} ग्राहक के खाते में नहीं रख सकती',
       creditShort: '{name} के पास {amount} के लिए काफी क्रेडिट नहीं है।',
