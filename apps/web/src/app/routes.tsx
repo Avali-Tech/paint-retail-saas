@@ -47,6 +47,11 @@ const AppearancePage = lazy(() =>
 const TaxSettingsPage = lazy(() =>
   import('../settings/TaxSettingsPage.js').then((module) => ({ default: module.TaxSettingsPage })),
 );
+const TintingSettingsPage = lazy(() =>
+  import('../settings/TintingSettingsPage.js').then((module) => ({
+    default: module.TintingSettingsPage,
+  })),
+);
 const InvoicePrintSettingsPage = lazy(() =>
   import('../settings/InvoicePrintSettingsPage.js').then((module) => ({
     default: module.InvoicePrintSettingsPage,
@@ -124,6 +129,10 @@ export function AppRoutes() {
         <Route
           path="settings/invoice-print"
           element={guarded('organization:manage', InvoicePrintSettingsPage)}
+        />
+        <Route
+          path="settings/tinting"
+          element={guarded('organization:manage', TintingSettingsPage)}
         />
         {/* Every signed-in member manages their own two-factor sign-in. */}
         <Route path="settings/security" element={<SecurityPage />} />

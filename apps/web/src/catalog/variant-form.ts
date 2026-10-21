@@ -29,6 +29,8 @@ export interface VariantDraft {
   label: string;
   mrp: string;
   sellingPrice: string;
+  /** Optional: grams per ml, to dose a colorant by weight or volume (round 8a). */
+  density: string;
   barcodes: string;
   isActive: boolean;
 }
@@ -40,6 +42,7 @@ export const EMPTY_VARIANT: VariantDraft = {
   label: '',
   mrp: '',
   sellingPrice: '',
+  density: '',
   barcodes: '',
   isActive: true,
 };
@@ -52,12 +55,22 @@ export function variantDraft(variant: Variant): VariantDraft {
     label: variant.label ?? '',
     mrp: rupeesInput(variant.mrpPaise),
     sellingPrice: rupeesInput(variant.sellingPricePaise),
+    density: variant.densityGPerMl === null ? '' : String(variant.densityGPerMl),
     barcodes: variant.barcodes.join(', '),
     isActive: variant.isActive,
   };
 }
 
 const price = (text: string) => (text.trim() === '' ? null : parseRupees(text));
+
+/** g per ml as typed: "" is not known; else more than 0, at most 25, 4 decimals (as the API). */
+export function parseDensity(text: string): number | null | undefined {
+  const trimmed = text.trim();
+  if (trimmed === '') return null;
+  if (!/^\d{1,2}(\.\d{1,4})?$/.test(trimmed)) return undefined;
+  const value = Number(trimmed);
+  return value > 0 && value <= 25 ? value : undefined;
+}
 
 /** Checks a pack size the way the API does: SKU, size, prices (selling ≤ MRP) and barcode check digits. */
 export function variantSchema(t: I18n['t']) {
@@ -92,6 +105,9 @@ export function variantSchema(t: I18n['t']) {
           (value) => value.trim() === '' || (price(value) ?? -1) >= 0,
           t('products.form.priceInvalid'),
         ),
+      density: z
+        .string()
+        .refine((value) => parseDensity(value) !== undefined, t('products.form.densityInvalid')),
       barcodes: z.string(),
       isActive: z.boolean(),
     })
@@ -134,6 +150,7 @@ export function toVariantInput(draft: VariantDraft): VariantInput {
     label: normalizeVariantLabel(draft.label),
     ...(mrp === null ? {} : { mrpPaise: mrp }),
     ...(selling === null ? {} : { sellingPricePaise: selling }),
+    ...(draft.density.trim() === '' ? {} : { densityGPerMl: Number(parseDensity(draft.density)) }),
     barcodes: splitBarcodes(draft.barcodes),
   };
 }
@@ -145,6 +162,7 @@ export function toVariantChanges(draft: VariantDraft): VariantChanges {
     label: normalizeVariantLabel(draft.label),
     mrpPaise: price(draft.mrp),
     sellingPricePaise: price(draft.sellingPrice),
+    densityGPerMl: parseDensity(draft.density) ?? null,
     barcodes: splitBarcodes(draft.barcodes),
     isActive: draft.isActive,
   };

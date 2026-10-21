@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { json, type FakeHandler, type FakeRequest } from '../test-support/fake-api.js';
-import { page } from '../test-support/inventory-fixtures.js';
+import { page, product, variant } from '../test-support/inventory-fixtures.js';
 import { PARTY } from '../test-support/party-fixtures.js';
 import { document, draftLine } from '../pos/test-support/pos-fixtures.js';
 import { PRODUCTS, lookupIn, renderPos, scanBox } from '../pos/test-support/pos-render.js';
@@ -43,7 +43,67 @@ async function openTint(user: ReturnType<typeof renderPos>['user'], name = BASE)
   return screen.findByRole('dialog', { name: `Tint ${name}` });
 }
 
+/** Colorants: XY loose by the ml (dosable), XY by the litre can and a discontinued red (not). */
+const COLORANTS = product({
+  id: 'p-colorant',
+  name: 'Universal colorant',
+  type: 'colorant',
+  variants: [
+    variant({ id: 'clr-xy-ml', sku: 'CLR-XY-ML', packSize: 1, unit: 'ml', label: 'XY' }),
+    variant({ id: 'clr-xy-1l', sku: 'CLR-XY-1L', packSize: 1, unit: 'l', label: 'XY' }),
+    variant({
+      id: 'clr-red-g',
+      sku: 'CLR-RED-G',
+      packSize: 1,
+      unit: 'g',
+      label: 'Red',
+      isActive: false,
+    }),
+  ],
+});
+
 describe('the tint panel at the counter', { timeout: 30_000 }, () => {
+  it('takes a dose from a loose colorant in stock (round 8a)', async () => {
+    const { user, requests } = counter(undefined, {
+      'GET /products': (request) =>
+        json(page(request.query.get('type') === 'colorant' ? [COLORANTS] : [])),
+    });
+    await user.type(await scanBox(), 'APB-4L{Enter}');
+    const dialog = await openTint(user);
+    await user.type(within(dialog).getByRole('textbox', { name: /^Shade code/ }), 'X 132');
+    await user.type(within(dialog).getByRole('textbox', { name: 'Colorant 1' }), 'XY');
+    await user.type(within(dialog).getByRole('textbox', { name: 'Amount 1' }), '10');
+    const from = await within(dialog).findByRole('combobox', { name: 'Colorant 1 taken from' });
+    expect(
+      within(from)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['Not taken from stock', 'Universal colorant · XY · 1 ml']);
+    await user.selectOptions(from, 'Universal colorant · XY · 1 ml');
+    await user.click(within(dialog).getByRole('button', { name: 'Apply tint' }));
+    await waitFor(() => {
+      expect(savedLines(requests)[0]?.tint).toMatchObject({
+        formula: [{ colorant: 'XY', amount: 10, unit: 'ml', colorantVariantId: 'clr-xy-ml' }],
+      });
+    });
+
+    // Opened again, the dose still names it; choosing "not from stock" drops it.
+    await user.click(screen.getByRole('button', { name: `Edit the tint of ${BASE}` }));
+    const again = await screen.findByRole('dialog', { name: `Tint ${BASE}` });
+    const chosen = within(again).getByRole('combobox', { name: 'Colorant 1 taken from' });
+    expect(chosen).toHaveValue('clr-xy-ml');
+    await user.selectOptions(chosen, 'Not taken from stock');
+    await user.click(within(again).getByRole('button', { name: 'Apply tint' }));
+    await waitFor(() => {
+      expect(
+        (savedLines(requests)[0]?.tint as { formula: object[] }).formula[0],
+      ).not.toHaveProperty('colorantVariantId');
+    });
+    expect(savedLines(requests)[0]?.tint).toMatchObject({
+      formula: [{ colorant: 'XY', amount: 10, unit: 'ml' }],
+    });
+  });
+
   it('tints a base with its formula and machine, prices the charge in, and records it on the saved line', async () => {
     const { user, requests } = counter();
     const box = await scanBox();

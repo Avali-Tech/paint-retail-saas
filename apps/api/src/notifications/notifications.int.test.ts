@@ -360,6 +360,12 @@ describe('preferences', () => {
         inApp: true,
         email: true,
       },
+      {
+        event: 'colorant_short',
+        title: 'A tinted pack takes more colorant than the store has in stock',
+        inApp: true,
+        email: true,
+      },
     ]);
     expect(saved.statusCode).toBe(200);
     expect(
@@ -388,6 +394,7 @@ describe('preferences', () => {
       ['payment_link_refund', true, true],
       ['scheme_slab_near', true, true],
       ['scheme_claim_overdue', true, true],
+      ['colorant_short', true, true],
     ]);
     const duplicate = await api(hydManager).put('/notifications/preferences', {
       preferences: [

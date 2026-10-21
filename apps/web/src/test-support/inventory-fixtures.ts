@@ -56,6 +56,7 @@ export const variant = (overrides: Partial<Variant> = {}): Variant => ({
   label: null,
   mrpPaise: 50_000,
   sellingPricePaise: 45_000,
+  densityGPerMl: null,
   isActive: true,
   barcodes: ['8901234567890'],
   ...overrides,

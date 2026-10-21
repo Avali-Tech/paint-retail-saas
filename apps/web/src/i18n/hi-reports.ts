@@ -284,6 +284,7 @@ export const reportEnumsHi: Translation<typeof reportEnumsEn> = {
     adjustment: 'एडजस्टमेंट',
     damage: 'डैमेज या एक्सपायरी',
     count_correction: 'स्टॉक गिनती सुधार',
+    tint_use: 'टिंटिंग में लगा कलरेंट',
   },
   reportLeadSources: {
     walk_in: 'वॉक-इन',

@@ -5,6 +5,17 @@ import type { Translation } from './shape.js';
 
 export const tintHi: Translation<typeof tintEn> = {
   tint: {
+    settings: {
+      title: 'टिंटिंग',
+      description:
+        'आपकी टिंटिंग मशीन का एक शॉट और एक Y कितना डालता है, ताकि टिंट किए पैक जाने पर कलरेंट स्टॉक से घटे',
+      shot: 'एक शॉट, ml में',
+      y: 'एक Y, ml में',
+      hint: 'मशीन की मैनुअल से, जैसे 0.616; अगर मशीन इस यूनिट में नहीं डालती तो खाली छोड़ें',
+      invalid: '0 से ज़्यादा और 100 तक ml डालें, ज़्यादा से ज़्यादा 4 दशमलव',
+      saved: 'टिंटिंग सेटिंग सेव हो गई',
+      error: 'टिंटिंग सेटिंग लोड नहीं हो सकी',
+    },
     button: 'टिंट',
     edit: 'टिंट बदलें',
     buttonOf: '{name} टिंट करें',
@@ -29,6 +40,8 @@ export const tintHi: Translation<typeof tintEn> = {
     unit: 'यूनिट {number}',
     addColorant: 'कलरेंट जोड़ें',
     removeColorant: 'कलरेंट {number} हटाएं',
+    takenFrom: 'कलरेंट {number} कहां से लिया',
+    notFromStock: 'स्टॉक से नहीं लिया',
     apply: 'टिंट लगाएं',
     remove: 'टिंट हटाएं',
     summary: {

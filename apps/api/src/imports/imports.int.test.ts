@@ -530,7 +530,7 @@ describe('products', () => {
       [
         2,
         'type',
-        `Use one of: interior_paint, exterior_paint, primer, putty, enamel, wood_finish, waterproofing, texture, thinner, tool, other`,
+        `Use one of: interior_paint, exterior_paint, primer, putty, enamel, wood_finish, waterproofing, texture, thinner, tool, other, colorant`,
       ],
       [2, 'unit', 'Use one of: ml, l, g, kg, piece, set, m'],
       [3, 'category', 'Too small: expected string to have >=2 characters'],

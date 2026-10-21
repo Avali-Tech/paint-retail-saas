@@ -339,6 +339,8 @@ describe('sales settings', () => {
       billingLiveOn: null,
       cashNeedsRegister: true,
       registerVarianceAlertPaise: 0,
+      tintShotMl: null,
+      tintYMl: null,
       invoiceBank: null,
       invoiceTerms: [],
     });

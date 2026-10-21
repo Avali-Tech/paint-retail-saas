@@ -579,3 +579,4 @@ export {
 export * from './payment-links/index.js';
 export * from './brand-statements/index.js';
 export * from './sales-overview.js';
+export * from './colorant-dose.js';

@@ -154,8 +154,8 @@ describe('the tint form', () => {
       charge: '50.00',
       cost: '30.00',
       formula: [
-        { colorant: 'XY', amount: '12.5', unit: 'ml' },
-        { colorant: 'Fast Red', amount: '3', unit: 'shot' },
+        { colorant: 'XY', amount: '12.5', unit: 'ml', colorantVariantId: '' },
+        { colorant: 'Fast Red', amount: '3', unit: 'shot', colorantVariantId: '' },
       ],
       note: null,
     });
@@ -191,9 +191,9 @@ describe('the tint form', () => {
           cost: '0',
           brandId: 'brand-asian',
           formula: [
-            { colorant: ' XY ', amount: '1.250', unit: 'y' },
+            { colorant: ' XY ', amount: '1.250', unit: 'y', colorantVariantId: '' },
             EMPTY_ROW,
-            { colorant: 'B', amount: '2', unit: 'g' },
+            { colorant: 'B', amount: '2', unit: 'g', colorantVariantId: '' },
           ],
         }),
       ),
@@ -231,7 +231,7 @@ describe('the tint form', () => {
           machine: 'm'.repeat(81),
           charge: 'fifty',
           cost: '-5',
-          formula: [{ colorant: 'XY', amount: '0', unit: 'ml' }],
+          formula: [{ colorant: 'XY', amount: '0', unit: 'ml', colorantVariantId: '' }],
         }),
       ),
     ).toEqual({
@@ -245,7 +245,12 @@ describe('the tint form', () => {
         formula: 'formulaRow',
       },
     });
-    const row = (colorant: string, amount = '1') => ({ colorant, amount, unit: 'ml' as const });
+    const row = (colorant: string, amount = '1') => ({
+      colorant,
+      amount,
+      unit: 'ml' as const,
+      colorantVariantId: '',
+    });
     expect(parseTintForm(filled({ formula: [row('', '2')] }))).toMatchObject({
       problems: { formula: 'formulaRow' },
     });

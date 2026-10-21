@@ -258,6 +258,9 @@ export interface SalesSettingsView {
   readonly cashNeedsRegister: boolean;
   /** A register closing further off than this (paise) tells the branch managers. */
   readonly registerVarianceAlertPaise: number;
+  /** ml in one shot and one Y of the tinting machine (round 8a); null when not set. */
+  readonly tintShotMl: number | null;
+  readonly tintYMl: number | null;
   /** Printed on the A4 invoice (spec §5.4); null when not given. */
   readonly invoiceBank: PrintBankDetails | null;
   /** Terms and conditions printed on every invoice, in order (at most INVOICE_TERMS_MAX). */

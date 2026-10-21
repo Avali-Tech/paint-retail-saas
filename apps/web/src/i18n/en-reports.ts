@@ -282,6 +282,7 @@ export const reportEnumsEn = {
     adjustment: 'Adjustment',
     damage: 'Damage or expiry',
     count_correction: 'Stock count correction',
+    tint_use: 'Colorant used in tinting',
   },
   reportLeadSources: {
     walk_in: 'Walk-in',

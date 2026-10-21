@@ -81,6 +81,7 @@ describe('report list', () => {
           'adjustment',
           'damage',
           'count_correction',
+          'tint_use',
         ],
       },
     ]);

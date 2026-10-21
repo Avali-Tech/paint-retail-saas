@@ -287,6 +287,7 @@ export const reportEnumsTe: Translation<typeof reportEnumsEn> = {
     adjustment: 'సర్దుబాటు',
     damage: 'డ్యామేజ్ లేదా ఎక్స్‌పైరీ',
     count_correction: 'స్టాక్ లెక్కింపు సవరణ',
+    tint_use: 'టింటింగ్‌లో వాడిన కలరెంట్',
   },
   reportLeadSources: {
     walk_in: 'వాక్-ఇన్',

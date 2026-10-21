@@ -88,6 +88,8 @@ const tintFields = {
         colorant: text(COLORANT_MAX_LENGTH),
         amount: positive(1_000_000, 3),
         unit: z.enum(COLORANT_UNITS),
+        /** The loose colorant this dose comes out of (round 8a). */
+        colorantVariantId: z.uuid().optional(),
       }),
     )
     .max(MAX_FORMULA_COMPONENTS)

@@ -1,4 +1,10 @@
-import { COLORANT_UNITS, type ColorantUnit, type TintRecordView } from '@paint/shared';
+import {
+  COLORANT_UNITS,
+  isLooseColorantPack,
+  variantName,
+  type ColorantUnit,
+  type TintRecordView,
+} from '@paint/shared';
 import { Button, Field, Input, Select, Spinner } from '@paint/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useDeferredValue, useState, type Dispatch } from 'react';
@@ -141,6 +147,21 @@ function ShadeHistory({
   );
 }
 
+/** The colorants stocked loose (by the ml or g), which a dose can be taken from (round 8a). */
+function useLooseColorants(): readonly { readonly id: string; readonly label: string }[] {
+  const api = useApi();
+  const colorants = useQuery({
+    queryKey: ['products', 'colorants'],
+    queryFn: ({ signal }) => api.catalog.products({ type: 'colorant', limit: 200 }, signal),
+    staleTime: 60_000,
+  });
+  return (colorants.data?.items ?? []).flatMap((product) =>
+    product.variants
+      .filter((variant) => variant.isActive && isLooseColorantPack(variant))
+      .map((variant) => ({ id: variant.id, label: `${product.name} · ${variantName(variant)}` })),
+  );
+}
+
 /** The shade, formula, machine and charge of one line, with the history to copy from. */
 function TintDialog({
   line,
@@ -154,6 +175,7 @@ function TintDialog({
   readonly onClose: () => void;
 }) {
   const { t } = useI18n();
+  const colorants = useLooseColorants();
   const [form, setForm] = useState<TintForm>(() => formOf(line.tint ?? null));
   const [problems, setProblems] = useState<TintProblems>({});
   const set = (change: Partial<TintForm>) => {
@@ -286,6 +308,22 @@ function TintDialog({
                     </option>
                   ))}
                 </Select>
+                {colorants.length > 0 && (
+                  <Select
+                    aria-label={t('tint.takenFrom', { number })}
+                    value={row.colorantVariantId}
+                    onChange={(event) => {
+                      setRow(index, { colorantVariantId: event.target.value });
+                    }}
+                  >
+                    <option value="">{t('tint.notFromStock')}</option>
+                    {colorants.map((colorant) => (
+                      <option key={colorant.id} value={colorant.id}>
+                        {colorant.label}
+                      </option>
+                    ))}
+                  </Select>
+                )}
                 <Button
                   size="sm"
                   variant="ghost"

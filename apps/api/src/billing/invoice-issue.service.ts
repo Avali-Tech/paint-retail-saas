@@ -68,6 +68,8 @@ import { documentView, indiaToday, loadDocument, type TaxDocumentRow } from './i
 import { invoicePrintSettings } from './print-settings.js';
 import { takeDocumentNumber } from './series.js';
 import { walkInParty } from './walk-in.js';
+import { Notifier } from '../notifications/notifier.js';
+import { postColorantUse } from '../paint/colorant-use.js';
 import { invoiceCreditSubject } from './invoice-credit.js';
 import { gateSale, saleCredit } from '../credit/credit-gate.js';
 
@@ -132,7 +134,10 @@ interface DraftLine {
  */
 @Injectable()
 export class InvoiceIssueService {
-  constructor(@Inject(DATABASE) private readonly connection: DatabaseConnection) {}
+  constructor(
+    @Inject(DATABASE) private readonly connection: DatabaseConnection,
+    @Inject(Notifier) private readonly notifier: Notifier,
+  ) {}
 
   issue(
     auth: AuthContext,
@@ -556,6 +561,21 @@ export class InvoiceIssueService {
         createdByMemberId: auth.memberId,
       })),
     );
+    // The colorant in the tinted packs leaves with them (round 8a).
+    await postColorantUse(tx, this.notifier, {
+      organizationId,
+      storeId: document.storeId,
+      invoiceId: id,
+      invoiceNumber: number,
+      referenceType: 'tax_document',
+      referenceId: id,
+      memberId: auth.memberId,
+      lines: leaving.map((line) => ({
+        invoiceLineId: line.id,
+        quantity: line.quantity,
+        lineQuantity: line.quantity,
+      })),
+    });
     if (totals.payablePaise > 0) {
       await postPartyLedger(tx, [
         {

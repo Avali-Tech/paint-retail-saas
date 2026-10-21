@@ -5,6 +5,17 @@ import type { Translation } from './shape.js';
 
 export const tintTe: Translation<typeof tintEn> = {
   tint: {
+    settings: {
+      title: 'టింటింగ్',
+      description:
+        'మీ టింటింగ్ మెషిన్ ఒక షాట్, ఒక Y ఎంత వేస్తుందో, టింట్ చేసిన ప్యాక్‌లు వెళ్లినప్పుడు కలరెంట్ స్టాక్ నుంచి తగ్గడానికి',
+      shot: 'ఒక షాట్, ml లో',
+      y: 'ఒక Y, ml లో',
+      hint: 'మెషిన్ మాన్యువల్ నుంచి, ఉదా. 0.616; మెషిన్ ఈ యూనిట్‌లో వేయకపోతే ఖాళీగా వదలండి',
+      invalid: '0 కంటే ఎక్కువ, 100 వరకు ml ఇవ్వండి, గరిష్ఠంగా 4 దశాంశాలు',
+      saved: 'టింటింగ్ సెట్టింగ్‌లు సేవ్ అయ్యాయి',
+      error: 'టింటింగ్ సెట్టింగ్‌లు లోడ్ కాలేదు',
+    },
     button: 'టింట్',
     edit: 'టింట్ మార్చండి',
     buttonOf: '{name} టింట్ చేయండి',
@@ -29,6 +40,8 @@ export const tintTe: Translation<typeof tintEn> = {
     unit: 'యూనిట్ {number}',
     addColorant: 'కలరెంట్ జోడించండి',
     removeColorant: 'కలరెంట్ {number} తీసివేయండి',
+    takenFrom: 'కలరెంట్ {number} ఎక్కడి నుంచి తీశారు',
+    notFromStock: 'స్టాక్ నుంచి తీయలేదు',
     apply: 'టింట్ వేయండి',
     remove: 'టింట్ తీసివేయండి',
     summary: {

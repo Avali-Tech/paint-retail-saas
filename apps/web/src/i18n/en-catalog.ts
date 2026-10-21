@@ -62,6 +62,10 @@ export const catalogEn = {
       labelTooLong: 'Use at most {max} characters',
       mrp: 'MRP (₹)',
       sellingPrice: 'Selling price (₹)',
+      density: 'Density (g per ml)',
+      densityHint:
+        'For colorants and putty: lets a dose in ml come out of stock kept in g, or the other way',
+      densityInvalid: 'Enter grams per ml above 0 and up to 25, with at most 4 decimals',
       priceInvalid: 'Enter an amount in rupees',
       aboveMrp: 'Selling price cannot exceed the MRP',
       barcodes: 'Barcodes',
@@ -141,6 +145,7 @@ export const catalogEnumsEn = {
     thinner: 'Thinner',
     tool: 'Tool',
     other: 'Other',
+    colorant: 'Colorant',
   },
   units: { ml: 'ml', l: 'l', g: 'g', kg: 'kg', piece: 'piece', set: 'set', m: 'm' },
 };

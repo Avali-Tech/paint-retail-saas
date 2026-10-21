@@ -110,6 +110,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: 'organization:manage',
   },
   {
+    key: 'tinting',
+    label: 'tint.settings.title',
+    path: '/settings/tinting',
+    icon: 'settings',
+    permission: 'organization:manage',
+  },
+  {
     key: 'paymentLinkSettings',
     label: 'paymentLinkSettings.nav',
     path: '/settings/payment-links',

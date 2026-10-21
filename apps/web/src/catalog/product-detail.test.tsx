@@ -186,6 +186,7 @@ describe('ProductDetailPage', () => {
       mrpPaise: 50_000,
       sellingPricePaise: 42_000,
       barcodes: ['8901234567890'],
+      densityGPerMl: null,
       isActive: false,
     });
     expect(await screen.findByText('Size / pack saved')).toBeInTheDocument();

@@ -745,6 +745,8 @@ export const productType = pgEnum('product_type', [
   'thinner',
   'tool',
   'other',
+  /** Tinting colorant, stocked loose in ml or g so each dose can be taken out (round 8a). */
+  'colorant',
 ]);
 
 /** Units a pack size can be expressed in. */
@@ -850,6 +852,11 @@ export const productVariants = pgTable(
     mrpPaise: bigint('mrp_paise', { mode: 'number' }),
     /** Default selling price, in paise. Never above the MRP. */
     sellingPricePaise: bigint('selling_price_paise', { mode: 'number' }),
+    /**
+     * Grams per millilitre, to turn a dose in ml into stock kept in g and back
+     * (round 8a: colorants, putty). Null when not known.
+     */
+    densityGPerMl: numeric('density_g_per_ml', { precision: 7, scale: 4, mode: 'number' }),
     isActive: boolean('is_active').notNull().default(true),
     ...timestamps,
   },
@@ -877,6 +884,10 @@ export const productVariants = pgTable(
     check(
       'product_variants_prices_not_negative',
       sql`${table.mrpPaise} >= 0 and ${table.sellingPricePaise} >= 0`,
+    ),
+    check(
+      'product_variants_density_range',
+      sql`${table.densityGPerMl} > 0 and ${table.densityGPerMl} <= 25`,
     ),
     check(
       'product_variants_price_within_mrp',
@@ -928,6 +939,8 @@ export const stockMovementType = pgEnum('stock_movement_type', [
   'adjustment',
   'damage',
   'count_correction',
+  /** Colorant dosed into a tinted pack that left the store (round 8a). */
+  'tint_use',
 ]);
 
 /**
@@ -985,9 +998,10 @@ export const stockLedger = pgTable(
     }).onDelete('restrict'),
     check(
       'stock_ledger_quantity_sign',
+      // As text: 'tint_use' cannot be cast to in the migration that adds it (0092).
       sql`case
         when ${table.movementType} in ('opening', 'purchase_receipt', 'transfer_in', 'sale_return') then ${table.quantity} > 0
-        when ${table.movementType} in ('purchase_return', 'transfer_out', 'sale', 'damage') then ${table.quantity} < 0
+        when ${table.movementType}::text in ('purchase_return', 'transfer_out', 'sale', 'damage', 'tint_use') then ${table.quantity} < 0
         else ${table.quantity} <> 0
       end`,
     ),
@@ -1740,6 +1754,8 @@ export const notificationEvent = pgEnum('notification_event', [
   'payment_link_refund',
   'scheme_slab_near',
   'scheme_claim_overdue',
+  /** A tinted pack left with more colorant than the store had in stock (round 8a). */
+  'colorant_short',
 ]);
 
 /** An in-app notification for one member. */
@@ -3228,6 +3244,9 @@ export const salesSettings = pgTable(
     defaultPriceMode: priceMode('default_price_mode').notNull().default('inclusive'),
     /** The day the business started billing here (cut-over from MVP 1 figures, §4.7). */
     billingLiveOn: date('billing_live_on', { mode: 'string' }),
+    /** Millilitres in one "shot" and one "Y" of the tinting machine (round 8a); null: not set. */
+    tintShotMl: numeric('tint_shot_ml', { precision: 7, scale: 4, mode: 'number' }),
+    tintYMl: numeric('tint_y_ml', { precision: 7, scale: 4, mode: 'number' }),
     /** Cash is taken only into an open register session ([PO-11]: yes for cash). */
     cashNeedsRegister: boolean('cash_needs_register').notNull().default(true),
     /** A register closing further off than this tells the branch managers (spec §5.5). */
@@ -3271,6 +3290,10 @@ export const salesSettings = pgTable(
     check('sales_settings_quote_validity', sql`${table.quoteValidityDays} between 1 and 365`),
     check('sales_settings_advance_pct', sql`${table.partialMinAdvancePct} between 0 and 100`),
     check('sales_settings_variance_alert', sql`${table.registerVarianceAlertPaise} >= 0`),
+    check(
+      'sales_settings_tint_units_positive',
+      sql`${table.tintShotMl} > 0 and ${table.tintYMl} > 0`,
+    ),
     check(
       'sales_settings_bank_complete',
       sql`num_nonnulls(${table.bankName}, ${table.bankAccountName}, ${table.bankAccountNumber}, ${table.bankIfsc}) in (0, 4)`,
