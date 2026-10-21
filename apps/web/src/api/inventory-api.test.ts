@@ -205,6 +205,7 @@ describe('catalogue, stock and purchasing endpoints', () => {
     await transfers.dispatch('t1', [line]);
     await purchasing.createSupplier({ kind: 'person', displayName: 'Ravi' });
     await stock.low({ limit: 100, offset: 100 });
+    await stock.slowMovers({ storeId: 's1', days: 45, limit: 100, offset: 0 });
     await stock.saveRules([]);
     expect(calls).toEqual([
       { method: 'POST', path: '/transfers/t1/approve', body: {} },
@@ -215,6 +216,11 @@ describe('catalogue, stock and purchasing endpoints', () => {
         body: { kind: 'person', displayName: 'Ravi', roles: ['supplier'] },
       },
       { method: 'GET', path: '/stock/low', query: { limit: 100, offset: 100 } },
+      {
+        method: 'GET',
+        path: '/stock/slow-movers',
+        query: { storeId: 's1', days: 45, limit: 100, offset: 0 },
+      },
       { method: 'PUT', path: '/reorder-rules', body: { rules: [] } },
     ]);
   });

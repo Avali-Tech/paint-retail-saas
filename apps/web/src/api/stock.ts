@@ -110,6 +110,23 @@ export interface LowStockItem extends ReorderRule {
   readonly suggestedQuantity: number;
 }
 
+/** GET /stock/slow-movers: in-stock items with no sale or transfer out for `days` days. */
+export interface SlowMover extends ItemRef {
+  readonly onHand: number;
+  /** When it last sold or was sent to another store; null if never. */
+  readonly lastDemandAt: string | null;
+  readonly daysIdle: number;
+  /** On hand × average cost; null when the item has no cost. */
+  readonly valuePaise: number | null;
+}
+
+export interface SlowMoversQuery {
+  readonly storeId?: string;
+  readonly days: number;
+  readonly limit: number;
+  readonly offset: number;
+}
+
 export function stockEndpoints(api: ApiClient) {
   return {
     stores: () => api.get<Store[]>('/stores'),
@@ -120,6 +137,8 @@ export function stockEndpoints(api: ApiClient) {
     record: (input: MovementInput) => api.post<Page<LedgerEntry>>('/stock/movements', input),
     low: (query: { storeId?: string; limit: number; offset: number }, signal?: AbortSignal) =>
       api.get<Page<LowStockItem>>('/stock/low', { query: { ...query }, signal }),
+    slowMovers: (query: SlowMoversQuery, signal?: AbortSignal) =>
+      api.get<Page<SlowMover>>('/stock/slow-movers', { query: { ...query }, signal }),
     rules: (query: RuleQuery, signal?: AbortSignal) =>
       api.get<Page<ReorderRule>>('/reorder-rules', { query: { ...query }, signal }),
     saveRules: (rules: RuleInput[]) => api.put<{ saved: number }>('/reorder-rules', { rules }),
