@@ -28,6 +28,13 @@ echo "docker.host=unix://$HOME/.colima/default/docker.sock" > ~/.testcontainers.
 echo 'export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock' >> ~/.zshrc
 ```
 
+**Colima's clock can step backwards** under a long, busy run (`pnpm verify`): the VM's clock drifts
+and its time sync sets it back. PostgreSQL's `now()` then goes back a little, and tests that check
+"newest first" or a demo day's dates can fail now and then (documents, credit notes, accounting
+exports, the demo seed). It is the machine, not the code: CI does not see it. To confirm, look for
+`Time jumped backwards` in `colima ssh -- journalctl --since -2h`, then run the failing file again
+on its own.
+
 ## Getting started
 
 ```sh

@@ -1,4 +1,12 @@
-import { createContext, use, useCallback, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  use,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Icon } from './Icon.js';
 
 export interface ToastOptions {
@@ -32,6 +40,16 @@ export function ToastProvider({
 }: ToastProviderProps) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const nextId = useRef(0);
+  // Timers still to fire, cleared on unmount so none sets state after it.
+  const timers = useRef(new Set<number>());
+
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      for (const timer of pending) window.clearTimeout(timer);
+      pending.clear();
+    };
+  }, []);
 
   const dismiss = useCallback((id: number) => {
     setToasts((list) => list.filter((toast) => toast.id !== id));
@@ -42,9 +60,11 @@ export function ToastProvider({
       nextId.current += 1;
       const id = nextId.current;
       setToasts((list) => [...list, { ...options, id }]);
-      window.setTimeout(() => {
+      const timer = window.setTimeout(() => {
+        timers.current.delete(timer);
         dismiss(id);
       }, duration);
+      timers.current.add(timer);
     },
     [dismiss, duration],
   );

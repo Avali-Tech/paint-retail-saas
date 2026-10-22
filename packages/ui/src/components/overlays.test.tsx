@@ -196,6 +196,22 @@ describe('Toast', () => {
     expect(screen.queryByText('Saved')).toBeNull();
   });
 
+  it('leaves no timer running once it is gone', () => {
+    vi.useFakeTimers();
+    const { unmount } = render(
+      <ToastProvider duration={1000}>
+        <ToastButtons />
+      </ToastProvider>,
+    );
+    act(() => {
+      screen.getByRole('button', { name: 'Save' }).click();
+    });
+    expect(vi.getTimerCount()).toBe(1);
+    unmount();
+    // A timer firing now would set state after unmount (and fail a test run once its window is gone).
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('refuses useToast outside the provider', () => {
     expect(() => renderHook(() => useToast())).toThrow(
       'useToast must be used inside <ToastProvider>',
