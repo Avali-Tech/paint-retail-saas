@@ -1785,6 +1785,8 @@ export const notificationEvent = pgEnum('notification_event', [
   'scheme_claim_overdue',
   /** A tinted pack left with more colorant than the store had in stock (round 8a). */
   'colorant_short',
+  /** Stock that has not sold or moved out for the business's slow-mover days. */
+  'slow_movers',
 ]);
 
 /** An in-app notification for one member. */
@@ -1919,6 +1921,40 @@ export const lowStockAlerts = pgTable(
       foreignColumns: [productVariants.organizationId, productVariants.id],
     }).onDelete('cascade'),
     pgPolicy('low_stock_alerts_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
+/**
+ * Products already announced as slow at a store: once per idle stretch. A
+ * sale, a transfer out or running out of it clears the row, so the next
+ * stretch is announced again.
+ */
+export const slowMoverAlerts = pgTable(
+  'slow_mover_alerts',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    storeId: uuid('store_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    alertedAt: timestamp('alerted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.storeId, table.variantId] }),
+    foreignKey({
+      name: 'slow_mover_alerts_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'slow_mover_alerts_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('cascade'),
+    pgPolicy('slow_mover_alerts_tenant_isolation', {
       for: 'all',
       to: tenantRole,
       using: sql`${table.organizationId} = ${currentOrganizationId}`,
@@ -3276,6 +3312,8 @@ export const salesSettings = pgTable(
     /** Millilitres in one "shot" and one "Y" of the tinting machine (round 8a); null: not set. */
     tintShotMl: numeric('tint_shot_ml', { precision: 7, scale: 4, mode: 'number' }),
     tintYMl: numeric('tint_y_ml', { precision: 7, scale: 4, mode: 'number' }),
+    /** Days without a sale or transfer out before stock is announced as slow; null: no alert. */
+    slowMoverAlertDays: integer('slow_mover_alert_days').$type<45 | 90 | 180 | 365>().default(90),
     /** Cash is taken only into an open register session ([PO-11]: yes for cash). */
     cashNeedsRegister: boolean('cash_needs_register').notNull().default(true),
     /** A register closing further off than this tells the branch managers (spec §5.5). */
@@ -3319,6 +3357,8 @@ export const salesSettings = pgTable(
     check('sales_settings_quote_validity', sql`${table.quoteValidityDays} between 1 and 365`),
     check('sales_settings_advance_pct', sql`${table.partialMinAdvancePct} between 0 and 100`),
     check('sales_settings_variance_alert', sql`${table.registerVarianceAlertPaise} >= 0`),
+    // The windows the Slow movers screen offers.
+    check('sales_settings_slow_mover_days', sql`${table.slowMoverAlertDays} in (45, 90, 180, 365)`),
     check(
       'sales_settings_tint_units_positive',
       sql`${table.tintShotMl} > 0 and ${table.tintYMl} > 0`,

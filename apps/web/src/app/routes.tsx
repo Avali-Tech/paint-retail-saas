@@ -47,6 +47,11 @@ const AppearancePage = lazy(() =>
 const TaxSettingsPage = lazy(() =>
   import('../settings/TaxSettingsPage.js').then((module) => ({ default: module.TaxSettingsPage })),
 );
+const StockAlertsSettingsPage = lazy(() =>
+  import('../settings/StockAlertsSettingsPage.js').then((module) => ({
+    default: module.StockAlertsSettingsPage,
+  })),
+);
 const TintingSettingsPage = lazy(() =>
   import('../settings/TintingSettingsPage.js').then((module) => ({
     default: module.TintingSettingsPage,
@@ -133,6 +138,10 @@ export function AppRoutes() {
         <Route
           path="settings/tinting"
           element={guarded('organization:manage', TintingSettingsPage)}
+        />
+        <Route
+          path="settings/stock-alerts"
+          element={guarded('organization:manage', StockAlertsSettingsPage)}
         />
         {/* Every signed-in member manages their own two-factor sign-in. */}
         <Route path="settings/security" element={<SecurityPage />} />

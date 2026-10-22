@@ -27,4 +27,5 @@ export const EVENT_TITLES: Record<NotificationEvent, string> = {
   scheme_slab_near: "A brand scheme's next slab is within reach as its period ends",
   scheme_claim_overdue: 'A brand scheme claim is past its due date',
   colorant_short: 'A tinted pack takes more colorant than the store has in stock',
+  slow_movers: 'Stock has not sold or moved for the business’s slow-mover days',
 };

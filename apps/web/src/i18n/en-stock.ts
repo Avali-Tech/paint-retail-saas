@@ -1,6 +1,21 @@
 // English messages for stock: balances, movements, low stock and reorder rules.
 
 export const stockEn = {
+  stockAlerts: {
+    title: 'Stock alerts',
+    description:
+      'When the store’s stock staff are told about stock that has not sold or gone to another store',
+    slowMovers: 'Tell them about slow movers',
+    slowMoversHint:
+      'Once a day, one notice per store listing the products newly idle this long; each product again only after it sells, moves out or runs out',
+    off: 'Off',
+    after: {
+      one: 'After {count} day without a sale or transfer out',
+      other: 'After {count} days without a sale or transfer out',
+    },
+    saved: 'Stock alert settings saved',
+    error: 'Could not load the stock alert settings',
+  },
   stock: {
     title: 'Stock',
     sections: {

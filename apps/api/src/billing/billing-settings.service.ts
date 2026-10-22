@@ -37,6 +37,7 @@ const DEFAULT_SETTINGS: SalesSettingsView = {
   registerVarianceAlertPaise: 0,
   tintShotMl: null,
   tintYMl: null,
+  slowMoverAlertDays: 90,
   invoiceBank: null,
   invoiceTerms: [],
 };
@@ -52,6 +53,7 @@ const settingsFields = {
   registerVarianceAlertPaise: salesSettings.registerVarianceAlertPaise,
   tintShotMl: salesSettings.tintShotMl,
   tintYMl: salesSettings.tintYMl,
+  slowMoverAlertDays: salesSettings.slowMoverAlertDays,
   ...printFields,
 };
 

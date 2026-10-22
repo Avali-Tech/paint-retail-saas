@@ -26,6 +26,7 @@ import { reconcileDueBusinesses } from '../reconciliation/reconciler.js';
 import { ManualBillingService } from '../subscriptions/manual-billing.js';
 import type { EmailSender } from './email-sender.js';
 import { Notifier } from './notifier.js';
+import { alertSlowMovers } from './slow-mover-alerts.js';
 
 const {
   activities,
@@ -68,6 +69,8 @@ const LOYALTY_EXPIRY_LOCK = sql`hashtext('paint:loyalty-expiry')`;
 export interface WorkerRun {
   /** Products newly reported as low. */
   readonly lowStock: number;
+  /** Products newly reported as slow (once a day). */
+  readonly slowMovers: number;
   /** Follow-ups whose assignees were reminded. */
   readonly followUps: number;
   /** Contracts whose assignees were reminded to renew them. */
@@ -113,6 +116,8 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
   private running: Promise<void> = Promise.resolve();
   /** The India day this server last looked for brand scheme notices: once a day is enough. */
   private schemesNoticedOn: string | null = null;
+  /** The India day this server last looked for slow movers: once a day is enough. */
+  private slowMoversCheckedOn: string | null = null;
 
   constructor(
     @Inject(DATABASE) private readonly connection: DatabaseConnection,
@@ -139,6 +144,7 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
   /** Runs every job once; one failing does not stop the others. */
   async runOnce(now: Date = this.settings.clock()): Promise<WorkerRun> {
     const lowStock = await this.attempt('Low stock check', () => this.checkLowStock(), 0);
+    const slowMovers = await this.attempt('Slow mover check', () => this.checkSlowMovers(now), 0);
     const followUps = await this.attempt('Follow-up reminders', () => this.remindFollowUps(), 0);
     const contractRenewals = await this.attempt(
       'Contract renewal reminders',
@@ -207,6 +213,7 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
     });
     return {
       lowStock,
+      slowMovers,
       followUps,
       contractRenewals,
       loyaltyExpiries,
@@ -234,6 +241,15 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
     const sent = await noticeSchemesForBusinesses(this.connection.db, this.notifier, today);
     this.schemesNoticedOn = today;
     return sent;
+  }
+
+  /** Slow movers, once per India day per server; each product once per idle stretch. */
+  async checkSlowMovers(now: Date): Promise<number> {
+    const today = todayInIndia(now);
+    if (this.slowMoversCheckedOn === today) return 0;
+    const found = await alertSlowMovers(this.connection.db, this.notifier);
+    this.slowMoversCheckedOn = today;
+    return found;
   }
 
   private async attempt<T>(name: string, job: () => Promise<T>, fallback: T): Promise<T> {

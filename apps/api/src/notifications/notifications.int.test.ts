@@ -366,6 +366,12 @@ describe('preferences', () => {
         inApp: true,
         email: true,
       },
+      {
+        event: 'slow_movers',
+        title: 'Stock has not sold or moved for the business’s slow-mover days',
+        inApp: true,
+        email: true,
+      },
     ]);
     expect(saved.statusCode).toBe(200);
     expect(
@@ -395,6 +401,7 @@ describe('preferences', () => {
       ['scheme_slab_near', true, true],
       ['scheme_claim_overdue', true, true],
       ['colorant_short', true, true],
+      ['slow_movers', true, true],
     ]);
     const duplicate = await api(hydManager).put('/notifications/preferences', {
       preferences: [

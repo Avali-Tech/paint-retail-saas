@@ -119,6 +119,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: 'organization:manage',
   },
   {
+    key: 'stockAlerts',
+    label: 'stockAlerts.title',
+    path: '/settings/stock-alerts',
+    icon: 'settings',
+    permission: 'organization:manage',
+  },
+  {
     key: 'paymentLinkSettings',
     label: 'paymentLinkSettings.nav',
     path: '/settings/payment-links',

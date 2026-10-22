@@ -125,6 +125,7 @@ describe('migrateDatabase', () => {
       'sales_settings',
       'sessions',
       'site_credit_accounts',
+      'slow_mover_alerts',
       'statement_links',
       'stock_balances',
       'stock_count_lines',

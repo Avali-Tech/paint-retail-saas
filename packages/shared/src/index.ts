@@ -583,3 +583,4 @@ export * from './brand-statements/index.js';
 export * from './sales-overview.js';
 export * from './colorant-dose.js';
 export * from './reorder-suggestion.js';
+export * from './slow-movers.js';
