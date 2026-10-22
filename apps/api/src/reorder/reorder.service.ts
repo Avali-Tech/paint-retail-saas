@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema, withTenant, type DatabaseConnection, type Transaction } from '@paint/db';
-import { canAccessStore } from '@paint/shared';
+import { DEFAULT_LEAD_TIME_DAYS, canAccessStore, suggestReorderLevels } from '@paint/shared';
 import {
   and,
   asc,
@@ -22,13 +22,24 @@ import { containsPattern } from '../parties/party-access.js';
 import type {
   ListRulesQuery,
   LowStockQuery,
+  ReorderSuggestionsQuery,
   SaveRulesInput,
   SlowMoversQuery,
 } from './reorder.schemas.js';
 import { costFor } from '../auth/costs.js';
 
-const { brands, productVariants, products, reorderRules, stockBalances, stockLedger, stores } =
-  schema;
+const {
+  brands,
+  parties,
+  productVariants,
+  products,
+  reorderRules,
+  stockBalances,
+  stockLedger,
+  stores,
+  supplierProducts,
+  supplierProfiles,
+} = schema;
 
 export interface ItemRef {
   readonly store: { readonly id: string; readonly code: string };
@@ -66,6 +77,27 @@ export interface SlowMover extends ItemRef {
   readonly daysIdle: number;
   /** Money tied up: on hand × average cost, in paise; null without a cost. */
   readonly valuePaise: number | null;
+}
+
+/** Reorder levels worked out from a product's sales and its supplier's lead time. */
+export interface ReorderSuggestion extends ItemRef {
+  /** Net packs sold (sales less returns) over the window. */
+  readonly soldQuantity: number;
+  readonly dailyRate: number;
+  readonly leadTimeDays: number;
+  /** The supplier the lead time comes from; null when none is recorded (the default is used). */
+  readonly supplierName: string | null;
+  /** The store's rule today; null when it has none. */
+  readonly current: {
+    readonly minQuantity: number;
+    readonly reorderLevel: number;
+    readonly maxQuantity: number;
+  } | null;
+  readonly suggested: {
+    readonly minQuantity: number;
+    readonly reorderLevel: number;
+    readonly maxQuantity: number;
+  };
 }
 
 export interface Page<T> {
@@ -321,6 +353,116 @@ export class ReorderService {
           daysIdle: row.daysIdle,
           valuePaise: costFor(auth, row.valuePaise === null ? null : Number(row.valuePaise)),
         })),
+        total: Number(totals?.total),
+      };
+    });
+  }
+
+  /**
+   * Reorder levels for what sold at a store over the last `days`, from each
+   * product's daily rate and the lead time of the supplier it last came from.
+   * Fastest sellers first. Saving them is the ordinary PUT /reorder-rules.
+   */
+  suggestions(auth: AuthContext, query: ReorderSuggestionsQuery): Promise<Page<ReorderSuggestion>> {
+    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      this.assertStoreFilter(auth, query.storeId);
+      const sold = sql<number>`(-sum(${stockLedger.quantity}))::float8`;
+      const demand = tx
+        .select({ variantId: stockLedger.variantId, sold: sold.as('sold') })
+        .from(stockLedger)
+        .where(
+          and(
+            eq(stockLedger.storeId, query.storeId),
+            inArray(stockLedger.movementType, ['sale', 'sale_return']),
+            sql`${stockLedger.createdAt} >= now() - make_interval(days => ${query.days})`,
+          ),
+        )
+        .groupBy(stockLedger.variantId)
+        .having(sql`-sum(${stockLedger.quantity}) > 0`)
+        .as('demand');
+      const rows = await tx
+        .select({
+          ...itemColumns,
+          sold: demand.sold,
+          minQuantity: reorderRules.minQuantity,
+          reorderLevel: reorderRules.reorderLevel,
+          maxQuantity: reorderRules.maxQuantity,
+        })
+        .from(demand)
+        .innerJoin(stores, eq(stores.id, query.storeId))
+        .innerJoin(productVariants, eq(productVariants.id, demand.variantId))
+        .innerJoin(products, eq(products.id, productVariants.productId))
+        .innerJoin(brands, eq(brands.id, products.brandId))
+        .leftJoin(
+          reorderRules,
+          and(
+            eq(reorderRules.storeId, query.storeId),
+            eq(reorderRules.variantId, demand.variantId),
+          ),
+        )
+        .orderBy(desc(demand.sold), asc(productVariants.sku))
+        .limit(query.limit)
+        .offset(query.offset);
+      const [totals] = await tx.select({ total: count() }).from(demand);
+      // The supplier each product last came from, for its lead time.
+      const suppliers =
+        rows.length === 0
+          ? []
+          : await tx
+              .select({
+                variantId: supplierProducts.variantId,
+                name: parties.displayName,
+                leadTimeDays: supplierProfiles.leadTimeDays,
+              })
+              .from(supplierProducts)
+              .innerJoin(parties, eq(parties.id, supplierProducts.supplierPartyId))
+              .leftJoin(
+                supplierProfiles,
+                eq(supplierProfiles.partyId, supplierProducts.supplierPartyId),
+              )
+              .where(
+                inArray(
+                  supplierProducts.variantId,
+                  rows.map((row) => row.variantId),
+                ),
+              )
+              .orderBy(
+                sql`${supplierProducts.lastReceivedAt} desc nulls last`,
+                sql`${supplierProfiles.leadTimeDays} desc nulls last`,
+              );
+      return {
+        items: rows.map((row) => {
+          const supplier = suppliers.find(
+            (candidate) => candidate.variantId === row.variantId && candidate.leadTimeDays !== null,
+          );
+          const leadTimeDays = supplier?.leadTimeDays ?? DEFAULT_LEAD_TIME_DAYS;
+          const levels = suggestReorderLevels({
+            soldQuantity: row.sold,
+            days: query.days,
+            leadTimeDays,
+            safetyDays: query.safetyDays,
+          });
+          return {
+            ...itemRef(row),
+            soldQuantity: row.sold,
+            dailyRate: levels.dailyRate,
+            leadTimeDays,
+            supplierName: supplier?.name ?? null,
+            current:
+              row.reorderLevel === null
+                ? null
+                : {
+                    minQuantity: Number(row.minQuantity),
+                    reorderLevel: row.reorderLevel,
+                    maxQuantity: Number(row.maxQuantity),
+                  },
+            suggested: {
+              minQuantity: levels.minQuantity,
+              reorderLevel: levels.reorderLevel,
+              maxQuantity: levels.maxQuantity,
+            },
+          };
+        }),
         total: Number(totals?.total),
       };
     });

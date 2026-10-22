@@ -19,6 +19,8 @@ import {
   lowStockSchema,
   saveRulesSchema,
   slowMoversSchema,
+  reorderSuggestionsSchema,
+  type ReorderSuggestionsQuery,
   type ListRulesQuery,
   type LowStockQuery,
   type SaveRulesInput,
@@ -30,6 +32,7 @@ import {
   type Page,
   type RuleView,
   type SlowMover,
+  type ReorderSuggestion,
 } from './reorder.service.js';
 
 @Controller()
@@ -81,5 +84,14 @@ export class ReorderController {
     @Query(new ZodValidationPipe(slowMoversSchema)) query: SlowMoversQuery,
   ): Promise<Page<SlowMover>> {
     return this.reorder.slowMovers(auth, query);
+  }
+
+  @Get('reorder-rules/suggestions')
+  @RequirePermissions('inventory:read')
+  suggestions(
+    @CurrentAuth() auth: AuthContext,
+    @Query(new ZodValidationPipe(reorderSuggestionsSchema)) query: ReorderSuggestionsQuery,
+  ): Promise<Page<ReorderSuggestion>> {
+    return this.reorder.suggestions(auth, query);
   }
 }

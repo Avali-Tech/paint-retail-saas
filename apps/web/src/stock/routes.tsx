@@ -16,6 +16,11 @@ const LowStockPage = lazy(() =>
 const SlowMoversPage = lazy(() =>
   import('./SlowMoversPage.js').then((module) => ({ default: module.SlowMoversPage })),
 );
+const ReorderSuggestionsPage = lazy(() =>
+  import('./ReorderSuggestionsPage.js').then((module) => ({
+    default: module.ReorderSuggestionsPage,
+  })),
+);
 const ReorderRulesPage = lazy(() =>
   import('./ReorderRulesPage.js').then((module) => ({ default: module.ReorderRulesPage })),
 );
@@ -29,6 +34,10 @@ export function stockRoutes() {
       <Route path="stock/low" element={guarded('inventory:read', LowStockPage)} />
       <Route path="stock/slow-movers" element={guarded('inventory:read', SlowMoversPage)} />
       <Route path="stock/reorder-rules" element={guarded('inventory:read', ReorderRulesPage)} />
+      <Route
+        path="stock/reorder-rules/suggestions"
+        element={guarded('inventory:read', ReorderSuggestionsPage)}
+      />
     </>
   );
 }

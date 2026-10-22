@@ -127,6 +127,31 @@ export interface SlowMoversQuery {
   readonly offset: number;
 }
 
+/** GET /reorder-rules/suggestions: levels worked out from sales and supplier lead time. */
+export interface ReorderSuggestion extends ItemRef {
+  readonly soldQuantity: number;
+  readonly dailyRate: number;
+  readonly leadTimeDays: number;
+  /** Where the lead time comes from; null: none on record, the default is used. */
+  readonly supplierName: string | null;
+  readonly current: Levels | null;
+  readonly suggested: Levels;
+}
+
+export interface Levels {
+  readonly minQuantity: number;
+  readonly reorderLevel: number;
+  readonly maxQuantity: number;
+}
+
+export interface SuggestionsQuery {
+  readonly storeId: string;
+  readonly days: number;
+  readonly safetyDays: number;
+  readonly limit: number;
+  readonly offset: number;
+}
+
 export function stockEndpoints(api: ApiClient) {
   return {
     stores: () => api.get<Store[]>('/stores'),
@@ -139,6 +164,11 @@ export function stockEndpoints(api: ApiClient) {
       api.get<Page<LowStockItem>>('/stock/low', { query: { ...query }, signal }),
     slowMovers: (query: SlowMoversQuery, signal?: AbortSignal) =>
       api.get<Page<SlowMover>>('/stock/slow-movers', { query: { ...query }, signal }),
+    suggestions: (query: SuggestionsQuery, signal?: AbortSignal) =>
+      api.get<Page<ReorderSuggestion>>('/reorder-rules/suggestions', {
+        query: { ...query },
+        signal,
+      }),
     rules: (query: RuleQuery, signal?: AbortSignal) =>
       api.get<Page<ReorderRule>>('/reorder-rules', { query: { ...query }, signal }),
     saveRules: (rules: RuleInput[]) => api.put<{ saved: number }>('/reorder-rules', { rules }),

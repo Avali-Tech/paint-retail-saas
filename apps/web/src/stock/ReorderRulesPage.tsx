@@ -8,10 +8,12 @@ import {
   PageHeader,
   Pagination,
   Table,
+  buttonStyle,
   useToast,
 } from '@paint/ui';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router';
 import type { ReorderRule } from '../api/stock.js';
 import { useApi } from '../app/services.js';
 import { usePermissions } from '../auth/session.js';
@@ -230,15 +232,27 @@ export function ReorderRulesPage() {
         title={t('stock.rules.title')}
         description={t('stock.rules.description')}
         actions={
-          manage ? (
-            <Button
-              onClick={() => {
-                setDialog({ kind: 'edit', rule: null });
-              }}
+          <>
+            <Link
+              to={
+                store === ''
+                  ? '/stock/reorder-rules/suggestions'
+                  : `/stock/reorder-rules/suggestions?store=${store}`
+              }
+              {...buttonStyle('secondary')}
             >
-              {t('stock.rules.new')}
-            </Button>
-          ) : undefined
+              {t('stock.suggestions.open')}
+            </Link>
+            {manage && (
+              <Button
+                onClick={() => {
+                  setDialog({ kind: 'edit', rule: null });
+                }}
+              >
+                {t('stock.rules.new')}
+              </Button>
+            )}
+          </>
         }
       />
       <SectionNav label="stock.sections.label" links={STOCK_SECTIONS} />
