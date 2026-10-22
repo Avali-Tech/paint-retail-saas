@@ -295,3 +295,112 @@ describe('dispatch records and the e-way bill (spec §2.10)', () => {
     );
   });
 });
+
+const EWAY = { ewayBillNo: '123456789012', ewayValidUntil: '2026-12-31' };
+
+describe('no dispatch on an unpaid bill while the customer or its site is held', () => {
+  /** A site of the contractor's with a site account, and an order placed and billed on it. */
+  async function billedOnSite(name: string) {
+    const project = ok(
+      await owner().post('/projects', {
+        storeId: b.stores.amp,
+        customerPartyId: b.parties.contractor,
+        name,
+      }),
+    ).json<{ id: string }>();
+    const site = ok(
+      await owner().post(`/parties/${b.parties.contractor}/sites`, {
+        projectId: project.id,
+        limitPaise: 100_000_000,
+      }),
+    ).json<{ id: string }>();
+    const order = ok(
+      await owner().post('/sales-orders', {
+        storeId: b.stores.amp,
+        billToPartyId: b.parties.contractor,
+        projectId: project.id,
+        paymentTerms: 'postpaid',
+        lines: [{ variantId: b.apex, quantity: 2 }],
+      }),
+    ).json<SalesOrderView>();
+    const confirmed = ok(
+      await owner().post(`/sales-orders/${order.id}/confirm`, {}),
+    ).json<SalesOrderView>();
+    return { siteId: site.id, invoice: await billed(confirmed, 2) };
+  }
+
+  it('holds back the goods while the customer is on hold, until the bill is paid', async () => {
+    const invoice = await billed(await placed(2), 2);
+    ok(
+      await owner().post(`/parties/${b.parties.contractor}/credit/hold`, {
+        reason: 'Cheque bounced',
+      }),
+    );
+    try {
+      const refused = await dispatch(invoice.id);
+      expect(refused.statusCode).toBe(409);
+      expect(refused.json<{ message: string }>().message).toMatch(
+        new RegExp(
+          `still owed on ${String(invoice.number)} and the customer's credit is on hold \\(Cheque bounced\\)`,
+        ),
+      );
+      expect((await dispatchesOf(invoice.id)).dispatches).toEqual([]);
+
+      ok(
+        await owner().post('/payments', {
+          storeId: b.stores.amp,
+          partyId: b.parties.contractor,
+          modeId: b.modes.upi.id,
+          amountPaise: invoice.totalPaise,
+          reference: 'UTR-PAID-IN-FULL',
+          allocations: [{ documentId: invoice.id, amountPaise: invoice.totalPaise }],
+        }),
+      );
+      expect(ok(await dispatch(invoice.id, EWAY)).json<DispatchView>().valuePaise).toBe(
+        invoice.totalPaise,
+      );
+    } finally {
+      ok(await owner().post(`/parties/${b.parties.contractor}/credit/release`, {}));
+    }
+  });
+
+  it('holds back the goods for a held site, and only that site', async () => {
+    const held = await billedOnSite('Tower A, Gachibowli');
+    const other = await billedOnSite('Villa 12, Shamshabad');
+    ok(
+      await owner().post(`/site-accounts/${held.siteId}/hold`, { reason: 'Builder has not paid' }),
+    );
+
+    const refused = await dispatch(held.invoice.id);
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json<{ message: string }>().message).toMatch(
+      /the site Tower A, Gachibowli is on hold \(Builder has not paid\)\. Take the payment or release the site/,
+    );
+    // The contractor's other site still takes delivery.
+    ok(await dispatch(other.invoice.id, EWAY));
+
+    ok(await owner().post(`/site-accounts/${held.siteId}/release`, {}));
+    ok(await dispatch(held.invoice.id, EWAY));
+  });
+
+  it('lets a walk-in bill go: billed to the walk-in party, which is never held', async () => {
+    const draft = await b.draft({ lines: [{ variantId: b.apex, quantity: 1 }] });
+    expect(draft.buyer.partyId).toBeNull();
+    const invoice = ok(
+      await owner().post(`/invoices/${draft.id}/issue`, {
+        payments: [{ modeId: b.modes.upi.id, amountPaise: 11_800, reference: 'UTR-WALK-IN' }],
+      }),
+    ).json<IssuedInvoiceView>();
+    ok(await dispatch(invoice.id, EWAY));
+  });
+
+  it('holds back the goods for a closed site', async () => {
+    const { siteId, invoice } = await billedOnSite('Plot 4, Kokapet');
+    ok(await owner().post(`/site-accounts/${siteId}/close`, {}));
+    const refused = await dispatch(invoice.id);
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json<{ message: string }>().message).toMatch(
+      /still owed on .+ and the site Plot 4, Kokapet is closed\. Take the payment before dispatching\./,
+    );
+  });
+});
