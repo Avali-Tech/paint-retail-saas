@@ -16,6 +16,7 @@ const SETTINGS: SalesSettingsView = {
   registerVarianceAlertPaise: 0,
   tintShotMl: 0.616,
   tintYMl: null,
+  slowMoverAlertDays: 90,
   invoiceBank: null,
   invoiceTerms: [],
 };

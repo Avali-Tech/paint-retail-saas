@@ -4,6 +4,21 @@ import type { stockEn, stockEnumsEn } from './en-stock.js';
 import type { Translation } from './shape.js';
 
 export const stockHi: Translation<typeof stockEn> = {
+  stockAlerts: {
+    title: 'स्टॉक अलर्ट',
+    description:
+      'स्टोर के स्टॉक स्टाफ़ को कब बताया जाए कि कोई स्टॉक न बिका है, न दूसरे स्टोर गया है',
+    slowMovers: 'धीमे बिकने वाले स्टॉक के बारे में बताएं',
+    slowMoversHint:
+      'दिन में एक बार, हर स्टोर के लिए एक सूचना, जिसमें इतने दिनों से रुके नए प्रोडक्ट हों; कोई प्रोडक्ट दोबारा तभी, जब वह बिके, बाहर जाए या ख़त्म हो',
+    off: 'बंद',
+    after: {
+      one: '{count} दिन बिना बिक्री या ट्रांसफर के बाद',
+      other: '{count} दिन बिना बिक्री या ट्रांसफर के बाद',
+    },
+    saved: 'स्टॉक अलर्ट सेटिंग सहेजी गई',
+    error: 'स्टॉक अलर्ट सेटिंग लोड नहीं हो सकी',
+  },
   stock: {
     title: 'स्टॉक',
     sections: {

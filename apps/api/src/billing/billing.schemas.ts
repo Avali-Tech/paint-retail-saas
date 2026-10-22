@@ -13,6 +13,7 @@ import {
   isValidSeriesPrefix,
   isValidUpiId,
   type DraftInvoiceLineRequest,
+  SLOW_MOVER_WINDOWS,
 } from '@paint/shared';
 import { z } from 'zod';
 import { keysetPage } from '../common/keyset.js';
@@ -165,6 +166,8 @@ export const salesSettingsSchema = z.object({
   /** ml in one shot / one Y of the tinting machine (round 8a); null clears it. */
   tintShotMl: tintUnitMl.nullable().optional(),
   tintYMl: tintUnitMl.nullable().optional(),
+  /** Days idle before stock is announced as slow; null turns the alert off. */
+  slowMoverAlertDays: z.literal(SLOW_MOVER_WINDOWS).nullable().optional(),
   /** Printed on the A4 invoice; null removes them. */
   invoiceBank: z
     .object({

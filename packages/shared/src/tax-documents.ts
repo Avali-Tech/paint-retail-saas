@@ -7,6 +7,7 @@ import type { TaxNature } from './gst/types.js';
 import type { PrintBankDetails } from './invoice-print/types.js';
 import type { ListPageInfo } from './list-page.js';
 import type { LineTintView } from './paint-api.js';
+import type { SlowMoverWindow } from './slow-movers.js';
 
 /** Every kind of GST document; each has its own number series (Rule 46(b), 49(b), 50(b), 53). */
 export const TAX_DOCUMENT_KINDS = [
@@ -261,6 +262,8 @@ export interface SalesSettingsView {
   /** ml in one shot and one Y of the tinting machine (round 8a); null when not set. */
   readonly tintShotMl: number | null;
   readonly tintYMl: number | null;
+  /** Days idle before stock is announced as slow (Settings → Stock alerts); null: no alert. */
+  readonly slowMoverAlertDays: SlowMoverWindow | null;
   /** Printed on the A4 invoice (spec §5.4); null when not given. */
   readonly invoiceBank: PrintBankDetails | null;
   /** Terms and conditions printed on every invoice, in order (at most INVOICE_TERMS_MAX). */

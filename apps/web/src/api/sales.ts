@@ -7,6 +7,7 @@ import type {
   ReturnDisposition,
   SalesSettingsView,
   SalesReturnView,
+  SlowMoverWindow,
   TaxDocumentPage,
   TaxDocumentStatus,
   TaxDocumentView,
@@ -74,12 +75,18 @@ export interface TintSettingsInput {
   readonly tintYMl: number | null;
 }
 
+/** PUT /sales/settings: days idle before stock is announced as slow; null: no alert. */
+export interface StockAlertSettingsInput {
+  readonly slowMoverAlertDays: SlowMoverWindow | null;
+}
+
 export function salesEndpoints(api: ApiClient) {
   return {
     /** GET /sales/settings (organization:manage). */
     settings: (signal?: AbortSignal) => api.get<SalesSettingsView>('/sales/settings', { signal }),
-    saveSettings: (input: InvoicePrintSettingsInput | TintSettingsInput) =>
-      api.put<SalesSettingsView>('/sales/settings', input),
+    saveSettings: (
+      input: InvoicePrintSettingsInput | TintSettingsInput | StockAlertSettingsInput,
+    ) => api.put<SalesSettingsView>('/sales/settings', input),
     /** Tax invoices and bills of supply only: notes have their own list. */
     invoices: (query: InvoiceQuery, signal?: AbortSignal) =>
       api.get<TaxDocumentPage>('/invoices', {

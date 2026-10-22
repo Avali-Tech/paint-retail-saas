@@ -341,6 +341,7 @@ describe('sales settings', () => {
       registerVarianceAlertPaise: 0,
       tintShotMl: null,
       tintYMl: null,
+      slowMoverAlertDays: 90,
       invoiceBank: null,
       invoiceTerms: [],
     });

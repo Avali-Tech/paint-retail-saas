@@ -18,6 +18,8 @@ const {
   organizationMembers,
   organizations,
   productVariants,
+  salesSettings,
+  slowMoverAlerts,
   products,
   roles,
   stores,
@@ -193,5 +195,51 @@ describe('low stock alerts', () => {
 
     await connection.db.delete(productVariants).where(eq(productVariants.id, variant));
     expect(await connection.db.select().from(lowStockAlerts)).toEqual([]);
+  });
+});
+
+describe('slow mover alerts', () => {
+  it('records each store and product once, and goes when the product does', async () => {
+    const [product] = await connection.db.select({ id: products.id }).from(products).limit(1);
+    const [other] = await connection.db
+      .insert(productVariants)
+      .values({
+        organizationId: org,
+        productId: String(product?.id),
+        sku: 'SLOW-1',
+        packSize: 1,
+        unit: 'l',
+      })
+      .returning({ id: productVariants.id });
+    const variantId = String(other?.id);
+    await connection.db
+      .insert(slowMoverAlerts)
+      .values({ organizationId: org, storeId: store, variantId });
+    expect(
+      await failureMessage(
+        connection.db
+          .insert(slowMoverAlerts)
+          .values({ organizationId: org, storeId: store, variantId }),
+      ),
+    ).toMatch(/slow_mover_alerts_store_id_variant_id_pk/);
+    await connection.db.delete(productVariants).where(eq(productVariants.id, variantId));
+    expect(await connection.db.select().from(slowMoverAlerts)).toEqual([]);
+  });
+
+  it('alerts after 90 days unless set to another screen window, or off', async () => {
+    const [row] = await connection.db
+      .insert(salesSettings)
+      .values({ organizationId: org })
+      .onConflictDoUpdate({ target: salesSettings.organizationId, set: { slowMoverAlertDays: 90 } })
+      .returning({ days: salesSettings.slowMoverAlertDays });
+    expect(row?.days).toBe(90);
+    const set = (days: number | null) =>
+      connection.db
+        .update(salesSettings)
+        .set({ slowMoverAlertDays: days as 45 | null })
+        .where(eq(salesSettings.organizationId, org));
+    expect(await failureMessage(set(60))).toMatch(/sales_settings_slow_mover_days/);
+    await set(null);
+    await set(365);
   });
 });

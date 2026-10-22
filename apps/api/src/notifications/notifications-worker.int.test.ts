@@ -156,6 +156,7 @@ describe('low stock', () => {
 
     expect(first).toEqual({
       lowStock: 1,
+      slowMovers: 0,
       followUps: 0,
       contractRenewals: 0,
       loyaltyExpiries: 0,
@@ -175,6 +176,7 @@ describe('low stock', () => {
     });
     expect(again).toEqual({
       lowStock: 0,
+      slowMovers: 0,
       followUps: 0,
       contractRenewals: 0,
       loyaltyExpiries: 0,
