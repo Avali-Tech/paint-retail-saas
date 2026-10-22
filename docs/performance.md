@@ -91,7 +91,7 @@ database is 125 MB.
 | `/audit-log?table=stock_ledger&limit=50`                    |        300 |      1261 / 1283 |       **7 / 8** |    43 KB |
 | `/audit-log?table=loyalty_accounts&limit=50`                |        300 |          51 / 52 |      **7 / 10** |    20 KB |
 | `/stock/ledger?limit=50` (API only, no screen)              |        300 |          49 / 51 |     **46 / 49** |    17 KB |
-| `/stock/slow-movers?days=90` (API only, no screen)          |        300 |        502 / 510 |   **119 / 123** |    15 KB |
+| `/stock/slow-movers?days=90` (Stock → Slow movers)          |        300 |        502 / 510 |   **119 / 123** |    15 KB |
 | `/notifications (bell)`                                     |        300 |            5 / 5 |       **5 / 6** |    11 KB |
 | `/platform/tenants?limit=50`                                |        300 |          22 / 23 |     **22 / 25** |    26 KB |
 | `/reports` (descriptions)                                   |       1000 |            1 / 2 |       **1 / 2** |     6 KB |

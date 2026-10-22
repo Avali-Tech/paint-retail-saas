@@ -53,7 +53,14 @@ describe('StockPage', () => {
       within(sections)
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['Balances', 'Low stock', 'Reorder rules', 'Transfers', 'Stock counts']);
+    ).toEqual([
+      'Balances',
+      'Low stock',
+      'Slow movers',
+      'Reorder rules',
+      'Transfers',
+      'Stock counts',
+    ]);
     expect(within(sections).getByRole('link', { name: 'Balances' })).toHaveAttribute(
       'aria-current',
       'page',

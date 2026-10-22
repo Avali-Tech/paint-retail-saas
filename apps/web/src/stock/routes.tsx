@@ -13,6 +13,9 @@ const MovementPage = lazy(() =>
 const LowStockPage = lazy(() =>
   import('./LowStockPage.js').then((module) => ({ default: module.LowStockPage })),
 );
+const SlowMoversPage = lazy(() =>
+  import('./SlowMoversPage.js').then((module) => ({ default: module.SlowMoversPage })),
+);
 const ReorderRulesPage = lazy(() =>
   import('./ReorderRulesPage.js').then((module) => ({ default: module.ReorderRulesPage })),
 );
@@ -24,6 +27,7 @@ export function stockRoutes() {
       <Route path="stock" element={guarded('inventory:read', StockPage)} />
       <Route path="stock/movements/new" element={guarded('inventory:manage', MovementPage)} />
       <Route path="stock/low" element={guarded('inventory:read', LowStockPage)} />
+      <Route path="stock/slow-movers" element={guarded('inventory:read', SlowMoversPage)} />
       <Route path="stock/reorder-rules" element={guarded('inventory:read', ReorderRulesPage)} />
     </>
   );
