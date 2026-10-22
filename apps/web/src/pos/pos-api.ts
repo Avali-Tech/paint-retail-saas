@@ -19,6 +19,8 @@ import { ApiError } from '../api/errors.js';
 export interface DraftInput {
   readonly storeId: string;
   readonly partyId?: string;
+  /** The painter who brought the sale; they earn its points. */
+  readonly influencerPartyId?: string;
   readonly buyer: {
     readonly name?: string;
     readonly gstin?: string;

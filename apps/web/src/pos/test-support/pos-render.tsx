@@ -60,6 +60,7 @@ export function fakeInvoices(issued: IssuedInvoiceView = ISSUED) {
     document({
       id,
       storeId: body.storeId,
+      influencerPartyId: body.influencerPartyId ?? null,
       buyer: {
         partyId: body.partyId ?? null,
         name: body.buyer.name ?? null,

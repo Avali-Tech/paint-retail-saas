@@ -98,7 +98,13 @@ function Counter({
   const [bill, dispatch] = useReducer(billReducer, resumed, (draft) =>
     draft === null
       ? newBill(newKey())
-      : billFromDraft(draft, readSnapshot(localStorage, draft.id), newKey(), unknownName),
+      : billFromDraft(
+          draft,
+          readSnapshot(localStorage, draft.id),
+          newKey(),
+          unknownName,
+          t('pos.painter.unknown'),
+        ),
   );
   const [today] = useState(todayInIndia);
   const [saver] = useState(() => createDraftSaver(api.pos));
@@ -211,7 +217,13 @@ function Counter({
       const draft = await api.pos.invoice(draftId);
       dispatch({
         type: 'load',
-        bill: billFromDraft(draft, readSnapshot(localStorage, draftId), newKey(), unknownName),
+        bill: billFromDraft(
+          draft,
+          readSnapshot(localStorage, draftId),
+          newKey(),
+          unknownName,
+          t('pos.painter.unknown'),
+        ),
       });
       setCurrentDraft(localStorage, store.id, draftId);
       setSave({ state: 'idle' });
@@ -436,7 +448,12 @@ function Counter({
           </p>
         </section>
         <div className="pos__side">
-          <CustomerPanel buyer={bill.buyer} dispatch={dispatch} detailsNeeded={detailsNeeded} />
+          <CustomerPanel
+            buyer={bill.buyer}
+            painter={bill.painter}
+            dispatch={dispatch}
+            detailsNeeded={detailsNeeded}
+          />
           <TotalsPanel
             preview={preview}
             lineCount={bill.lines.length}

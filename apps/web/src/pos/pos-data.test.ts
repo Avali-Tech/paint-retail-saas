@@ -223,6 +223,32 @@ describe('held bills on this device', () => {
     expect(billFromDraft(document({ lines: [] }), null, 'k', () => 'x').selected).toBeNull();
   });
 
+  it('keeps the painter with a held bill, here or on another device', () => {
+    const ramesh = { id: 'painter-1', name: 'Ramesh Painter' };
+    const held = billReducer(
+      { ...billReducer(newBill('b1'), { type: 'painter', painter: ramesh }), draftId: 'd9' },
+      { type: 'add', item: item(), quantity: 1 },
+    );
+    expect(held.painter).toEqual(ramesh);
+    saveSnapshot(localStorage, held, 500);
+    const snapshot = readSnapshot(localStorage, 'd9');
+    expect(snapshot?.painter).toEqual(ramesh);
+    forgetDraft(localStorage, 'd9');
+
+    const draft = document({ influencerPartyId: 'painter-1' });
+    // This device saved it: the painter's name is remembered.
+    expect(billFromDraft(draft, snapshot, 'k', () => 'x', 'Unknown').painter).toEqual(ramesh);
+    // Held on another counter: only the id came back with the draft.
+    expect(billFromDraft(draft, null, 'k', () => 'x', 'Unknown').painter).toEqual({
+      id: 'painter-1',
+      name: 'Unknown',
+    });
+    expect(billFromDraft(draft, null, 'k', () => 'x').painter?.name).toBe('');
+    // Saved before the counter kept a painter.
+    const old = { items: [item()], buyer: WALK_IN, payablePaise: 1 };
+    expect(billFromDraft(document(), old, 'k', () => 'x').painter).toBeNull();
+  });
+
   it('matches a remembered line by its place first, and never borrows another line’s shade', () => {
     const tint = {
       shadeCode: 'X 132',
