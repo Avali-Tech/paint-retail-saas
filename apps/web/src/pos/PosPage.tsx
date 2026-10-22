@@ -50,6 +50,7 @@ import type { Endpoints } from '../api/endpoints.js';
 import { PrintSlot, type PrintFormat, type PrintJob } from './PosPrint.js';
 import { previewBill, ratesFrom } from './preview.js';
 import { ScanBox, type LineKey } from './ScanBox.js';
+import { StockElsewhere } from './StockElsewhere.js';
 import { TotalsPanel } from './TotalsPanel.js';
 
 /** A bill is saved this long after its last change (spec §5.2: saved on every change). */
@@ -124,6 +125,7 @@ function Counter({
     [store.gstin, rates, today],
   );
   const preview = useMemo(() => previewBill(bill, context), [bill, context]);
+  const selectedLine = bill.selected === null ? undefined : bill.lines[bill.selected];
   const amounts = preview.ok
     ? preview.invoice.lines.map((line) => line.totalPaise)
     : bill.lines.map((line) => priceLine({ ...line, categoryCode: '' }).netPaise);
@@ -428,6 +430,7 @@ function Counter({
             dispatch={dispatch}
             focusWhenEmpty={scanRef}
           />
+          {selectedLine !== undefined && <StockElsewhere storeId={store.id} line={selectedLine} />}
           <p className="pos__keys muted">
             <Icon name="check" size={14} /> {t('pos.keys')}
           </p>

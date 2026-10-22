@@ -38,7 +38,8 @@ export class TransfersController {
   constructor(@Inject(TransfersService) private readonly transfers: TransfersService) {}
 
   @Post()
-  @RequirePermissions('inventory:manage')
+  // Stock staff, or anyone who bills at the receiving store (checked in the service).
+  @RequirePermissions('inventory:read')
   create(
     @CurrentAuth() auth: AuthContext,
     @Body(new ZodValidationPipe(createTransferSchema)) body: CreateTransferInput,

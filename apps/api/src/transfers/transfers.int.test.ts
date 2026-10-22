@@ -324,13 +324,48 @@ describe('who can do each step', () => {
     expect((await api(puneManager).get(`/transfers/${id}`)).statusCode).toBe(200);
   });
 
-  it('lets read-only staff view but not act', async () => {
+  it('lets counter staff ask for stock for their own store, but not approve or send it', async () => {
     const employee = await hire('store_employee', [hyd]);
     const { a } = await stockedAtPune();
     const { id } = (await request([{ variantId: a, quantity: 1 }])).json<Transfer>();
-
     expect((await api(employee).get(`/transfers/${id}`)).statusCode).toBe(200);
-    expect((await request([{ variantId: a, quantity: 1 }], employee)).statusCode).toBe(403);
+
+    // Store staff who bill at Hyderabad may request into Hyderabad: it waits for Pune.
+    const asked = await request([{ variantId: a, quantity: 2 }], employee);
+    expect(asked.statusCode).toBe(201);
+    const requested = asked.json<Transfer>();
+    expect(requested.status).toBe('requested');
+    expect((await api(employee).post(`/transfers/${requested.id}/approve`)).statusCode).toBe(403);
+    expect((await api(employee).post(`/transfers/${requested.id}/dispatch`)).statusCode).toBe(403);
+    // Only into a store they work at.
+    expect(
+      (
+        await api(employee).post('/transfers', {
+          fromStoreId: hyd,
+          toStoreId: pune,
+          lines: [{ variantId: a, quantity: 1 }],
+        })
+      ).statusCode,
+    ).toBe(403);
+  });
+
+  it('lets no one without stock or billing rights ask for stock', async () => {
+    const { a } = await stockedAtPune();
+    const crm = await hire('crm_executive', [hyd]);
+    expect((await request([{ variantId: a, quantity: 1 }], crm)).statusCode).toBe(403);
+    // Sees stock, but neither manages it nor bills at the store.
+    const role = (
+      await api(owner).post('/roles', {
+        name: 'Stock viewer',
+        permissions: ['stores:read', 'inventory:read'],
+      })
+    ).json<{ key: string }>();
+    const viewer = await hire(role.key, [hyd]);
+    const refused = await request([{ variantId: a, quantity: 1 }], viewer);
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json<{ message: string }>().message).toBe(
+      'You may not request stock for this store',
+    );
   });
 });
 

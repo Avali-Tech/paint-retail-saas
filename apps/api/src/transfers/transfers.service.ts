@@ -17,7 +17,7 @@ import {
   type StockMovement,
   type Transaction,
 } from '@paint/db';
-import { canAccessStore, formatDocumentNumber, variantTitle } from '@paint/shared';
+import { can, canAccessStore, formatDocumentNumber, variantTitle } from '@paint/shared';
 import { and, count, desc, eq, inArray, or, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import { alias, type PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import type { AuthContext } from '../auth/auth-context.js';
@@ -178,6 +178,10 @@ export class TransfersService {
       if (found.length !== 2) throw new BadRequestException('Unknown store');
       if (!canAccessStore(auth, input.toStoreId)) {
         throw new ForbiddenException('You can request stock only for a store you work at');
+      }
+      // A request only: approving and sending it still need inventory:manage.
+      if (!can(auth, 'inventory:manage') && !can(auth, 'billing:issue', input.toStoreId)) {
+        throw new ForbiddenException('You may not request stock for this store');
       }
       const variantIds = input.lines.map((line) => line.variantId);
       const variants = await tx

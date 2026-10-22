@@ -145,6 +145,9 @@ export function renderPos(routes: Record<string, FakeHandler> = {}, member: Prof
           items: [{ id: 'rs1', storeId: AMP.id, registerCode: 'C1', status: 'open' }],
           total: 1,
         }),
+      // Plenty at the counter's store, so the "free elsewhere" hint stays away.
+      'GET /stock/free-elsewhere': () =>
+        json([{ store: { id: AMP.id, code: AMP.code, name: AMP.name }, available: 999 }]),
       'GET /products/lookup': lookupIn(PRODUCTS),
       'GET /products': searchIn(PRODUCTS),
       ...invoices.routes,

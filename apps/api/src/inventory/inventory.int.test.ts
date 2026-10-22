@@ -493,6 +493,49 @@ describe('GET /stock/availability', () => {
   });
 });
 
+describe('GET /stock/free-elsewhere', () => {
+  it('shows free stock in every store, even to staff of one store, and nothing more', async () => {
+    const { twentyLitre } = await newProduct();
+    await move(owner, {
+      storeId: pune,
+      type: 'opening',
+      lines: [{ variantId: twentyLitre, quantity: 40 }],
+    });
+    await move(owner, {
+      storeId: hyd,
+      type: 'opening',
+      lines: [{ variantId: twentyLitre, quantity: 5 }],
+    });
+    // Everything at Hyderabad is held for orders: nothing free there.
+    await t.connection.db
+      .update(schema.stockBalances)
+      .set({ reserved: 5 })
+      .where(
+        and(eq(schema.stockBalances.storeId, hyd), eq(schema.stockBalances.variantId, twentyLitre)),
+      );
+
+    // A Hyderabad manager cannot read Pune's stock, but may see what is free there.
+    expect(
+      (await api(hydManager).get(`/stock/availability?variantId=${twentyLitre}`))
+        .json<{ store: { code: string } }[]>()
+        .map((row) => row.store.code),
+    ).toEqual(['HYD']);
+    const reply = await api(hydManager).get(`/stock/free-elsewhere?variantId=${twentyLitre}`);
+    expect(reply.statusCode).toBe(200);
+    expect(reply.json()).toEqual([
+      { store: { id: pune, code: 'PUN', name: expect.any(String) as string }, available: 40 },
+    ]);
+  });
+
+  it('answers 404 for an unknown variant and 400 without one', async () => {
+    expect(
+      (await api(owner).get('/stock/free-elsewhere?variantId=00000000-0000-4000-8000-000000000000'))
+        .statusCode,
+    ).toBe(404);
+    expect((await api(owner).get('/stock/free-elsewhere')).statusCode).toBe(400);
+  });
+});
+
 describe('GET /stock/ledger', () => {
   it('lists movements newest first, with paging', async () => {
     const { oneLitre } = await newProduct();
