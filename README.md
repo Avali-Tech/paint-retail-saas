@@ -310,6 +310,8 @@ page while support access runs or a request waits.
 
 **Slow-mover alert** (MVP 3): once a day the background worker tells each store's stock staff (`inventory:manage`) about products in stock there that have not sold or gone out on a transfer for the business's slow-mover days, in one `slow_movers` notice per store linking to Stock → Slow movers, each product once per idle stretch (`slow_mover_alerts`; a sale, a transfer out or running out re-arms it). The notice gives quantities, not money: the value is at cost. **Settings → Stock alerts** (`/settings/stock-alerts`, `organization:manage`, `sales_settings.slow_mover_alert_days`): 45, 90 (the default), 180 or 365 days, or off. Migration 0094.
 
+**Delivery cost on the counter** (MVP 3): when the counter's store is short of a line and another store has it free, the panel weighs bringing it over: the line's value before GST, less its average cost at that store, less the business's delivery cost (**Settings → Stock alerts and transfers**, `sales_settings.store_delivery_cost_paise`, blank when not counted), as "₹X margin − ₹300 delivery = ₹Y kept" or what the delivery costs beyond the margin. Only for `costs:read`: `GET /stock/free-elsewhere` sends each store's average cost to them alone, with the delivery cost. Migration 0095.
+
 **Invoice print** (MVP 2 round 2b, [docs/mvp-2/print.md](docs/mvp-2/print.md)): `buildInvoiceView()` in
 `@paint/shared` turns the GST engine's invoice and the document's header data into a print-ready view
 that decides which Rule 46 fields the case needs; the web app prints it on A4 and 80 mm thermal paper

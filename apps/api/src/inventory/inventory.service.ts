@@ -41,6 +41,7 @@ const {
   organizationMembers,
   productVariants,
   products,
+  salesSettings,
   stockBalances,
   stockLedger,
   stores,
@@ -82,6 +83,15 @@ export interface Availability {
 export interface FreeStock {
   readonly store: { readonly id: string; readonly code: string; readonly name: string };
   readonly available: number;
+  /** Its average cost there, for weighing a delivery against the margin; null without costs:read. */
+  readonly avgCostPaise: number | null;
+}
+
+/** GET /stock/free-elsewhere: the stores with it free, and what bringing it over costs. */
+export interface FreeElsewhere {
+  /** The business's cost of bringing stock from another store; null when not set. */
+  readonly deliveryCostPaise: number | null;
+  readonly stores: FreeStock[];
 }
 
 export interface LedgerEntry {
@@ -285,7 +295,7 @@ export class InventoryService {
    * counter at one store can point a customer to another (or ask for a transfer)
    * without seeing that store's stock, costs or value.
    */
-  freeElsewhere(auth: AuthContext, variantId: string): Promise<FreeStock[]> {
+  freeElsewhere(auth: AuthContext, variantId: string): Promise<FreeElsewhere> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
       const [variant] = await tx
         .select({ id: productVariants.id })
@@ -294,17 +304,30 @@ export class InventoryService {
       if (!variant) throw new NotFoundException('Product variant not found');
       const free = sql<string>`${stockBalances.onHand} - ${stockBalances.reserved}`;
       const rows = await tx
-        .select({ id: stores.id, code: stores.code, name: stores.name, available: free })
+        .select({
+          id: stores.id,
+          code: stores.code,
+          name: stores.name,
+          available: free,
+          avgCostPaise: stockBalances.avgCostPaise,
+        })
         .from(stockBalances)
         .innerJoin(stores, eq(stores.id, stockBalances.storeId))
         .where(
           and(eq(stockBalances.variantId, variantId), eq(stores.isActive, true), sql`${free} > 0`),
         )
         .orderBy(sql`${free} desc`, stores.code);
-      return rows.map((row) => ({
-        store: { id: row.id, code: row.code, name: row.name },
-        available: Number(row.available),
-      }));
+      const [settings] = await tx
+        .select({ deliveryCostPaise: salesSettings.storeDeliveryCostPaise })
+        .from(salesSettings);
+      return {
+        deliveryCostPaise: settings?.deliveryCostPaise ?? null,
+        stores: rows.map((row) => ({
+          store: { id: row.id, code: row.code, name: row.name },
+          available: Number(row.available),
+          avgCostPaise: costFor(auth, row.avgCostPaise),
+        })),
+      };
     });
   }
 

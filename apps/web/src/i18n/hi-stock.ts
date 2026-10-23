@@ -5,7 +5,7 @@ import type { Translation } from './shape.js';
 
 export const stockHi: Translation<typeof stockEn> = {
   stockAlerts: {
-    title: 'स्टॉक अलर्ट',
+    title: 'स्टॉक अलर्ट और ट्रांसफर',
     description:
       'स्टोर के स्टॉक स्टाफ़ को कब बताया जाए कि कोई स्टॉक न बिका है, न दूसरे स्टोर गया है',
     slowMovers: 'धीमे बिकने वाले स्टॉक के बारे में बताएं',
@@ -16,6 +16,10 @@ export const stockHi: Translation<typeof stockEn> = {
       one: '{count} दिन बिना बिक्री या ट्रांसफर के बाद',
       other: '{count} दिन बिना बिक्री या ट्रांसफर के बाद',
     },
+    delivery: 'दूसरे स्टोर से स्टॉक मंगाने का खर्च (₹)',
+    deliveryHint:
+      'डिलीवरी बॉय या एक चक्कर। जब इस स्टोर में कम हो, काउंटर इसे बिक्री के मार्जिन से तौलता है; न गिनें तो खाली छोड़ें',
+    deliveryInvalid: '₹1,00,000 तक रुपये डालें, या खाली छोड़ें',
     saved: 'स्टॉक अलर्ट सेटिंग सहेजी गई',
     error: 'स्टॉक अलर्ट सेटिंग लोड नहीं हो सकी',
   },

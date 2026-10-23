@@ -58,6 +58,9 @@ export const posTe: Translation<typeof posEn> = {
       nowhere: 'వేరే ఏ స్టోర్‌లోనూ ఖాళీ స్టాక్ లేదు.',
       elsewhere: 'ఇతర స్టోర్లలో ఖాళీ స్టాక్',
       source: '{store}: {count} ఖాళీ',
+      worthIt: 'తెప్పించండి: {margin} మార్జిన్ − {delivery} డెలివరీ = {kept} మిగులు',
+      notWorthIt:
+        'డెలివరీ అమ్మకం సంపాదన కంటే {kept} ఎక్కువ ఖర్చు ({margin} మార్జిన్, {delivery} డెలివరీ)',
       requestHere: 'ఇక్కడికి ట్రాన్స్‌ఫర్ అడగండి',
       requestTitle: 'వేరే స్టోర్ నుంచి స్టాక్ అడగండి',
       from: 'ఎక్కడి నుంచి',

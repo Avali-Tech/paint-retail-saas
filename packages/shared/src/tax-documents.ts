@@ -264,6 +264,8 @@ export interface SalesSettingsView {
   readonly tintYMl: number | null;
   /** Days idle before stock is announced as slow (Settings → Stock alerts); null: no alert. */
   readonly slowMoverAlertDays: SlowMoverWindow | null;
+  /** What bringing stock from another store costs, in paise; null when not set. */
+  readonly storeDeliveryCostPaise: number | null;
   /** Printed on the A4 invoice (spec §5.4); null when not given. */
   readonly invoiceBank: PrintBankDetails | null;
   /** Terms and conditions printed on every invoice, in order (at most INVOICE_TERMS_MAX). */

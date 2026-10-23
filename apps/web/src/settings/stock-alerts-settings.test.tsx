@@ -16,6 +16,7 @@ const SETTINGS: SalesSettingsView = {
   tintShotMl: null,
   tintYMl: null,
   slowMoverAlertDays: 90,
+  storeDeliveryCostPaise: null,
   invoiceBank: null,
   invoiceTerms: [],
 };
@@ -52,7 +53,10 @@ describe('StockAlertsSettingsPage', () => {
     expect(await screen.findByText('Stock alert settings saved')).toBeInTheDocument();
     await user.selectOptions(select, '45');
     await user.click(screen.getByRole('button', { name: 'Save' }));
-    expect(bodies).toEqual([{ slowMoverAlertDays: null }, { slowMoverAlertDays: 45 }]);
+    expect(bodies).toEqual([
+      { slowMoverAlertDays: null, storeDeliveryCostPaise: null },
+      { slowMoverAlertDays: 45, storeDeliveryCostPaise: null },
+    ]);
   });
 
   it('starts from off when the alert is off, and says why saving failed', async () => {
@@ -64,6 +68,34 @@ describe('StockAlertsSettingsPage', () => {
     expect(select).toHaveValue('');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText('Not allowed')).toBeInTheDocument();
+  });
+
+  it('sets what bringing stock over costs, checking the amount', async () => {
+    let body: unknown;
+    const { user } = renderAlerts({
+      'GET /sales/settings': () => json({ ...SETTINGS, storeDeliveryCostPaise: 25_000 }),
+      'PUT /sales/settings': (request) => {
+        body = request.body;
+        return json({ ...SETTINGS, ...(request.body as object) });
+      },
+    });
+    const delivery = await screen.findByRole('textbox', {
+      name: /^Bringing stock from another store costs/,
+    });
+    expect(delivery).toHaveValue('250.00');
+    await user.clear(delivery);
+    await user.type(delivery, '200000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(screen.getByText('Enter rupees up to ₹1,00,000, or leave it blank')).toBeInTheDocument();
+    await user.clear(delivery);
+    await user.type(delivery, 'abc');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(body).toBeUndefined();
+    await user.clear(delivery);
+    await user.type(delivery, '300');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Stock alert settings saved')).toBeInTheDocument();
+    expect(body).toEqual({ slowMoverAlertDays: 90, storeDeliveryCostPaise: 30_000 });
   });
 
   it('says when the settings cannot load', async () => {

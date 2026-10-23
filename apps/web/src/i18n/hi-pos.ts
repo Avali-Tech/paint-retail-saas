@@ -58,6 +58,9 @@ export const posHi: Translation<typeof posEn> = {
       nowhere: 'किसी और स्टोर में भी खाली स्टॉक नहीं है।',
       elsewhere: 'दूसरे स्टोर में खाली स्टॉक',
       source: '{store}: {count} खाली',
+      worthIt: 'मंगा लें: {margin} मार्जिन − {delivery} डिलीवरी = {kept} बचत',
+      notWorthIt:
+        'डिलीवरी बिक्री की कमाई से {kept} ज़्यादा पड़ेगी ({margin} मार्जिन, {delivery} डिलीवरी)',
       requestHere: 'यहां ट्रांसफर मांगें',
       requestTitle: 'दूसरे स्टोर से स्टॉक मांगें',
       from: 'कहां से',
