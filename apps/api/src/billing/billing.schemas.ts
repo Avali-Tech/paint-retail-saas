@@ -168,6 +168,8 @@ export const salesSettingsSchema = z.object({
   tintYMl: tintUnitMl.nullable().optional(),
   /** Days idle before stock is announced as slow; null turns the alert off. */
   slowMoverAlertDays: z.literal(SLOW_MOVER_WINDOWS).nullable().optional(),
+  /** What bringing stock from another store costs, paise (up to ₹1,00,000); null clears it. */
+  storeDeliveryCostPaise: z.number().int().min(0).max(10_000_000).nullable().optional(),
   /** Printed on the A4 invoice; null removes them. */
   invoiceBank: z
     .object({

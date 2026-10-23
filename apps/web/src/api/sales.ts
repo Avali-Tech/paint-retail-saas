@@ -78,6 +78,8 @@ export interface TintSettingsInput {
 /** PUT /sales/settings: days idle before stock is announced as slow; null: no alert. */
 export interface StockAlertSettingsInput {
   readonly slowMoverAlertDays: SlowMoverWindow | null;
+  /** What bringing stock from another store costs, paise; null: not set. */
+  readonly storeDeliveryCostPaise: number | null;
 }
 
 export function salesEndpoints(api: ApiClient) {

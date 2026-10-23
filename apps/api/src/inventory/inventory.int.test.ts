@@ -42,6 +42,8 @@ const api = (token: string) => ({
   get: (url: string) => t.app.inject({ method: 'GET', url, headers: bearer(token) }),
   post: (url: string, payload: object) =>
     t.app.inject({ method: 'POST', url, headers: bearer(token), payload }),
+  put: (url: string, payload: object) =>
+    t.app.inject({ method: 'PUT', url, headers: bearer(token), payload }),
 });
 
 async function signup(name: string): Promise<string> {
@@ -58,7 +60,7 @@ async function signup(name: string): Promise<string> {
   return response.json<{ token: string }>().token;
 }
 
-async function hire(roleKey: string, storeIds: string[]): Promise<string> {
+async function hire(roleKey: string, storeIds: string[], exceptions?: object): Promise<string> {
   const roles = (await api(owner).get('/roles')).json<{ id: string; key: string }[]>();
   const phone = uniquePhone();
   await api(owner).post('/members', {
@@ -67,6 +69,7 @@ async function hire(roleKey: string, storeIds: string[]): Promise<string> {
     password: 'Staff@2026',
     roleId: roles.find((role) => role.key === roleKey)?.id,
     storeIds,
+    exceptions,
   });
   const login = await t.app.inject({
     method: 'POST',
@@ -499,7 +502,7 @@ describe('GET /stock/free-elsewhere', () => {
     await move(owner, {
       storeId: pune,
       type: 'opening',
-      lines: [{ variantId: twentyLitre, quantity: 40 }],
+      lines: [{ variantId: twentyLitre, quantity: 40, unitCostPaise: 300_000 }],
     });
     await move(owner, {
       storeId: hyd,
@@ -522,9 +525,28 @@ describe('GET /stock/free-elsewhere', () => {
     ).toEqual(['HYD']);
     const reply = await api(hydManager).get(`/stock/free-elsewhere?variantId=${twentyLitre}`);
     expect(reply.statusCode).toBe(200);
-    expect(reply.json()).toEqual([
-      { store: { id: pune, code: 'PUN', name: expect.any(String) as string }, available: 40 },
-    ]);
+    expect(reply.json()).toEqual({
+      deliveryCostPaise: null,
+      stores: [
+        {
+          store: { id: pune, code: 'PUN', name: expect.any(String) as string },
+          available: 40,
+          avgCostPaise: 300_000,
+        },
+      ],
+    });
+
+    // With a delivery cost set, and the cost only for those who may see costs.
+    expect(
+      (await api(owner).put('/sales/settings', { storeDeliveryCostPaise: 30_000 })).statusCode,
+    ).toBe(200);
+    const noCosts = await hire('branch_manager', [hyd], { denied: ['costs:read'] });
+    expect(
+      (await api(noCosts).get(`/stock/free-elsewhere?variantId=${twentyLitre}`)).json(),
+    ).toMatchObject({ deliveryCostPaise: 30_000, stores: [{ available: 40, avgCostPaise: null }] });
+    expect(
+      (await api(owner).put('/sales/settings', { storeDeliveryCostPaise: 10_000_001 })).statusCode,
+    ).toBe(400);
   });
 
   it('answers 404 for an unknown variant and 400 without one', async () => {

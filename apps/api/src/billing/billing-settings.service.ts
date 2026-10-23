@@ -38,6 +38,7 @@ const DEFAULT_SETTINGS: SalesSettingsView = {
   tintShotMl: null,
   tintYMl: null,
   slowMoverAlertDays: 90,
+  storeDeliveryCostPaise: null,
   invoiceBank: null,
   invoiceTerms: [],
 };
@@ -54,6 +55,7 @@ const settingsFields = {
   tintShotMl: salesSettings.tintShotMl,
   tintYMl: salesSettings.tintYMl,
   slowMoverAlertDays: salesSettings.slowMoverAlertDays,
+  storeDeliveryCostPaise: salesSettings.storeDeliveryCostPaise,
   ...printFields,
 };
 

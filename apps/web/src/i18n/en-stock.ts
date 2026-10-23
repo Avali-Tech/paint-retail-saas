@@ -2,7 +2,7 @@
 
 export const stockEn = {
   stockAlerts: {
-    title: 'Stock alerts',
+    title: 'Stock alerts and transfers',
     description:
       'When the store’s stock staff are told about stock that has not sold or gone to another store',
     slowMovers: 'Tell them about slow movers',
@@ -13,6 +13,10 @@ export const stockEn = {
       one: 'After {count} day without a sale or transfer out',
       other: 'After {count} days without a sale or transfer out',
     },
+    delivery: 'Bringing stock from another store costs (₹)',
+    deliveryHint:
+      'A delivery boy or a trip. The counter weighs it against the sale’s margin when this store is short; blank if you do not count it',
+    deliveryInvalid: 'Enter rupees up to ₹1,00,000, or leave it blank',
     saved: 'Stock alert settings saved',
     error: 'Could not load the stock alert settings',
   },

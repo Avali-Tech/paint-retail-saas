@@ -5,6 +5,7 @@ import {
   type CreditApprovalView,
   type GstRate,
   type IssuePaymentRequest,
+  type InvoiceLine,
   type IssuedInvoiceView,
   type TaxDocumentView,
 } from '@paint/shared';
@@ -442,7 +443,23 @@ function Counter({
             dispatch={dispatch}
             focusWhenEmpty={scanRef}
           />
-          {selectedLine !== undefined && <StockElsewhere storeId={store.id} line={selectedLine} />}
+          {selectedLine !== undefined && (
+            <StockElsewhere
+              storeId={store.id}
+              line={selectedLine}
+              taxablePaise={
+                // The preview prices every line in order, so the selected one is there.
+                preview.ok
+                  ? (
+                      preview.invoice.lines.slice(
+                        Number(bill.selected),
+                        Number(bill.selected) + 1,
+                      ) as [InvoiceLine]
+                    )[0].taxablePaise
+                  : null
+              }
+            />
+          )}
           <p className="pos__keys muted">
             <Icon name="check" size={14} /> {t('pos.keys')}
           </p>

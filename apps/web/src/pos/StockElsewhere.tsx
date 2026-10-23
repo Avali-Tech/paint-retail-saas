@@ -85,6 +85,48 @@ function RequestDialog({
 }
 
 /**
+ * What bringing the line's stock from `source` keeps: the line's value before
+ * GST, less its cost there, less the delivery. Null when it cannot be told
+ * (no cost, no delivery cost set, or the bill cannot be priced yet).
+ */
+export function keptByDelivery(
+  taxablePaise: number | null,
+  quantity: number,
+  source: FreeStock,
+  deliveryCostPaise: number | null,
+): { marginPaise: number; keptPaise: number } | null {
+  if (taxablePaise === null || source.avgCostPaise === null || deliveryCostPaise === null) {
+    return null;
+  }
+  const marginPaise = taxablePaise - Math.round(source.avgCostPaise * quantity);
+  return { marginPaise, keptPaise: marginPaise - deliveryCostPaise };
+}
+
+/** The delivery weighed against the margin: worth it, or costing more than it earns. */
+function DeliveryWeighed({
+  kept,
+  deliveryCostPaise,
+  money,
+}: {
+  readonly kept: { marginPaise: number; keptPaise: number } | null;
+  readonly deliveryCostPaise: number | null;
+  readonly money: (paise: number) => string;
+}) {
+  const { t } = useI18n();
+  if (kept === null || deliveryCostPaise === null) return null;
+  const amounts = {
+    margin: money(kept.marginPaise),
+    delivery: money(deliveryCostPaise),
+    kept: money(Math.abs(kept.keptPaise)),
+  };
+  return (
+    <span className="cell-meta">
+      {kept.keptPaise >= 0 ? t('pos.stock.worthIt', amounts) : t('pos.stock.notWorthIt', amounts)}
+    </span>
+  );
+}
+
+/**
  * For the selected line, when this store cannot cover it: how much is free here,
  * which other stores have it free, and a request to send it here. Shows nothing
  * while this store has enough.
@@ -92,12 +134,15 @@ function RequestDialog({
 export function StockElsewhere({
   storeId,
   line,
+  taxablePaise,
 }: {
   readonly storeId: string;
   readonly line: BillLine;
+  /** The line's value before GST, from the bill's preview; null while it cannot be priced. */
+  readonly taxablePaise: number | null;
 }) {
   const api = useApi();
-  const { t, number } = useI18n();
+  const { t, number, money } = useI18n();
   const can = usePermissions();
   const [requesting, setRequesting] = useState(false);
   const free = useQuery({
@@ -106,9 +151,10 @@ export function StockElsewhere({
     enabled: can('inventory:read'),
   });
   if (free.data === undefined) return null;
-  const here = free.data.find((row) => row.store.id === storeId)?.available ?? 0;
+  const { deliveryCostPaise } = free.data;
+  const here = free.data.stores.find((row) => row.store.id === storeId)?.available ?? 0;
   if (line.quantity <= here) return null;
-  const sources = free.data.filter((row) => row.store.id !== storeId);
+  const sources = free.data.stores.filter((row) => row.store.id !== storeId);
   // The API answers the store with the most free first.
   const [nearest] = sources;
   const shortBy = line.quantity - here;
@@ -126,6 +172,11 @@ export function StockElsewhere({
                   store: source.store.name,
                   count: number(source.available),
                 })}
+                <DeliveryWeighed
+                  kept={keptByDelivery(taxablePaise, line.quantity, source, deliveryCostPaise)}
+                  deliveryCostPaise={deliveryCostPaise}
+                  money={money}
+                />
               </li>
             ))}
           </ul>

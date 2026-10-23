@@ -55,6 +55,9 @@ export const posEn = {
       nowhere: 'No other store has it free either.',
       elsewhere: 'Free at other stores',
       source: '{store}: {count} free',
+      worthIt: 'Bring it: {margin} margin − {delivery} delivery = {kept} kept',
+      notWorthIt:
+        'The delivery costs {kept} more than the sale earns ({margin} margin, {delivery} delivery)',
       requestHere: 'Request transfer here',
       requestTitle: 'Request stock from another store',
       from: 'From',

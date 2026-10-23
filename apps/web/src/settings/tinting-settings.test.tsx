@@ -17,6 +17,7 @@ const SETTINGS: SalesSettingsView = {
   tintShotMl: 0.616,
   tintYMl: null,
   slowMoverAlertDays: 90,
+  storeDeliveryCostPaise: null,
   invoiceBank: null,
   invoiceTerms: [],
 };

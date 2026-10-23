@@ -342,6 +342,7 @@ describe('sales settings', () => {
       tintShotMl: null,
       tintYMl: null,
       slowMoverAlertDays: 90,
+      storeDeliveryCostPaise: null,
       invoiceBank: null,
       invoiceTerms: [],
     });

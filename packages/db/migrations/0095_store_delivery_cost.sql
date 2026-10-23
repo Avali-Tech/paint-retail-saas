@@ -1,0 +1,2 @@
+ALTER TABLE "sales_settings" ADD COLUMN "store_delivery_cost_paise" bigint;--> statement-breakpoint
+ALTER TABLE "sales_settings" ADD CONSTRAINT "sales_settings_store_delivery_cost" CHECK ("sales_settings"."store_delivery_cost_paise" between 0 and 10000000);

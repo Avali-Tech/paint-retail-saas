@@ -158,10 +158,19 @@ export interface SuggestionsQuery {
   readonly offset: number;
 }
 
-/** GET /stock/free-elsewhere: a store's free quantity of one product, and nothing more. */
+/** A store's free quantity of one product, and nothing more of its stock. */
 export interface FreeStock {
   readonly store: { readonly id: string; readonly code: string; readonly name: string };
   readonly available: number;
+  /** Its average cost there; null without costs:read or without a cost. */
+  readonly avgCostPaise: number | null;
+}
+
+/** GET /stock/free-elsewhere: the stores with it free, and what bringing it over costs. */
+export interface FreeElsewhere {
+  /** null when the business has not set it (Settings → Stock alerts and transfers). */
+  readonly deliveryCostPaise: number | null;
+  readonly stores: readonly FreeStock[];
 }
 
 export function stockEndpoints(api: ApiClient) {
@@ -173,7 +182,7 @@ export function stockEndpoints(api: ApiClient) {
       api.get<Page<StockRow>>('/stock', { query: { ...query }, signal }),
     record: (input: MovementInput) => api.post<Page<LedgerEntry>>('/stock/movements', input),
     freeElsewhere: (variantId: string, signal?: AbortSignal) =>
-      api.get<FreeStock[]>('/stock/free-elsewhere', { query: { variantId }, signal }),
+      api.get<FreeElsewhere>('/stock/free-elsewhere', { query: { variantId }, signal }),
     low: (query: { storeId?: string; limit: number; offset: number }, signal?: AbortSignal) =>
       api.get<Page<LowStockItem>>('/stock/low', { query: { ...query }, signal }),
     slowMovers: (query: SlowMoversQuery, signal?: AbortSignal) =>

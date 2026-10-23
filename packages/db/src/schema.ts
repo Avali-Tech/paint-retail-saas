@@ -3314,6 +3314,8 @@ export const salesSettings = pgTable(
     tintYMl: numeric('tint_y_ml', { precision: 7, scale: 4, mode: 'number' }),
     /** Days without a sale or transfer out before stock is announced as slow; null: no alert. */
     slowMoverAlertDays: integer('slow_mover_alert_days').$type<45 | 90 | 180 | 365>().default(90),
+    /** What bringing stock from another store costs (a delivery boy, a trip); null: not set. */
+    storeDeliveryCostPaise: bigint('store_delivery_cost_paise', { mode: 'number' }),
     /** Cash is taken only into an open register session ([PO-11]: yes for cash). */
     cashNeedsRegister: boolean('cash_needs_register').notNull().default(true),
     /** A register closing further off than this tells the branch managers (spec §5.5). */
@@ -3359,6 +3361,10 @@ export const salesSettings = pgTable(
     check('sales_settings_variance_alert', sql`${table.registerVarianceAlertPaise} >= 0`),
     // The windows the Slow movers screen offers.
     check('sales_settings_slow_mover_days', sql`${table.slowMoverAlertDays} in (45, 90, 180, 365)`),
+    check(
+      'sales_settings_store_delivery_cost',
+      sql`${table.storeDeliveryCostPaise} between 0 and 10000000`,
+    ),
     check(
       'sales_settings_tint_units_positive',
       sql`${table.tintShotMl} > 0 and ${table.tintYMl} > 0`,
