@@ -18,7 +18,8 @@ export interface PickedVariant {
   readonly variant: Variant;
 }
 
-const picked = (product: Product, variant: Variant): PickedVariant => ({
+/** A product's size / pack as the picker hands it over. */
+export const picked = (product: Product, variant: Variant): PickedVariant => ({
   variantId: variant.id,
   sku: variant.sku,
   name: variantTitle(product.brand.name, product.name, variant),

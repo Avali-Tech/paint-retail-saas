@@ -172,6 +172,41 @@ describe('NewTransferPage', () => {
     });
   });
 
+  it('starts from a link: stores, product and quantity filled in', async () => {
+    const { user, requests } = renderList(
+      routes({
+        'GET /products/:id': () => json(APEX),
+        'POST /transfers': () => json(transfer(), 201),
+      }),
+      OWNER,
+      `/transfers/new?from=store-hyd&to=store-pun&product=${APEX.id}&variant=variant-1l&quantity=6`,
+    );
+    const quantity = await screen.findByRole('textbox', { name: 'Quantity of APX-1L' });
+    expect(quantity).toHaveValue('6');
+    await screen.findAllByRole('option', { name: 'PUN · Pune' });
+    expect(screen.getByRole('combobox', { name: /From store/ })).toHaveValue('store-hyd');
+    expect(screen.getByRole('combobox', { name: /To store/ })).toHaveValue('store-pun');
+    await user.clear(quantity);
+    await user.type(quantity, '4');
+    await user.click(screen.getByRole('button', { name: 'Send request' }));
+    await waitFor(() => {
+      expect(requests.find((request) => request.method === 'POST')?.body).toEqual({
+        fromStoreId: 'store-hyd',
+        toStoreId: 'store-pun',
+        lines: [{ variantId: 'variant-1l', quantity: 4 }],
+      });
+    });
+  });
+
+  it('leaves the quantity to fill when the link does not give one', async () => {
+    renderList(
+      routes({ 'GET /products/:id': () => json(APEX) }),
+      OWNER,
+      `/transfers/new?product=${APEX.id}&variant=variant-4l`,
+    );
+    expect(await screen.findByRole('textbox', { name: 'Quantity of APX-4L' })).toHaveValue('');
+  });
+
   it('lets someone at one store ask any other store of the business', async () => {
     const member = profile(undefined, { allStores: false, storeIds: ['store-pun'] });
     const { user } = renderList(

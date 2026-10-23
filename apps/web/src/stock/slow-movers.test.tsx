@@ -14,6 +14,8 @@ const slow = (overrides: Partial<SlowMover> = {}): SlowMover => ({
   lastDemandAt: '2026-08-01T06:30:00.000Z',
   daysIdle: 81,
   valuePaise: 4_200_000,
+  productId: 'product-apex',
+  sellsAt: { store: { id: 'store-pun', code: 'PUN', name: 'Pune' }, soldQuantity: 4 },
   ...overrides,
 });
 
@@ -28,6 +30,7 @@ const ITEMS = [
     lastDemandAt: null,
     daysIdle: 1,
     valuePaise: null,
+    sellsAt: null,
   }),
 ];
 
@@ -55,9 +58,9 @@ describe('SlowMoversPage', () => {
         .getAllByRole('row')
         .map((row) => row.textContent),
     ).toEqual([
-      'ProductStoreOn handIdle forLast sold or sentMoney tied up',
-      'Asian Paints Apex UltimaAPX-20L · 20 lHYD681 days1 Aug 2026₹42,000.00',
-      'Asian Paints Royale PlayTEX-5K · Sand · 5 kgHYD31 dayNeverNo cost',
+      'ProductStoreOn handIdle forLast sold or sentSells atMoney tied up',
+      'Asian Paints Apex UltimaAPX-20L · 20 lHYD681 days1 Aug 2026PUN: 4 soldMove to PUN₹42,000.00',
+      'Asian Paints Royale PlayTEX-5K · Sand · 5 kgHYD31 dayNeverNot selling elsewhere eitherNo cost',
     ]);
     expect(screen.getByText('2 items have not moved in 45 days')).toBeInTheDocument();
     const query = requests.find((request) => request.path === '/stock/slow-movers')?.query;
@@ -66,6 +69,11 @@ describe('SlowMoversPage', () => {
     expect(screen.getByRole('link', { name: 'New transfer' })).toHaveAttribute(
       'href',
       '/transfers/new',
+    );
+    // Straight to a request from where it sits to where it sells.
+    expect(screen.getByRole('link', { name: 'Move to PUN' })).toHaveAttribute(
+      'href',
+      '/transfers/new?from=store-hyd&to=store-pun&product=product-apex&variant=variant-20l&quantity=6',
     );
   });
 
@@ -114,6 +122,8 @@ describe('SlowMoversPage', () => {
     const table = await screen.findByRole('table', { name: 'Slow-moving items' });
     expect(screen.queryByRole('link', { name: 'New transfer' })).toBeNull();
     expect(within(table).queryByRole('columnheader', { name: /tied up/i })).toBeNull();
+    expect(within(table).getByText('PUN: 4 sold')).toBeInTheDocument();
+    expect(within(table).queryByRole('link', { name: 'Move to PUN' })).toBeNull();
   });
 
   it('pages through a long list', async () => {

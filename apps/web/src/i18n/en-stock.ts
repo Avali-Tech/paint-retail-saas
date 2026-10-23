@@ -119,6 +119,10 @@ export const stockEn = {
       value: 'Money tied up',
       noCost: 'No cost',
       moveHint: 'Selling well at another store? Move it there before it ages.',
+      sellsAt: 'Sells at',
+      sellsNowhere: 'Not selling elsewhere either',
+      sold: '{store}: {count} sold',
+      moveTo: 'Move to {store}',
       transfer: 'New transfer',
       emptyTitle: 'Everything is moving',
       emptyDescription: {

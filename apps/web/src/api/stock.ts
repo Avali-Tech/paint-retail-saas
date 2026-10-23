@@ -118,6 +118,12 @@ export interface SlowMover extends ItemRef {
   readonly daysIdle: number;
   /** On hand × average cost; null when the item has no cost. */
   readonly valuePaise: number | null;
+  readonly productId: string;
+  /** The other open store that sold most of it over the window; null when none did. */
+  readonly sellsAt: {
+    readonly store: { readonly id: string; readonly code: string; readonly name: string };
+    readonly soldQuantity: number;
+  } | null;
 }
 
 export interface SlowMoversQuery {
