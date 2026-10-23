@@ -11,7 +11,7 @@ export {
   type PackMixLine,
   type PackOption,
 } from './pack-mix.js';
-export { packsOf, type PackMeasure, type VariantForSale } from './packs.js';
+export { packAmount, packsOf, type PackMeasure, type VariantForSale } from './packs.js';
 export {
   PUTTY_GRAMS_PER_SQFT,
   paintMillilitres,

@@ -64,7 +64,7 @@ export const catalogEn = {
       sellingPrice: 'Selling price (₹)',
       density: 'Density (g per ml)',
       densityHint:
-        'For colorants and putty: lets a dose in ml come out of stock kept in g, or the other way',
+        'Lets ml and g convert: a colorant dose out of stock kept in g, or a pack sold by the kg counted in litres by the estimator (and the other way)',
       densityInvalid: 'Enter grams per ml above 0 and up to 25, with at most 4 decimals',
       priceInvalid: 'Enter an amount in rupees',
       aboveMrp: 'Selling price cannot exceed the MRP',

@@ -183,6 +183,49 @@ describe('POST /estimates/:id/compute', () => {
     expect((await compute(bare.id)).options).toEqual([]);
   });
 
+  it('offers paint sold by the kg through its density', async () => {
+    const o = owner();
+    const brandId = ok(await o.post('/brands', { name: 'Nerolac' })).json<{ id: string }>().id;
+    const options = ok(await o.get('/tax-categories/options')).json<TaxCategoryOptions>();
+    const distemper = ok(
+      await o.post('/products', {
+        brandId,
+        name: 'Beauty Distemper',
+        type: 'interior_paint',
+        hsnCode: '32091090',
+        taxCategoryId: options.categories.find((category) => category.key === 'paints')?.id,
+        coverageSqftPerLitre: 60,
+        defaultCoats: 2,
+        // 20 kg at 1.6 g/ml holds 12.5 l.
+        variants: [
+          {
+            sku: 'DST-20KG',
+            packSize: 20,
+            unit: 'kg',
+            sellingPricePaise: 1_200_00,
+            densityGPerMl: 1.6,
+          },
+        ],
+      }),
+    ).json<{ id: string; variants: { id: string }[] }>();
+    const created = await estimate({ options: [{ tier: 'good', productId: distemper.id }] });
+
+    const [good] = (await compute(created.id)).options;
+    expect(good?.result?.lines.map((line) => [line.purpose, line.sku])).toEqual([
+      ['paint', 'DST-20KG'],
+    ]);
+    // 1,350 sq ft × 2 coats ÷ 60 = 45 l, with wastage: four 12.5 l packs.
+    expect(good?.result?.lines[0]?.quantity).toBe(4);
+
+    // Without a density, a pack by the kg cannot be counted in litres.
+    ok(
+      await o.patch(`/variants/${String(distemper.variants[0]?.id)}`, {
+        densityGPerMl: null,
+      }),
+    );
+    expect((await o.post(`/estimates/${created.id}/compute`)).statusCode).toBe(409);
+  });
+
   it('says which product cannot be priced', async () => {
     const noPacks = await estimate({ options: [{ tier: 'better', productId: unpriced }] });
     const refused = await owner().post(`/estimates/${noPacks.id}/compute`);
