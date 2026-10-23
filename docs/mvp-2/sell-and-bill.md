@@ -643,13 +643,14 @@ and their accountants mostly want sales and tax ledgers right. Item-level vouche
 
 Pure function in `packages/shared/src/estimator/`, unit-tested, no database.
 
-| Input                       | Source                                                                                                              |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Surfaces                    | Per room: kind, L × H (or area), openings to deduct, condition (new / repaint / damaged), coats                     |
-| Coverage per litre per coat | `products.coverage_sqft_per_litre` (brand data sheets quote m²/L; the roadmap's "10–12" is m², about 108–129 sq ft) |
-| Wastage                     | Setting, default 5 %                                                                                                |
-| Putty and primer            | Putty kg per sq ft by condition; primer one coat on new or damaged surfaces                                         |
-| Packs                       | Active variants of the chosen product, with selling price                                                           |
+| Input                       | Source                                                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Surfaces                    | Per room: kind, L × H (or area), openings to deduct, condition (new / repaint / damaged), coats                                             |
+| Coverage per litre per coat | `products.coverage_sqft_per_litre` (brand data sheets quote m²/L; the roadmap's "10–12" is m², about 108–129 sq ft)                         |
+| Wastage                     | Setting, default 5 %                                                                                                                        |
+| Putty and primer            | Putty kg per sq ft by condition; primer one coat on new or damaged surfaces                                                                 |
+| Packs                       | Active variants of the chosen product, with selling price                                                                                   |
+| Packs in the other measure  | A pack sold by the kg counts in litres (and a putty pack in litres in kg) through its density, g per ml; without one it is left out (MVP 3) |
 
 ```text
 net area   = Σ (L × H) − Σ openings
