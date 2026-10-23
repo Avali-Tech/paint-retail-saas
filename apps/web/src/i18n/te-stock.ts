@@ -123,6 +123,10 @@ export const stockTe: Translation<typeof stockEn> = {
       value: 'ఇరుక్కున్న డబ్బు',
       noCost: 'ఖర్చు లేదు',
       moveHint: 'వేరే స్టోర్‌లో బాగా అమ్ముడవుతోందా? పాతబడక ముందే అక్కడికి పంపండి.',
+      sellsAt: 'ఎక్కడ అమ్ముడవుతోంది',
+      sellsNowhere: 'వేరే చోట కూడా అమ్ముడవడం లేదు',
+      sold: '{store}: {count} అమ్ముడయ్యాయి',
+      moveTo: '{store}కి పంపండి',
       transfer: 'కొత్త ట్రాన్స్‌ఫర్',
       emptyTitle: 'అన్నీ కదులుతున్నాయి',
       emptyDescription: {

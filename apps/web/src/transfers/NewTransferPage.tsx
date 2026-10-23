@@ -9,13 +9,13 @@ import {
   Textarea,
   useToast,
 } from '@paint/ui';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type SyntheticEvent } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { errorMessage } from '../api/errors.js';
 import { useApi } from '../app/services.js';
 import { useI18n, type MessageKey } from '../i18n/i18n.js';
-import { ProductPicker, type PickedVariant } from '../lib/ProductPicker.js';
+import { ProductPicker, picked, type PickedVariant } from '../lib/ProductPicker.js';
 import { StoreSelect, storeLabel, useStoreAccess } from '../stock/StoreSelect.js';
 import { useStoreDirectory } from '../stock/stores.js';
 import { parsePositiveQuantity } from '../lib/quantity.js';
@@ -55,10 +55,28 @@ export function NewTransferPage() {
   const access = useStoreAccess();
   // Stock can come from any open store of the business, not only the member's own.
   const directory = useStoreDirectory();
-  const [fromStoreId, setFrom] = useState('');
-  const [toStoreId, setTo] = useState('');
+  // A link may start the request (e.g. from Slow movers): ?from=&to=&product=&variant=&quantity=
+  const [params] = useSearchParams();
+  const [fromStoreId, setFrom] = useState(params.get('from') ?? '');
+  const [toStoreId, setTo] = useState(params.get('to') ?? '');
   const [note, setNote] = useState('');
-  const [lines, setLines] = useState<RequestLine[]>([]);
+  const productId = params.get('product');
+  const product = useQuery({
+    queryKey: ['product', productId],
+    queryFn: ({ signal }) => api.catalog.product(String(productId), signal),
+    enabled: productId !== null,
+  });
+  const linked = product.data?.variants.find((variant) => variant.id === params.get('variant'));
+  // The linked product is the first line until the member changes the lines.
+  const [edited, setEdited] = useState<RequestLine[] | null>(null);
+  const lines: RequestLine[] =
+    edited ??
+    (product.data && linked
+      ? [{ item: picked(product.data, linked), quantity: params.get('quantity') ?? '' }]
+      : []);
+  const setLines = (change: (current: RequestLine[]) => RequestLine[]) => {
+    setEdited(change(lines));
+  };
   const [problems, setProblems] = useState<Record<string, MessageKey>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);

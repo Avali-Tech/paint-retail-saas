@@ -122,6 +122,10 @@ export const stockHi: Translation<typeof stockEn> = {
       value: 'फंसा हुआ पैसा',
       noCost: 'लागत नहीं',
       moveHint: 'दूसरे स्टोर पर अच्छा बिक रहा है? पुराना होने से पहले वहां भेज दें।',
+      sellsAt: 'कहां बिकता है',
+      sellsNowhere: 'कहीं और भी नहीं बिक रहा',
+      sold: '{store}: {count} बिके',
+      moveTo: '{store} भेजें',
       transfer: 'नया ट्रांसफर',
       emptyTitle: 'सब कुछ बिक रहा है',
       emptyDescription: {

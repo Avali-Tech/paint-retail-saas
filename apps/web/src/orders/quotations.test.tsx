@@ -221,7 +221,11 @@ describe('quotation editor', { timeout: 30_000 }, () => {
   it('edits a draft (removing the influencer, changing the bill-to clears the site)', async () => {
     const { user, requests } = renderApp({
       path: '/quotations/quote-1/edit',
-      routes: editorRoutes({ 'PUT /quotations/:id': () => json(QUOTE) }),
+      routes: editorRoutes({
+        // Still valid whenever the test runs: a past date cannot be saved.
+        'GET /quotations/:id': () => json({ ...QUOTE, validUntil: '2099-01-01' }),
+        'PUT /quotations/:id': () => json(QUOTE),
+      }),
     });
     expect(await screen.findByRole('heading', { name: 'Edit QT-000042', level: 1 })).toBeVisible();
     expect(screen.getByRole('list', { name: 'Bill' })).toHaveTextContent('Godrej Hinge 4 inch');
@@ -236,7 +240,7 @@ describe('quotation editor', { timeout: 30_000 }, () => {
     });
     const put = requests.find((request) => request.method === 'PUT');
     expect(put?.path).toBe('/quotations/quote-1');
-    expect(put?.body).toMatchObject({ billToPartyId: 'party-lakshmi', validUntil: '2026-10-22' });
+    expect(put?.body).toMatchObject({ billToPartyId: 'party-lakshmi', validUntil: '2099-01-01' });
     expect(put?.body).not.toHaveProperty('influencerPartyId');
     expect(put?.body).not.toHaveProperty('projectId');
   });

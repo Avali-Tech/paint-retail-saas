@@ -26,6 +26,8 @@ interface Slow extends Item {
   lastDemandAt: string | null;
   daysIdle: number;
   valuePaise: number | null;
+  productId: string;
+  sellsAt: { store: { id: string; code: string; name: string }; soldQuantity: number } | null;
 }
 interface Suggestion extends Item {
   soldQuantity: number;
@@ -414,6 +416,44 @@ describe('GET /stock/slow-movers', () => {
       Page<Slow>
     >();
     expect(stricter.items.map((i) => i.variant.sku)).toEqual([skus[0]]);
+  });
+
+  it('names the store where each one sells, over the same window', async () => {
+    const { store, ids } = await setup(1);
+    const variant = ids[0] ?? '';
+    const another = async (code: string) =>
+      (await api(owner).post('/stores', { name: `Branch ${code}`, code })).json<{ id: string }>()
+        .id;
+    seq += 1;
+    const busy = await another(`SB${String(seq)}`);
+    const quiet = await another(`SQ${String(seq)}`);
+    const once = await another(`SO${String(seq)}`);
+    await history(store, variant, [{ type: 'opening', quantity: 10, daysAgo: 200 }]);
+    await history(busy, variant, [
+      { type: 'opening', quantity: 20, daysAgo: 200 },
+      { type: 'sale', quantity: -5, daysAgo: 10 },
+      { type: 'sale', quantity: -2, daysAgo: 20 },
+      { type: 'sale_return', quantity: 1, daysAgo: 5 },
+    ]);
+    await history(quiet, variant, [
+      { type: 'opening', quantity: 5, daysAgo: 200 },
+      { type: 'sale', quantity: -1, daysAgo: 5 },
+    ]);
+    // Sold a lot, but before the window.
+    await history(once, variant, [
+      { type: 'opening', quantity: 30, daysAgo: 300 },
+      { type: 'sale', quantity: -20, daysAgo: 120 },
+    ]);
+
+    const slow = (await api(owner).get(`/stock/slow-movers?storeId=${store}&days=90`)).json<
+      Page<Slow>
+    >();
+
+    expect(slow.items[0]?.sellsAt).toEqual({
+      store: { id: busy, code: `SB${String(seq)}`, name: `Branch SB${String(seq)}` },
+      soldQuantity: 6,
+    });
+    expect(slow.items[0]?.productId).toEqual(expect.any(String));
   });
 
   it('lists items without a cost after those with one', async () => {

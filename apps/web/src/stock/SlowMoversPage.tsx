@@ -110,6 +110,7 @@ export function SlowMoversPage() {
                         {t('stock.slowMovers.idle')}
                       </th>
                       <th scope="col">{t('stock.slowMovers.lastDemand')}</th>
+                      <th scope="col">{t('stock.slowMovers.sellsAt')}</th>
                       {costs && (
                         <th scope="col" className="ui-num">
                           {t('stock.slowMovers.value')}
@@ -133,6 +134,35 @@ export function SlowMoversPage() {
                           {item.lastDemandAt === null
                             ? t('stock.slowMovers.never')
                             : date(item.lastDemandAt)}
+                        </td>
+                        <td>
+                          {item.sellsAt === null ? (
+                            t('stock.slowMovers.sellsNowhere')
+                          ) : (
+                            <>
+                              {t('stock.slowMovers.sold', {
+                                store: item.sellsAt.store.code,
+                                count: number(item.sellsAt.soldQuantity),
+                              })}
+                              {can('inventory:manage') && (
+                                <span className="cell-meta">
+                                  <Link
+                                    to={`/transfers/new?${new URLSearchParams({
+                                      from: item.store.id,
+                                      to: item.sellsAt.store.id,
+                                      product: item.productId,
+                                      variant: item.variant.id,
+                                      quantity: String(item.onHand),
+                                    }).toString()}`}
+                                  >
+                                    {t('stock.slowMovers.moveTo', {
+                                      store: item.sellsAt.store.code,
+                                    })}
+                                  </Link>
+                                </span>
+                              )}
+                            </>
+                          )}
                         </td>
                         {costs && (
                           <td className="ui-num">

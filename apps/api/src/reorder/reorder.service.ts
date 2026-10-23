@@ -77,6 +77,15 @@ export interface SlowMover extends ItemRef {
   readonly daysIdle: number;
   /** Money tied up: on hand × average cost, in paise; null without a cost. */
   readonly valuePaise: number | null;
+  readonly productId: string;
+  /**
+   * The other open store that sold most of it over the same window (net of
+   * returns), to move it to; null when none did.
+   */
+  readonly sellsAt: {
+    readonly store: { readonly id: string; readonly code: string; readonly name: string };
+    readonly soldQuantity: number;
+  } | null;
 }
 
 /** Reorder levels worked out from a product's sales and its supplier's lead time. */
@@ -328,6 +337,7 @@ export class ReorderService {
             lastDemandAt: lastDemand,
             daysIdle,
             valuePaise: value,
+            productId: products.id,
           })
           .from(stockBalances)
           .innerJoin(stores, eq(stores.id, stockBalances.storeId))
@@ -345,14 +355,55 @@ export class ReorderService {
         .from(stockBalances)
         .leftJoin(movement, onMovement)
         .where(where);
+      // Where each of them sells: net sales per open store over the same window.
+      const sold =
+        rows.length === 0
+          ? []
+          : await tx
+              .select({
+                storeId: stockLedger.storeId,
+                variantId: stockLedger.variantId,
+                code: stores.code,
+                name: stores.name,
+                sold: sql<number>`(-sum(${stockLedger.quantity}))::float8`,
+              })
+              .from(stockLedger)
+              .innerJoin(stores, eq(stores.id, stockLedger.storeId))
+              .where(
+                and(
+                  eq(stores.isActive, true),
+                  inArray(stockLedger.movementType, ['sale', 'sale_return']),
+                  inArray(
+                    stockLedger.variantId,
+                    rows.map((row) => row.variantId),
+                  ),
+                  sql`${stockLedger.createdAt} >= now() - make_interval(days => ${query.days})`,
+                ),
+              )
+              .groupBy(stockLedger.storeId, stockLedger.variantId, stores.code, stores.name)
+              .having(sql`-sum(${stockLedger.quantity}) > 0`)
+              .orderBy(sql`-sum(${stockLedger.quantity}) desc`, asc(stores.code));
       return {
-        items: rows.map((row) => ({
-          ...itemRef(row),
-          onHand: row.onHand,
-          lastDemandAt: row.lastDemandAt ? new Date(row.lastDemandAt).toISOString() : null,
-          daysIdle: row.daysIdle,
-          valuePaise: costFor(auth, row.valuePaise === null ? null : Number(row.valuePaise)),
-        })),
+        items: rows.map((row) => {
+          const best = sold.find(
+            (candidate) =>
+              candidate.variantId === row.variantId && candidate.storeId !== row.storeId,
+          );
+          return {
+            ...itemRef(row),
+            onHand: row.onHand,
+            lastDemandAt: row.lastDemandAt ? new Date(row.lastDemandAt).toISOString() : null,
+            daysIdle: row.daysIdle,
+            valuePaise: costFor(auth, row.valuePaise === null ? null : Number(row.valuePaise)),
+            productId: row.productId,
+            sellsAt: best
+              ? {
+                  store: { id: best.storeId, code: best.code, name: best.name },
+                  soldQuantity: round3(best.sold),
+                }
+              : null,
+          };
+        }),
         total: Number(totals?.total),
       };
     });
