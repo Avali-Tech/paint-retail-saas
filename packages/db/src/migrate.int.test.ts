@@ -79,6 +79,7 @@ describe('migrateDatabase', () => {
       'message_outbox',
       'message_templates',
       'messaging_consents',
+      'mistinted_cans',
       'notification_preferences',
       'notifications',
       'opportunities',

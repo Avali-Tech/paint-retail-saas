@@ -673,6 +673,13 @@
       "when": 1792781457702,
       "tag": "0095_store_delivery_cost",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1792786775267,
+      "tag": "0096_mistinted_cans",
+      "breakpoints": true
     }
   ]
 }

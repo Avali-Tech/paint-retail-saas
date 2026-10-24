@@ -33,6 +33,8 @@ export interface DraftInput {
     readonly unitPricePaise: number;
     readonly discount?: Discount;
     readonly tint?: LineTintRequest;
+    /** A mistinted can the line sells. */
+    readonly mistintCanId?: string;
   }[];
 }
 

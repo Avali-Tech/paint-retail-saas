@@ -44,6 +44,7 @@ export const posHi: Translation<typeof posEn> = {
       quantityOf: '{name} की मात्रा',
       less: '{name} एक कम',
       more: '{name} एक ज्यादा',
+      mistinted: 'गलत टिंट डिब्बा: {shade}',
       discountOf: '{name} पर छूट',
       discountHint: '10% या रुपये',
       remove: '{name} हटाएं',
@@ -52,6 +53,13 @@ export const posHi: Translation<typeof posEn> = {
       noDiscount: 'आपकी भूमिका छूट नहीं दे सकती',
       unknownItem: 'आइटम {number} (दूसरे डिवाइस पर होल्ड किया गया)',
       count: { one: '{count} आइटम', other: '{count} आइटम' },
+    },
+    mistint: {
+      offer: 'गलत टिंट {sku}, शेड {shade}, काउंटर पर भेजा गया',
+      add: 'बिल में जोड़ें',
+      gone: 'यह पहले ही बिक गया या राइट ऑफ हो गया।',
+      otherStore: 'यह {store} में है: वहीं से बेचें।',
+      noPrice: 'प्रोडक्ट का बिक्री दाम नहीं है।',
     },
     stock: {
       short: 'बिल पर {wanted} हैं, इस स्टोर में सिर्फ़ {count} खाली स्टॉक है',

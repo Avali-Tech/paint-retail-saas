@@ -41,6 +41,7 @@ export const posEn = {
       quantityOf: 'Quantity of {name}',
       less: 'One less {name}',
       more: 'One more {name}',
+      mistinted: 'Mistinted can: {shade}',
       discountOf: 'Discount on {name}',
       discountHint: '10% or rupees',
       remove: 'Remove {name}',
@@ -49,6 +50,13 @@ export const posEn = {
       noDiscount: 'Your role cannot give discounts',
       unknownItem: 'Item {number} (held on another device)',
       count: { one: '{count} item', other: '{count} items' },
+    },
+    mistint: {
+      offer: 'Mistinted {sku}, tinted {shade}, sent to the counter',
+      add: 'Add to the bill',
+      gone: 'It is already sold or written off.',
+      otherStore: 'It is at {store}: sell it from there.',
+      noPrice: 'The product has no selling price.',
     },
     stock: {
       short: 'Only {count} free at this store for {wanted} on the bill',

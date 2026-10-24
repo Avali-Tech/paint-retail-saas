@@ -42,6 +42,7 @@ import { ProjectsModule } from './projects/projects.module.js';
 import { PurchasingModule } from './purchasing/purchasing.module.js';
 import { ReceivablesModule } from './receivables/receivables.module.js';
 import { ReconciliationModule } from './reconciliation/reconciliation.module.js';
+import { MistintsModule } from './mistints/mistints.module.js';
 import { ReorderModule } from './reorder/reorder.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { SearchModule } from './search/search.module.js';
@@ -133,6 +134,7 @@ export class AppModule {
         PurchasingModule,
         ReceivablesModule,
         ReconciliationModule,
+        MistintsModule,
         ReorderModule,
         ReportsModule,
         SearchModule,

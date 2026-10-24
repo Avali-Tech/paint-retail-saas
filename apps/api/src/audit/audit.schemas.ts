@@ -12,6 +12,7 @@ export const AUDIT_AREAS = {
   member_stores: 'Member stores',
   member_permission_exceptions: 'Member permission exceptions',
   stock_ledger: 'Stock adjustments',
+  mistinted_cans: 'Mistinted cans',
   organizations: 'Plan and account',
   support_grants: 'Support access',
   contracts: 'Contracts',

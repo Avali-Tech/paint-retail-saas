@@ -56,6 +56,10 @@ export const reportsHi: Translation<typeof reportsEn> = {
         title: 'ट्रांसफर',
         description: 'स्टोर के बीच ट्रांसफर, उनकी तारीख और डिस्पैच की गई कीमत के साथ',
       },
+      'mistinted-cans': {
+        title: 'गलत टिंट हुए डिब्बे',
+        description: 'गलत शेड में टिंट हुए डिब्बे: हर एक की लागत, बिक्री और नुकसान',
+      },
       'goods-receipts': {
         title: 'माल की रसीद',
         description: 'सप्लायर से क्या आया: इनवॉइस, पेड और फ्री यूनिट, कीमत',
@@ -134,6 +138,19 @@ export const reportsHi: Translation<typeof reportsEn> = {
         receivedAt: 'रिसीव',
         products: 'प्रोडक्ट',
         value: 'डिस्पैच मूल्य (₹)',
+      },
+      'mistinted-cans': {
+        recordedAt: 'दर्ज हुआ',
+        store: 'स्टोर',
+        sku: 'SKU',
+        product: 'प्रोडक्ट',
+        shade: 'असली शेड',
+        wanted: 'चाहिए था शेड',
+        reason: 'क्या हुआ',
+        status: 'स्थिति',
+        cost: 'लागत (₹)',
+        soldFor: 'GST से पहले बिक्री (₹)',
+        loss: 'नुकसान (₹)',
       },
       'goods-receipts': {
         number: 'GRN',
@@ -285,6 +302,7 @@ export const reportEnumsHi: Translation<typeof reportEnumsEn> = {
     damage: 'डैमेज या एक्सपायरी',
     count_correction: 'स्टॉक गिनती सुधार',
     tint_use: 'टिंटिंग में लगा कलरेंट',
+    mistint: 'गलत टिंट हुआ डिब्बा (बाहर, या बिकने के लिए वापस)',
   },
   reportLeadSources: {
     walk_in: 'वॉक-इन',

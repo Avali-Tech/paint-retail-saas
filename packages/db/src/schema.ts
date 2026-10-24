@@ -970,6 +970,11 @@ export const stockMovementType = pgEnum('stock_movement_type', [
   'count_correction',
   /** Colorant dosed into a tinted pack that left the store (round 8a). */
   'tint_use',
+  /**
+   * A mistinted can out of sellable stock (negative), or back in for the
+   * moment it is sold or put back (positive): see mistinted_cans.
+   */
+  'mistint',
 ]);
 
 /**
@@ -3702,6 +3707,73 @@ export const taxDocuments = pgTable(
  * A line of a tax document. Description, HSN, unit, rate and amounts are a
  * snapshot taken at issue, so later product or rate changes never alter it.
  */
+/** Where a mistinted can stands: waiting to be sold at a discount, sold, or written off. */
+export const mistintStatus = pgEnum('mistint_status', ['available', 'sold', 'written_off']);
+
+/**
+ * A can tinted to the wrong shade (a code typed wrong, a machine fault). It
+ * leaves sellable stock when recorded (a `mistint` movement), shows to every
+ * branch, and is then sold at a discount with its actual shade (the bill's
+ * line names it; the sale brings it back in and sends it out as a sale) or
+ * written off. What it cost, and what it sold for, give the loss.
+ */
+export const mistintedCans = pgTable(
+  'mistinted_cans',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').notNull(),
+    storeId: uuid('store_id').notNull(),
+    /** The base it was tinted from. */
+    variantId: uuid('variant_id').notNull(),
+    quantity: numeric('quantity', { precision: 14, scale: 3, mode: 'number' }).notNull(),
+    /** The shade it actually is, as the can now holds. */
+    shadeCode: text('shade_code').notNull(),
+    shadeName: text('shade_name'),
+    /** The shade the customer wanted. */
+    intendedShade: text('intended_shade'),
+    reason: text('reason').notNull(),
+    /** Its cost when recorded (average cost × quantity); null when the base had no cost. */
+    costPaise: bigint('cost_paise', { mode: 'number' }),
+    status: mistintStatus('status').notNull().default('available'),
+    /** What it sold for, before GST; set while sold. */
+    soldTaxablePaise: bigint('sold_taxable_paise', { mode: 'number' }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedByMemberId: uuid('resolved_by_member_id'),
+    /** Why it was written off. */
+    note: text('note'),
+    createdByMemberId: uuid('created_by_member_id').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique('mistinted_cans_organization_id_id_unique').on(table.organizationId, table.id),
+    index('mistinted_cans_status_idx').on(table.organizationId, table.status, table.createdAt),
+    foreignKey({
+      name: 'mistinted_cans_store_fk',
+      columns: [table.organizationId, table.storeId],
+      foreignColumns: [stores.organizationId, stores.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'mistinted_cans_variant_fk',
+      columns: [table.organizationId, table.variantId],
+      foreignColumns: [productVariants.organizationId, productVariants.id],
+    }).onDelete('restrict'),
+    check('mistinted_cans_quantity_positive', sql`${table.quantity} > 0`),
+    check('mistinted_cans_cost', sql`${table.costPaise} >= 0 and ${table.soldTaxablePaise} >= 0`),
+    // Sold or written off exactly when resolved; a sale price only while sold.
+    check(
+      'mistinted_cans_resolution',
+      sql`(${table.status}::text = 'available') = (${table.resolvedAt} is null)
+        and (${table.soldTaxablePaise} is null or ${table.status}::text = 'sold')`,
+    ),
+    pgPolicy('mistinted_cans_tenant_isolation', {
+      for: 'all',
+      to: tenantRole,
+      using: sql`${table.organizationId} = ${currentOrganizationId}`,
+      withCheck: sql`${table.organizationId} = ${currentOrganizationId}`,
+    }),
+  ],
+).enableRLS();
+
 export const taxDocumentLines = pgTable(
   'tax_document_lines',
   {
@@ -3735,6 +3807,8 @@ export const taxDocumentLines = pgTable(
     sourceLineId: uuid('source_line_id'),
     /** On an invoice from an order: the order line it bills. */
     orderLineId: uuid('order_line_id'),
+    /** On a counter bill: the mistinted can this line sells (a discount on its actual shade). */
+    mistintCanId: uuid('mistint_can_id'),
   },
   (table) => [
     unique('tax_document_lines_organization_id_id_unique').on(table.organizationId, table.id),
@@ -3762,6 +3836,11 @@ export const taxDocumentLines = pgTable(
       name: 'tax_document_lines_order_line_fk',
       columns: [table.organizationId, table.orderLineId],
       foreignColumns: [salesOrderLines.organizationId, salesOrderLines.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'tax_document_lines_mistint_can_fk',
+      columns: [table.organizationId, table.mistintCanId],
+      foreignColumns: [mistintedCans.organizationId, mistintedCans.id],
     }).onDelete('restrict'),
     foreignKey({
       name: 'tax_document_lines_source_line_fk',

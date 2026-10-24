@@ -17,7 +17,8 @@ interface Match {
   readonly variant: Variant;
 }
 
-const itemOf = ({ product, variant }: Match, price: number): BillItem => ({
+/** A pack as the bill holds it, at `price`. */
+export const itemOf = ({ product, variant }: Match, price: number): BillItem => ({
   variantId: variant.id,
   sku: variant.sku,
   name: variantTitle(product.brand.name, product.name, variant),

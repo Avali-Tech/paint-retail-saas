@@ -271,6 +271,8 @@ export interface DraftInvoiceLineRequest {
   readonly discount?: Discount;
   /** The shade it is tinted to, written with the line (round 5a); left out = untinted. */
   readonly tint?: LineTintRequest;
+  /** A mistinted can this line sells: its base, its whole quantity, at the price given. */
+  readonly mistintCanId?: string;
 }
 
 export interface IssueInvoiceRequest {

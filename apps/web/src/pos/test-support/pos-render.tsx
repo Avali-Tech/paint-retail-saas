@@ -132,10 +132,14 @@ export function fakeInvoices(issued: IssuedInvoiceView = ISSUED) {
 export const PRODUCTS = [APEX, PUTTY, ROLLER];
 
 /** The counter sale screen over a fake API: a cashier at Ameerpet with cash, UPI and card. */
-export function renderPos(routes: Record<string, FakeHandler> = {}, member: Profile = CASHIER_POS) {
+export function renderPos(
+  routes: Record<string, FakeHandler> = {},
+  member: Profile = CASHIER_POS,
+  path = '/pos',
+) {
   const invoices = fakeInvoices();
   const view = renderApp({
-    path: '/pos',
+    path,
     routes: {
       'GET /auth/me': () => json(member),
       'GET /stores': () => json([AMP, KPH, GODOWN]),

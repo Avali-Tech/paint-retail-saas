@@ -28,6 +28,7 @@ const {
   goodsReceiptLines,
   goodsReceipts,
   leads,
+  mistintedCans,
   organizationMembers,
   parties,
   productVariants,
@@ -351,6 +352,69 @@ const receipts: ReportKind<{ storeId?: string; from?: string; to?: string; suppl
     }),
   };
 
+/** Mistinted cans and what they lost: what they cost less what they sold for, or all of it written off. */
+const mistintReport: ReportKind<{ storeId?: string; from?: string; to?: string }> = {
+  kind: 'mistinted-cans',
+  title: 'Mistinted cans',
+  permission: 'inventory:read',
+  columns: [
+    { key: 'recordedAt', header: 'Recorded' },
+    { key: 'store', header: 'Store' },
+    { key: 'sku', header: 'SKU' },
+    { key: 'product', header: 'Product' },
+    { key: 'shade', header: 'Shade it is' },
+    { key: 'wanted', header: 'Shade wanted' },
+    { key: 'reason', header: 'What happened' },
+    { key: 'status', header: 'Status' },
+    { key: 'cost', header: 'Cost (₹)' },
+    { key: 'soldFor', header: 'Sold for before GST (₹)' },
+    { key: 'loss', header: 'Loss (₹)' },
+  ],
+  costColumns: ['cost', 'loss'],
+  ...reportFilters({ ...store, ...dateRange }),
+  query: (tx, auth, filters) =>
+    tx
+      .select({
+        recordedAt: ist(mistintedCans.createdAt),
+        store: stores.code,
+        sku: productVariants.sku,
+        product: products.name,
+        shade: mistintedCans.shadeCode,
+        wanted: mistintedCans.intendedShade,
+        reason: sql<string>`coalesce(${mistintedCans.note}, ${mistintedCans.reason})`,
+        status: mistintedCans.status,
+        cost: mistintedCans.costPaise,
+        soldFor: mistintedCans.soldTaxablePaise,
+        loss: sql<string | null>`case when ${mistintedCans.status} = 'available' then null
+          else ${mistintedCans.costPaise} - coalesce(${mistintedCans.soldTaxablePaise}, 0) end`,
+      })
+      .from(mistintedCans)
+      .innerJoin(stores, eq(stores.id, mistintedCans.storeId))
+      .innerJoin(productVariants, eq(productVariants.id, mistintedCans.variantId))
+      .innerJoin(products, eq(products.id, productVariants.productId))
+      .where(
+        and(
+          storeScope(auth, mistintedCans.storeId, filters.storeId),
+          withinIndiaDays(mistintedCans.createdAt, filters.from, filters.to),
+        ),
+      )
+      .orderBy(desc(mistintedCans.createdAt), desc(mistintedCans.id))
+      .$dynamic(),
+  toRow: (r) => ({
+    recordedAt: text(r.recordedAt),
+    store: text(r.store),
+    sku: text(r.sku),
+    product: text(r.product),
+    shade: text(r.shade),
+    wanted: text(r.wanted),
+    reason: text(r.reason),
+    status: text(r.status),
+    cost: rupees(r.cost),
+    soldFor: rupees(r.soldFor),
+    loss: rupees(r.loss),
+  }),
+};
+
 const LEAD_STAGES = schema.leadStage.enumValues;
 const LEAD_SOURCES = schema.leadSource.enumValues;
 
@@ -502,6 +566,7 @@ export const REPORT_KINDS: readonly ReportKind<unknown>[] = [
   ledger,
   transferReport,
   receipts,
+  mistintReport,
   leadReport,
   projectReport,
   ...SALES_REPORT_KINDS,

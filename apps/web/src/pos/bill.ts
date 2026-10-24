@@ -24,6 +24,8 @@ export interface BillLine extends BillItem {
   readonly discount: Discount | null;
   /** The shade it is tinted to (its unit price includes the tinting charge). */
   readonly tint?: LineTint | null;
+  /** A mistinted can this line sells, whole: its quantity is the can's. */
+  readonly mistint?: { readonly id: string; readonly shadeCode: string };
 }
 
 /** Who the bill is for: walk-in by default (no party), with what is typed on the bill. */
@@ -83,6 +85,12 @@ export const newBill = (key: string): Bill => ({
 
 export type BillAction =
   | { readonly type: 'add'; readonly item: BillItem; readonly quantity: number }
+  | {
+      readonly type: 'addMistint';
+      readonly item: BillItem;
+      readonly quantity: number;
+      readonly mistint: { readonly id: string; readonly shadeCode: string };
+    }
   | { readonly type: 'quantity'; readonly index: number; readonly quantity: number }
   | { readonly type: 'step'; readonly index: number; readonly by: 1 | -1 }
   | { readonly type: 'discount'; readonly index: number; readonly discount: Discount | null }
@@ -121,7 +129,7 @@ export function billReducer(bill: Bill, action: BillAction): Bill {
       // The same pack scanned again adds to its line, as a cashier expects (a tinted
       // line keeps its shade: the new packs get a line of their own).
       const index = bill.lines.findIndex(
-        (line) => line.variantId === action.item.variantId && !line.tint,
+        (line) => line.variantId === action.item.variantId && !line.tint && !line.mistint,
       );
       if (index !== -1) {
         return withLine(bill, index, (line) => ({
@@ -132,14 +140,31 @@ export function billReducer(bill: Bill, action: BillAction): Bill {
       const lines = [...bill.lines, { ...action.item, quantity: action.quantity, discount: null }];
       return changed(bill, { lines, selected: lines.length - 1 });
     }
+    case 'addMistint': {
+      // A can is sold once: on the bill already, it is only selected.
+      const index = bill.lines.findIndex((line) => line.mistint?.id === action.mistint.id);
+      if (index !== -1) return { ...bill, selected: index };
+      const lines = [
+        ...bill.lines,
+        { ...action.item, quantity: action.quantity, discount: null, mistint: action.mistint },
+      ];
+      return changed(bill, { lines, selected: lines.length - 1 });
+    }
+    // A mistinted can is sold whole: its line's quantity does not change.
     case 'quantity':
-      return withLine(bill, action.index, (line) => ({ ...line, quantity: action.quantity }));
+      return withLine(bill, action.index, (line) =>
+        line.mistint ? line : { ...line, quantity: action.quantity },
+      );
     case 'step':
-      return withLine(bill, action.index, (line) => ({
-        ...line,
-        // Never below one unit by the − key; Delete removes the line.
-        quantity: Math.max(1, roundQuantity(line.quantity + action.by)),
-      }));
+      return withLine(bill, action.index, (line) =>
+        line.mistint
+          ? line
+          : {
+              ...line,
+              // Never below one unit by the − key; Delete removes the line.
+              quantity: Math.max(1, roundQuantity(line.quantity + action.by)),
+            },
+      );
     case 'discount':
       return withLine(bill, action.index, (line) => ({ ...line, discount: action.discount }));
     case 'tint':
@@ -204,6 +229,7 @@ export function draftInput(bill: Bill, storeId: string): DraftInput {
       unitPricePaise: line.unitPricePaise,
       ...(line.discount === null ? {} : { discount: line.discount }),
       ...(line.tint ? { tint: lineTint(line.tint) } : {}),
+      ...(line.mistint ? { mistintCanId: line.mistint.id } : {}),
     })),
   };
 }

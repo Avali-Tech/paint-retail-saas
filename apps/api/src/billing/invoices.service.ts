@@ -19,6 +19,7 @@ import type { DiscountInput, DraftInvoiceInput, ListInvoicesQuery } from './bill
 import { idempotent } from './idempotency.js';
 import { INFLUENCER_ROLES, requireSaleParty, requireSaleSite } from './sale-parties.js';
 import { assertMayDiscount } from './discount-permission.js';
+import { assertMistintLines } from './mistint-lines.js';
 import { documentView, loadDocument, type TaxDocumentRow } from './invoice-view.js';
 import { tintsOf, writeLineTints } from '../paint/line-tints.js';
 
@@ -209,6 +210,7 @@ export class InvoicesService {
       .select({ id: productVariants.id, price: productVariants.sellingPricePaise })
       .from(productVariants)
       .where(and(inArray(productVariants.id, variantIds), eq(productVariants.isActive, true)));
+    await assertMistintLines(tx, input);
     const values = input.lines.map((line, index) => {
       const variant = variants.find((candidate) => candidate.id === line.variantId);
       if (!variant) throw fieldError(`lines.${String(index)}.variantId`, 'Unknown product');
@@ -228,6 +230,7 @@ export class InvoicesService {
         unitPricePaise,
         discountBps: percentOf(line.discount),
         discountPaise: amountOf(line.discount),
+        mistintCanId: line.mistintCanId ?? null,
       };
     });
     const saved = await tx.insert(taxDocumentLines).values(values).returning({

@@ -27,6 +27,7 @@ export const stockEn = {
       balances: 'Balances',
       low: 'Low stock',
       slow: 'Slow movers',
+      mistints: 'Mistinted cans',
       rules: 'Reorder rules',
       transfers: 'Transfers',
       counts: 'Stock counts',
@@ -104,6 +105,47 @@ export const stockEn = {
       noMatches: 'No rules match these filters',
       error: 'Could not load reorder rules',
       pages: 'Reorder rule pages',
+    },
+    mistints: {
+      title: 'Mistinted cans',
+      description:
+        'Cans tinted to the wrong shade, at every branch: sell them at a discount with their actual shade, or write them off',
+      add: '+ Mistinted can',
+      status: 'Show',
+      list: 'Mistinted cans',
+      pages: 'Mistinted can pages',
+      quantity: 'Quantity',
+      shade: 'Shade it is',
+      wanted: 'Wanted {shade}',
+      why: 'What happened',
+      cost: 'Cost',
+      loss: 'Loss',
+      actions: 'Actions',
+      sell: 'Sell at the counter',
+      writeOff: 'Write off',
+      emptyTitle: 'No mistinted cans here',
+      emptyDescription: 'Cans tinted to the wrong shade show here, for every branch to sell.',
+      error: 'Could not load mistinted cans',
+      recordTitle: 'Record a mistinted can',
+      recordDescription:
+        'It leaves sellable stock now, and every branch sees it until it is sold at a discount or written off.',
+      record: 'Record it',
+      recordIncomplete:
+        'Choose the store and product, and give the shade it is and what went wrong',
+      recorded: 'Mistinted {sku} recorded',
+      chooseStore: 'Choose a store',
+      change: 'Change',
+      shadeCode: 'Shade it is (code)',
+      shadeCodeHint: 'The shade the can actually holds, e.g. X110',
+      shadeName: 'Shade name',
+      intendedShade: 'Shade that was wanted',
+      reason: 'What went wrong',
+      reasonHint: 'e.g. typed X110 for X101, or the machine over-dosed',
+      writeOffTitle: 'Write off mistinted {sku}?',
+      writeOffDescription: 'Nobody will buy it: all its cost is the loss. This cannot be undone.',
+      note: 'Why it is written off',
+      noteRequired: 'Say why it is written off',
+      writtenOff: 'Mistinted {sku} written off',
     },
     slowMovers: {
       title: 'Slow movers',
@@ -198,6 +240,7 @@ export const stockEn = {
 };
 
 export const stockEnumsEn = {
+  mistintStatus: { available: 'Waiting to be sold', sold: 'Sold', written_off: 'Written off' },
   movementKinds: {
     adjustment: 'Adjustment (more or fewer than recorded)',
     damage: 'Damaged or expired',

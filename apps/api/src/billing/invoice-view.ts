@@ -131,6 +131,7 @@ export async function documentView(
           igstPaise: line.igstPaise,
           cessPaise: line.cessPaise,
           totalPaise: line.totalPaise,
+          ...(line.mistintCanId === null ? {} : { mistintCanId: line.mistintCanId }),
         },
         tints,
       ),

@@ -46,6 +46,7 @@ import {
   setCurrentDraft,
 } from './held.js';
 import { HeldBills, draftsKey } from './HeldBills.js';
+import { MistintPickup } from './MistintPickup.js';
 import { PayDialog, type CreditRoom, type Issue, type IssuedSummary } from './PayDialog.js';
 import type { Endpoints } from '../api/endpoints.js';
 import { PrintSlot, type PrintFormat, type PrintJob } from './PosPrint.js';
@@ -423,6 +424,7 @@ function Counter({
       )}
       <div className="pos__grid">
         <section className="pos__main" aria-label={t('pos.lines.label')}>
+          <MistintPickup storeId={store.id} dispatch={dispatch} />
           <ScanBox
             inputRef={scanRef}
             onAdd={(item: BillItem, quantity: number) => {
