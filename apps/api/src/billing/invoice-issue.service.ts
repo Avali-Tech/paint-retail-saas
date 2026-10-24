@@ -58,6 +58,7 @@ import {
   type OrderIssue,
 } from '../orders/order-invoicing.js';
 import { gstRatesFor } from './gst-rates.js';
+import { sellMistintedCans, unsellMistintedCans } from './mistint-lines.js';
 import { earnLoyaltyForInvoice, reverseLoyaltyForCancel } from './loyalty-reversal.js';
 import {
   earnInfluencerPoints,
@@ -228,6 +229,8 @@ export class InvoiceIssueService {
           createdByMemberId: auth.memberId,
         })),
       );
+      // Mistinted cans it sold go back on the mistinted list, out of sellable stock.
+      await postStockMovements(tx, await unsellMistintedCans(tx, auth, id));
       if (document.totalPaise > 0) {
         await postPartyLedger(tx, [
           {
@@ -546,6 +549,8 @@ export class InvoiceIssueService {
       .where(eq(taxDocuments.id, id))
       .returning()) as [TaxDocumentRow];
 
+    // Mistinted cans the bill sells come back into stock, to leave below as sales.
+    await postStockMovements(tx, await sellMistintedCans(tx, auth, id));
     // Counter goods leave now, in either stock_post_on mode; an order's wait for dispatch (§4.2).
     const leaving = order?.postStock === false ? [] : lines;
     await this.assertInStock(tx, document.storeId, leaving);

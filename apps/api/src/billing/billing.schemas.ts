@@ -78,6 +78,8 @@ export const draftInvoiceSchema = z.object({
         discount: discount.optional(),
         /** The shade it is tinted to (round 5a), written with the line. */
         tint: lineTintSchema.optional(),
+        /** A mistinted can this line sells. */
+        mistintCanId: z.uuid().optional(),
       }) satisfies z.ZodType<DraftInvoiceLineRequest>,
     )
     .min(1)

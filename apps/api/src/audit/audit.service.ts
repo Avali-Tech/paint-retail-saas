@@ -64,6 +64,8 @@ const FIELD_LABELS: Record<string, string> = {
   is_active: 'Active',
   two_factor_reset_at: 'Two-factor reset',
   store_id: 'Store',
+  cost_paise: 'Cost (paise)',
+  sold_taxable_paise: 'Sold for before GST (paise)',
   variant_id: 'Product',
   movement_type: 'Type',
   quantity: 'Quantity',

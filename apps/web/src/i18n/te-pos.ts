@@ -44,6 +44,7 @@ export const posTe: Translation<typeof posEn> = {
       quantityOf: '{name} క్వాంటిటీ',
       less: '{name} ఒకటి తగ్గించండి',
       more: '{name} ఒకటి పెంచండి',
+      mistinted: 'తప్పు టింట్ డబ్బా: {shade}',
       discountOf: '{name}పై డిస్కౌంట్',
       discountHint: '10% లేదా రూపాయలు',
       remove: '{name} తీసేయండి',
@@ -52,6 +53,13 @@ export const posTe: Translation<typeof posEn> = {
       noDiscount: 'మీ పాత్ర డిస్కౌంట్ ఇవ్వలేదు',
       unknownItem: 'ఐటమ్ {number} (వేరే డివైస్‌లో హోల్డ్ చేసింది)',
       count: { one: '{count} ఐటమ్', other: '{count} ఐటమ్‌లు' },
+    },
+    mistint: {
+      offer: 'తప్పు టింట్ {sku}, షేడ్ {shade}, కౌంటర్‌కు పంపారు',
+      add: 'బిల్లుకు జోడించండి',
+      gone: 'ఇది ఇప్పటికే అమ్ముడైంది లేదా రైట్ ఆఫ్ అయింది.',
+      otherStore: 'ఇది {store}లో ఉంది: అక్కడి నుంచే అమ్మండి.',
+      noPrice: 'ప్రోడక్ట్‌కు అమ్మకం ధర లేదు.',
     },
     stock: {
       short: 'బిల్లులో {wanted} ఉన్నాయి, ఈ స్టోర్‌లో {count} మాత్రమే ఖాళీగా ఉన్నాయి',

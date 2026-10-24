@@ -53,6 +53,10 @@ export const reportsEn = {
         title: 'Transfers',
         description: 'Transfers between stores with their dates and dispatched value',
       },
+      'mistinted-cans': {
+        title: 'Mistinted cans',
+        description: 'Cans tinted to the wrong shade: what each cost, sold for and lost',
+      },
       'goods-receipts': {
         title: 'Goods receipts',
         description: 'What arrived from suppliers: invoices, paid and free units, value',
@@ -132,6 +136,19 @@ export const reportsEn = {
         receivedAt: 'Received',
         products: 'Products',
         value: 'Dispatched value (₹)',
+      },
+      'mistinted-cans': {
+        recordedAt: 'Recorded',
+        store: 'Store',
+        sku: 'SKU',
+        product: 'Product',
+        shade: 'Shade it is',
+        wanted: 'Shade wanted',
+        reason: 'What happened',
+        status: 'Status',
+        cost: 'Cost (₹)',
+        soldFor: 'Sold for before GST (₹)',
+        loss: 'Loss (₹)',
       },
       'goods-receipts': {
         number: 'GRN',
@@ -283,6 +300,7 @@ export const reportEnumsEn = {
     damage: 'Damage or expiry',
     count_correction: 'Stock count correction',
     tint_use: 'Colorant used in tinting',
+    mistint: 'Mistinted can (out, or back in to be sold)',
   },
   reportLeadSources: {
     walk_in: 'Walk-in',

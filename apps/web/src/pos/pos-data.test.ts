@@ -223,6 +223,27 @@ describe('held bills on this device', () => {
     expect(billFromDraft(document({ lines: [] }), null, 'k', () => 'x').selected).toBeNull();
   });
 
+  it('keeps a mistinted can on a held bill, with its shade where this device saved it', () => {
+    const draft = document({
+      lines: [
+        draftLine({ mistintCanId: 'can-1' }),
+        draftLine({ id: 'l2', lineNo: 2, mistintCanId: 'can-2' }),
+      ],
+    });
+    const snapshot = {
+      items: [{ ...item(), mistint: { id: 'can-1', shadeCode: 'X110' } }],
+      buyer: WALK_IN,
+      payablePaise: 1,
+    };
+    const bill = billFromDraft(draft, snapshot, 'k', (n) => `Item ${String(n)}`);
+    expect(bill.lines.map((line) => line.mistint)).toEqual([
+      { id: 'can-1', shadeCode: 'X110' },
+      { id: 'can-2', shadeCode: '' },
+    ]);
+    const elsewhere = billFromDraft(draft, null, 'k', () => 'x');
+    expect(elsewhere.lines[0]?.mistint).toEqual({ id: 'can-1', shadeCode: '' });
+  });
+
   it('keeps the painter with a held bill, here or on another device', () => {
     const ramesh = { id: 'painter-1', name: 'Ramesh Painter' };
     const held = billReducer(

@@ -159,6 +159,8 @@ export interface TaxDocumentLineView {
   readonly totalPaise: number;
   /** Its tint (round 5a, invoice and bill-of-supply lines); absent when untinted. */
   readonly tint?: LineTintView;
+  /** The mistinted can it sells; absent on ordinary lines. */
+  readonly mistintCanId?: string;
 }
 
 export interface TaxDocumentTaxRowView {

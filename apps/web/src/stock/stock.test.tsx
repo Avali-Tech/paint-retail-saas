@@ -57,6 +57,7 @@ describe('StockPage', () => {
       'Balances',
       'Low stock',
       'Slow movers',
+      'Mistinted cans',
       'Reorder rules',
       'Transfers',
       'Stock counts',

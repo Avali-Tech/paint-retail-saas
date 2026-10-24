@@ -38,6 +38,7 @@ describe('report list', () => {
       'stock-ledger',
       'transfers',
       'goods-receipts',
+      'mistinted-cans',
       'leads',
       'projects',
       'sales-by-period',
@@ -82,11 +83,12 @@ describe('report list', () => {
           'damage',
           'count_correction',
           'tint_use',
+          'mistint',
         ],
       },
     ]);
     expect(owner[3]?.filters.at(-1)).toEqual({ name: 'supplierId', type: 'supplier' });
-    expect(owner[4]?.filters.map((f) => [f.name, f.type, f.values?.length])).toEqual([
+    expect(owner[5]?.filters.map((f) => [f.name, f.type, f.values?.length])).toEqual([
       ['storeId', 'store', undefined],
       ['from', 'date', undefined],
       ['to', 'date', undefined],
@@ -106,6 +108,7 @@ describe('report list', () => {
       'stock-by-location',
       'stock-ledger',
       'transfers',
+      'mistinted-cans',
       'sales-by-period',
       'sales-by-store',
       'sales-by-product',

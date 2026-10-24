@@ -14,7 +14,7 @@ export const STORE_KEY = 'pos.store';
 /** What this device remembers about a held bill. */
 export interface BillSnapshot {
   /** Each line's pack, and its shade when tinted. */
-  readonly items: readonly (BillItem & Pick<BillLine, 'tint'>)[];
+  readonly items: readonly (BillItem & Pick<BillLine, 'tint' | 'mistint'>)[];
   readonly buyer: Buyer;
   /** Absent in snapshots saved before the counter kept the painter. */
   readonly painter?: Bill['painter'];
@@ -91,11 +91,24 @@ export function billFromDraft(
         : line.discountPaise !== null
           ? { kind: 'amount' as const, paise: line.discountPaise }
           : null;
+    // A mistinted can stays one; its shade code is known where this device saved it.
+    const mistint =
+      line.mistintCanId === undefined
+        ? undefined
+        : {
+            id: line.mistintCanId,
+            // Only the shade saved for this very can.
+            shadeCode:
+              item.mistint?.id === line.mistintCanId
+                ? (item.mistint as { shadeCode: string }).shadeCode
+                : '',
+          };
     return {
       ...item,
       unitPricePaise: line.unitPricePaise,
       quantity: line.quantity,
       discount,
+      ...(mistint ? { mistint } : {}),
     };
   });
   const lines = named.map((line, index) => withViewTint(line, ordered[index]?.tint));

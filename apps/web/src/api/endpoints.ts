@@ -28,6 +28,7 @@ import { recordActivityEndpoints } from './record-activities.js';
 import { reportEndpoints } from './reports.js';
 import { salesEndpoints } from './sales.js';
 import { stockCountEndpoints } from './stock-counts.js';
+import { mistintEndpoints } from './mistints.js';
 import { stockEndpoints } from './stock.js';
 import { supportRequestEndpoints } from '../support-access/grants.js';
 import { taxEndpoints } from './tax.js';
@@ -109,6 +110,7 @@ export function endpoints(api: ApiClient) {
     sales: salesEndpoints(api),
     catalog: catalogEndpoints(api),
     stock: stockEndpoints(api),
+    mistints: mistintEndpoints(api),
     transfers: transferEndpoints(api),
     stockCounts: stockCountEndpoints(api),
     purchasing: purchasingEndpoints(api),

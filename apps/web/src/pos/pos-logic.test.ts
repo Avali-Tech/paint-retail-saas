@@ -51,6 +51,25 @@ describe('the bill', () => {
     expect([bill.lines.length, bill.selected]).toEqual([0, null]);
   });
 
+  it('sells a mistinted can whole, once, and sends it with the draft', () => {
+    const mistint = { id: 'can-1', shadeCode: 'X110' };
+    const bill = withLines(
+      { type: 'add', item: item(), quantity: 1 },
+      { type: 'addMistint', item: item(), quantity: 1, mistint },
+      { type: 'addMistint', item: item(), quantity: 1, mistint },
+      // A scan of the same pack goes to the ordinary line, not to the can.
+      { type: 'add', item: item(), quantity: 1 },
+      { type: 'quantity', index: 1, quantity: 5 },
+      { type: 'step', index: 1, by: 1 },
+    );
+    expect(bill.lines.map((line) => [line.quantity, line.mistint?.id])).toEqual([
+      [2, undefined],
+      [1, 'can-1'],
+    ]);
+    expect(draftInput(bill, 's1').lines[1]).toMatchObject({ mistintCanId: 'can-1', quantity: 1 });
+    expect(draftInput(bill, 's1').lines[0]).not.toHaveProperty('mistintCanId');
+  });
+
   it('takes the saved draft only for the same bill, and resets and loads', () => {
     let bill = withLines({ type: 'buyer', buyer: { name: 'Ravi' } });
     bill = billReducer(bill, { type: 'saved', key: 'other', draftId: 'd0' });

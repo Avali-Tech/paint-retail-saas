@@ -51,6 +51,8 @@ function LineRow({
   const mayDiscount = usePermissions()('billing:discount');
   const quantity = useEditing();
   const discount = useEditing();
+  // A mistinted can is sold whole.
+  const wholeCan = line.mistint !== undefined;
   const name = line.name;
 
   const commitQuantity = () => {
@@ -91,14 +93,20 @@ function LineRow({
           {line.sku === '' ? '' : `${line.sku} · `}
           {t('pos.lines.perUnit', { price: money(line.unitPricePaise) })}
         </span>
-        <TintControl line={line} index={index} partyId={partyId} dispatch={dispatch} />
+        {line.mistint ? (
+          <span className="pos-line__meta">
+            {t('pos.lines.mistinted', { shade: line.mistint.shadeCode })}
+          </span>
+        ) : (
+          <TintControl line={line} index={index} partyId={partyId} dispatch={dispatch} />
+        )}
       </div>
       <div className="pos-line__quantity">
         <Button
           variant="secondary"
           size="sm"
           aria-label={t('pos.lines.less', { name })}
-          disabled={line.quantity <= 1}
+          disabled={line.quantity <= 1 || wholeCan}
           onClick={() => {
             dispatch({ type: 'step', index, by: -1 });
           }}
@@ -109,6 +117,7 @@ function LineRow({
           className="pos-line__number"
           inputMode="decimal"
           aria-label={t('pos.lines.quantityOf', { name })}
+          disabled={wholeCan}
           aria-invalid={quantity.invalid || undefined}
           title={quantity.invalid ? t('pos.lines.quantityInvalid') : undefined}
           value={quantity.text ?? number(line.quantity)}
@@ -128,6 +137,7 @@ function LineRow({
           variant="secondary"
           size="sm"
           aria-label={t('pos.lines.more', { name })}
+          disabled={wholeCan}
           onClick={() => {
             dispatch({ type: 'step', index, by: 1 });
           }}

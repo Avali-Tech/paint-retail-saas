@@ -16,6 +16,7 @@ import {
 
 const {
   brands,
+  mistintedCans,
   organizations,
   productVariants,
   products,
@@ -495,6 +496,7 @@ describe('stock ledger rules', () => {
     ['adjustment', 0],
     ['tint_use', 1],
     ['tint_use', 0],
+    ['mistint', 0],
   ] as const)('refuses a %s of %d', async (movementType, quantity) => {
     const message = await failureMessage(
       connection.db
@@ -630,5 +632,34 @@ describe('findStockMismatches', () => {
     const forOther = await withTenant(connection.db, otherOrg, (tx) => findStockMismatches(tx));
 
     expect(forOther).toEqual([]);
+  });
+});
+
+describe('mistinted cans', () => {
+  const can = (values: Partial<typeof mistintedCans.$inferInsert> = {}) =>
+    connection.db.insert(mistintedCans).values({
+      organizationId: org,
+      storeId: store,
+      variantId: apex20,
+      quantity: 1,
+      shadeCode: 'X110',
+      reason: 'Typed X110 for X101',
+      createdByMemberId: crypto.randomUUID(),
+      ...values,
+    });
+
+  it('waits unresolved, and is sold or written off only when resolved', async () => {
+    await can();
+    await can({ status: 'sold', resolvedAt: new Date(), soldTaxablePaise: 50_000 });
+    await can({ status: 'written_off', resolvedAt: new Date(), note: 'Spilled' });
+    for (const values of [
+      { status: 'sold' as const },
+      { resolvedAt: new Date() },
+      { status: 'written_off' as const, resolvedAt: new Date(), soldTaxablePaise: 1 },
+    ]) {
+      expect(await failureMessage(can(values))).toMatch(/mistinted_cans_resolution/);
+    }
+    expect(await failureMessage(can({ quantity: 0 }))).toMatch(/mistinted_cans_quantity_positive/);
+    expect(await failureMessage(can({ costPaise: -1 }))).toMatch(/mistinted_cans_cost/);
   });
 });

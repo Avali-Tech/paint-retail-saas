@@ -57,6 +57,10 @@ export const reportsTe: Translation<typeof reportsEn> = {
         title: 'ట్రాన్స్‌ఫర్లు',
         description: 'స్టోర్ల మధ్య ట్రాన్స్‌ఫర్లు, వాటి తేదీలు మరియు డిస్పాచ్ విలువతో',
       },
+      'mistinted-cans': {
+        title: 'తప్పుగా టింట్ అయిన డబ్బాలు',
+        description: 'తప్పు షేడ్‌కి టింట్ అయిన డబ్బాలు: ప్రతి దాని ఖర్చు, అమ్మకం, నష్టం',
+      },
       'goods-receipts': {
         title: 'సరుకు రసీదులు',
         description: 'సప్లయర్ల నుండి వచ్చినవి: ఇన్‌వాయిస్‌లు, పెయిడ్ మరియు ఫ్రీ యూనిట్లు, విలువ',
@@ -137,6 +141,19 @@ export const reportsTe: Translation<typeof reportsEn> = {
         receivedAt: 'రిసీవ్',
         products: 'ప్రోడక్ట్‌లు',
         value: 'డిస్పాచ్ విలువ (₹)',
+      },
+      'mistinted-cans': {
+        recordedAt: 'నమోదైంది',
+        store: 'స్టోర్',
+        sku: 'SKU',
+        product: 'ప్రోడక్ట్',
+        shade: 'అసలు షేడ్',
+        wanted: 'కావలసిన షేడ్',
+        reason: 'ఏం జరిగింది',
+        status: 'స్థితి',
+        cost: 'ఖర్చు (₹)',
+        soldFor: 'GST ముందు అమ్మకం (₹)',
+        loss: 'నష్టం (₹)',
       },
       'goods-receipts': {
         number: 'GRN',
@@ -288,6 +305,7 @@ export const reportEnumsTe: Translation<typeof reportEnumsEn> = {
     damage: 'డ్యామేజ్ లేదా ఎక్స్‌పైరీ',
     count_correction: 'స్టాక్ లెక్కింపు సవరణ',
     tint_use: 'టింటింగ్‌లో వాడిన కలరెంట్',
+    mistint: 'తప్పుగా టింట్ అయిన డబ్బా (బయటకు, లేదా అమ్మడానికి తిరిగి)',
   },
   reportLeadSources: {
     walk_in: 'వాక్-ఇన్',
