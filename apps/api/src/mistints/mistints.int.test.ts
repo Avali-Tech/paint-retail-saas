@@ -136,6 +136,31 @@ describe('recording a mistinted can', () => {
   });
 });
 
+describe('finding mistinted cans', () => {
+  it('records one without the optional shades or a known cost, and lists by store', async () => {
+    // Kukatpally's Apex came in as opening stock without a cost.
+    const plain = ok(
+      await api(t, b.owner).post('/mistinted-cans', {
+        storeId: b.stores.kkp,
+        variantId: b.apex,
+        quantity: 1,
+        shadeCode: 'G300',
+        reason: 'Machine over-dosed',
+      }),
+    ).json<MistintView>();
+    expect(plain).toMatchObject({ shadeName: null, intendedShade: null, costPaise: null });
+
+    const atKkp = ok(
+      await api(t, b.owner).get(`/mistinted-cans?storeId=${b.stores.kkp}`),
+    ).json<MistintPage>();
+    expect(atKkp.items.map((item) => item.store.code)).toEqual(['KKP']);
+    expect(
+      (await api(t, b.owner).get('/mistinted-cans/00000000-0000-4000-8000-000000000000'))
+        .statusCode,
+    ).toBe(404);
+  });
+});
+
 describe('writing a mistinted can off', () => {
   it('closes it with all its cost lost, by stock staff at its store, once', async () => {
     const can = ok(await record(cashier)).json<MistintView>();

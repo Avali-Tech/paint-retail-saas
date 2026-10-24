@@ -8,7 +8,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
-  InsufficientStockError,
   postStockMovements,
   schema,
   withTenant,
@@ -61,35 +60,35 @@ export class MistintsService {
         throw new ForbiddenException('You cannot record mistinted cans');
       }
       const [variant] = await tx
-        .select({ sku: productVariants.sku, avgCostPaise: stockBalances.avgCostPaise })
+        .select({ sku: productVariants.sku })
         .from(productVariants)
-        .leftJoin(
-          stockBalances,
-          and(eq(stockBalances.variantId, productVariants.id), eq(stockBalances.storeId, store.id)),
-        )
         .where(eq(productVariants.id, input.variantId));
       if (!variant) throw new BadRequestException('Unknown product variant');
-      const id = crypto.randomUUID();
-      try {
-        await postStockMovements(tx, [
-          {
-            organizationId: auth.organization.id,
-            storeId: store.id,
-            variantId: input.variantId,
-            movementType: 'mistint',
-            quantity: -input.quantity,
-            referenceType: 'mistinted_can',
-            referenceId: id,
-            note: `Mistinted ${input.shadeCode}: ${input.reason}`,
-            createdByMemberId: auth.memberId,
-          },
-        ]);
-      } catch (error) {
-        if (error instanceof InsufficientStockError) {
-          throw new ConflictException(`Not enough stock of ${variant.sku} at ${store.code}`);
-        }
-        throw error;
+      // Locked, so two records cannot both take the last can.
+      const [balance] = await tx
+        .select({ onHand: stockBalances.onHand, avgCostPaise: stockBalances.avgCostPaise })
+        .from(stockBalances)
+        .where(
+          and(eq(stockBalances.storeId, store.id), eq(stockBalances.variantId, input.variantId)),
+        )
+        .for('update');
+      if ((balance?.onHand ?? 0) < input.quantity) {
+        throw new ConflictException(`Not enough stock of ${variant.sku} at ${store.code}`);
       }
+      const id = crypto.randomUUID();
+      await postStockMovements(tx, [
+        {
+          organizationId: auth.organization.id,
+          storeId: store.id,
+          variantId: input.variantId,
+          movementType: 'mistint',
+          quantity: -input.quantity,
+          referenceType: 'mistinted_can',
+          referenceId: id,
+          note: `Mistinted ${input.shadeCode}: ${input.reason}`,
+          createdByMemberId: auth.memberId,
+        },
+      ]);
       await tx.insert(mistintedCans).values({
         id,
         organizationId: auth.organization.id,
@@ -100,8 +99,8 @@ export class MistintsService {
         shadeName: input.shadeName ?? null,
         intendedShade: input.intendedShade ?? null,
         reason: input.reason,
-        costPaise:
-          variant.avgCostPaise === null ? null : Math.round(variant.avgCostPaise * input.quantity),
+        // A balance is there: the stock was checked above.
+        costPaise: costOf(balance as { avgCostPaise: number | null }, input.quantity),
         createdByMemberId: auth.memberId,
       });
       return this.view(tx, auth, id);
@@ -206,6 +205,10 @@ export class MistintsService {
 }
 
 type Row = Awaited<ReturnType<MistintsService['rows']>>[number];
+
+/** Its cost when recorded: average cost × quantity; null when the base has no cost yet. */
+const costOf = (balance: { avgCostPaise: number | null }, quantity: number) =>
+  balance.avgCostPaise === null ? null : Math.round(balance.avgCostPaise * quantity);
 
 function toView(auth: AuthContext, row: Row): MistintView {
   const { can } = row;
