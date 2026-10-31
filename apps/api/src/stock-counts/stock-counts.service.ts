@@ -117,6 +117,9 @@ export interface CountListItem {
   readonly store: { readonly id: string; readonly code: string };
   readonly scope: CountRow['scope'];
   readonly startedAt: string;
+  readonly submittedAt: string | null;
+  /** Who submitted it for approval, by name. */
+  readonly submittedBy: string | null;
 }
 
 export interface StoreAccuracy {
@@ -371,24 +374,29 @@ export class StockCountsService {
       const where = and(
         query.storeId ? eq(stockCounts.storeId, query.storeId) : this.storeScope(auth),
         query.status ? eq(stockCounts.status, query.status) : undefined,
+        query.awaitingMe ? this.awaiting(auth) : undefined,
       );
       const rows = await tx
-        .select({ count: stockCounts, storeCode: stores.code })
+        .select({ count: stockCounts, storeCode: stores.code, submitter: users.fullName })
         .from(stockCounts)
         .innerJoin(stores, eq(stores.id, stockCounts.storeId))
+        .leftJoin(organizationMembers, eq(organizationMembers.id, stockCounts.submittedByMemberId))
+        .leftJoin(users, eq(users.id, organizationMembers.userId))
         .where(where)
         .orderBy(desc(stockCounts.startedAt), desc(stockCounts.number))
         .limit(query.limit)
         .offset(query.offset);
       const [totals] = await tx.select({ total: count() }).from(stockCounts).where(where);
       return {
-        items: rows.map(({ count: row, storeCode }): CountListItem => ({
+        items: rows.map(({ count: row, storeCode, submitter }): CountListItem => ({
           id: row.id,
           number: row.number,
           status: row.status,
           store: { id: row.storeId, code: storeCode },
           scope: row.scope,
           startedAt: row.startedAt.toISOString(),
+          submittedAt: iso(row.submittedAt),
+          submittedBy: submitter,
         })),
         total: Number(totals?.total),
       };
@@ -471,6 +479,13 @@ export class StockCountsService {
       }
       return this.view(tx, auth, countId);
     });
+  }
+
+  /** Submitted counts the member may approve (the rule approve() applies). */
+  private awaiting(auth: AuthContext): SQL {
+    const submitted = sql`${stockCounts.status} = 'submitted'`;
+    if (auth.allStores) return submitted;
+    return sql`${submitted} and ${stockCounts.submittedByMemberId} is distinct from ${auth.memberId}`;
   }
 
   private storeScope(auth: AuthContext): SQL | undefined {

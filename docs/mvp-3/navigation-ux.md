@@ -5,7 +5,8 @@ find any page without scanning a long list. Today an owner sees about 35 flat me
 the same level, and every role gets the same dashboard.
 
 This spec records the product owner's approved direction. Step 1 (§5) is specified in full and
-ships first. The later steps (§6) are outlines with their open questions.
+shipped first; step 2, the inbox, is recorded as built (§6). The later steps (§7) are outlines
+with their open questions.
 
 ## 1. Targets
 
@@ -74,7 +75,7 @@ The sidebar shows these entries, top to bottom. Each entry is a **section**. Its
 | Section        | Tabs, in order                                                                                                       |
 | -------------- | -------------------------------------------------------------------------------------------------------------------- |
 | **+ New sale** | The counter (`/pos`). It is a prominent button at the top of the sidebar, not a plain item. Needs `billing:issue`.   |
-| Home           | Dashboard (`/dashboard`)                                                                                             |
+| Home           | Dashboard (`/dashboard`) · Inbox (`/inbox`, step 2, §6)                                                              |
 | Sales          | Quotations · Sales orders · Invoices · Credit & debit notes · Estimates                                              |
 | Customers      | Customers · Leads · Opportunities · Projects · Follow-ups · Contracts · Credit approvals · Credit requests           |
 | Money          | Receivables · Collections · Payments · Day end · Tally export · Payment links                                        |
@@ -118,7 +119,7 @@ thing, not separate areas:
   Account security and Sign out.
 - **Shortcuts.** `/` (search), the two-key quick actions (N C, N T …) and the G shortcuts are
   unchanged.
-- **No badges yet.** They come with the inbox (step 2).
+- **Badges.** Only the inbox's count, on Home and on the Inbox tab (step 2, §6).
 
 ### 5.3 Settings hub
 
@@ -155,14 +156,103 @@ These are the system roles. A member's exceptions add or remove tabs, and with t
 - `stock/sections.ts` and `purchasing/sections.ts` go away. The shell draws the one tab bar, so
   pages stop drawing their own.
 
-## 6. Later steps (outline)
+## 6. Step 2: the "Needs action" inbox (as built)
 
-2. **Needs-action inbox.** One page and a badge on the menu. It reads the queues that already
-   exist (credit approvals, credit requests, transfers to send or receive, counts to approve,
-   broken promises, low stock, plan requests).
-   - Open: one API endpoint that aggregates the queues, or one call per queue? Approve inline
-     for every kind, or open the record for some? Who sees the low-stock rows: the branch or the
-     inventory manager?
+One page where each member sees everything waiting on them, and acts on most of it without
+opening the record. No migrations: it reads the queues that already exist.
+
+### 6.1 Where it is
+
+- **Inbox is a tab of Home**, after the Dashboard, at `/inbox`. It has no permission: every member
+  has an inbox (their own follow-ups at least). So every role now has Home, and Home always has
+  two tabs.
+- **The count** shows as a badge on the Home entry (side bar, phone bottom bar and "More") and on
+  the Inbox tab, "99+" past 99. The link's name says it: "Home, 3 waiting for you" (an
+  `aria-label`, so every browser reads it the same). At 0 there is no badge.
+- The badge asks `GET /inbox/count` every minute while the app is in view (React Query does not
+  poll a hidden tab), and again after any change to a queue: the refresh helpers of credit,
+  approvals, collections, activities and inventory also reload the inbox, so acting on a queue's
+  own screen updates the badge too.
+- A header button was considered and not built: the header already has search and the bell, and
+  the spec puts the badge on the menu.
+
+### 6.2 API
+
+- `GET /inbox?kind=&storeId=` returns `{ kinds, groups, total }` (`InboxView` in
+  `@paint/shared`). `kinds` are the kinds this member can be asked about (the filter's options);
+  `groups` are those with something waiting, in a fixed order, each with its `total` and its first
+  20 items. A `storeId` the member does not work at is a 404.
+- Each item: `kind`, `id`, `step` (what it asks, e.g. `dispatch_transfer`), `reference` (AP-, CR-,
+  TR- number or SKU), `title`, `requestedBy`, `store`, `amountPaise`, `since`, `due`, `quantity`
+  (low stock), `priority` (`high`, `normal`, `low`), `link` (the record in the web app) and
+  `actions`: the inline actions the member may take, each with the existing endpoint it posts to
+  and what it asks first (`none`, an optional `note`, a required `reason`).
+- `GET /inbox/count` returns `{ total }`: the same queues, one row each.
+- **No new rules.** Each queue is read through its own service with the same permissions, store
+  scope and member exceptions (#74) as its screen. To reuse them as they are, the services gained
+  small, general options: a store filter on credit approvals (`storeId`) and credit requests (the
+  customer's home store), `awaitingMe` on stock counts (submitted, not by me unless I work at
+  every store, the rule `approve` applies), and the escalations list now filters by store in SQL
+  (it filtered after the limit before) and counts.
+- **Queries:** a fixed number per kind whatever the queue's length (about two per queue, three
+  calls for transfers); `inbox-scale.int.test.ts` checks the owner's and a manager's inbox, and the
+  count, run the same number of queries with 1 and with 40 items of every kind.
+
+### 6.3 The kinds
+
+| Kind             | Who (and where)                                                                                                                                                                   | Inline                                                                     |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Credit approvals | `credit:read` and an approver: the owner (every level), `credit:approve` (releases), `credit:approve_sale` (manager-level sales at their stores). Never the member's own request. | Approve (optional reason; a release asks the waiver date), reject (reason) |
+| Credit requests  | `credit:read` and `credit:approve`, for the customers they can see                                                                                                                | Approve (optional note), reject (reason)                                   |
+| Transfers        | `inventory:manage`: to approve and to dispatch at the sending store, to receive at the receiving store                                                                            | Approve in full, reject (reason); dispatch and receive open the transfer   |
+| Stock counts     | `inventory:manage` at the store; submitted, and not by the member unless they work at every store                                                                                 | None: variance reasons are given on the count                              |
+| Broken promises  | `receivables:read` and `credit:manage`, for customers of their stores and business-wide ones: open escalations                                                                    | Acknowledge (optional note)                                                |
+| Follow-ups       | Everyone: their own, overdue and due today (India time)                                                                                                                           | Done (outcome, next step), when they may change the record                 |
+| Low stock        | `inventory:read` and `inventory:manage` or `purchasing:manage`, at their stores; emptiest first                                                                                   | None: "Reorder" opens low stock at that store                              |
+
+Priority: credit approvals, broken promises, stock in transit, overdue follow-ups and empty
+shelves are high; low stock at its reorder level is low; the rest normal. Within a kind, items
+keep their queue's order (transfers: to approve, to dispatch, to receive).
+
+What each system role's inbox holds:
+
+| Role               | Inbox                                                                                                                                                          |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owner              | Every credit approval but their own, credit requests, every transfer step, every submitted count, every broken promise, their follow-ups, low stock everywhere |
+| Organization Admin | Manager-level sales and releases (not the owner's level), credit requests, transfers, counts, broken promises, follow-ups, low stock                           |
+| Branch Manager     | Manager-level sales at their stores (not their own), transfers and others' counts at their stores, broken promises of their customers, follow-ups, low stock   |
+| Sales Executive    | Broken promises of their stores' customers, their follow-ups                                                                                                   |
+| CRM Executive      | Their follow-ups                                                                                                                                               |
+| Inventory Manager  | Transfers, others' counts and low stock at their stores, their follow-ups                                                                                      |
+| Store Employee     | Their follow-ups (no "Done": they cannot change customers' activities)                                                                                         |
+
+### 6.4 The page
+
+Cards per kind, each with its count and "See all" (to the queue's own screen) past 20. Filters:
+kind and store, kept in the address. Each item shows what it asks, its number, store, amount or
+quantity, who asked and when, and its due date. Dialogs are the queues' own (credit approval,
+credit request, acknowledge, done). Empty: "Nothing waiting for you". English, Hindi and Telugu.
+
+### 6.5 Open questions
+
+- **Plan requests** (subscription plan changes) are not in the inbox: they wait on the platform
+  console, not on a member. Add them if a business-side step appears.
+- **Credit requests the member raised** still show to them, as on the requests screen: approving
+  your own limit request is allowed today. Should requests, like approvals, go to someone else?
+- **Low stock** goes to whoever manages stock or buys at the store (branch and inventory managers
+  both). Should it go only to who buys, or be grouped by store when a store has many rows?
+- **Dispatch and receive** open the transfer (quantities and the challan). Is "dispatch in full"
+  inline wanted?
+- **Follow-ups** are only overdue and today's; the owner does not see the team's. Should managers
+  see their team's overdue ones?
+- **Broken promises:** a sales executive sees their stores' escalations, not only their own
+  customers'. Narrow to the customers they look after?
+- The count runs about a dozen small queries a minute per open app. If that shows, cache it per
+  member for a short time.
+
+## 7. Later steps (outline)
+
+2. **Needs-action inbox.** Built: see §6.
 3. **Missing screens:** payment on account and allocation; cheque clear and bounce; refund;
    cancel and reprint an issued invoice; message templates; setup checklist.
    - Open: which of these need API work first? Does refund need a new permission?

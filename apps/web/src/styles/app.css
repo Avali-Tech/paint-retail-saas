@@ -234,6 +234,38 @@
   box-shadow: inset 0 3px 0 var(--color-primary);
 }
 
+/* What waits in the inbox, on Home and on the Inbox tab. */
+.count-badge {
+  flex: none;
+  min-width: 20px;
+  height: 20px;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-danger);
+  color: var(--color-danger-foreground);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+}
+
+.shell__bottom-bar .nav-link {
+  position: relative;
+}
+
+.shell__bottom-bar .count-badge {
+  position: absolute;
+  top: 2px;
+  left: calc(50% + 6px);
+  margin: 0;
+}
+
+.section-nav__link .count-badge {
+  display: inline-block;
+  margin-left: var(--space-2);
+}
+
 /* Links between the screens of a section; they scroll sideways on a phone. */
 .section-nav {
   display: flex;
@@ -1068,4 +1100,18 @@
   .update-banner-region {
     bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
   }
+}
+
+/* The inbox: a card per kind of item, each item with its facts and its buttons. */
+.inbox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.inbox-item__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }

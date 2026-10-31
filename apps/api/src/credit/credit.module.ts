@@ -12,5 +12,7 @@ import { SiteAccountsService } from './site-accounts.service.js';
 @Module({
   controllers: [CreditController, CreditApprovalsController, SiteAccountsController],
   providers: [CreditService, CreditApprovalsService, SiteAccountsService],
+  // The inbox reads these queues.
+  exports: [CreditService, CreditApprovalsService],
 })
 export class CreditModule {}

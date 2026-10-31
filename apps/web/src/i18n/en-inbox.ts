@@ -1,0 +1,65 @@
+// English messages for the "Needs action" inbox and its badge.
+
+export const inboxEn = {
+  inbox: {
+    nav: 'Inbox',
+    title: 'Needs action',
+    description:
+      'Everything waiting on you: approvals, stock to send or receive, counts, broken promises, follow-ups and low stock',
+    waiting: '{label}, {count} waiting for you',
+    kind: 'Show',
+    allKinds: 'Everything',
+    store: 'Store',
+    allStores: 'All stores',
+    error: 'Could not load your inbox',
+    empty: 'Nothing waiting for you',
+    emptyDescription: 'Approvals, transfers, counts and follow-ups that need you will show here.',
+    urgent: 'Urgent',
+    by: 'By {name}',
+    since: 'Raised {when}',
+    due: 'Due {when}',
+    quantity: '{available} {unit} available, reorder at {level}',
+    seeAll: 'See all {count}',
+    approve: 'Approve',
+    reject: 'Reject',
+    approveTransfer: 'Approve transfer {number}',
+    rejectTransfer: 'Reject transfer {number}',
+    acknowledge: 'Acknowledge',
+    acknowledgeName: 'Acknowledge the broken promise of {name}',
+    done: 'Done',
+    doneName: 'Mark “{name}” done',
+    open: {
+      dispatch: 'Dispatch',
+      receive: 'Receive',
+      review: 'Review',
+      reorder: 'Reorder',
+    },
+  },
+};
+
+export const inboxEnumsEn = {
+  inboxKinds: {
+    credit_approval: 'Credit approvals',
+    credit_request: 'Credit requests',
+    transfer: 'Transfers',
+    stock_count: 'Stock counts',
+    escalation: 'Broken promises',
+    follow_up: 'Follow-ups',
+    low_stock: 'Low stock',
+  },
+  inboxSteps: {
+    approve_sale: 'Sale on credit to approve',
+    approve_release: 'Credit hold to release',
+    decide_request: 'Credit limit to decide',
+    approve_transfer: 'To approve',
+    dispatch_transfer: 'To dispatch',
+    receive_transfer: 'To receive',
+    approve_count: 'Count to approve',
+    acknowledge_escalation: 'Promise broken',
+    follow_up_overdue: 'Overdue',
+    follow_up_today: 'Due today',
+    out_of_stock: 'Out of stock',
+    below_minimum: 'Below minimum',
+    reorder: 'Time to reorder',
+  },
+};

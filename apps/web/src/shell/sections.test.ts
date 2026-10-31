@@ -69,7 +69,7 @@ describe('allows', () => {
 describe('visibleSections', () => {
   it('gives an owner every section, each page as a tab in order', () => {
     expect(menu(role('owner'))).toEqual([
-      ['home', ['dashboard']],
+      ['home', ['dashboard', 'inbox']],
       ['newSale', ['pos']],
       ['sales', ['quotations', 'sales-orders', 'invoices', 'notes', 'estimates']],
       [
@@ -183,7 +183,7 @@ describe('visibleSections', () => {
 
   it('shows a CRM executive customers, products and reports only', () => {
     expect(menu(role('crm_executive'))).toEqual([
-      ['home', ['dashboard']],
+      ['home', ['dashboard', 'inbox']],
       [
         'customers',
         [
@@ -228,8 +228,13 @@ describe('visibleSections', () => {
   });
 
   it('leaves out a section with no page the member may open', () => {
-    expect(menu(holding([]))).toEqual([['settings', ['security']]]);
+    // Everyone has an inbox (their follow-ups at least) and account security.
+    expect(menu(holding([]))).toEqual([
+      ['home', ['inbox']],
+      ['settings', ['security']],
+    ]);
     expect(visibleNav(holding(['leads:read'])).map((item) => item.key)).toEqual([
+      'inbox',
       'leads',
       'opportunities',
       'followUps',
@@ -277,7 +282,9 @@ describe('pageAt and sectionAt', () => {
 });
 
 describe('sectionTarget', () => {
-  const section = found(visibleSections(holding(['inventory:read']))[0]);
+  const section = found(
+    visibleSections(holding(['inventory:read'])).find((entry) => entry.key === 'stock'),
+  );
 
   it('opens the last tab used, if the member may still see it, else the first', () => {
     expect(sectionTarget(section, {})).toBe('/stock');
@@ -286,7 +293,7 @@ describe('sectionTarget', () => {
   });
 
   it('opens the Settings page for Settings', () => {
-    const settings = found(visibleSections(holding([]))[0]);
+    const settings = found(visibleSections(holding([])).find((entry) => entry.key === 'settings'));
     expect(sectionTarget(settings, { settings: '/settings/security' })).toBe('/settings');
   });
 });
@@ -304,7 +311,7 @@ describe('phoneBar', () => {
     const { bar, more } = phoneBar(visibleSections(role('inventory_manager')));
     expect(keys(bar)).toEqual(['home', 'customers', 'stock', 'buy']);
     expect(keys(more)).toEqual(['reports', 'settings']);
-    expect(keys(phoneBar(visibleSections(holding([]))).bar)).toEqual([]);
+    expect(keys(phoneBar(visibleSections(holding([]))).bar)).toEqual(['home']);
   });
 });
 

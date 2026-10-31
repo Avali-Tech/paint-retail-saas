@@ -101,6 +101,7 @@ export class CreditApprovalsService {
         query.status ? eq(creditApprovals.status, query.status) : undefined,
         query.kind ? eq(creditApprovals.kind, query.kind) : undefined,
         query.partyId ? eq(creditApprovals.partyId, query.partyId) : undefined,
+        query.storeId ? eq(creditApprovals.storeId, query.storeId) : undefined,
         query.mine ? this.decidable(auth) : undefined,
       );
       const pendingFirst = query.status === 'pending' || query.mine;

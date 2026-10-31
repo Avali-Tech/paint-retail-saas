@@ -5,11 +5,12 @@ import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { FormDialog } from '../lib/FormDialog.js';
 
-/** After any credit change: the customer 360s and the request lists load again. */
+/** After any credit change: the customer 360s, the request lists and the inbox load again. */
 export async function refreshCredit(queryClient: QueryClient): Promise<void> {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ['party'] }),
     queryClient.invalidateQueries({ queryKey: ['credit-requests'] }),
+    queryClient.invalidateQueries({ queryKey: ['inbox'] }),
   ]);
 }
 

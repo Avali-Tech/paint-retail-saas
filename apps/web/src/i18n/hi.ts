@@ -6,6 +6,7 @@ import { brandingHi } from './hi-branding.js';
 import { catalogEnumsHi, catalogHi } from './hi-catalog.js';
 import { contractsHi } from './hi-contracts.js';
 import { approvalsEnumsHi, approvalsHi } from './hi-approvals.js';
+import { inboxHi, inboxEnumsHi } from './hi-inbox.js';
 import { creditEnumsHi, creditHi } from './hi-credit.js';
 import { documentsHi } from './hi-documents.js';
 import { followUpEnumsHi, followUpsHi } from './hi-followups.js';
@@ -342,6 +343,7 @@ export const hi: Messages = {
   ...partiesHi,
   ...creditHi,
   ...approvalsHi,
+  ...inboxHi,
   ...loyaltyHi,
   ...catalogHi,
   ...stockHi,
@@ -398,6 +400,7 @@ export const hi: Messages = {
     ...partyEnumsHi,
     ...creditEnumsHi,
     ...approvalsEnumsHi,
+    ...inboxEnumsHi,
     ...loyaltyEnumsHi,
     ...catalogEnumsHi,
     ...stockEnumsHi,

@@ -14,6 +14,7 @@ export async function refreshCollections(
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ['collections'] }),
     queryClient.invalidateQueries({ queryKey: ['promises'] }),
+    queryClient.invalidateQueries({ queryKey: ['inbox'] }),
   ]);
 }
 

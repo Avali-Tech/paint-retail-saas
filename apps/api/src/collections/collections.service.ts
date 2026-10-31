@@ -14,7 +14,7 @@ import {
   type WorklistPage,
   type WorklistRow,
 } from '@paint/shared';
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { indiaToday } from '../billing/invoice-view.js';
 import { DATABASE } from '../database/database.module.js';
@@ -275,9 +275,31 @@ export class CollectionsService {
   }
 
   /** Escalations of broken promises, newest first; open ones only by default. */
-  escalations(auth: AuthContext, query: EscalationsQueryInput): Promise<EscalationView[]> {
+  async escalations(auth: AuthContext, query: EscalationsQueryInput): Promise<EscalationView[]> {
+    const { items } = await this.escalationPage(auth, query);
+    return items.map(({ escalation }) => escalation);
+  }
+
+  /**
+   * A page of escalations the member can see (their customers' home stores, and
+   * business-wide customers), each with that store, and how many there are.
+   */
+  escalationPage(
+    auth: AuthContext,
+    query: EscalationsQueryInput & { readonly storeId?: string },
+  ): Promise<{
+    items: { escalation: EscalationView; storeId: string | null }[];
+    total: number;
+  }> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
       const today = await indiaToday(tx);
+      const where = and(
+        query.open ? isNull(collectionEscalations.acknowledgedAt) : undefined,
+        auth.allStores
+          ? undefined
+          : or(isNull(parties.homeStoreId), inArray(parties.homeStoreId, [...auth.storeIds])),
+        query.storeId ? eq(parties.homeStoreId, query.storeId) : undefined,
+      );
       const rows = await tx
         .select({
           id: collectionEscalations.id,
@@ -298,33 +320,41 @@ export class CollectionsService {
           eq(organizationMembers.id, collectionEscalations.acknowledgedByMemberId),
         )
         .leftJoin(users, eq(users.id, organizationMembers.userId))
-        .where(query.open ? isNull(collectionEscalations.acknowledgedAt) : undefined)
+        .where(where)
         .orderBy(desc(collectionEscalations.createdAt), desc(collectionEscalations.id))
         .limit(query.limit);
-      const visible = rows.filter(
-        (row) => auth.allStores || row.homeStoreId === null || auth.storeIds.has(row.homeStoreId),
-      );
+      const [totals] = await tx
+        .select({ total: count() })
+        .from(collectionEscalations)
+        .innerJoin(parties, eq(parties.id, collectionEscalations.partyId))
+        .where(where);
       const promises =
-        visible.length === 0
+        rows.length === 0
           ? []
           : await promiseViews(
               tx,
               today,
               inArray(
                 promisesToPay.id,
-                visible.map((row) => row.promiseId),
+                rows.map((row) => row.promiseId),
               ),
             );
-      return visible.map((row) => ({
-        id: row.id,
-        party: { id: row.partyId, name: row.partyName },
-        promise: promises.find((p) => p.id === row.promiseId) as unknown as PromiseView,
-        raisedOn: row.raisedOn,
-        notifiedCount: row.notifiedCount,
-        acknowledgedBy: row.acknowledgedBy,
-        acknowledgedAt: row.acknowledgedAt?.toISOString() ?? null,
-        acknowledgeNote: row.acknowledgeNote,
-      }));
+      return {
+        items: rows.map((row) => ({
+          escalation: {
+            id: row.id,
+            party: { id: row.partyId, name: row.partyName },
+            promise: promises.find((p) => p.id === row.promiseId) as unknown as PromiseView,
+            raisedOn: row.raisedOn,
+            notifiedCount: row.notifiedCount,
+            acknowledgedBy: row.acknowledgedBy,
+            acknowledgedAt: row.acknowledgedAt?.toISOString() ?? null,
+            acknowledgeNote: row.acknowledgeNote,
+          },
+          storeId: row.homeStoreId,
+        })),
+        total: Number(totals?.total),
+      };
     });
   }
 

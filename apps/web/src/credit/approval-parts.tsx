@@ -24,12 +24,13 @@ export const APPROVAL_TONE: Record<CreditApprovalStatus, Tone> = {
   used: 'info',
 };
 
-/** After any approval changes: the queues, the orders and the customer 360s load again. */
+/** After any approval changes: the queues (the inbox too), the orders and the customer 360s load again. */
 export async function refreshApprovals(queryClient: QueryClient): Promise<void> {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ['credit-approvals'] }),
     queryClient.invalidateQueries({ queryKey: ['sales-orders'] }),
     queryClient.invalidateQueries({ queryKey: ['party'] }),
+    queryClient.invalidateQueries({ queryKey: ['inbox'] }),
   ]);
 }
 
@@ -158,7 +159,11 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
  * Approve and Reject for an approval the member may decide, each with its dialog: a
  * reason (needed to reject), and for a release the date the overdue days are waived to.
  */
-export function ApprovalDecision({ approval }: { readonly approval: CreditApprovalView }) {
+export function ApprovalDecision({
+  approval,
+}: {
+  readonly approval: Pick<CreditApprovalView, 'id' | 'number' | 'kind'>;
+}) {
   const api = useApi();
   const { t } = useI18n();
   const toast = useToast();

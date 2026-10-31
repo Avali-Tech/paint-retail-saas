@@ -346,12 +346,25 @@ export class CreditService {
     });
   }
 
-  listRequests(auth: AuthContext, query: ListRequestsQuery) {
+  async listRequests(auth: AuthContext, query: ListRequestsQuery) {
+    const { items, total } = await this.requestPage(auth, query);
+    return { items: items.map(({ request }) => request), total };
+  }
+
+  /** A page of requests, each with its customer's home store (the inbox shows it). */
+  requestPage(
+    auth: AuthContext,
+    query: ListRequestsQuery,
+  ): Promise<{
+    items: { request: CreditRequestView; storeId: string | null }[];
+    total: number;
+  }> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
       const where = and(
         visibleParties(auth),
         query.status ? eq(creditRequests.status, query.status) : undefined,
         query.partyId ? eq(creditRequests.partyId, query.partyId) : undefined,
+        query.storeId ? eq(parties.homeStoreId, query.storeId) : undefined,
       );
       const rows = await this.requestRows(tx)
         .where(where)
@@ -363,7 +376,10 @@ export class CreditService {
         .from(creditRequests)
         .innerJoin(parties, eq(parties.id, creditRequests.partyId))
         .where(where);
-      return { items: rows.map(toRequestView), total: Number(totals?.total) };
+      return {
+        items: rows.map((row) => ({ request: toRequestView(row), storeId: row.party.homeStoreId })),
+        total: Number(totals?.total),
+      };
     });
   }
 
