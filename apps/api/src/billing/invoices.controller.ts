@@ -104,7 +104,7 @@ export class InvoicesController {
     return this.invoices.printable(auth, invoiceId);
   }
 
-  /** The issued invoice as an A4 PDF, drawn from the same print view (no logo: [CA-120]). */
+  /** The issued invoice as an A4 PDF, drawn from the same print view (no logo yet: PO-151). */
   @Get(':id/invoice.pdf')
   @RequirePermissions('sales:read')
   async pdf(

@@ -5,8 +5,8 @@ find any page without scanning a long list. Today an owner sees about 35 flat me
 the same level, and every role gets the same dashboard.
 
 This spec records the product owner's approved direction. Step 1 (§5) is specified in full and
-shipped first; step 2, the inbox, is recorded as built (§6). The later steps (§7) are outlines
-with their open questions.
+shipped first; step 2, the inbox, is recorded as built (§6), and step 3, the missing screens
+(§8). The later steps (§7) are outlines with their open questions.
 
 ## 1. Targets
 
@@ -56,11 +56,11 @@ with their open questions.
 ## 4. Known dead ends to fix
 
 - No screens for a payment on account, allocating a payment, clearing or bouncing a cheque, or a
-  refund.
-- An issued invoice cannot be cancelled or reprinted from its page.
-- Message templates can only be changed through the API.
+  refund. **Built in step 3 (§8.1).**
+- An issued invoice cannot be cancelled or reprinted from its page. **Built in step 3 (§8.2).**
+- Message templates can only be changed through the API. **Built in step 3 (§8.3).**
 - Store employees cannot sign in without SMS.
-- No setup checklist screen.
+- No setup checklist screen. **Built in step 3 (§8.4).**
 - One dashboard for every role.
 
 ## 5. Step 1: grouped menu, tabs, Settings hub, role-filtered menu
@@ -275,9 +275,8 @@ Hindi and Telugu.
 ## 7. Later steps (outline)
 
 2. **Needs-action inbox.** Built: see §6.
-3. **Missing screens:** payment on account and allocation; cheque clear and bounce; refund;
-   cancel and reprint an issued invoice; message templates; setup checklist.
-   - Open: which of these need API work first? Does refund need a new permission?
+3. **Missing screens (as built).** No migrations. Two API changes: invoice print and PDF routes,
+   and the reworked checklist route. See §8.
 4. **Ctrl+K command palette:** one box for search, quick actions and "go to" any page.
    - Open: does `/` keep focusing the header search, or open the palette? Does the palette show
      recent records?
@@ -289,3 +288,99 @@ Hindi and Telugu.
 7. **Feature switches per shop.**
    - Open: are switches stored on the organization or per store? Does a switch hide data that
      already exists, or only the screens?
+
+## 8. Step 3: the missing screens (as built)
+
+Every screen below sits under an existing tab: new pages under `/payments` belong to Money →
+Payments by their path, and the two new settings pages are declared in `settings/nav.ts` and
+`setup/nav.ts`. No migrations. Permissions are the API's own; the screens only hide what the API
+would refuse.
+
+### 8.1 Payments (Money → Payments)
+
+- **Take a payment** (`/payments/new`, `?partyId=` to start with a customer; `payments:manage`).
+  - Customer (a picker, or from the customer page and the ledger), store (chosen already for a
+    member of one store), mode (active modes, never a UPI link), amount, date (not in the
+    future), reference. A cheque needs its number and the date written on it.
+  - The customer's open bills are filled **oldest first**, and each can be changed (up to what
+    the bill owes, and in all up to the money). The rest shows as the advance.
+  - Sent with an `Idempotency-Key`. Cash without an open register is refused by the API
+    ([PO-11]); the message links to Day end for members who run it.
+- **A payment** (`/payments/:id`; `sales:read` to see, `payments:manage` for every action).
+  - Details, the bills it paid (with undone and bounced rows), the receipt PDF and a link to the
+    customer's account.
+  - **Put against bills:** what is not allocated, oldest first, editable. **Undo** on an
+    allocation makes it an advance again.
+  - **Cheque cleared** (date) or **Cheque bounced** (date, the bank's reason, an optional charge).
+  - **Refund advance:** amount up to the advance, mode, date, reference and note; it opens the
+    refund. A pending cheque is refunded only after it clears; a bounced one allows nothing.
+- **Payments list:** numbers open the payment; "Take a payment" for `payments:manage`.
+- **Customer page and ledger:** "Take a payment" for `payments:manage`; a payment entry, and a
+  bounce charge, in the ledger opens its payment.
+
+Refund keeps `payments:manage`, as the API has it ([PO-150]).
+
+### 8.2 Invoices (Sales → Invoices → an invoice)
+
+- **Reprint:** "Print A4" and "Print 80 mm" print the issued invoice or bill of supply with the
+  counter's templates. `GET /invoices/:id/print` (`sales:read`) answers the document with the
+  business's print settings today (`PrintableInvoiceView`); `printViewOf` moved from the web app
+  to `@paint/shared` so the API and the web print the same view. **PDF** downloads
+  `GET /invoices/:id/invoice.pdf?lang=en|hi|te`, the A4 PDF in the member's language (legal
+  headings stay English), named after the number (`AMP-26-27-000001.pdf`). No copy mark and no
+  logo on a reprint yet ([CA-125], [PO-151]). Drafts, notes and cancelled invoices are refused
+  (409).
+- **Cancel** (`billing:cancel`): a reason of 3+ characters. The dialog states the rules up front
+  (the day of issue only; no note, dispatch or payment against it; otherwise a credit note) and
+  warns when the invoice is from an earlier day; the API decides, and its refusal is shown as it
+  comes ("Payments are allocated to this invoice: undo them first, or raise a credit note")
+  ([PO-152]).
+
+### 8.3 Message templates (Settings → Customers & credit → Message templates)
+
+`/settings/messages`, `organization:manage`, over the existing `/message-templates` API. Choose
+the message, the channel and the language (en / hi / te); the badge says whether the wording is
+the business's own or the standard one.
+
+- MSG-4: the wording is checked as it is typed with the API's own rules (only the template's
+  variables, not empty, at most 1,000 characters); the variables are buttons that add
+  `{{variable}}` where the cursor is. Saving is off until something changed and nothing is wrong.
+- MSG-5: the page says what messages may carry, and the variables list is fixed per template.
+- WhatsApp: a reminder that the wording must match what the provider approved ([PO-1]), and the
+  provider's template name (lowercase, digits, `_`).
+- Preview with sample data (the customer's name in the member's language, the business's name,
+  a UPI link sentence in the message's language); an email also shows its subject.
+- "Use standard wording" resets a reworded template.
+
+### 8.4 Getting started (Settings → Business, and on Home)
+
+`GET /onboarding` (any member; counts only) now answers nine steps, worked out from the
+business's records on every call, in this order:
+
+| Step                       | Done when                                                                     | Opens                     |
+| -------------------------- | ----------------------------------------------------------------------------- | ------------------------- |
+| Stores and GST             | at least one open store, and every open store (not godowns) has its GST state | `/settings/stores`        |
+| Import products            | a product variant exists                                                      | `/imports`                |
+| Import customers           | a customer, contractor or painter exists (not the walk-in party)              | `/imports`                |
+| Opening stock              | an opening stock movement exists                                              | `/imports`                |
+| Your team                  | two or more active members                                                    | `/team`                   |
+| Credit rules               | the credit rules were saved once                                              | `/settings/credit`        |
+| Billing go-live            | `billing_live_on` is set                                                      | `/settings/go-live`       |
+| Invoice print and branding | bank details or terms are saved, or a logo is uploaded ([PO-153])             | `/settings/invoice-print` |
+| Payment links              | a payment gateway is connected                                                | `/settings/payment-links` |
+
+The page `/settings/getting-started` (`organization:manage`) shows progress and each step, done or
+to do, with a link. Home shows the same card to `organization:manage` holders until every step is
+done, or until "Hide" (kept on the device, per business; a blocked storage shows it again)
+([PO-154]).
+
+### 8.5 Open questions
+
+| #      | Question                                                                                                                                                                    | Built for now                         |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| PO-150 | Does a refund need its own permission, or an approval above an amount?                                                                                                      | `payments:manage`, as the API has it  |
+| PO-151 | Should the API's invoice PDF carry the business's logo (read from storage), as the screen print does?                                                                       | No logo on the PDF                    |
+| PO-152 | Hide "Cancel invoice" after the day of issue, instead of showing it with a warning?                                                                                         | Shown with a warning; the API decides |
+| PO-153 | Is "bank details or terms saved, or a logo" the right bar for "Invoice print and branding"?                                                                                 | Either one                            |
+| PO-154 | Should hiding Getting started be per member on the server, rather than per device?                                                                                          | Per device                            |
+| CA-125 | Should a reprinted A4 tax invoice let the member choose the copy (original / duplicate / triplicate, Rule 48(4)), or say "Reprint"? The counter print carries none ([CA-2]) | No mark                               |
