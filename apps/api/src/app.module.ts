@@ -22,6 +22,7 @@ import { DatabaseModule } from './database/database.module.js';
 import { DocumentsModule } from './documents/documents.module.js';
 import { HealthModule } from './health/health.module.js';
 import { ImportsModule } from './imports/imports.module.js';
+import { InboxModule } from './inbox/inbox.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { LeadsModule } from './leads/leads.module.js';
 import { LoyaltyModule } from './loyalty/loyalty.module.js';
@@ -104,6 +105,7 @@ export class AppModule {
         DocumentsModule.forRoot(config.documents),
         HealthModule,
         ImportsModule,
+        InboxModule,
         InventoryModule,
         LeadsModule,
         LoyaltyModule,

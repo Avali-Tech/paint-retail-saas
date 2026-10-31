@@ -585,3 +585,4 @@ export * from './colorant-dose.js';
 export * from './reorder-suggestion.js';
 export * from './mistints.js';
 export * from './slow-movers.js';
+export * from './inbox.js';

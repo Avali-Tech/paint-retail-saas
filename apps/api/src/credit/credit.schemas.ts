@@ -66,6 +66,8 @@ export type ListCreditQuery = z.output<typeof listCreditSchema>;
 export const listRequestsSchema = z.object({
   status: z.enum(CREDIT_REQUEST_STATUSES).optional(),
   partyId: z.uuid().optional(),
+  /** Only those of customers at one store (their home store). */
+  storeId: z.uuid().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });

@@ -6,5 +6,7 @@ import { ActivitiesService } from './activities.service.js';
 @Module({
   controllers: [ActivitiesController],
   providers: [ActivitiesService],
+  // The inbox reads these queues.
+  exports: [ActivitiesService],
 })
 export class ActivitiesModule {}

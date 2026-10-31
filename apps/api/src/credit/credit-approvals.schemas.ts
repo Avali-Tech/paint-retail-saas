@@ -34,6 +34,8 @@ export const listApprovalsSchema = z.object({
   status: z.enum(schema.creditApprovalStatus.enumValues).optional(),
   kind: z.enum(schema.creditApprovalKind.enumValues).optional(),
   partyId: z.uuid().optional(),
+  /** Only those of one store (a sale's store, a release's home store). */
+  storeId: z.uuid().optional(),
   /** Only those the member may decide now. */
   mine: z
     .enum(['true', 'false'])

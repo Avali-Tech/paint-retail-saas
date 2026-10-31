@@ -7,5 +7,7 @@ import { CollectionsService } from './collections.service.js';
 @Module({
   controllers: [CollectionsController],
   providers: [CollectionsService],
+  // The inbox reads these queues.
+  exports: [CollectionsService],
 })
 export class CollectionsModule {}

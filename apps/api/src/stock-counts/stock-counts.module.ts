@@ -6,5 +6,7 @@ import { StockCountsService } from './stock-counts.service.js';
 @Module({
   controllers: [StockCountsController],
   providers: [StockCountsService],
+  // The inbox reads these queues.
+  exports: [StockCountsService],
 })
 export class StockCountsModule {}

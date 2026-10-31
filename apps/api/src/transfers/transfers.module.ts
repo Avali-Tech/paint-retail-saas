@@ -6,5 +6,7 @@ import { TransfersService } from './transfers.service.js';
 @Module({
   controllers: [TransfersController],
   providers: [TransfersService],
+  // The inbox reads these queues.
+  exports: [TransfersService],
 })
 export class TransfersModule {}

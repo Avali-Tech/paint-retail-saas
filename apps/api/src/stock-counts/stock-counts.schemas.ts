@@ -71,6 +71,14 @@ export const cancelCountSchema = z.object({ reason: z.string().trim().min(3).max
 export const listCountsSchema = z.object({
   storeId: z.uuid().optional(),
   status: z.enum(COUNT_STATUSES).optional(),
+  /**
+   * Only submitted counts this member may approve: someone else's, unless they
+   * work at every store.
+   */
+  awaitingMe: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .default(false),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
