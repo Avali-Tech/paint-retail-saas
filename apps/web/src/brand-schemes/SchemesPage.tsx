@@ -7,8 +7,6 @@ import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { useUrlFilters } from '../lib/hooks.js';
 import { QueryState } from '../lib/QueryState.js';
-import { SectionNav } from '../lib/SectionNav.js';
-import { PURCHASING_SECTIONS } from '../purchasing/sections.js';
 import { CsvButton } from './CsvButton.js';
 import { SchemeProgressBar, SchemeStatusBadge, schemesKey, useSchemeText } from './scheme-parts.js';
 
@@ -45,7 +43,6 @@ export function SchemesPage() {
           </>
         }
       />
-      <SectionNav label="purchasing.sections" links={PURCHASING_SECTIONS} />
       <Card>
         <div className="filters">
           <Field label={t('schemes.status')}>

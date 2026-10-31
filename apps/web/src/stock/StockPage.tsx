@@ -17,8 +17,6 @@ import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { useDebouncedValue, useUrlFilters } from '../lib/hooks.js';
 import { QueryState } from '../lib/QueryState.js';
-import { SectionNav } from '../lib/SectionNav.js';
-import { STOCK_SECTIONS } from './sections.js';
 import { StoreSelect } from './StoreSelect.js';
 import { productTitle, variantName } from '../lib/product-title.js';
 
@@ -73,7 +71,6 @@ export function StockPage() {
           ) : undefined
         }
       />
-      <SectionNav label="stock.sections.label" links={STOCK_SECTIONS} />
       <Card>
         <div className="filters">
           <StoreSelect

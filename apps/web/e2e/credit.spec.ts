@@ -1,10 +1,11 @@
 import { expect, test } from '@playwright/test';
 import { expectUsable } from './checks.js';
 import {
-  PASSWORD,
   addMember,
   call,
   createBusiness,
+  openFromMenu,
+  PASSWORD,
   signInWithPassword,
   uniquePhone,
 } from './support.js';
@@ -103,11 +104,7 @@ test('the owner sets the credit rules', async ({ page }) => {
   const business = await createBusiness('Rules Paints');
   await signInWithPassword(page, business.ownerPhone);
   await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
-  await page
-    .getByRole('navigation', { name: 'Main' })
-    .first()
-    .getByRole('link', { name: 'Credit rules' })
-    .click();
+  await openFromMenu(page, 'Settings', 'Credit rules');
   const normal = page.getByRole('textbox', { name: 'Sell normally up to (% of limit)' });
   await expect(normal).toHaveValue('80');
   await normal.fill('120');

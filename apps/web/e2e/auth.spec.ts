@@ -55,9 +55,13 @@ test('a person in two businesses chooses which one to open', async ({ page }) =>
   await chooser.getByRole('button', { name: 'XYZ Colours' }).click();
   await expect(page.locator('.shell__business')).toHaveText('XYZ Colours');
   // A branch manager does not get the owner-only appearance settings.
-  await expect(
-    page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Appearance' }),
-  ).toHaveCount(0);
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Settings' })
+    .click();
+  await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+  await expect(page.getByRole('main').getByRole('link', { name: 'Team & roles' })).toBeVisible();
+  await expect(page.getByRole('main').getByRole('link', { name: 'Appearance' })).toHaveCount(0);
 });
 
 test('counter staff sign in with a code texted to their mobile', async ({ page }) => {
@@ -75,24 +79,17 @@ test('counter staff sign in with a code texted to their mobile', async ({ page }
 
   await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
   await expect(page.getByText('Signed in as Suresh Counter · Store Employee')).toBeVisible();
-  // Their role sees stock but not purchasing or leads.
+  // Their role sees selling and stock, but not buying.
   const nav = page.getByRole('navigation', { name: 'Main' });
   await expect(nav.getByRole('link')).toHaveText([
-    'Dashboard',
-    'Counter sale',
+    /New sale/,
+    'Home',
+    'Sales',
     'Customers',
-    'Products',
+    'Money',
     'Stock',
-    'Estimates',
-    'Quotations',
-    'Sales orders',
-    'Invoices',
-    'Credit & debit notes',
-    'Day end',
-    'Payments',
-    'Follow-ups',
-    'Documents',
     'Reports',
+    'Settings',
     'Account security',
   ]);
 });

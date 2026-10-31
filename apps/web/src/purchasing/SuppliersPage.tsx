@@ -21,8 +21,6 @@ import { useI18n } from '../i18n/i18n.js';
 import { FormDialog } from '../lib/FormDialog.js';
 import { useDebouncedValue, useUrlFilters } from '../lib/hooks.js';
 import { QueryState } from '../lib/QueryState.js';
-import { SectionNav } from '../lib/SectionNav.js';
-import { PURCHASING_SECTIONS } from './sections.js';
 import { useDays } from './shared.js';
 
 export const PAGE_SIZE = 50;
@@ -159,7 +157,6 @@ export function SuppliersPage() {
           ) : undefined
         }
       />
-      <SectionNav label="purchasing.sections" links={PURCHASING_SECTIONS} />
       <Card>
         <div className="filters">
           <Field label={t('purchasing.supplierList.search')} className="filters__search">

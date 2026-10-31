@@ -1,6 +1,13 @@
 import type { NavItem } from '../shell/nav.js';
 
-/** The counter sale, right after the dashboard: one tap from anywhere for counter staff. */
+/** The counter sale: the "+ New sale" button at the top of the menu. */
 export const POS_NAV_ITEMS: readonly NavItem[] = [
-  { key: 'pos', label: 'pos.nav', path: '/pos', icon: 'store', permission: 'billing:issue' },
+  {
+    key: 'pos',
+    section: 'newSale',
+    order: 10,
+    label: 'pos.nav',
+    path: '/pos',
+    permission: 'billing:issue',
+  },
 ];

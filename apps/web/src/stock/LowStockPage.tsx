@@ -24,8 +24,6 @@ import { useI18n } from '../i18n/i18n.js';
 import { FormDialog } from '../lib/FormDialog.js';
 import { useUrlFilters } from '../lib/hooks.js';
 import { QueryState } from '../lib/QueryState.js';
-import { SectionNav } from '../lib/SectionNav.js';
-import { STOCK_SECTIONS } from './sections.js';
 import { StoreSelect } from './StoreSelect.js';
 import { useStores } from './stores.js';
 import { refreshInventory } from '../lib/refresh.js';
@@ -157,7 +155,6 @@ export function LowStockPage() {
           ) : undefined
         }
       />
-      <SectionNav label="stock.sections.label" links={STOCK_SECTIONS} />
       <Card>
         <div className="filters">
           <StoreSelect

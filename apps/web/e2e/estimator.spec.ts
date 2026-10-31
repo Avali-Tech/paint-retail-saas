@@ -1,6 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { expectUsable } from './checks.js';
-import { call, createBusiness, signInWithPassword, type Business } from './support.js';
+import {
+  call,
+  createBusiness,
+  signInWithPassword,
+  type Business,
+  openFromMenu,
+} from './support.js';
 
 // The paint estimator (spec §6.2, §7 Round 5 demo): rooms → litres → packs, good /
 // better / best, and a quotation from one tier.
@@ -115,7 +121,7 @@ test('a 3-room estimate becomes a quotation in under 3 minutes', async ({ page }
   await signInWithPassword(page, business.ownerPhone);
   await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
   const started = Date.now();
-  await page.getByRole('link', { name: 'Estimates' }).first().click();
+  await openFromMenu(page, 'Sales', 'Estimates');
   await page.getByRole('link', { name: 'New estimate' }).click();
   await page.getByRole('combobox', { name: 'Store' }).selectOption({ label: 'AMP · Ameerpet' });
   await page.getByRole('button', { name: 'Choose Customer' }).click();

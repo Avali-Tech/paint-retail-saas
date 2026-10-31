@@ -24,6 +24,10 @@ const PATHS = {
   store: 'M3 9l1-5h16l1 5 M3 9v11h18V9 M3 9h18 M9 20v-6h6v6',
   calendar: 'M3 4h18v18H3z M16 2v4 M8 2v4 M3 10h18',
   lock: 'M5 11h14v11H5z M8 11V7a4 4 0 0 1 8 0v4',
+  // A rupee sign.
+  money: 'M6 3h12 M6 8h12 M6 13h3a5 5 0 0 0 0-10 M6 13l8.5 8',
+  // A bar chart.
+  reports: 'M3 3v18h18 M8 17v-5 M13 17V7 M18 17v-8',
 } as const;
 
 export type IconName = keyof typeof PATHS;

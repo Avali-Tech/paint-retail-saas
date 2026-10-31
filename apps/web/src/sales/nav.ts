@@ -1,19 +1,21 @@
 import type { NavItem } from '../shell/nav.js';
 
-/** Invoices and notes, after contracts in the navigation. */
+/** Invoices, then credit and debit notes (returns), in Sales. */
 export const SALES_NAV_ITEMS: readonly NavItem[] = [
   {
     key: 'invoices',
+    section: 'sales',
+    order: 30,
     label: 'sales.nav.invoices',
     path: '/invoices',
-    icon: 'contracts',
     permission: 'sales:read',
   },
   {
     key: 'notes',
+    section: 'sales',
+    order: 40,
     label: 'sales.nav.notes',
     path: '/notes',
-    icon: 'contracts',
     permission: 'sales:read',
   },
 ];

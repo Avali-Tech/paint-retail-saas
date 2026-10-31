@@ -6,8 +6,6 @@ import { errorMessage } from '../api/errors.js';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { addDays, todayInIndia } from '../lib/india-time.js';
-import { SectionNav } from '../lib/SectionNav.js';
-import { PURCHASING_SECTIONS } from '../purchasing/sections.js';
 import { useStores } from '../stock/stores.js';
 import { newPlan, readPlan } from './price-hike-form.js';
 
@@ -117,7 +115,6 @@ export function PriceHikePage() {
   return (
     <>
       <PageHeader title={t('priceHike.title')} description={t('priceHike.description')} />
-      <SectionNav label="purchasing.sections" links={PURCHASING_SECTIONS} />
       <form className="stack" onSubmit={(event) => void submit(event)} noValidate>
         <Card>
           <div className="stack">

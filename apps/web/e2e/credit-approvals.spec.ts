@@ -2,13 +2,14 @@ import { expect, test } from '@playwright/test';
 import { expectUsable } from './checks.js';
 import { openingStock } from './inventory-support.js';
 import {
-  PASSWORD,
   addMember,
   call,
   createBusiness,
+  openFromMenu,
+  PASSWORD,
   signInWithPassword,
-  uniquePhone,
   type Business,
+  uniquePhone,
 } from './support.js';
 
 // Credit enforcement (MVP 3 round 1a, P2-M09): live exposure from real bills and
@@ -142,11 +143,7 @@ test('the spec §6.3 example: a sales executive asks, the owner approves from th
   const owner = await (await browser.newContext()).newPage();
   await signInWithPassword(owner, business.ownerPhone);
   await expect(owner.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
-  await owner
-    .getByRole('navigation', { name: 'Main' })
-    .first()
-    .getByRole('link', { name: 'Credit approvals' })
-    .click();
+  await openFromMenu(owner, 'Customers', 'Credit approvals');
   const queue = owner.getByRole('table', { name: 'Credit approvals' });
   await expect(queue).toContainText('Apex Builders');
   await expect(queue).toContainText('₹15,000.00');
@@ -197,7 +194,7 @@ test('a cashier asks for approval at the counter; the owner opens a site account
   const cashier = await (await browser.newContext()).newPage();
   await signInWithPassword(cashier, cashierPhone);
   await expect(cashier.locator('.shell__header')).toBeVisible();
-  await cashier.getByRole('link', { name: 'Counter sale' }).first().click();
+  await openFromMenu(cashier, 'New sale');
   const scan = cashier.getByRole('combobox', { name: 'Scan or search' });
   await expect(scan).toBeFocused();
   await scan.fill('2*APX-20L');

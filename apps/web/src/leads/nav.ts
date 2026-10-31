@@ -1,20 +1,28 @@
 import type { SectionLink } from '../lib/SectionNav.js';
 import type { NavItem } from '../shell/nav.js';
 
-/** Opportunities, next to leads in the navigation. */
+/** Leads and opportunities, in Customers after the customers themselves. */
 export const CRM_NAV_ITEMS: readonly NavItem[] = [
   {
+    key: 'leads',
+    section: 'customers',
+    order: 20,
+    label: 'nav.leads',
+    path: '/leads',
+    permission: 'leads:read',
+  },
+  {
     key: 'opportunities',
+    section: 'customers',
+    order: 30,
     label: 'opportunities.title',
     path: '/opportunities',
-    icon: 'leads',
     permission: 'leads:read',
   },
 ];
 
-/** The screens of the sales section, linked from each of them. */
+/** Two views of the leads, linked from each of them: the list and the pipeline board. */
 export const LEAD_SECTIONS: readonly SectionLink[] = [
   { to: '/leads', label: 'leads.sections.list', permission: 'leads:read' },
   { to: '/leads/board', label: 'leads.sections.board', permission: 'leads:read' },
-  { to: '/opportunities', label: 'leads.sections.opportunities', permission: 'leads:read' },
 ];

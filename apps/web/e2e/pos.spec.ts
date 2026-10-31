@@ -9,6 +9,7 @@ import {
   signInWithPassword,
   uniquePhone,
   type Business,
+  openFromMenu,
 } from './support.js';
 
 // The counter sale (spec §5.2): a cashier scans, searches, splits the payment and
@@ -132,7 +133,7 @@ async function openCounter(page: Page, { cashierPhone }: Counter) {
   await stubPrint(page);
   await signInWithPassword(page, cashierPhone);
   await expect(page.locator('.shell__header')).toBeVisible();
-  await page.getByRole('link', { name: 'Counter sale' }).first().click();
+  await openFromMenu(page, 'New sale');
   const scan = page.getByRole('combobox', { name: 'Scan or search' });
   await expect(scan).toBeFocused();
   return scan;

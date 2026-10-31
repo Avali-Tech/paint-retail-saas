@@ -2,7 +2,13 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { expectUsable } from './checks.js';
 import { openingStock } from './inventory-support.js';
-import { call, createBusiness, signInWithPassword, type Business } from './support.js';
+import {
+  call,
+  createBusiness,
+  signInWithPassword,
+  type Business,
+  openFromMenu,
+} from './support.js';
 
 // The day end and the books (spec §5.5, §6.1; round 4c): a register closes with a
 // ₹20 variance and a Z-report, a receipt prints as a PDF, and the month goes to Tally,
@@ -97,7 +103,7 @@ test('a branch opens its register, takes cash and closes ₹20 short with a Z-re
   await stubPrint(page);
   await signInWithPassword(page, ameerpet.business.ownerPhone);
   await expect(page.locator('.shell__header')).toBeVisible();
-  await page.getByRole('link', { name: 'Day end' }).first().click();
+  await openFromMenu(page, 'Money', 'Day end');
   await expect(page.getByRole('heading', { name: 'Day end', level: 1 })).toBeVisible();
   await page.getByRole('textbox', { name: 'Opening float (₹)' }).fill('2000');
   await page.getByRole('button', { name: 'Open register' }).click();
@@ -137,7 +143,7 @@ test('a branch opens its register, takes cash and closes ₹20 short with a Z-re
     .toBe(1);
   await expectUsable(page);
 
-  await page.getByRole('link', { name: 'Day end' }).first().click();
+  await openFromMenu(page, 'Money', 'Day end');
   await expect(page.getByRole('table', { name: 'Sessions' })).toContainText('-₹20.00');
 });
 
@@ -196,7 +202,7 @@ test('a receipt prints as a PDF, and the month goes to Tally once its bank is ma
 
   await signInWithPassword(page, books.business.ownerPhone);
   await expect(page.locator('.shell__header')).toBeVisible();
-  await page.getByRole('link', { name: 'Payments' }).first().click();
+  await openFromMenu(page, 'Money', 'Payments');
   const payments = page.getByRole('table', { name: 'Payments' });
   await expect(payments).toContainText(receipt.number);
   const [pdf] = await Promise.all([
@@ -246,7 +252,7 @@ test('a receipt prints as a PDF, and the month goes to Tally once its bank is ma
     page.getByRole('heading', { name: `Invoice ${invoice.number}`, level: 1 }),
   ).toBeVisible();
 
-  await page.getByRole('link', { name: 'Tally export' }).first().click();
+  await openFromMenu(page, 'Money', 'Tally export');
   const counts = page.getByLabel('Vouchers in the period');
   await expect(counts).toContainText('Sales2Credit notes0Debit notes0Receipts4');
   await expect(
@@ -298,7 +304,7 @@ test('the books are reconciled by hand from the accounting screens', async ({ pa
 
   await signInWithPassword(page, books.business.ownerPhone);
   await expect(page.locator('.shell__header')).toBeVisible();
-  await page.getByRole('link', { name: 'Tally export' }).first().click();
+  await openFromMenu(page, 'Money', 'Tally export');
   await page.getByRole('link', { name: 'Reconciliation' }).click();
   await expect(page.getByRole('heading', { name: 'Reconciliation', level: 1 })).toBeVisible();
   await expect(page.getByText(/^Not checked yet/)).toBeVisible();

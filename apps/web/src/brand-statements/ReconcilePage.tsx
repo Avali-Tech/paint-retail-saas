@@ -31,8 +31,6 @@ import { saveFile } from '../lib/download.js';
 import { FormDialog } from '../lib/FormDialog.js';
 import { optional } from '../lib/inputs.js';
 import { QueryState } from '../lib/QueryState.js';
-import { SectionNav } from '../lib/SectionNav.js';
-import { PURCHASING_SECTIONS } from '../purchasing/sections.js';
 import { statementsKey } from './StatementsPage.js';
 
 const TONES: Readonly<Record<StatementLineStatus, Tone>> = {
@@ -676,7 +674,6 @@ export function ReconcilePage() {
               })
         }
       />
-      <SectionNav label="purchasing.sections" links={PURCHASING_SECTIONS} />
       <QueryState query={detail} error="statements.reconcile.error">
         {(data) => <ReconcileView detail={data} />}
       </QueryState>

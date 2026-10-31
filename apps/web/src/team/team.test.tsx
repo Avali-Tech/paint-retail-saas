@@ -2,7 +2,6 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { MemberInput } from '../api/team.js';
 import { OWNER, json, profile, type FakeHandler } from '../test-support/fake-api.js';
-import { found } from '../test-support/found.js';
 import { STORES } from '../test-support/inventory-fixtures.js';
 import { renderApp } from '../test-support/render-app.js';
 import {
@@ -92,12 +91,11 @@ describe('team list', () => {
     await screen.findByRole('table', { name: 'Team members' });
     expect(rowTexts()[1]?.[2]).toBe('3 other stores');
     expect(screen.queryByRole('link', { name: '+ Team member' })).toBeNull();
-    // The Team entry is in the navigation for members:read.
-    expect(
-      within(found(screen.getAllByRole('navigation', { name: 'Main' })[0])).getByRole('link', {
-        name: 'Team',
-      }),
-    ).toHaveAttribute('href', '/team');
+    // Team & roles is a settings page, with the way back to the others.
+    expect(screen.getByRole('link', { name: '← All settings' })).toHaveAttribute(
+      'href',
+      '/settings',
+    );
   });
 
   it('offers a retry when the team cannot load', async () => {

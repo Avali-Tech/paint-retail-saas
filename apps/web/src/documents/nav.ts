@@ -16,13 +16,15 @@ export const DOCUMENT_READ_PERMISSIONS: AnyOf = [
   'contracts:read',
 ];
 
-/** Documents across records, after follow-ups in the navigation. */
+/** Settings → Documents: the files kept on every kind of record. */
 export const DOCUMENT_NAV_ITEMS: readonly NavItem[] = [
   {
     key: 'documents',
+    section: 'settings',
+    group: 'data',
+    order: 20,
     label: 'documents.page.nav',
     path: '/documents',
-    icon: 'contracts',
     permission: DOCUMENT_READ_PERMISSIONS,
   },
 ];

@@ -121,8 +121,8 @@ describe('SchemesPage', { timeout: 30_000 }, () => {
     });
     expect(await screen.findByText('No brand scheme yet.')).toBeVisible();
     expect(screen.queryByRole('link', { name: 'New scheme' })).toBeNull();
-    // The purchasing section links to the schemes, their claims and the planner.
-    const sections = screen.getByRole('navigation', { name: 'Purchasing sections' });
+    // Buy links to the schemes, their claims and the planner.
+    const sections = screen.getByRole('navigation', { name: 'Buy' });
     expect(within(sections).getByRole('link', { name: 'Price-hike planner' })).toHaveAttribute(
       'href',
       '/brand-schemes/price-hike',

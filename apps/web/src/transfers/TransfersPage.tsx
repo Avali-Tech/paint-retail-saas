@@ -18,8 +18,6 @@ import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { useUrlFilters } from '../lib/hooks.js';
 import { QueryState } from '../lib/QueryState.js';
-import { SectionNav } from '../lib/SectionNav.js';
-import { STOCK_SECTIONS } from '../stock/sections.js';
 import { StoreSelect } from '../stock/StoreSelect.js';
 import { TRANSFER_TONE } from './quantity.js';
 
@@ -52,7 +50,6 @@ export function TransfersPage() {
 
   return (
     <>
-      <SectionNav label="stock.sections.label" links={STOCK_SECTIONS} />
       <PageHeader
         title={t('transfers.title')}
         description={t('transfers.description')}

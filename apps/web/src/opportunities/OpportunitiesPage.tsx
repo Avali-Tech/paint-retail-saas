@@ -17,11 +17,9 @@ import { stageLabel, useI18n } from '../i18n/i18n.js';
 import { OPPORTUNITY_TONE } from '../leads/crm.js';
 import { PAGE_SIZE, SEARCH_DELAY_MS, SearchFilter } from '../leads/SearchFilter.js';
 import { AssigneeFilter } from '../leads/members.js';
-import { LEAD_SECTIONS } from '../leads/nav.js';
 import { PartyFilterNote } from '../leads/PartyFilterNote.js';
 import { useDebouncedValue, useUrlFilters } from '../lib/hooks.js';
 import { QueryState } from '../lib/QueryState.js';
-import { SectionNav } from '../lib/SectionNav.js';
 import { StoreSelect } from '../stock/StoreSelect.js';
 
 const FILTERS = ['q', 'stage', 'store', 'assignee', 'party'] as const;
@@ -86,7 +84,6 @@ export function OpportunitiesPage() {
 
   return (
     <>
-      <SectionNav label="leads.sections.label" links={LEAD_SECTIONS} />
       <PageHeader title={t('opportunities.title')} description={t('opportunities.description')} />
       <StageStrip storeId={store || undefined} assignedTo={assignee || undefined} />
       {party !== '' && (

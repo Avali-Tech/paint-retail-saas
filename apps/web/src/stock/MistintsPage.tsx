@@ -26,8 +26,6 @@ import { ProductPicker, type PickedVariant } from '../lib/ProductPicker.js';
 import { productTitle, variantName } from '../lib/product-title.js';
 import { QueryState } from '../lib/QueryState.js';
 import { parsePositiveQuantity } from '../lib/quantity.js';
-import { SectionNav } from '../lib/SectionNav.js';
-import { STOCK_SECTIONS } from './sections.js';
 import { StoreSelect, storeLabel, useStoreAccess } from './StoreSelect.js';
 import { useStoreDirectory } from './stores.js';
 
@@ -238,7 +236,6 @@ export function MistintsPage() {
           )
         }
       />
-      <SectionNav label="stock.sections.label" links={STOCK_SECTIONS} />
       <Card>
         <div className="filters">
           <Field label={t('stock.mistints.status')}>

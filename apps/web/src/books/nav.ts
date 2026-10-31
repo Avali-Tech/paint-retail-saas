@@ -1,26 +1,31 @@
 import type { NavItem } from '../shell/nav.js';
 
-/** The day end, payments and the Tally export, after invoices and notes in the navigation. */
+/** Payments, the day end and the Tally export, in Money after collections. */
 export const BOOKS_NAV_ITEMS: readonly NavItem[] = [
   {
-    key: 'registers',
-    label: 'books.nav.registers',
-    path: '/registers',
-    icon: 'calendar',
-    permission: 'register:manage',
-  },
-  {
     key: 'payments',
+    section: 'money',
+    order: 30,
     label: 'books.nav.payments',
     path: '/payments',
-    icon: 'check',
     permission: 'sales:read',
   },
   {
+    key: 'registers',
+    section: 'money',
+    order: 40,
+    label: 'books.nav.registers',
+    path: '/registers',
+    permission: 'register:manage',
+  },
+  {
     key: 'accounting',
+    section: 'money',
+    order: 50,
     label: 'books.nav.accounting',
     path: '/accounting/export',
-    icon: 'contracts',
     permission: 'accounting:export',
+    // The ledger mapping and the reconciliation are screens of the export.
+    owns: ['/accounting'],
   },
 ];

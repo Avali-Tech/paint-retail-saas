@@ -16,7 +16,7 @@ describe('SuppliersPage', () => {
       'Shah Distributors+91987654321036AABCS1429B1ZB30 days4 days2',
       'Ravi Traders——Cash—0',
     ]);
-    expect(screen.getByRole('navigation', { name: 'Purchasing sections' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Buy' })).toBeInTheDocument();
     await user.type(screen.getByRole('searchbox', { name: /Search by name/ }), 'shah');
     await waitFor(() => {
       expect(requests.some((request) => request.query.get('q') === 'shah')).toBe(true);

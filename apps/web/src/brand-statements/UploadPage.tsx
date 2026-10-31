@@ -7,8 +7,6 @@ import { errorMessage, type ApiError } from '../api/errors.js';
 import { useApi } from '../app/services.js';
 import { useI18n, type MessageKey } from '../i18n/i18n.js';
 import { parseRupees } from '../lib/inputs.js';
-import { SectionNav } from '../lib/SectionNav.js';
-import { PURCHASING_SECTIONS } from '../purchasing/sections.js';
 import type { StatementUpload } from './statements-api.js';
 import { statementsKey } from './StatementsPage.js';
 import { templatesKey } from './TemplatesPage.js';
@@ -190,7 +188,6 @@ export function UploadPage() {
         title={t('statements.uploadPage.title')}
         description={t('statements.uploadPage.description')}
       />
-      <SectionNav label="purchasing.sections" links={PURCHASING_SECTIONS} />
       <form
         noValidate
         className="stack"

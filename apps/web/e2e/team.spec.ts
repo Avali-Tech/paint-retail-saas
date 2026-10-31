@@ -1,24 +1,21 @@
 import { expect, test, type Page } from '@playwright/test';
 import { expectUsable } from './checks.js';
 import {
-  PASSWORD,
   addAuthenticator,
   call,
   createBusiness,
+  openFromMenu,
+  PASSWORD,
   signInWithPassword,
-  uniquePhone,
   type Business,
+  uniquePhone,
 } from './support.js';
 
 // The team: members with their roles, stores, status and two-factor sign-in,
 // and roles with their permissions.
 
 const openTeam = async (page: Page) => {
-  await page
-    .getByRole('navigation', { name: 'Main' })
-    .first()
-    .getByRole('link', { name: 'Team' })
-    .click();
+  await openFromMenu(page, 'Settings', 'Team & roles');
   await expect(page.getByRole('heading', { name: 'Team', level: 1 })).toBeVisible();
 };
 

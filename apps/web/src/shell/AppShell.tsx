@@ -1,6 +1,6 @@
 import { Dialog, Icon, Spinner } from '@paint/ui';
-import { Suspense, useRef, useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useCurrentProfile, usePermissions, useSignOut } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { SubscriptionBanner } from '../billing/SubscriptionBanner.js';
@@ -8,24 +8,46 @@ import { SupportBanner } from '../support-access/SupportBanner.js';
 import { BrandMark } from '../theme/BrandMark.js';
 import { useBranding } from '../theme/BrandingProvider.js';
 import { useIdentity } from '../theme/IdentityProvider.js';
-import { BOTTOM_BAR_SIZE, visibleNav, type NavItem } from './nav.js';
+import { readLastTabs, rememberTab } from './last-tab.js';
 import { NotificationBell } from './NotificationBell.js';
 import { SearchBox, useQuickActions } from './SearchBox.js';
+import { SectionTabs } from './SectionTabs.js';
+import {
+  pageAt,
+  phoneBar,
+  sectionAt,
+  sectionTarget,
+  visibleSections,
+  type Section,
+} from './sections.js';
 import { useShortcuts } from './shortcuts.js';
 
-function NavEntry({
-  item,
+/** A menu entry: opens the section at its last-used tab and stays lit on all of its pages. */
+function SectionEntry({
+  section,
+  active,
+  className = 'nav-link',
+  plus = false,
   onNavigate,
 }: {
-  readonly item: NavItem;
+  readonly section: Section;
+  readonly active: boolean;
+  readonly className?: string;
+  /** A "+" instead of the icon, for "+ New sale". */
+  readonly plus?: boolean;
   readonly onNavigate?: () => void;
 }) {
   const { t } = useI18n();
   return (
-    <NavLink to={item.path} className="nav-link" onClick={onNavigate}>
-      <Icon name={item.icon} />
-      <span>{t(item.label)}</span>
-    </NavLink>
+    <Link
+      to={sectionTarget(section, readLastTabs())}
+      className={className}
+      aria-current={active ? 'true' : undefined}
+      onClick={onNavigate}
+    >
+      {plus ? <span aria-hidden="true">+</span> : <Icon name={section.icon} />}
+      <span>{t(section.label)}</span>
+    </Link>
   );
 }
 
@@ -45,9 +67,24 @@ export function AppShell() {
   const searchRef = useRef<HTMLInputElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const items = visibleNav(can);
-  const bar = items.slice(0, BOTTOM_BAR_SIZE);
-  const overflow = items.slice(BOTTOM_BAR_SIZE);
+  const { pathname } = useLocation();
+  const sections = visibleSections(can);
+  const pages = sections.flatMap((section) => section.tabs);
+  const current = pageAt(pathname, pages);
+  const activeKey = sectionAt(pathname, pages);
+  const active = sections.find((section) => section.key === activeKey);
+  const newSale = sections.find((section) => section.key === 'newSale');
+  const settings = sections.find((section) => section.key === 'settings');
+  const menu = sections.filter((section) => section !== newSale && section !== settings);
+  const { bar, more } = phoneBar(sections);
+  const closeMore = () => {
+    setMoreOpen(false);
+  };
+
+  // Clicking a section later reopens the tab used last.
+  useEffect(() => {
+    if (current) rememberTab(current.section, current.path);
+  }, [current]);
 
   const actions = useQuickActions();
   useShortcuts(
@@ -103,14 +140,25 @@ export function AppShell() {
       </header>
 
       <nav className="shell__sidebar" aria-label={t('shell.mainNav')}>
-        <ul>
-          {items.map((item) => (
-            <li key={item.key}>
-              <NavEntry item={item} />
-            </li>
-          ))}
-        </ul>
+        <div className="shell__menu">
+          {newSale && (
+            <SectionEntry
+              section={newSale}
+              active={activeKey === 'newSale'}
+              className="shell__new-sale"
+              plus
+            />
+          )}
+          <ul>
+            {menu.map((section) => (
+              <li key={section.key}>
+                <SectionEntry section={section} active={section.key === activeKey} />
+              </li>
+            ))}
+          </ul>
+        </div>
         <div className="shell__account">
+          {settings && <SectionEntry section={settings} active={activeKey === 'settings'} />}
           <p className="muted">
             {t('shell.signedInAs', { name: profile.user.fullName, role: profile.role.name })}
           </p>
@@ -122,6 +170,7 @@ export function AppShell() {
       <main className="shell__main" id="main" tabIndex={-1}>
         <SupportBanner />
         <SubscriptionBanner />
+        <SectionTabs section={active} current={current} />
         <Suspense
           fallback={
             <div className="query-state">
@@ -134,8 +183,8 @@ export function AppShell() {
       </main>
 
       <nav className="shell__bottom-bar" aria-label={t('shell.mainNav')}>
-        {bar.map((item) => (
-          <NavEntry key={item.key} item={item} />
+        {bar.map((section) => (
+          <SectionEntry key={section.key} section={section} active={section.key === activeKey} />
         ))}
         <button
           type="button"
@@ -157,13 +206,12 @@ export function AppShell() {
         closeLabel={t('common.close')}
       >
         <ul className="more-list">
-          {overflow.map((item) => (
-            <li key={item.key}>
-              <NavEntry
-                item={item}
-                onNavigate={() => {
-                  setMoreOpen(false);
-                }}
+          {more.map((section) => (
+            <li key={section.key}>
+              <SectionEntry
+                section={section}
+                active={section.key === activeKey}
+                onNavigate={closeMore}
               />
             </li>
           ))}

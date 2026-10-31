@@ -19,8 +19,6 @@ import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { useUrlFilters } from '../lib/hooks.js';
 import { QueryState } from '../lib/QueryState.js';
-import { SectionNav } from '../lib/SectionNav.js';
-import { STOCK_SECTIONS } from '../stock/sections.js';
 import { StoreSelect } from '../stock/StoreSelect.js';
 
 export const PAGE_SIZE = 50;
@@ -122,7 +120,6 @@ export function StockCountsPage() {
 
   return (
     <>
-      <SectionNav label="stock.sections.label" links={STOCK_SECTIONS} />
       <PageHeader
         title={t('stockCounts.title')}
         description={t('stockCounts.description')}

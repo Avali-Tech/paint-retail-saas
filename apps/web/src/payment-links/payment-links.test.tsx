@@ -536,11 +536,13 @@ describe('UPI link money at the day end and in payments', { timeout: 30_000 }, (
         'GET /payments': () => json({ items: [], total: 0, nextCursor: null }),
       },
     });
-    expect(await screen.findByRole('link', { name: 'Payment links' })).toHaveAttribute(
-      'href',
-      '/payment-links',
-    );
-    await user.selectOptions(screen.getByLabelText('Mode'), 'upi_link');
+    await user.selectOptions(await screen.findByLabelText('Mode'), 'upi_link');
+    // The page's own link, and the tab in Money.
+    expect(
+      screen
+        .getAllByRole('link', { name: 'Payment links' })
+        .map((link) => link.getAttribute('href')),
+    ).toEqual(['/payment-links', '/payment-links']);
     await waitFor(() => {
       expect(
         requests

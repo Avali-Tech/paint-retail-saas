@@ -12,20 +12,22 @@ export const REPORT_PERMISSIONS: AnyOf = [
   BRAND_PROFITABILITY_PERMISSION,
 ];
 
-/** Reports, after imports in the navigation. */
+/** Reports, then brand profitability. */
 export const REPORT_NAV_ITEMS: readonly NavItem[] = [
   {
     key: 'reports',
+    section: 'reports',
+    order: 10,
     label: 'reports.title',
     path: '/reports',
-    icon: 'dashboard',
     permission: REPORT_PERMISSIONS,
   },
   {
     key: 'brandProfitability',
+    section: 'reports',
+    order: 20,
     label: 'brandProfitability.nav',
     path: '/reports/brand-profitability',
-    icon: 'dashboard',
     permission: BRAND_PROFITABILITY_PERMISSION,
     alsoNeeds: 'costs:read',
   },
