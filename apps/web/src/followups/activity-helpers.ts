@@ -2,12 +2,16 @@ import type { QueryClient } from '@tanstack/react-query';
 import type { Activity, ActivityRecordType } from '../api/follow-ups.js';
 import { RECORD_PATHS } from '../api/follow-ups.js';
 
-/** Screens that show activities: follow-ups, timelines, the dashboard's counts and the customer 360. */
+/**
+ * Screens that show activities: follow-ups, timelines, the dashboard's counts, the
+ * customer 360 and the inbox (with its badge).
+ */
 const ACTIVITY_QUERIES: ReadonlySet<unknown> = new Set([
   'follow-ups',
   'activities',
   'dashboard',
   'party',
+  'inbox',
 ]);
 
 /** Reloads every screen that shows activities after one changed. */

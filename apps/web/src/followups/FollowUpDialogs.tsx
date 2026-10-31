@@ -16,7 +16,7 @@ export function DoneDialog({
   followUp,
   onClose,
 }: {
-  readonly followUp: FollowUp;
+  readonly followUp: Pick<FollowUp, 'id' | 'subject'>;
   readonly onClose: () => void;
 }) {
   const api = useApi();

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 import { useI18n } from '../i18n/i18n.js';
+import { CountBadge } from '../inbox/inbox-count.js';
 import type { NavItem } from './nav.js';
 import { SETTINGS_PATH, type Section } from './sections.js';
 
@@ -12,9 +13,12 @@ import { SETTINGS_PATH, type Section } from './sections.js';
 export function SectionTabs({
   section,
   current,
+  badges,
 }: {
   readonly section: Section | undefined;
   readonly current: NavItem | undefined;
+  /** Counts on tabs, by the tab's key (the inbox's). */
+  readonly badges: Readonly<Partial<Record<string, number>>>;
 }) {
   const { t } = useI18n();
   const nav = useRef<HTMLElement>(null);
@@ -45,6 +49,7 @@ export function SectionTabs({
           aria-current={tab === current ? 'page' : undefined}
         >
           {t(tab.label)}
+          <CountBadge count={badges[tab.key] ?? 0} />
         </Link>
       ))}
     </nav>

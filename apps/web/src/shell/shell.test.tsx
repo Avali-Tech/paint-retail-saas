@@ -106,8 +106,10 @@ describe('navigation by role', () => {
       '/pos',
     );
     expect(litEntry()).toEqual(['Home']);
-    // Home has one page: no tabs.
-    expect(screen.queryByRole('navigation', { name: 'Home' })).toBeNull();
+    // Home has the dashboard and the inbox, as tabs.
+    expect(
+      texts(within(screen.getByRole('navigation', { name: 'Home' })).getAllByRole('link')),
+    ).toEqual(['Dashboard', 'Inbox']);
     expect(screen.getByText('ABC Paints')).toBeInTheDocument();
     expect(screen.getByText('Signed in as Anil Kumar · Owner')).toBeInTheDocument();
   });

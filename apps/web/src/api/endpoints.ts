@@ -8,6 +8,7 @@ import { creditEndpoints } from './credit.js';
 import { documentEndpoints } from './documents.js';
 import { followUpEndpoints } from './follow-ups.js';
 import { importEndpoints } from './imports.js';
+import { inboxEndpoints } from '../inbox/inbox-api.js';
 import { leadEndpoints, opportunityEndpoints } from './leads.js';
 import { loyaltyEndpoints } from './loyalty.js';
 import { partyEndpoints } from './parties.js';
@@ -98,6 +99,7 @@ export function endpoints(api: ApiClient) {
     search: (q: string, signal?: AbortSignal) =>
       api.get<SearchResults>('/search', { query: { q }, signal }),
     quickActions: (q = '') => api.get<QuickAction[]>('/search/actions', { query: { q } }),
+    inbox: inboxEndpoints(api),
     notifications: {
       list: (limit = 10) => api.get<NotificationPage>('/notifications', { query: { limit } }),
       markRead: (id: string) => api.post<undefined>(`/notifications/${id}/read`),

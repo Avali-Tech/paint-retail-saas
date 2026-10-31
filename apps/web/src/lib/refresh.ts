@@ -2,7 +2,8 @@ import { hashKey, type QueryClient, type QueryKey } from '@tanstack/react-query'
 
 /**
  * Everything a stock or purchasing change can move: balances, low stock, the
- * documents that list quantities and costs, suppliers' last costs and the dashboard.
+ * documents that list quantities and costs, suppliers' last costs, the dashboard
+ * and the inbox (with its badge).
  */
 const INVENTORY_QUERIES: ReadonlySet<unknown> = new Set([
   'stock',
@@ -19,6 +20,7 @@ const INVENTORY_QUERIES: ReadonlySet<unknown> = new Set([
   'suppliers',
   'supplier',
   'dashboard',
+  'inbox',
 ]);
 
 /**

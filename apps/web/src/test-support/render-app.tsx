@@ -37,6 +37,8 @@ export function renderApp({
   const api = fakeFetch({
     'GET /search/actions': () => json([]),
     'GET /notifications': () => json({ items: [], total: 0, unread: 0 }),
+    // Nothing waiting: no badge on Home, unless a test says otherwise.
+    'GET /inbox/count': () => json({ total: 0 }),
     // A paid subscription in good standing: no banner, unless a test says otherwise.
     'GET /subscription/status': () => json(FINE_SUBSCRIPTION),
     ...routes,

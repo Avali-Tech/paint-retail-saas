@@ -6,6 +6,7 @@ import { brandingTe } from './te-branding.js';
 import { catalogEnumsTe, catalogTe } from './te-catalog.js';
 import { contractsTe } from './te-contracts.js';
 import { approvalsEnumsTe, approvalsTe } from './te-approvals.js';
+import { inboxTe, inboxEnumsTe } from './te-inbox.js';
 import { creditEnumsTe, creditTe } from './te-credit.js';
 import { documentsTe } from './te-documents.js';
 import { followUpEnumsTe, followUpsTe } from './te-followups.js';
@@ -349,6 +350,7 @@ export const te: Messages = {
   ...partiesTe,
   ...creditTe,
   ...approvalsTe,
+  ...inboxTe,
   ...loyaltyTe,
   ...catalogTe,
   ...stockTe,
@@ -405,6 +407,7 @@ export const te: Messages = {
     ...partyEnumsTe,
     ...creditEnumsTe,
     ...approvalsEnumsTe,
+    ...inboxEnumsTe,
     ...loyaltyEnumsTe,
     ...catalogEnumsTe,
     ...stockEnumsTe,

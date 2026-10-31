@@ -9,6 +9,7 @@ import { DOCUMENT_NAV_ITEMS } from '../documents/nav.js';
 import { ESTIMATE_NAV_ITEMS } from '../estimator/nav.js';
 import { FOLLOW_UP_NAV_ITEMS } from '../followups/nav.js';
 import { IMPORT_NAV_ITEMS } from '../imports/nav.js';
+import { INBOX_NAV_ITEMS } from '../inbox/nav.js';
 import { CRM_NAV_ITEMS } from '../leads/nav.js';
 import type { AnyOf } from '../lib/guard.js';
 import { ORDER_NAV_ITEMS } from '../orders/nav.js';
@@ -69,6 +70,7 @@ export type NavItem =
 /** Every page in the menu. Sections order them; the order here does not matter. */
 export const NAV_ITEMS: readonly NavItem[] = [
   ...DASHBOARD_NAV_ITEMS,
+  ...INBOX_NAV_ITEMS,
   ...POS_NAV_ITEMS,
   ...ESTIMATE_NAV_ITEMS,
   ...ORDER_NAV_ITEMS,

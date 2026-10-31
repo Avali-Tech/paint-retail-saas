@@ -8,6 +8,7 @@ import { SupportBanner } from '../support-access/SupportBanner.js';
 import { BrandMark } from '../theme/BrandMark.js';
 import { useBranding } from '../theme/BrandingProvider.js';
 import { useIdentity } from '../theme/IdentityProvider.js';
+import { CountBadge, useInboxCount } from '../inbox/inbox-count.js';
 import { readLastTabs, rememberTab } from './last-tab.js';
 import { NotificationBell } from './NotificationBell.js';
 import { SearchBox, useQuickActions } from './SearchBox.js';
@@ -28,6 +29,7 @@ function SectionEntry({
   active,
   className = 'nav-link',
   plus = false,
+  badge = 0,
   onNavigate,
 }: {
   readonly section: Section;
@@ -35,6 +37,8 @@ function SectionEntry({
   readonly className?: string;
   /** A "+" instead of the icon, for "+ New sale". */
   readonly plus?: boolean;
+  /** What waits in the section (the inbox's count on Home). */
+  readonly badge?: number;
   readonly onNavigate?: () => void;
 }) {
   const { t } = useI18n();
@@ -47,6 +51,7 @@ function SectionEntry({
     >
       {plus ? <span aria-hidden="true">+</span> : <Icon name={section.icon} />}
       <span>{t(section.label)}</span>
+      <CountBadge count={badge} />
     </Link>
   );
 }
@@ -66,6 +71,9 @@ export function AppShell() {
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const waiting = useInboxCount();
+  /** The inbox's count shows on Home, where the inbox is. */
+  const badgeOf = (section: Section) => (section.key === 'home' ? waiting : 0);
 
   const { pathname } = useLocation();
   const sections = visibleSections(can);
@@ -152,7 +160,11 @@ export function AppShell() {
           <ul>
             {menu.map((section) => (
               <li key={section.key}>
-                <SectionEntry section={section} active={section.key === activeKey} />
+                <SectionEntry
+                  section={section}
+                  active={section.key === activeKey}
+                  badge={badgeOf(section)}
+                />
               </li>
             ))}
           </ul>
@@ -170,7 +182,7 @@ export function AppShell() {
       <main className="shell__main" id="main" tabIndex={-1}>
         <SupportBanner />
         <SubscriptionBanner />
-        <SectionTabs section={active} current={current} />
+        <SectionTabs section={active} current={current} badges={{ inbox: waiting }} />
         <Suspense
           fallback={
             <div className="query-state">
@@ -184,7 +196,12 @@ export function AppShell() {
 
       <nav className="shell__bottom-bar" aria-label={t('shell.mainNav')}>
         {bar.map((section) => (
-          <SectionEntry key={section.key} section={section} active={section.key === activeKey} />
+          <SectionEntry
+            key={section.key}
+            section={section}
+            active={section.key === activeKey}
+            badge={badgeOf(section)}
+          />
         ))}
         <button
           type="button"
@@ -211,6 +228,7 @@ export function AppShell() {
               <SectionEntry
                 section={section}
                 active={section.key === activeKey}
+                badge={badgeOf(section)}
                 onNavigate={closeMore}
               />
             </li>

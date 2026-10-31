@@ -10,6 +10,7 @@ import { documentRoutes } from '../documents/routes.js';
 import { followUpRoutes } from '../followups/routes.js';
 import { useI18n } from '../i18n/i18n.js';
 import { importRoutes } from '../imports/routes.js';
+import { inboxRoutes } from '../inbox/routes.js';
 import { leadRoutes } from '../leads/routes.js';
 import { opportunityRoutes } from '../opportunities/routes.js';
 import { estimatorRoutes } from '../estimator/routes.js';
@@ -101,6 +102,7 @@ export function AppRoutes() {
       >
         <Route index element={<HomeRedirect />} />
         <Route path="dashboard" element={guarded('stores:read', DashboardPage)} />
+        {inboxRoutes()}
         {posRoutes()}
         {partyRoutes()}
         {catalogRoutes()}

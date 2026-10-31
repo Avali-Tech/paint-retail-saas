@@ -3,6 +3,7 @@ import { brandingEn } from './en-branding.js';
 import { catalogEn, catalogEnumsEn } from './en-catalog.js';
 import { contractsEn } from './en-contracts.js';
 import { approvalsEn, approvalsEnumsEn } from './en-approvals.js';
+import { inboxEn, inboxEnumsEn } from './en-inbox.js';
 import { creditEn, creditEnumsEn } from './en-credit.js';
 import { documentsEn } from './en-documents.js';
 import { followUpEnumsEn, followUpsEn } from './en-followups.js';
@@ -344,6 +345,7 @@ export const en = {
   ...partiesEn,
   ...creditEn,
   ...approvalsEn,
+  ...inboxEn,
   ...loyaltyEn,
   ...catalogEn,
   ...stockEn,
@@ -402,6 +404,7 @@ export const en = {
     ...partyEnumsEn,
     ...creditEnumsEn,
     ...approvalsEnumsEn,
+    ...inboxEnumsEn,
     ...loyaltyEnumsEn,
     ...catalogEnumsEn,
     ...stockEnumsEn,
