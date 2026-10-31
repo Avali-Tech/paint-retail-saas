@@ -118,6 +118,7 @@ describe('visibleSections', () => {
       [
         'settings',
         [
+          'gettingStarted',
           'storeSettings',
           'tax',
           'invoicePrint',

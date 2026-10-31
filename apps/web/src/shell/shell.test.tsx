@@ -307,6 +307,7 @@ describe('sections and tabs', () => {
     ).toEqual(['Business', 'Team & access', 'Customers & credit', 'Money', 'Data']);
     const business = screen.getByRole('region', { name: 'Business' });
     expect(texts(within(business).getAllByRole('link'))).toEqual([
+      'Getting started',
       'Stores',
       'Tax & GST',
       'Invoice print',

@@ -1,14 +1,11 @@
-import { migrateDatabase } from '@paint/db';
-import { toCsv } from '@paint/shared';
+import { migrateDatabase, schema } from '@paint/db';
+import { toCsv, type SetupChecklistView } from '@paint/shared';
 import { createIsolatedDatabase, type TestDatabase } from '@paint/testing';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { bearer, startTestApp, uniquePhone, type TestApp } from '../test-support/test-app.js';
 
-interface Onboarding {
-  steps: { key: string; title: string; done: boolean; count: number; importKind: string | null }[];
-  completed: number;
-  total: number;
-}
+const { organizationLogos, paymentGatewayAccounts, salesSettings } = schema;
 
 let database: TestDatabase;
 let t: TestApp;
@@ -21,7 +18,13 @@ const api = (token: string) => ({
     t.app.inject({ method: 'PUT', url, headers: bearer(token), payload }),
 });
 
-async function signup(name: string): Promise<string> {
+interface Owner {
+  readonly token: string;
+  readonly organizationId: string;
+  readonly memberId: string;
+}
+
+async function signup(name: string): Promise<Owner> {
   const response = await t.app.inject({
     method: 'POST',
     url: '/auth/signup',
@@ -32,12 +35,15 @@ async function signup(name: string): Promise<string> {
       password: 'Staff@2026',
     },
   });
-  return response.json<{ token: string }>().token;
+  const { token, organizationId } = response.json<{ token: string; organizationId: string }>();
+  const { memberId } = (await api(token).get('/auth/me')).json<{ memberId: string }>();
+  return { token, organizationId, memberId };
 }
 
-const progress = async (token: string) => (await api(token).get('/onboarding')).json<Onboarding>();
-const done = (onboarding: Onboarding) =>
-  Object.fromEntries(onboarding.steps.map((step) => [step.key, step.done]));
+const progress = async (owner: Owner) =>
+  (await api(owner.token).get('/onboarding')).json<SetupChecklistView>();
+const done = (checklist: SetupChecklistView) =>
+  Object.fromEntries(checklist.steps.map((step) => [step.key, step.done]));
 
 beforeAll(async () => {
   database = await createIsolatedDatabase(inject('databaseUrl'));
@@ -50,47 +56,59 @@ afterAll(async () => {
   await database.stop();
 });
 
-describe('onboarding checklist', () => {
+describe('getting started checklist', () => {
   it('starts with nothing done, in the order to do it', async () => {
     const owner = await signup('Fresh Paints');
 
-    const onboarding = await progress(owner);
+    const checklist = await progress(owner);
 
-    expect(onboarding).toMatchObject({ completed: 0, total: 7 });
-    expect(onboarding.steps.map((step) => [step.key, step.count, step.importKind])).toEqual([
-      ['stores', 0, null],
-      ['team', 1, null],
-      ['products', 0, 'products'],
-      ['suppliers', 0, 'parties'],
-      ['customers', 0, 'parties'],
-      ['opening_stock', 0, 'opening-stock'],
-      ['reorder_rules', 0, null],
+    expect(checklist).toMatchObject({ completed: 0, total: 9 });
+    expect(checklist.steps.map((step) => [step.key, step.count])).toEqual([
+      ['stores_gst', 0],
+      ['products', 0],
+      ['customers', 0],
+      ['opening_stock', 0],
+      ['team', 1],
+      ['credit_rules', 0],
+      ['billing_live', 0],
+      ['invoice_print', 0],
+      ['payment_links', 0],
     ]);
-    expect(onboarding.steps[0]?.title).toBe('Add your stores');
     expect((await t.app.inject({ method: 'GET', url: '/onboarding' })).statusCode).toBe(401);
   });
 
-  it('ticks off each step as the business is set up, counting only its own records', async () => {
+  it('ticks off each step from the business’s own records', async () => {
     const owner = await signup('Setup Paints');
     const other = await signup('Other Paints');
-    const store = (await api(owner).post('/stores', { name: 'Hyderabad', code: 'HYD' })).json<{
+    const o = api(owner.token);
+    const store = (await o.post('/stores', { name: 'Hyderabad', code: 'HYD' })).json<{
       id: string;
     }>().id;
-    const roles = (await api(owner).get('/roles')).json<{ id: string; key: string }[]>();
-    await api(owner).post('/members', {
+    // A godown needs no GST; a store without its GST state keeps the step open.
+    await o.post('/stores', { name: 'Godown', code: 'GDN', type: 'godown' });
+    const before = await progress(owner);
+    expect(before.steps[0]).toEqual({ key: 'stores_gst', done: false, count: 0 });
+    await o.put('/gst-registrations/business', { legalName: 'Setup Paints LLP' });
+    await o.put(`/gst-registrations/stores/${store}`, {
+      registrationType: 'unregistered',
+      stateCode: '36',
+    });
+
+    const roles = (await o.get('/roles')).json<{ id: string; key: string }[]>();
+    await o.post('/members', {
       fullName: 'Cashier',
       phone: uniquePhone(),
       password: 'Staff@2026',
       roleId: roles.find((role) => role.key === 'store_employee')?.id,
       storeIds: [store],
     });
-    await api(owner).post('/imports/products', {
+    await o.post('/imports/products', {
       csv: toCsv([
         ['brand', 'product', 'type', 'hsn_code', 'tax_category', 'sku', 'pack_size', 'unit'],
         ['Asian Paints', 'Apex', 'exterior_paint', '3209', 'Paints 18%', 'APX-1L', '1', 'l'],
       ]),
     });
-    await api(owner).post('/imports/parties', {
+    await o.post('/imports/parties', {
       csv: toCsv([
         ['name', 'roles', 'phone'],
         ['Depot', 'supplier', uniquePhone()],
@@ -98,30 +116,62 @@ describe('onboarding checklist', () => {
       ]),
     });
     const halfway = await progress(owner);
-    await api(owner).post('/imports/opening-stock', {
+    expect(done(halfway)).toEqual({
+      stores_gst: true,
+      products: true,
+      customers: true,
+      opening_stock: false,
+      team: true,
+      credit_rules: false,
+      billing_live: false,
+      invoice_print: false,
+      payment_links: false,
+    });
+    expect(halfway.steps.find((step) => step.key === 'customers')?.count).toBe(1);
+
+    await o.post('/imports/opening-stock', {
       csv: toCsv([
         ['store', 'sku', 'quantity'],
         ['HYD', 'APX-1L', '10'],
       ]),
     });
-    const variantId = (await api(owner).get('/products/lookup?code=APX-1L')).json<{
-      variant: { id: string };
-    }>().variant.id;
-    await api(owner).put('/reorder-rules', {
-      rules: [{ storeId: store, variantId, minQuantity: 2, reorderLevel: 4, maxQuantity: 12 }],
+    await o.put('/credit-rules', {
+      normalUpToPercent: 80,
+      managerUpToPercent: 100,
+      holdAfterOverdueDays: 45,
+    });
+    await o.put('/sales/settings', { invoiceTerms: ['Goods once sold are not taken back.'] });
+    // Going live, connecting Razorpay and uploading a logo need outside services:
+    // their rows are written as those flows write them.
+    await t.connection.db
+      .update(salesSettings)
+      .set({ billingLiveOn: '2026-10-01' })
+      .where(eq(salesSettings.organizationId, owner.organizationId));
+    await t.connection.db.insert(paymentGatewayAccounts).values({
+      organizationId: owner.organizationId,
+      gateway: 'razorpay',
+      webhookRef: owner.organizationId.replaceAll('-', '').slice(0, 22),
+      keyIdHint: 'abcd',
+      keySecretHint: 'efgh',
+      webhookSecretHint: 'ijkl',
+      live: false,
+      credentialsSealed: 'v1:test:sealed',
+      connectedAt: new Date(),
+    });
+    await t.connection.db.insert(organizationLogos).values({
+      organizationId: owner.organizationId,
+      storageKey: `${owner.organizationId}/branding/logo-1`,
+      contentType: 'image/png',
+      sizeBytes: 10,
+      sha256: 'a'.repeat(64),
+      width: 10,
+      height: 10,
+      uploadedByMemberId: owner.memberId,
     });
 
-    expect(done(halfway)).toEqual({
-      stores: true,
-      team: true,
-      products: true,
-      suppliers: true,
-      customers: true,
-      opening_stock: false,
-      reorder_rules: false,
-    });
-    expect(halfway.steps.find((step) => step.key === 'customers')?.count).toBe(1);
-    expect(await progress(owner)).toMatchObject({ completed: 7, total: 7 });
+    const finished = await progress(owner);
+    expect(finished).toMatchObject({ completed: 9, total: 9 });
+    expect(finished.steps.find((step) => step.key === 'invoice_print')?.count).toBe(2);
     expect((await progress(other)).completed).toBe(0);
   });
 });

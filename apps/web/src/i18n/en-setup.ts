@@ -129,4 +129,47 @@ export const setupEn = {
       done: 'Billing is live',
     },
   },
+  gettingStarted: {
+    title: 'Getting started',
+    description: 'Set your business up step by step. Each step ticks itself off once it is done.',
+    error: 'Could not load the checklist',
+    progress: '{done} of {total} done',
+    steps: 'Steps',
+    done: 'Done',
+    todo: 'To do',
+    open: 'Open',
+    openStep: 'Open: {step}',
+    complete: 'Everything is set up.',
+    seeAll: 'See all',
+    hide: 'Hide',
+    step: {
+      stores_gst: {
+        title: 'Stores and GST',
+        hint: 'Add each store with its state and GST registration',
+      },
+      products: { title: 'Import products', hint: 'Bring in your catalogue from a spreadsheet' },
+      customers: {
+        title: 'Import customers',
+        hint: 'Bring in customers, contractors and painters from a spreadsheet',
+      },
+      opening_stock: { title: 'Opening stock', hint: 'Import what each store has on its shelves' },
+      team: { title: 'Your team', hint: 'Invite the people who work with you' },
+      credit_rules: {
+        title: 'Credit rules',
+        hint: 'Decide who approves credit and when an account is held',
+      },
+      billing_live: {
+        title: 'Billing go-live',
+        hint: 'Post the opening balances and start billing',
+      },
+      invoice_print: {
+        title: 'Invoice print and branding',
+        hint: 'Bank details and terms for the invoice; your logo under Appearance',
+      },
+      payment_links: {
+        title: 'Payment links',
+        hint: 'Connect a payment gateway so customers can pay by UPI link',
+      },
+    },
+  },
 };

@@ -1,4 +1,4 @@
-import type { GoLivePreview, GoLiveRequest, GoLiveResult } from '@paint/shared';
+import type { GoLivePreview, GoLiveRequest, GoLiveResult, SetupChecklistView } from '@paint/shared';
 import type { ApiClient } from '../api/client.js';
 import type { Store } from '../api/stock.js';
 import type { StoreGstInput } from '../api/tax.js';
@@ -27,6 +27,8 @@ export function setupEndpoints(api: ApiClient) {
     stores: (signal?: AbortSignal) => api.get<Store[]>('/stores', { signal }),
     createStore: (input: NewStore) => api.post<Store>('/stores', input),
     updateStore: (id: string, changes: StoreChanges) => api.patch<Store>(`/stores/${id}`, changes),
+    /** The "Getting started" checklist, from the business's records. */
+    checklist: (signal?: AbortSignal) => api.get<SetupChecklistView>('/onboarding', { signal }),
     /** What going live on `liveOn` (default today) would post, or what it posted. */
     goLive: (liveOn: string | undefined, signal?: AbortSignal) =>
       api.get<GoLivePreview>('/sales/go-live', { query: { liveOn }, signal }),
