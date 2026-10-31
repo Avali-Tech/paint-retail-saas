@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 import { useI18n } from '../i18n/i18n.js';
-import { CountBadge } from '../inbox/inbox-count.js';
+import { CountBadge, useBadgedName } from '../inbox/inbox-count.js';
 import type { NavItem } from './nav.js';
 import { SETTINGS_PATH, type Section } from './sections.js';
 
@@ -21,6 +21,7 @@ export function SectionTabs({
   readonly badges: Readonly<Partial<Record<string, number>>>;
 }) {
   const { t } = useI18n();
+  const badgedName = useBadgedName();
   const nav = useRef<HTMLElement>(null);
   // On a phone the current tab can sit past the edge: bring it into view.
   useEffect(() => {
@@ -47,6 +48,7 @@ export function SectionTabs({
           to={tab.path}
           className="section-nav__link"
           aria-current={tab === current ? 'page' : undefined}
+          aria-label={badgedName(t(tab.label), badges[tab.key] ?? 0)}
         >
           {t(tab.label)}
           <CountBadge count={badges[tab.key] ?? 0} />

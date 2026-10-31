@@ -1,4 +1,3 @@
-import { VisuallyHidden } from '@paint/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
@@ -27,16 +26,21 @@ export function useInboxCount(): number {
 /** "99+" once there are more than fit on the badge. */
 export const inboxBadge = (count: number) => (count > 99 ? '99+' : String(count));
 
-/** The count on a menu entry or tab; read out as "3 waiting for you". Nothing at 0. */
+/**
+ * The count on a menu entry or tab, seen only: the link says it in its name
+ * (badgedName), the same in every browser. Nothing at 0.
+ */
 export function CountBadge({ count }: { readonly count: number }) {
-  const { t } = useI18n();
   if (count === 0) return null;
   return (
-    <>
-      <span className="count-badge" aria-hidden="true">
-        {inboxBadge(count)}
-      </span>
-      <VisuallyHidden>{`, ${t('inbox.waiting', { count })}`}</VisuallyHidden>
-    </>
+    <span className="count-badge" aria-hidden="true">
+      {inboxBadge(count)}
+    </span>
   );
+}
+
+/** The name of a link with a count, "Home, 3 waiting for you"; at 0, none (its text names it). */
+export function useBadgedName(): (label: string, count: number) => string | undefined {
+  const { t } = useI18n();
+  return (label, count) => (count === 0 ? undefined : t('inbox.waiting', { label, count }));
 }

@@ -9,7 +9,7 @@ export const inboxHi: Translation<typeof inboxEn> = {
     title: 'आपके काम',
     description:
       'जो कुछ आपका इंतजार कर रहा है: मंजूरी, भेजने या रिसीव करने का स्टॉक, गिनती, टूटे वादे, फॉलो-अप और कम स्टॉक',
-    waiting: '{count} आपके इंतजार में',
+    waiting: '{label}, {count} आपके इंतजार में',
     kind: 'दिखाएं',
     allKinds: 'सब कुछ',
     store: 'स्टोर',

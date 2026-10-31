@@ -6,7 +6,7 @@ export const inboxEn = {
     title: 'Needs action',
     description:
       'Everything waiting on you: approvals, stock to send or receive, counts, broken promises, follow-ups and low stock',
-    waiting: '{count} waiting for you',
+    waiting: '{label}, {count} waiting for you',
     kind: 'Show',
     allKinds: 'Everything',
     store: 'Store',

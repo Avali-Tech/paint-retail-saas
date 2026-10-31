@@ -8,7 +8,7 @@ import { SupportBanner } from '../support-access/SupportBanner.js';
 import { BrandMark } from '../theme/BrandMark.js';
 import { useBranding } from '../theme/BrandingProvider.js';
 import { useIdentity } from '../theme/IdentityProvider.js';
-import { CountBadge, useInboxCount } from '../inbox/inbox-count.js';
+import { CountBadge, useBadgedName, useInboxCount } from '../inbox/inbox-count.js';
 import { readLastTabs, rememberTab } from './last-tab.js';
 import { NotificationBell } from './NotificationBell.js';
 import { SearchBox, useQuickActions } from './SearchBox.js';
@@ -42,11 +42,13 @@ function SectionEntry({
   readonly onNavigate?: () => void;
 }) {
   const { t } = useI18n();
+  const badgedName = useBadgedName();
   return (
     <Link
       to={sectionTarget(section, readLastTabs())}
       className={className}
       aria-current={active ? 'true' : undefined}
+      aria-label={badgedName(t(section.label), badge)}
       onClick={onNavigate}
     >
       {plus ? <span aria-hidden="true">+</span> : <Icon name={section.icon} />}
