@@ -182,10 +182,14 @@ test('a receipt prints as a PDF, and the month goes to Tally once its bank is ma
       allocations: [],
     },
   });
-  const refund = await call<{ number: string }>('POST', `/payments/${advance.id}/refund`, {
-    token,
-    body: { modeId: books.modes.upi, amountPaise: 2_000, reference: 'UTR445566' },
-  });
+  const refund = await call<{ id: string; number: string }>(
+    'POST',
+    `/payments/${advance.id}/refund`,
+    {
+      token,
+      body: { modeId: books.modes.upi, amountPaise: 2_000, reference: 'UTR445566' },
+    },
+  );
   const cheque = await call<{ id: string; number: string }>('POST', '/payments', {
     token,
     body: {
@@ -241,7 +245,7 @@ test('a receipt prints as a PDF, and the month goes to Tally once its bank is ma
   await expect(rows.nth(6)).toContainText(/₹30\.00₹30\.00 Cr$/);
   await expect(rows.nth(4).getByRole('link', { name: refund.number })).toHaveAttribute(
     'href',
-    `/payments?q=${refund.number}`,
+    `/payments/${refund.id}`,
   );
   await expect(page.locator('.facts')).toContainText(
     'Opening balance₹0.00Closing balance₹30.00 Cr',
