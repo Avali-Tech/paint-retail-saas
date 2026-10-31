@@ -13,6 +13,7 @@ import { useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
 import { STATUS_TONE } from './InvoicesPage.js';
 import { DispatchPanel } from '../orders/DispatchPanel.js';
+import { InvoiceActions } from './InvoiceActions.js';
 import { PaymentLinksPanel } from '../payment-links/PaymentLinks.js';
 import { usePageLanding } from './focus-landing.js';
 import { LinesTable } from './LinesTable.js';
@@ -113,6 +114,7 @@ function InvoiceDetail({ invoice }: { readonly invoice: TaxDocumentView }) {
             : t('sales.invoice.title', { number: invoice.number })
         }
         description={label('taxDocumentKinds', invoice.kind)}
+        actions={invoice.status === 'issued' ? <InvoiceActions invoice={invoice} /> : undefined}
       />
       <Card
         title={t('sales.invoice.details')}
@@ -151,7 +153,7 @@ function InvoiceDetail({ invoice }: { readonly invoice: TaxDocumentView }) {
   );
 }
 
-/** /invoices/:id — one invoice, read-only, with its returns and credit / debit notes. */
+/** /invoices/:id — one invoice with its returns and credit / debit notes; reprint or cancel it. */
 export function InvoicePage() {
   const api = useApi();
   // The route always has an :id.

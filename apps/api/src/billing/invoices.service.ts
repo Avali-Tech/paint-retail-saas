@@ -1,7 +1,12 @@
 import 'reflect-metadata';
 import { ConflictException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { schema, withTenant, type DatabaseConnection, type Transaction } from '@paint/db';
-import { canAccessStore, type TaxDocumentPage, type TaxDocumentView } from '@paint/shared';
+import {
+  canAccessStore,
+  type PrintableInvoiceView,
+  type TaxDocumentPage,
+  type TaxDocumentView,
+} from '@paint/shared';
 import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import {
@@ -21,9 +26,11 @@ import { INFLUENCER_ROLES, requireSaleParty, requireSaleSite } from './sale-part
 import { assertMayDiscount } from './discount-permission.js';
 import { assertMistintLines } from './mistint-lines.js';
 import { documentView, loadDocument, type TaxDocumentRow } from './invoice-view.js';
+import { invoicePrintSettings } from './print-settings.js';
 import { tintsOf, writeLineTints } from '../paint/line-tints.js';
 
-const { productVariants, salesSettings, stores, taxDocumentLines, taxDocuments } = schema;
+const { gstinProfiles, productVariants, salesSettings, stores, taxDocumentLines, taxDocuments } =
+  schema;
 
 const percentOf = (discount: DiscountInput | undefined) =>
   discount?.kind === 'percent' ? discount.basisPoints : null;
@@ -104,6 +111,30 @@ export class InvoicesService {
     return withTenant(this.connection.db, auth.organization.id, async (tx) =>
       documentView(tx, await loadDocument(tx, auth, id)),
     );
+  }
+
+  /**
+   * An issued invoice or bill of supply with what printing it needs (a reprint): the
+   * business's print settings today and its GSTIN's turnover band, as at the counter.
+   */
+  printable(auth: AuthContext, id: string): Promise<PrintableInvoiceView> {
+    return withTenant(this.connection.db, auth.organization.id, async (tx) => {
+      const document = await loadDocument(tx, auth, id);
+      if (
+        document.status !== 'issued' ||
+        (document.kind !== 'invoice' && document.kind !== 'bill_of_supply')
+      ) {
+        throw new ConflictException('Only an issued invoice or bill of supply is printed');
+      }
+      const [profile] = await tx
+        .select({ aatoBand: gstinProfiles.aatoBand })
+        .from(gstinProfiles)
+        .where(eq(gstinProfiles.gstin, String(document.supplierGstin)));
+      return {
+        ...(await documentView(tx, document)),
+        print: await invoicePrintSettings(tx, profile?.aatoBand ?? null),
+      };
+    });
   }
 
   list(auth: AuthContext, query: ListInvoicesQuery): Promise<TaxDocumentPage> {

@@ -122,6 +122,10 @@ export const invoiceCreditCheckSchema = z.object({
   unpaidPaise: z.coerce.number().int().min(0).max(100_000_000_000_00),
 });
 
+/** GET /invoices/:id/invoice.pdf?lang: labels also in Hindi or Telugu (legal headings stay English). */
+export const invoicePdfQuerySchema = z.object({ lang: z.enum(['en', 'hi', 'te']).default('en') });
+export type InvoicePdfQuery = z.output<typeof invoicePdfQuerySchema>;
+
 export const cancelInvoiceSchema = z.object({ reason: z.string().trim().min(3).max(500) });
 export type CancelInvoiceInput = z.output<typeof cancelInvoiceSchema>;
 

@@ -11,25 +11,33 @@ import {
   Post,
   Put,
   Query,
+  Res,
 } from '@nestjs/common';
-import type {
-  IssuedInvoiceView,
-  SaleCreditView,
-  TaxDocumentPage,
-  TaxDocumentView,
+import {
+  printViewOf,
+  type IssuedInvoiceView,
+  type PrintableInvoiceView,
+  type SaleCreditView,
+  type TaxDocumentPage,
+  type TaxDocumentView,
 } from '@paint/shared';
+import type { FastifyReply } from 'fastify';
 import type { AuthContext } from '../auth/auth-context.js';
 import { CurrentAuth, RequirePermissions } from '../auth/decorators.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
+import { attachmentHeader } from '../documents/file-checks.js';
+import { renderInvoicePdf } from '../print/render-invoice-pdf.js';
 import {
   cancelInvoiceSchema,
   draftInvoiceSchema,
   idempotencyKeySchema,
   invoiceCreditCheckSchema,
+  invoicePdfQuerySchema,
   issueInvoiceSchema,
   listInvoicesSchema,
   type CancelInvoiceInput,
   type DraftInvoiceInput,
+  type InvoicePdfQuery,
   type IssueInvoiceInput,
   type ListInvoicesQuery,
 } from './billing.schemas.js';
@@ -84,6 +92,37 @@ export class InvoicesController {
     @Param('id', id()) invoiceId: string,
   ): Promise<TaxDocumentView> {
     return this.invoices.get(auth, invoiceId);
+  }
+
+  /** An issued invoice with its print settings, to reprint it on A4 or the counter printer. */
+  @Get(':id/print')
+  @RequirePermissions('sales:read')
+  print(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', id()) invoiceId: string,
+  ): Promise<PrintableInvoiceView> {
+    return this.invoices.printable(auth, invoiceId);
+  }
+
+  /** The issued invoice as an A4 PDF, drawn from the same print view (no logo: [CA-120]). */
+  @Get(':id/invoice.pdf')
+  @RequirePermissions('sales:read')
+  async pdf(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', id()) invoiceId: string,
+    @Query(new ZodValidationPipe(invoicePdfQuerySchema)) query: InvoicePdfQuery,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<Buffer> {
+    const invoice = await this.invoices.printable(auth, invoiceId);
+    const view = printViewOf(invoice, query.lang === 'en' ? null : query.lang, null);
+    void reply
+      .header('content-type', 'application/pdf')
+      .header(
+        'content-disposition',
+        attachmentHeader(`${String(invoice.number).replaceAll('/', '-')}.pdf`),
+      )
+      .header('cache-control', 'private, no-store');
+    return renderInvoicePdf(view);
   }
 
   @Put(':id')

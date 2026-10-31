@@ -12,6 +12,7 @@ import {
   type DocumentSeriesView,
   type GstinProfileView,
   type IssuedInvoiceView,
+  type PrintableInvoiceView,
   type SalesSettingsView,
   type TaxCategoryOptions,
   type TaxDocumentPage,
@@ -1162,6 +1163,54 @@ describe('cancelling', () => {
       (await api(b.owner).post(`/invoices/${noted.id}/cancel`, { reason: 'Has a note' }))
         .statusCode,
     ).toBe(409);
+  });
+});
+
+describe('reprinting', () => {
+  it('answers an issued invoice with its print settings, and as an A4 PDF in a second language', async () => {
+    const fresh = await business();
+    const o = api(fresh.owner);
+    const document = ok(
+      await o.post('/invoices', { storeId: fresh.stores.amp, lines: [line(fresh.variants.apex1)] }),
+    ).json<TaxDocumentView>();
+    const sold = ok(await o.post(`/invoices/${document.id}/issue`, {})).json<IssuedInvoiceView>();
+
+    const printable = ok(await o.get(`/invoices/${sold.id}/print`)).json<PrintableInvoiceView>();
+    expect(printable).toMatchObject({ id: sold.id, number: sold.number, status: 'issued' });
+    expect(printable.print).toEqual({ bank: null, terms: [], aggregateTurnoverPaise: 0 });
+    ok(
+      await o.put(`/gstin-profiles/${gstin('36', PAN, '1')}`, {
+        aatoBand: 'above_5cr',
+        einvoiceRequiredFrom: null,
+        ewayThresholdPaise: 5_000_000,
+      }),
+    );
+    const later = ok(await o.get(`/invoices/${sold.id}/print`)).json<PrintableInvoiceView>();
+    expect(later.print.aggregateTurnoverPaise).toBe(5_00_00_000_01);
+
+    const pdf = ok(await o.get(`/invoices/${sold.id}/invoice.pdf?lang=te`));
+    expect(pdf.headers['content-type']).toBe('application/pdf');
+    expect(pdf.headers['content-disposition']).toContain(
+      `${String(sold.number).replaceAll('/', '-')}.pdf`,
+    );
+    expect(pdf.rawPayload.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(ok(await o.get(`/invoices/${sold.id}/invoice.pdf`)).statusCode).toBe(200);
+    expect((await o.get(`/invoices/${sold.id}/invoice.pdf?lang=fr`)).statusCode).toBe(400);
+  });
+
+  it('refuses drafts and cancelled invoices, and invoices at a store the member does not work at', async () => {
+    const pending = await draft({ lines: [line(b.variants.brush)] });
+    const refused = await api(b.owner).get(`/invoices/${pending.id}/print`);
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json<{ message: string }>().message).toMatch(/Only an issued invoice/);
+
+    const cancelled = await issued({ lines: [line(b.variants.brush)] });
+    ok(await api(b.owner).post(`/invoices/${cancelled.id}/cancel`, { reason: 'Mistake' }));
+    expect((await api(b.owner).get(`/invoices/${cancelled.id}/invoice.pdf`)).statusCode).toBe(409);
+
+    const elsewhere = await issued({ lines: [line(b.variants.brush)] });
+    const kukatpally = await b.member('store_employee', [b.stores.kkp]);
+    expect((await api(kukatpally).get(`/invoices/${elsewhere.id}/print`)).statusCode).toBe(404);
   });
 });
 

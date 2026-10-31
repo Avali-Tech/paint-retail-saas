@@ -222,6 +222,7 @@ export {
   type IssuePaymentRequest,
   type InvoicePrintSettings,
   type IssuedInvoiceView,
+  type PrintableInvoiceView,
   type OpenDocumentView,
   type OpenRegisterRequest,
   type PartyLedgerEntryKind,
