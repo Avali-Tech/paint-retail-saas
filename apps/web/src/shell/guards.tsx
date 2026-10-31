@@ -7,7 +7,7 @@ import { useServices } from '../app/services.js';
 import { usePermissions, useProfile, useSession } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { SUPPORT_ROLE_KEY, isSupportTab, leaveSupportTab } from '../support-access/support-tab.js';
-import { visibleNav } from './nav.js';
+import { visibleNav } from './sections.js';
 
 /** Signed-in pages: sends visitors to sign in, waits for the profile, then shows the page. */
 export function RequireAuth({ children }: { readonly children: ReactNode }) {
@@ -95,9 +95,10 @@ export function RequirePermission({
   );
 }
 
-/** "/" opens the first section the member may use (the dashboard for most). */
+/** "/" opens the first page the member's role gives them (the dashboard for most). */
 export function HomeRedirect() {
   const can = usePermissions();
-  const [first] = visibleNav(can);
+  // Not a page everyone has, such as account security.
+  const first = visibleNav(can).find((item) => item.permission !== undefined);
   return <Navigate to={first ? first.path : '/follow-ups'} replace />;
 }

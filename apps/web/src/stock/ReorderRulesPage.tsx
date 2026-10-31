@@ -23,8 +23,6 @@ import { useDebouncedValue, useUrlFilters } from '../lib/hooks.js';
 import { ProductPicker, type PickedVariant } from '../lib/ProductPicker.js';
 import { parseQuantity } from '../lib/quantity.js';
 import { QueryState } from '../lib/QueryState.js';
-import { SectionNav } from '../lib/SectionNav.js';
-import { STOCK_SECTIONS } from './sections.js';
 import { StoreSelect } from './StoreSelect.js';
 import { productTitle, variantName, variantTitle } from '../lib/product-title.js';
 
@@ -255,7 +253,6 @@ export function ReorderRulesPage() {
           </>
         }
       />
-      <SectionNav label="stock.sections.label" links={STOCK_SECTIONS} />
       <Card>
         <div className="filters">
           <StoreSelect

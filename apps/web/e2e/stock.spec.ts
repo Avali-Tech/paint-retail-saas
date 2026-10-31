@@ -84,7 +84,7 @@ test('a reorder rule puts a product on the low stock list, ordered from a suppli
   await expectUsable(page);
 
   await page
-    .getByRole('navigation', { name: 'Stock sections' })
+    .getByRole('navigation', { name: 'Stock', exact: true })
     .getByRole('link', {
       name: 'Low stock',
     })

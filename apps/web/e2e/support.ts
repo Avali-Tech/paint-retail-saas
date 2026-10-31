@@ -190,6 +190,24 @@ export async function signInWithPassword(page: Page, identifier: string, passwor
   await finishTwoFactor(page, identifier);
 }
 
+/**
+ * Opens a page the way a person does on a wide screen: a section in the side
+ * menu, then one of its tabs. Settings pages are listed on the Settings page.
+ */
+export async function openFromMenu(page: Page, section: string, tab?: string) {
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .first()
+    .getByRole('link', { name: section, exact: true })
+    .click();
+  if (tab === undefined) return;
+  const links =
+    section === 'Settings'
+      ? page.getByRole('main')
+      : page.getByRole('navigation', { name: section, exact: true });
+  await links.getByRole('link', { name: tab, exact: true }).click();
+}
+
 /** The session token the app stored after signing in. */
 export async function storedToken(page: Page): Promise<string> {
   return page.evaluate(() => {

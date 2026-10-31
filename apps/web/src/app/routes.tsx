@@ -62,6 +62,9 @@ const InvoicePrintSettingsPage = lazy(() =>
     default: module.InvoicePrintSettingsPage,
   })),
 );
+const SettingsPage = lazy(() =>
+  import('../settings/SettingsPage.js').then((module) => ({ default: module.SettingsPage })),
+);
 const SecurityPage = lazy(() =>
   import('../settings/SecurityPage.js').then((module) => ({ default: module.SecurityPage })),
 );
@@ -143,6 +146,8 @@ export function AppRoutes() {
           path="settings/stock-alerts"
           element={guarded('organization:manage', StockAlertsSettingsPage)}
         />
+        {/* Lists only the settings pages the member may open; everyone has account security. */}
+        <Route path="settings" element={<SettingsPage />} />
         {/* Every signed-in member manages their own two-factor sign-in. */}
         <Route path="settings/security" element={<SecurityPage />} />
         <Route path="*" element={<NotFoundPage />} />

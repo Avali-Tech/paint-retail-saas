@@ -5,8 +5,6 @@ import { useApi } from '../app/services.js';
 import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
-import { SectionNav } from '../lib/SectionNav.js';
-import { PURCHASING_SECTIONS } from '../purchasing/sections.js';
 import { statementsKey } from './StatementsPage.js';
 
 export const templatesKey = [...statementsKey, 'templates'] as const;
@@ -33,7 +31,6 @@ export function TemplatesPage() {
           )
         }
       />
-      <SectionNav label="purchasing.sections" links={PURCHASING_SECTIONS} />
       <QueryState query={templates} error="statements.templateList.error">
         {(rows) =>
           rows.length === 0 ? (

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { expectUsable } from './checks.js';
-import { call, createBusiness, signInWithPassword } from './support.js';
+import { call, createBusiness, openFromMenu, signInWithPassword } from './support.js';
 
 /** A calendar day in India, `days` from today (YYYY-MM-DD). */
 function indiaDay(days: number): string {
@@ -21,11 +21,7 @@ test('an owner records a contract, activates it, renews it and terminates the re
   });
   await signInWithPassword(page, business.ownerPhone);
   await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
-  await page
-    .getByRole('navigation', { name: 'Main' })
-    .first()
-    .getByRole('link', { name: 'Contracts' })
-    .click();
+  await openFromMenu(page, 'Customers', 'Contracts');
   await expect(page.getByText('No contracts yet')).toBeVisible();
   await page.getByRole('link', { name: '+ Contract' }).click();
 

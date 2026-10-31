@@ -2,7 +2,7 @@ import { PERMISSIONS } from '@paint/shared';
 import { renderHook, screen, waitFor, within } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { ServicesProvider, createServices } from '../app/services.js';
 import { useCurrentProfile, usePermissions } from '../auth/session.js';
 import {
@@ -15,30 +15,9 @@ import {
   profile,
 } from '../test-support/fake-api.js';
 import { renderApp } from '../test-support/render-app.js';
-import { NAV_ITEMS, visibleNav } from './nav.js';
 import { found } from '../test-support/found.js';
 
 const location = () => screen.getByTestId('location').textContent;
-
-describe('visibleNav', () => {
-  it('shows each section only with its permission', () => {
-    expect(visibleNav(() => true)).toEqual(NAV_ITEMS);
-    expect(visibleNav((permission) => permission === 'leads:read').map((item) => item.key)).toEqual(
-      ['leads', 'opportunities', 'followUps', 'documents', 'reports'],
-    );
-    // Imports need any one of the permissions to change what they import.
-    expect(
-      visibleNav((permission) => permission === 'parties:manage').map((item) => item.key),
-    ).toEqual(['imports']);
-  });
-
-  it('shows a page about margins only with costs:read as well', () => {
-    const keys = (held: readonly string[]) =>
-      visibleNav((permission) => held.includes(permission)).map((item) => item.key);
-    expect(keys(['accounting:export'])).not.toContain('brandProfitability');
-    expect(keys(['accounting:export', 'costs:read'])).toContain('brandProfitability');
-  });
-});
 
 describe('RequireAuth', () => {
   it('sends visitors to sign in, remembering where they were going', async () => {
@@ -92,88 +71,63 @@ describe('RequireAuth', () => {
   });
 });
 
+const sidebar = () => found(screen.getAllByRole('navigation', { name: 'Main' })[0]);
+const bottomBar = () => found(screen.getAllByRole('navigation', { name: 'Main' })[1]);
+const texts = (links: HTMLElement[]) => links.map((link) => link.textContent);
+/** The menu entry lit for the current page. */
+const litEntry = () =>
+  within(sidebar())
+    .getAllByRole('link')
+    .filter((link) => link.getAttribute('aria-current') === 'true')
+    .map((link) => link.textContent);
+
 describe('navigation by role', () => {
-  it('opens the dashboard at "/" and shows the owner every section', async () => {
+  it('opens the dashboard at "/" and shows the owner a short menu of sections', async () => {
     renderApp({
       routes: { 'GET /auth/me': () => json(OWNER), 'GET /dashboard': () => json(DASHBOARD) },
     });
     await screen.findByRole('heading', { name: 'Dashboard', level: 1 });
     expect(location()).toBe('/dashboard');
-    const [sidebar] = screen.getAllByRole('navigation', { name: 'Main' });
-    expect(
-      within(found(sidebar))
-        .getAllByRole('link')
-        .map((link) => link.textContent),
-    ).toEqual([
-      'Dashboard',
-      'Counter sale',
+    expect(texts(within(sidebar()).getAllByRole('link'))).toEqual([
+      '+New sale',
+      'Home',
+      'Sales',
       'Customers',
-      'Products',
+      'Money',
       'Stock',
-      'Purchasing',
-      'Leads',
-      'Opportunities',
-      'Projects',
-      'Contracts',
-      'Estimates',
-      'Quotations',
-      'Sales orders',
-      'Invoices',
-      'Credit & debit notes',
-      'Day end',
-      'Payments',
-      'Tally export',
-      'Receivables',
-      'Collections',
-      'Follow-ups',
-      'Documents',
-      'Credit approvals',
-      'Credit requests',
-      'Credit rules',
-      'Loyalty programme',
-      'Painter points rules',
-      'Import data',
+      'Buy',
       'Reports',
-      'Brand profitability',
-      'Team',
-      'Appearance',
-      'Tax & GST',
-      'Invoice print',
-      'Tinting',
-      'Stock alerts and transfers',
-      'Payment link settings',
-      'Support access',
-      'Billing',
-      'Stores',
-      'Billing go-live',
-      // Everyone's own sign-in settings, next to signing out.
+      // At the bottom, with the member's own account.
+      'Settings',
       'Account security',
     ]);
+    expect(within(sidebar()).getByRole('link', { name: 'New sale' })).toHaveAttribute(
+      'href',
+      '/pos',
+    );
+    expect(litEntry()).toEqual(['Home']);
+    // Home has one page: no tabs.
+    expect(screen.queryByRole('navigation', { name: 'Home' })).toBeNull();
     expect(screen.getByText('ABC Paints')).toBeInTheDocument();
     expect(screen.getByText('Signed in as Anil Kumar · Owner')).toBeInTheDocument();
   });
 
-  it('shows counter staff only what their role allows', async () => {
+  it('shows counter staff only the sections their role allows', async () => {
     renderApp({
       path: '/settings/appearance',
       routes: { 'GET /auth/me': () => json(CASHIER) },
     });
     expect(await screen.findByText('No access')).toBeInTheDocument();
-    const [sidebar] = screen.getAllByRole('navigation', { name: 'Main' });
-    expect(
-      within(found(sidebar))
-        .getAllByRole('link')
-        .map((link) => link.textContent),
-    ).toEqual([
-      'Dashboard',
+    expect(texts(within(sidebar()).getAllByRole('link'))).toEqual([
+      'Home',
       'Customers',
-      'Products',
       'Stock',
-      'Follow-ups',
-      'Documents',
       'Reports',
+      'Settings',
       'Account security',
     ]);
+    // A page they may not open lights no section.
+    expect(litEntry()).toEqual([]);
   });
 
   it('opens the first allowed section, or follow-ups when there is none', async () => {
@@ -202,64 +156,34 @@ describe('navigation by role', () => {
     );
   });
 
-  it('puts the remaining sections and sign-out under "More" on phones', async () => {
+  it('puts the other sections and sign-out under "More" on phones', async () => {
     const { user } = renderApp({
       path: '/billing',
       routes: { 'GET /auth/me': () => json(OWNER) },
     });
     await screen.findByText('Page not found');
-    const bottomBar = found(screen.getAllByRole('navigation', { name: 'Main' })[1]);
-    expect(within(bottomBar).getAllByRole('link')).toHaveLength(4);
-    await user.click(within(bottomBar).getByRole('button', { name: 'More' }));
-    const more = screen.getByRole('dialog', { name: 'More' });
-    expect(
-      within(more)
-        .getAllByRole('link')
-        .map((link) => link.textContent),
-    ).toEqual([
+    expect(texts(within(bottomBar()).getAllByRole('link'))).toEqual([
+      'Home',
+      'New sale',
+      'Customers',
       'Stock',
-      'Purchasing',
-      'Leads',
-      'Opportunities',
-      'Projects',
-      'Contracts',
-      'Estimates',
-      'Quotations',
-      'Sales orders',
-      'Invoices',
-      'Credit & debit notes',
-      'Day end',
-      'Payments',
-      'Tally export',
-      'Receivables',
-      'Collections',
-      'Follow-ups',
-      'Documents',
-      'Credit approvals',
-      'Credit requests',
-      'Credit rules',
-      'Loyalty programme',
-      'Painter points rules',
-      'Import data',
+    ]);
+    await user.click(within(bottomBar()).getByRole('button', { name: 'More' }));
+    const more = screen.getByRole('dialog', { name: 'More' });
+    expect(texts(within(more).getAllByRole('link'))).toEqual([
+      'Sales',
+      'Money',
+      'Buy',
       'Reports',
-      'Brand profitability',
-      'Team',
-      'Appearance',
-      'Tax & GST',
-      'Invoice print',
-      'Tinting',
-      'Stock alerts and transfers',
-      'Payment link settings',
-      'Support access',
-      'Billing',
-      'Stores',
-      'Billing go-live',
+      'Settings',
       'Account security',
     ]);
-    await user.click(within(more).getByRole('link', { name: 'Leads' }));
+    await user.click(within(more).getByRole('link', { name: 'Sales' }));
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(location()).toBe('/leads');
-    await user.click(within(bottomBar).getByRole('button', { name: 'More' }));
+    await waitFor(() => {
+      expect(location()).toBe('/quotations');
+    });
+    await user.click(within(bottomBar()).getByRole('button', { name: 'More' }));
     await user.click(
       within(screen.getByRole('dialog', { name: 'More' })).getByRole('link', {
         name: 'Account security',
@@ -279,6 +203,131 @@ describe('navigation by role', () => {
     });
     await user.click(await screen.findByRole('link', { name: 'Back to the dashboard' }));
     expect(await screen.findByRole('heading', { name: 'Dashboard', level: 1 })).toBeInTheDocument();
+  });
+});
+
+describe('sections and tabs', () => {
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it('shows the section’s pages as tabs, the current one marked', async () => {
+    renderApp({ path: '/stock/low', routes: { 'GET /auth/me': () => json(OWNER) } });
+    const tabs = await screen.findByRole('navigation', { name: 'Stock' });
+    expect(texts(within(tabs).getAllByRole('link'))).toEqual([
+      'Products',
+      'Balances',
+      'Transfers',
+      'Stock counts',
+      'Low stock',
+      'Reorder rules',
+      'Slow movers',
+      'Mistinted cans',
+    ]);
+    expect(within(tabs).getByRole('link', { name: 'Low stock' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(within(tabs).getByRole('link', { name: 'Balances' })).not.toHaveAttribute(
+      'aria-current',
+    );
+    expect(litEntry()).toEqual(['Stock']);
+  });
+
+  it('lights the section and tab of a record deep inside it', async () => {
+    renderApp({ path: '/invoices/i1', routes: { 'GET /auth/me': () => json(OWNER) } });
+    const tabs = await screen.findByRole('navigation', { name: 'Sales' });
+    expect(within(tabs).getByRole('link', { name: 'Invoices' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(litEntry()).toEqual(['Sales']);
+  });
+
+  it('shows only the tabs the member may open', async () => {
+    renderApp({
+      path: '/purchase-orders',
+      routes: { 'GET /auth/me': () => json(profile(['purchasing:read'])) },
+    });
+    const tabs = await screen.findByRole('navigation', { name: 'Buy' });
+    // The price-hike planner plans from costs: it needs costs:read as well.
+    expect(texts(within(tabs).getAllByRole('link'))).toEqual([
+      'Purchase orders',
+      'Goods receipts',
+      'Suppliers',
+      'Brand schemes',
+      'Scheme claims',
+      'Brand statements',
+    ]);
+  });
+
+  it('reopens a section at the tab used last on this device', async () => {
+    const { user } = renderApp({
+      path: '/transfers',
+      routes: { 'GET /auth/me': () => json(OWNER) },
+    });
+    await screen.findByRole('navigation', { name: 'Stock' });
+    expect(within(sidebar()).getByRole('link', { name: 'Sales' })).toHaveAttribute(
+      'href',
+      '/quotations',
+    );
+    await user.click(within(sidebar()).getByRole('link', { name: 'Sales' }));
+    await user.click(
+      within(await screen.findByRole('navigation', { name: 'Sales' })).getByRole('link', {
+        name: 'Invoices',
+      }),
+    );
+    await waitFor(() => {
+      expect(location()).toBe('/invoices');
+    });
+    await user.click(within(sidebar()).getByRole('link', { name: 'Stock' }));
+    await waitFor(() => {
+      expect(location()).toBe('/transfers');
+    });
+    expect(within(sidebar()).getByRole('link', { name: 'Sales' })).toHaveAttribute(
+      'href',
+      '/invoices',
+    );
+  });
+
+  it('gathers the settings on one page, each with a way back to it', async () => {
+    const { user } = renderApp({
+      path: '/dashboard',
+      routes: { 'GET /auth/me': () => json(OWNER), 'GET /dashboard': () => json(DASHBOARD) },
+    });
+    await screen.findByRole('heading', { name: 'Dashboard', level: 1 });
+    await user.click(within(sidebar()).getByRole('link', { name: 'Settings' }));
+    expect(await screen.findByRole('heading', { name: 'Settings', level: 1 })).toBeInTheDocument();
+    expect(location()).toBe('/settings');
+    expect(litEntry()).toEqual(['Settings']);
+    expect(
+      screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent),
+    ).toEqual(['Business', 'Team & access', 'Customers & credit', 'Money', 'Data']);
+    const business = screen.getByRole('region', { name: 'Business' });
+    expect(texts(within(business).getAllByRole('link'))).toEqual([
+      'Stores',
+      'Tax & GST',
+      'Invoice print',
+      'Tinting',
+      'Appearance',
+      'Stock alerts and transfers',
+      'Billing go-live',
+    ]);
+    expect(screen.queryByRole('link', { name: '← All settings' })).toBeNull();
+    await user.click(within(business).getByRole('link', { name: 'Tax & GST' }));
+    await user.click(await screen.findByRole('link', { name: '← All settings' }));
+    expect(location()).toBe('/settings');
+  });
+
+  it('lists only the settings the member may open', async () => {
+    renderApp({ path: '/settings', routes: { 'GET /auth/me': () => json(CASHIER) } });
+    await screen.findByRole('heading', { name: 'Settings', level: 1 });
+    expect(
+      screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent),
+    ).toEqual(['Team & access', 'Data']);
+    expect(
+      texts(within(screen.getByRole('region', { name: 'Team & access' })).getAllByRole('link')),
+    ).toEqual(['Account security']);
   });
 });
 

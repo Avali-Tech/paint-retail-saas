@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { expectUsable } from './checks.js';
 import { API_URL, SCANNER_ON } from './env.js';
-import { call, createBusiness, signInWithPassword } from './support.js';
+import { call, createBusiness, openFromMenu, signInWithPassword } from './support.js';
 
 // Uploads are scanned by ClamAV. By default the e2e stack runs without it, like
 // `pnpm demo` without --clamav, so uploads are refused; E2E_CLAMAV=1 runs it.
@@ -108,11 +108,7 @@ test('the documents page lists documents across records, with filters', async ({
   }
   await signInWithPassword(page, business.ownerPhone);
   await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
-  await page
-    .getByRole('navigation', { name: 'Main' })
-    .first()
-    .getByRole('link', { name: 'Documents' })
-    .click();
+  await openFromMenu(page, 'Settings', 'Documents');
   await expect(page.getByRole('heading', { name: 'Documents', level: 1 })).toBeVisible();
   if (SCANNER_ON) {
     await expect(page.getByRole('link', { name: 'Apex Builders' })).toHaveAttribute(

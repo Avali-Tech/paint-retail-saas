@@ -4,9 +4,11 @@ import type { NavItem } from '../shell/nav.js';
 export const SUPPORT_ACCESS_NAV_ITEMS: readonly NavItem[] = [
   {
     key: 'support-access',
+    section: 'settings',
+    group: 'access',
+    order: 20,
     label: 'supportAccess.nav',
     path: '/settings/support',
-    icon: 'lock',
     permission: 'organization:manage',
   },
 ];

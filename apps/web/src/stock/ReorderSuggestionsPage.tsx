@@ -20,9 +20,7 @@ import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { useUrlFilters } from '../lib/hooks.js';
 import { QueryState } from '../lib/QueryState.js';
-import { SectionNav } from '../lib/SectionNav.js';
 import { productTitle, variantName } from '../lib/product-title.js';
-import { STOCK_SECTIONS } from './sections.js';
 import { StoreSelect } from './StoreSelect.js';
 
 export const PAGE_SIZE = 100;
@@ -115,7 +113,6 @@ export function ReorderSuggestionsPage() {
         title={t('stock.suggestions.title')}
         description={plural('stock.suggestions.description', safetyDays, { days })}
       />
-      <SectionNav label="stock.sections.label" links={STOCK_SECTIONS} />
       <Card>
         <div className="filters">
           <StoreSelect

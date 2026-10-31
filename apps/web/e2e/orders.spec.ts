@@ -10,6 +10,7 @@ import {
   signInWithPassword,
   uniquePhone,
   type Business,
+  openFromMenu,
 } from './support.js';
 
 // Quote → order → invoice (spec §5.3, §7 Round 4 demo), for paint and hardware alike.
@@ -118,7 +119,7 @@ test('quote v1 → v2 → order → reservation → partial invoice → dispatch
   });
   await signInWithPassword(page, business.ownerPhone);
   await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
-  await page.getByRole('link', { name: 'Quotations' }).first().click();
+  await openFromMenu(page, 'Sales', 'Quotations');
   await page.getByRole('link', { name: 'New quotation' }).click();
   await page.getByRole('combobox', { name: 'Store' }).selectOption({ label: 'AMP · Ameerpet' });
   await chooseBillTo(page, 'Apex Builders');
@@ -201,7 +202,7 @@ test('quote v1 → v2 → order → reservation → partial invoice → dispatch
   await expectUsable(page);
 
   // The order is partly billed; 6 hinges are still open.
-  await page.getByRole('link', { name: 'Sales orders' }).first().click();
+  await openFromMenu(page, 'Sales', 'Sales orders');
   await page.getByRole('link', { name: /^SO-\d+$/ }).click();
   await expect(page.getByRole('region', { name: 'Details' })).toContainText('Partly billed');
   await expect(page.getByRole('region', { name: 'Invoices' })).toContainText('Issued');

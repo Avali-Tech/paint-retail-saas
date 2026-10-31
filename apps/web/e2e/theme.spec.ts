@@ -1,9 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
-  PASSWORD,
   accessibilityProblems,
   addMember,
   createBusiness,
+  openFromMenu,
+  PASSWORD,
   signInWithPassword,
   uniquePhone,
 } from './support.js';
@@ -16,10 +17,7 @@ const primaryButtonColor = (page: Page) =>
 test('the owner rebrands the whole app live, and it stays after a reload', async ({ page }) => {
   const business = await createBusiness('Brand Paints');
   await signInWithPassword(page, business.ownerPhone);
-  await page
-    .getByRole('navigation', { name: 'Main' })
-    .getByRole('link', { name: 'Appearance' })
-    .click();
+  await openFromMenu(page, 'Settings', 'Appearance');
   await expect(page.getByRole('heading', { name: 'Appearance', level: 1 })).toBeVisible();
   await expect.poll(() => primaryButtonColor(page)).toBe('rgb(29, 78, 216)');
 

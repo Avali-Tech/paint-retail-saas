@@ -56,7 +56,7 @@ describe('TransfersPage', () => {
       'href',
       '/transfers/new',
     );
-    const sections = screen.getByRole('navigation', { name: 'Stock sections' });
+    const sections = screen.getByRole('navigation', { name: 'Stock' });
     expect(within(sections).getByRole('link', { name: 'Transfers' })).toHaveAttribute(
       'aria-current',
       'page',

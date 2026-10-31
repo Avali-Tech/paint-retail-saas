@@ -4,8 +4,6 @@ import { Link } from 'react-router';
 import { useApi } from '../app/services.js';
 import { useI18n } from '../i18n/i18n.js';
 import { QueryState } from '../lib/QueryState.js';
-import { SectionNav } from '../lib/SectionNav.js';
-import { PURCHASING_SECTIONS } from '../purchasing/sections.js';
 import { CsvButton } from './CsvButton.js';
 import { schemesKey } from './scheme-parts.js';
 
@@ -28,7 +26,6 @@ export function SchemeClaimsPage() {
         description={t('schemes.claims.description')}
         actions={<CsvButton kind="brand-scheme-claims" />}
       />
-      <SectionNav label="purchasing.sections" links={PURCHASING_SECTIONS} />
       <QueryState query={report} error="schemes.claims.error">
         {(data) =>
           data.rows.length === 0 ? (

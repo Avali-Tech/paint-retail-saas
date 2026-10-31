@@ -48,20 +48,8 @@ describe('StockPage', () => {
     expect(
       within(table).getAllByRole('link', { name: 'Asian Paints Apex Ultima' })[0],
     ).toHaveAttribute('href', '/products/product-apex');
-    const sections = screen.getByRole('navigation', { name: 'Stock sections' });
-    expect(
-      within(sections)
-        .getAllByRole('link')
-        .map((link) => link.textContent),
-    ).toEqual([
-      'Balances',
-      'Low stock',
-      'Slow movers',
-      'Mistinted cans',
-      'Reorder rules',
-      'Transfers',
-      'Stock counts',
-    ]);
+    // The tabs of Stock come from the shell; this page is Balances.
+    const sections = screen.getByRole('navigation', { name: 'Stock' });
     expect(within(sections).getByRole('link', { name: 'Balances' })).toHaveAttribute(
       'aria-current',
       'page',

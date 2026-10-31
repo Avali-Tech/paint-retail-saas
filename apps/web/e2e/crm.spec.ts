@@ -1,13 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
 import { expectUsable } from './checks.js';
 import {
-  PASSWORD,
   addMember,
   call,
   createBusiness,
+  openFromMenu,
+  PASSWORD,
   signInWithPassword,
-  uniquePhone,
   type Business,
+  uniquePhone,
 } from './support.js';
 
 // Leads, opportunities and projects: from a walk-in's enquiry to a site with its people.
@@ -49,11 +50,7 @@ test('an owner takes a walk-in from lead to opportunity to project', async ({ pa
   await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
 
   // A new contact walks in.
-  await page
-    .getByRole('navigation', { name: 'Main' })
-    .first()
-    .getByRole('link', { name: 'Leads' })
-    .click();
+  await openFromMenu(page, 'Customers', 'Leads');
   await expect(page.getByRole('heading', { name: 'Leads', level: 1 })).toBeVisible();
   await page.getByRole('link', { name: '+ Lead' }).click();
   await page.getByRole('button', { name: 'Add a new contact' }).click();

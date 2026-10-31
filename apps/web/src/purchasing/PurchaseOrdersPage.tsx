@@ -17,9 +17,7 @@ import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { useUrlFilters } from '../lib/hooks.js';
 import { QueryState } from '../lib/QueryState.js';
-import { SectionNav } from '../lib/SectionNav.js';
 import { StoreSelect } from '../stock/StoreSelect.js';
-import { PURCHASING_SECTIONS } from './sections.js';
 import { OrderStatusBadge, SupplierSelect } from './shared.js';
 
 export const PAGE_SIZE = 50;
@@ -72,7 +70,6 @@ export function PurchaseOrdersPage() {
           ) : undefined
         }
       />
-      <SectionNav label="purchasing.sections" links={PURCHASING_SECTIONS} />
       <Card>
         <div className="filters">
           <Field label={t('purchasing.status')}>

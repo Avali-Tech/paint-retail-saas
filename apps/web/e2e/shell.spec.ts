@@ -92,15 +92,19 @@ test('phones get a bottom bar with the rest under "More" @phone', async ({ page 
     page.locator('.shell__bottom-bar'),
   ];
   await expect(sidebar).toBeHidden();
-  await expect(bottomBar.getByRole('link')).toHaveText([
-    'Dashboard',
-    'Counter sale',
-    'Customers',
-    'Products',
-  ]);
+  await expect(bottomBar.getByRole('link')).toHaveText(['Home', 'New sale', 'Customers', 'Stock']);
   await bottomBar.getByRole('button', { name: 'More' }).click();
   const more = page.getByRole('dialog', { name: 'More' });
-  await more.getByRole('link', { name: 'Appearance' }).click();
+  await expect(more.getByRole('link')).toHaveText([
+    'Sales',
+    'Money',
+    'Buy',
+    'Reports',
+    'Settings',
+    'Account security',
+  ]);
+  await more.getByRole('link', { name: 'Settings' }).click();
+  await page.getByRole('main').getByRole('link', { name: 'Appearance' }).click();
   await expect(page.getByRole('heading', { name: 'Appearance', level: 1 })).toBeVisible();
   // Nothing scrolls sideways on a narrow screen, also with wider fonts.
   await expectUsable(page);
