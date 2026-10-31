@@ -129,6 +129,44 @@ export const collectionsEn = {
     revokeName: 'Revoke the link of {from} – {to}',
     revoked: 'Link revoked',
   },
+  templates: {
+    title: 'Message templates',
+    description:
+      'What your shop sends customers on WhatsApp, SMS and email, in English, Hindi and Telugu',
+    error: 'Could not load the message templates',
+    choose: 'Which message',
+    message: 'Message',
+    channel: 'Sent by',
+    language: 'Language',
+    dataRule:
+      'Messages carry only names, numbers, amounts, dates and links: never a GSTIN or an address.',
+    missing: 'This message has no template yet.',
+    wording: 'Wording',
+    custom: 'Your wording',
+    standard: 'Standard wording',
+    whatsappRule:
+      'WhatsApp sends only wording your WhatsApp provider has approved. Change it here after the provider approves the new wording, and give the name the provider uses for it.',
+    body: 'Message',
+    length: '{count} of {max} characters',
+    variables: 'Details you can add',
+    variablesHint:
+      'Add the customer’s details with these. They are filled in when the message is sent.',
+    insert: 'Add {name}',
+    empty: 'The message cannot be empty',
+    tooLong: 'Keep the message to {max} characters',
+    unknown: '{name} is not a detail of this message',
+    providerName: 'Name at your WhatsApp provider',
+    providerNameHint: 'Lowercase letters, digits and _, such as invoice_issued_v2',
+    providerNameInvalid: 'Use lowercase letters, digits and _ only',
+    preview: 'Preview',
+    subject: 'Subject:',
+    sampleName: 'Lakshmi',
+    sampleNote: 'As a customer would read it on {channel}, with sample details.',
+    save: 'Save wording',
+    saved: 'Template saved',
+    reset: 'Use standard wording',
+    resetDone: 'Standard wording restored',
+  },
 };
 
 /** Names of API values for label(group, value). */

@@ -1,6 +1,10 @@
 import type {
   CreatePromiseBody,
+  MessageChannel,
+  MessageLanguage,
   MessageView,
+  TemplateKey,
+  TemplateView,
   MessagingStatus,
   PartyConsentsView,
   PromiseView,
@@ -47,6 +51,15 @@ export function collectionsEndpoints(api: ApiClient) {
   };
 }
 
+/** PUT /message-templates: a template's new wording (WhatsApp: as the provider approved it). */
+export interface TemplateSave {
+  readonly key: TemplateKey;
+  readonly channel: MessageChannel;
+  readonly language: MessageLanguage;
+  readonly body: string;
+  readonly providerTemplateName: string | null;
+}
+
 export function messagingEndpoints(api: ApiClient) {
   return {
     status: (signal?: AbortSignal) => api.get<MessagingStatus>('/messaging/status', { signal }),
@@ -62,5 +75,12 @@ export function messagingEndpoints(api: ApiClient) {
       api.get<StatementLinkView[]>(`/parties/${partyId}/statement/links`, { signal }),
     revokeStatementLink: (linkId: string) =>
       api.post<StatementLinkView>(`/statement-links/${linkId}/revoke`),
+    /** Every template in every channel and language, as the business sends it. */
+    templates: (signal?: AbortSignal) => api.get<TemplateView[]>('/message-templates', { signal }),
+    /** Rewords one template; answers them all. */
+    saveTemplate: (body: TemplateSave) => api.put<TemplateView[]>('/message-templates', body),
+    /** Goes back to the product's wording for one template; answers them all. */
+    resetTemplate: (key: TemplateKey, channel: MessageChannel, language: MessageLanguage) =>
+      api.delete<TemplateView[]>(`/message-templates/${key}/${channel}/${language}`),
   };
 }

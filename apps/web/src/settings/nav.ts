@@ -48,6 +48,16 @@ export const SETTINGS_NAV_ITEMS: readonly NavItem[] = [
     permission: 'organization:manage',
   },
   {
+    // What the shop sends customers (P2-M32 templates; MSG-4, MSG-5).
+    key: 'messageTemplates',
+    section: 'settings',
+    group: 'customers',
+    order: 40,
+    label: 'templates.title',
+    path: '/settings/messages',
+    permission: 'organization:manage',
+  },
+  {
     // Every signed-in member manages their own two-factor sign-in.
     key: 'security',
     section: 'settings',

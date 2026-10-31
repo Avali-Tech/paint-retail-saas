@@ -58,6 +58,11 @@ const TintingSettingsPage = lazy(() =>
     default: module.TintingSettingsPage,
   })),
 );
+const MessageTemplatesPage = lazy(() =>
+  import('../settings/MessageTemplatesPage.js').then((module) => ({
+    default: module.MessageTemplatesPage,
+  })),
+);
 const InvoicePrintSettingsPage = lazy(() =>
   import('../settings/InvoicePrintSettingsPage.js').then((module) => ({
     default: module.InvoicePrintSettingsPage,
@@ -147,6 +152,10 @@ export function AppRoutes() {
         <Route
           path="settings/stock-alerts"
           element={guarded('organization:manage', StockAlertsSettingsPage)}
+        />
+        <Route
+          path="settings/messages"
+          element={guarded('organization:manage', MessageTemplatesPage)}
         />
         {/* Lists only the settings pages the member may open; everyone has account security. */}
         <Route path="settings" element={<SettingsPage />} />

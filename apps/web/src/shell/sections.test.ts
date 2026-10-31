@@ -131,6 +131,7 @@ describe('visibleSections', () => {
           'creditRules',
           'loyalty',
           'painterPoints',
+          'messageTemplates',
           'paymentLinkSettings',
           'billing',
           'imports',
