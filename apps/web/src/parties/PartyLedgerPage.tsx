@@ -3,6 +3,7 @@ import type { PartyLedgerEntryView, PartyLedgerView } from '@paint/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
 import { useApi } from '../app/services.js';
+import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { useUrlFilters } from '../lib/hooks.js';
 import { isDate } from '../lib/india-time.js';
@@ -13,16 +14,14 @@ import { SendPaymentLinkButton } from '../payment-links/PaymentLinks.js';
 export const LEDGER_PAGE_SIZE = 50;
 const FILTERS = ['from', 'to'] as const;
 
-/** Where an entry's document opens: the invoice, the note, or the payment in the payments list. */
+/** Where an entry's document opens: the invoice, the note, or the payment. */
 export function referencePath(entry: PartyLedgerEntryView): string | null {
   if (entry.referenceId === null) return null;
   if (entry.referenceType === 'tax_document') {
     const note = entry.entryType === 'credit_note' || entry.entryType === 'debit_note';
     return `/${note ? 'notes' : 'invoices'}/${entry.referenceId}`;
   }
-  if (entry.referenceType === 'payment' && entry.referenceNumber !== null) {
-    return `/payments?q=${encodeURIComponent(entry.referenceNumber)}`;
-  }
+  if (entry.referenceType === 'payment') return `/payments/${entry.referenceId}`;
   return null;
 }
 
@@ -133,6 +132,7 @@ export function PartyLedgerPage() {
     placeholderData: keepPreviousData,
   });
   const name = party.data?.displayName;
+  const can = usePermissions();
   return (
     <>
       <PageHeader
@@ -140,6 +140,11 @@ export function PartyLedgerPage() {
         description={t('parties.ledger.description')}
         actions={
           <span className="row">
+            {can('payments:manage') && (
+              <Link to={`/payments/new?partyId=${id}`} {...buttonStyle()}>
+                {t('books.payments.take')}
+              </Link>
+            )}
             <Link to={`/parties/${id}/statement`} {...buttonStyle('secondary')}>
               {t('statement.open')}
             </Link>

@@ -94,8 +94,7 @@ describe('referencePath', () => {
       referencePath(
         entry({ referenceType: 'payment', referenceId: 'p', referenceNumber: 'RC 1/2' }),
       ),
-    ).toBe('/payments?q=RC%201%2F2');
-    expect(referencePath(entry({ referenceType: 'payment', referenceNumber: null }))).toBeNull();
+    ).toBe('/payments/p');
     expect(referencePath(entry({ referenceType: 'go_live' }))).toBeNull();
     expect(referencePath(entry({ referenceType: null, referenceId: null }))).toBeNull();
   });
@@ -128,6 +127,10 @@ describe('PartyLedgerPage', { timeout: 30_000 }, () => {
       'href',
       `/parties/${PARTY.id}`,
     );
+    expect(screen.getByRole('link', { name: 'Take a payment' })).toHaveAttribute(
+      'href',
+      `/payments/new?partyId=${PARTY.id}`,
+    );
     const table = await screen.findByRole('table', { name: 'Ledger entries' });
     const ledgerRequest = requests.find((request) => request.path.endsWith('/ledger'));
     expect(ledgerRequest?.query.toString()).toBe('limit=50&offset=0');
@@ -135,15 +138,16 @@ describe('PartyLedgerPage', { timeout: 30_000 }, () => {
     expect(opening).toHaveTextContent('1 Oct 2026Opening balanceOpening balance at go-live');
     expect(opening).toHaveTextContent('₹2,000.00₹2,000.00 Dr');
     const link = (name: string) => within(table).getByRole('link', { name });
-    // The invoice, the note and the payment link; the opening balance and the charge do not.
-    expect(within(table).getAllByRole('link')).toHaveLength(3);
+    // The invoice, the note, the payment and the bounce charge (to its cheque) link; the opening balance does not.
+    expect(within(table).getAllByRole('link')).toHaveLength(4);
     expect(link('AMP/26-27/000001')).toHaveAttribute('href', '/invoices/inv-1');
     expect(invoice).toHaveTextContent('AMP/26-27/000001Invoice₹11,800.00₹13,800.00 Dr');
     expect(link('AMPCN/26-27/0001')).toHaveAttribute('href', '/notes/cn-1');
     expect(credit).toHaveTextContent('AMPCN/26-27/0001Credit note₹1,800.00₹12,000.00 Dr');
-    expect(link('RC-000012')).toHaveAttribute('href', '/payments?q=RC-000012');
+    expect(link('RC-000012')).toHaveAttribute('href', '/payments/pay-1');
     expect(payment).toHaveTextContent('RC-000012Payment₹15,000.00₹3,000.00 Cr');
     expect(charge).toHaveTextContent('4 Oct 2026Adjustment₹3,000.00₹0.00');
+    expect(link('Adjustment')).toHaveAttribute('href', '/payments/pay-x');
     const facts = screen.getByText('Opening balance', { selector: 'dt' }).closest('dl');
     expect(facts).toHaveTextContent(
       'Opening balance₹0.00Closing balance₹0.00Balance today₹3,000.00 CrAdvance₹3,000.00 Cr',
@@ -207,6 +211,7 @@ describe('PartyLedgerPage', { timeout: 30_000 }, () => {
     expect(await screen.findByRole('table', { name: 'Ledger entries' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Ledger', level: 1 })).toBeVisible();
     expect(screen.queryByRole('link', { name: /Back to/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Take a payment' })).toBeNull();
   });
 
   it('is behind sales:read, as the ledger API is', async () => {

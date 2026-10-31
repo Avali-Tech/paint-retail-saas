@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { CASHIER, OWNER, json } from '../test-support/fake-api.js';
+import { CASHIER, OWNER, json, profile } from '../test-support/fake-api.js';
 import { DOCUMENT } from '../test-support/document-fixtures.js';
 import {
   BARE_OVERVIEW,
@@ -34,6 +34,10 @@ describe('PartyDetailPage (customer 360)', { timeout: 30_000 }, () => {
     expect(screen.getByRole('link', { name: 'Ledger' })).toHaveAttribute(
       'href',
       `/parties/${PARTY.id}/ledger`,
+    );
+    expect(screen.getByRole('link', { name: 'Take a payment' })).toHaveAttribute(
+      'href',
+      `/payments/new?partyId=${PARTY.id}`,
     );
 
     const contact = region('Contact');
@@ -102,6 +106,19 @@ describe('PartyDetailPage (customer 360)', { timeout: 30_000 }, () => {
     ).toBeVisible();
     expect(within(region('Credit')).getByText('₹50,000.00')).toBeVisible();
     expect(within(region('Loyalty points')).getByText('1,200 points')).toBeVisible();
+  });
+
+  it('offers the ledger without taking payments to a member who only reads sales', async () => {
+    renderApp({
+      path: `/parties/${BARE_PARTY.id}`,
+      routes: {
+        'GET /auth/me': () => json(profile(['parties:read', 'sales:read'])),
+        'GET /parties/:id/overview': () => json(BARE_OVERVIEW),
+        'GET /documents': () => json([]),
+      },
+    });
+    expect(await screen.findByRole('link', { name: 'Ledger' })).toBeVisible();
+    expect(screen.queryByRole('link', { name: 'Take a payment' })).toBeNull();
   });
 
   it('shows only the party to a role without CRM, credit or loyalty access', async () => {

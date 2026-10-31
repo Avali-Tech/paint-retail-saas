@@ -109,3 +109,13 @@ export function errorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return texts.generic;
   return error.fallback === null ? error.message : texts[error.fallback];
 }
+
+/**
+ * The message to show with what the API said about each field, for a form with no place
+ * for them, e.g. "Cannot record the payment: Enter the cheque number and the date on it".
+ */
+export function errorWithIssues(error: unknown): string {
+  const message = errorMessage(error);
+  if (!(error instanceof ApiError) || error.issues.length === 0) return message;
+  return `${message}: ${error.issues.map((issue) => issue.message).join('. ')}`;
+}

@@ -168,6 +168,11 @@ function Overview({
               {/* The account: behind the permission the ledger API asks for. */}
               {can('sales:read') && (
                 <>
+                  {can('payments:manage') && (
+                    <Link to={`/payments/new?partyId=${party.id}`} {...buttonStyle()}>
+                      {t('books.payments.take')}
+                    </Link>
+                  )}
                   <Link to={`/parties/${party.id}/ledger`} {...buttonStyle('secondary')}>
                     {t('parties.ledger.open')}
                   </Link>

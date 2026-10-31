@@ -1,9 +1,13 @@
 import type {
   AccountingExportPreview,
   AccountingExportView,
+  AllocationView,
   LedgerMappingView,
+  OpenDocumentView,
+  PartyLedgerView,
   PaymentModeView,
   PaymentSummary,
+  PaymentView,
   RegisterSessionSummary,
   RegisterSessionView,
 } from '@paint/shared';
@@ -195,3 +199,110 @@ export const EXPORT_ROW = (
   createdAt: '2026-10-01T05:00:00.000Z',
   ...overrides,
 });
+
+/** A bill still owed, for allocating payments: an invoice by default. */
+export const OPEN_BILL = (overrides: Partial<OpenDocumentView> = {}): OpenDocumentView => ({
+  documentId: 'inv-1',
+  partyLedgerId: null,
+  kind: 'invoice',
+  number: 'AMP/26-27/000001',
+  issuedOn: '2026-09-01',
+  dueOn: '2026-10-01',
+  totalPaise: 50_000,
+  allocatedPaise: 0,
+  outstandingPaise: 50_000,
+  ...overrides,
+});
+
+/** The customer's opening balance of ₹200, then two invoices of ₹500 and ₹800. */
+export const OPEN_BILLS: OpenDocumentView[] = [
+  OPEN_BILL({
+    documentId: null,
+    partyLedgerId: 'led-1',
+    kind: 'opening',
+    number: null,
+    issuedOn: '2026-04-01',
+    dueOn: null,
+    totalPaise: 20_000,
+    outstandingPaise: 20_000,
+  }),
+  OPEN_BILL(),
+  OPEN_BILL({
+    documentId: 'inv-2',
+    number: 'AMP/26-27/000002',
+    issuedOn: '2026-09-15',
+    totalPaise: 80_000,
+    outstandingPaise: 80_000,
+  }),
+];
+
+/** The first page of a party's ledger, as the payment screens read its open bills. */
+export const OPEN_LEDGER = (openDocuments = OPEN_BILLS): PartyLedgerView => ({
+  partyId: 'party-1',
+  from: null,
+  to: null,
+  openingPaise: 0,
+  entries: [],
+  closingPaise: 0,
+  nextCursor: null,
+  total: 0,
+  totalCapped: false,
+  balancePaise: 1_50_000,
+  advancePaise: 0,
+  openDocuments,
+});
+
+export const ALLOCATION = (overrides: Partial<AllocationView> = {}): AllocationView => ({
+  id: 'alloc-1',
+  paymentId: 'pay-1',
+  creditNoteId: null,
+  documentId: 'inv-1',
+  partyLedgerId: null,
+  refundPaymentId: null,
+  targetNumber: 'AMP/26-27/000001',
+  amountPaise: 50_000,
+  reversesAllocationId: null,
+  reversalReason: null,
+  reversed: false,
+  createdAt: '2026-10-08T06:00:00.000Z',
+  ...overrides,
+});
+
+/** A ₹1,000 cheque from Deccan Contractors waiting for the bank: ₹500 against a bill. */
+export const PAYMENT_VIEW = (overrides: Partial<PaymentView> = {}): PaymentView => ({
+  id: 'pay-1',
+  number: 'RC-000012',
+  voucherNumber: null,
+  direction: 'in',
+  storeId: AMP.id,
+  partyId: 'party-1',
+  partyName: 'Deccan Contractors',
+  mode: { id: 'mode-cheque', kind: 'cheque', name: 'Cheque' },
+  amountPaise: 1_00_000,
+  tenderedPaise: null,
+  changePaise: null,
+  receivedOn: '2026-10-08',
+  reference: '004512',
+  chequeDate: '2026-10-07',
+  chequeStatus: 'pending',
+  chequeClearedOn: null,
+  chequeBouncedOn: null,
+  bounceReason: null,
+  registerSessionId: null,
+  gatewayReference: null,
+  note: null,
+  unallocatedPaise: 50_000,
+  allocations: [ALLOCATION()],
+  createdByMemberId: 'member-1',
+  paymentLinkId: null,
+  createdAt: '2026-10-08T06:00:00.000Z',
+  ...overrides,
+});
+
+/** Every way to pay: cash, bank transfer, a cheque, one switched off and a payment link. */
+export const ALL_MODES: PaymentModeView[] = [
+  ...MODES,
+  { id: 'mode-cheque', kind: 'cheque', name: 'Cheque', isActive: true },
+  { id: 'mode-old', kind: 'card', name: 'Old card machine', isActive: false },
+  { id: 'mode-link', kind: 'upi_link', name: 'UPI link', isActive: true },
+];

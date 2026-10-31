@@ -1,4 +1,10 @@
 import type {
+  AllocationRequest,
+  BounceChequeRequest,
+  ClearChequeRequest,
+  RecordPaymentRequest,
+  RefundRequest,
+  PaymentView,
   AccountingExportPage,
   AccountingExportPreview,
   AccountingExportQuery,
@@ -64,6 +70,28 @@ export function booksEndpoints(api: ApiClient) {
       api.post<RegisterSessionView>(`/register-sessions/${id}/close`, input),
     payments: (query: PaymentQuery, signal?: AbortSignal) =>
       api.get<PaymentPage>('/payments', { query: { ...query }, signal }),
+    payment: (id: string, signal?: AbortSignal) =>
+      api.get<PaymentView>(`/payments/${id}`, { signal }),
+    /** Money received on account; the key makes a retried post (a lost answer) count once. */
+    recordPayment: (input: RecordPaymentRequest, idempotencyKey: string) =>
+      api.post<PaymentView>('/payments', input, {
+        headers: { 'Idempotency-Key': idempotencyKey },
+      }),
+    /** Puts what a payment has not allocated against these bills. */
+    allocate: (id: string, allocations: readonly AllocationRequest[]) =>
+      api.post<PaymentView>(`/payments/${id}/allocate`, { allocations }),
+    /** Undoes one allocation: the money is an advance again. */
+    reverseAllocation: (id: string, allocationId: string) =>
+      api.post<PaymentView>(`/payments/${id}/allocations/${allocationId}/reverse`),
+    clearCheque: (id: string, input: ClearChequeRequest) =>
+      api.post<PaymentView>(`/payments/${id}/clear`, input),
+    bounceCheque: (id: string, input: BounceChequeRequest) =>
+      api.post<PaymentView>(`/payments/${id}/bounce`, input),
+    /** Pays back an advance; answers the refund (a payment going out). */
+    refund: (id: string, input: RefundRequest, idempotencyKey: string) =>
+      api.post<PaymentView>(`/payments/${id}/refund`, input, {
+        headers: { 'Idempotency-Key': idempotencyKey },
+      }),
     /** The receipt or refund slip as a PDF. */
     receiptPdf: (id: string) => api.download(`/payments/${id}/receipt.pdf`),
     /** Every payment mode, in use or not: mappings may name either. */
