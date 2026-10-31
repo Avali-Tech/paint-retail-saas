@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -26,6 +27,7 @@ import type { AuthContext } from '../auth/auth-context.js';
 import { only } from '../common/only.js';
 import { DATABASE } from '../database/database.module.js';
 import { requireParty } from '../leads/crm-lookups.js';
+import { someoneElseHolds } from '../members/deciders.js';
 import { Notifier } from '../notifications/notifier.js';
 import { canSeeParty, containsPattern } from '../parties/party-access.js';
 import type { ReleaseInput } from './credit-approvals.schemas.js';
@@ -351,10 +353,14 @@ export class CreditService {
     return { items: items.map(({ request }) => request), total };
   }
 
-  /** A page of requests, each with its customer's home store (the inbox shows it). */
+  /**
+   * A page of requests, each with its customer's home store (the inbox shows it).
+   * `decidable` keeps to those the member may decide: not their own, unless
+   * nobody else approves credit.
+   */
   requestPage(
     auth: AuthContext,
-    query: ListRequestsQuery,
+    query: ListRequestsQuery & { readonly decidable?: boolean },
   ): Promise<{
     items: { request: CreditRequestView; storeId: string | null }[];
     total: number;
@@ -365,6 +371,14 @@ export class CreditService {
         query.status ? eq(creditRequests.status, query.status) : undefined,
         query.partyId ? eq(creditRequests.partyId, query.partyId) : undefined,
         query.storeId ? eq(parties.homeStoreId, query.storeId) : undefined,
+        query.decidable &&
+          (await someoneElseHolds(
+            tx,
+            { organizationId: auth.organization.id, memberId: auth.memberId },
+            'credit:approve',
+          ))
+          ? ne(creditRequests.requestedByMemberId, auth.memberId)
+          : undefined,
       );
       const rows = await this.requestRows(tx)
         .where(where)
@@ -457,6 +471,19 @@ export class CreditService {
       const party = await this.party(tx, auth, request.partyId, true);
       if (request.status !== 'pending') {
         throw new ConflictException(`This request is ${request.status}`);
+      }
+      // Like a credit approval: someone else decides, unless nobody else can.
+      if (
+        request.requestedByMemberId === auth.memberId &&
+        (await someoneElseHolds(
+          tx,
+          { organizationId: auth.organization.id, memberId: auth.memberId },
+          'credit:approve',
+        ))
+      ) {
+        throw new ForbiddenException(
+          'You asked for this credit request: another approver decides it',
+        );
       }
       await apply(tx, request);
       await tx

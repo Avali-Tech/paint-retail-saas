@@ -123,8 +123,10 @@ export class InboxService {
         kind: 'credit_request',
         allowed: (auth) => can(auth, 'credit:read') && can(auth, 'credit:approve'),
         load: async (auth, { storeId, limit }) => {
+          // Not their own request, unless nobody else approves credit.
           const page = await credit.requestPage(auth, {
             status: 'pending',
+            decidable: true,
             ...(storeId === undefined ? {} : { storeId }),
             limit,
             offset: 0,

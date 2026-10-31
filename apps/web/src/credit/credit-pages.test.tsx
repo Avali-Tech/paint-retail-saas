@@ -54,6 +54,31 @@ describe('CreditRequestsPage', { timeout: 30_000 }, () => {
     expect(screen.getAllByRole('button', { name: /^Approve/ })).toHaveLength(1);
   });
 
+  it('says why the member cannot decide a request they asked for', async () => {
+    const { user } = renderApp({
+      path: '/credit-requests',
+      routes: {
+        'GET /auth/me': () => json(OWNER),
+        'GET /credit-requests': () => json({ items: [CREDIT_REQUEST], total: 1 }),
+        'POST /credit-requests/:id/approve': () =>
+          json(
+            {
+              statusCode: 403,
+              message: 'You asked for this credit request: another approver decides it',
+            },
+            403,
+          ),
+      },
+    });
+    await user.click(await screen.findByRole('button', { name: 'Approve CR-000001' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve' }));
+    expect(
+      await within(screen.getByRole('dialog')).findByText(
+        'You asked for this credit request: another approver decides it',
+      ),
+    ).toBeVisible();
+  });
+
   it('pages, explains an empty list and hides deciding from those who cannot', async () => {
     let total = PAGE_SIZE + 1;
     const { user } = renderApp({

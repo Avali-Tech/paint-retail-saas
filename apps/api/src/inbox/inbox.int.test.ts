@@ -92,12 +92,12 @@ async function customer(body: object): Promise<string> {
   ).json<{ id: string }>().id;
 }
 
-/** Gives a party a credit limit the real way: a request the owner approves. */
+/** Gives a party a credit limit the real way: the owner asks, the admin approves. */
 async function limit(partyId: string, limitPaise: number) {
   const request = ok(
     await api(t, m.owner).post('/credit-requests', { partyId, limitPaise, creditDays: 30 }),
   ).json<{ id: string }>();
-  ok(await api(t, m.owner).post(`/credit-requests/${request.id}/approve`, {}));
+  ok(await api(t, m.admin).post(`/credit-requests/${request.id}/approve`, {}));
 }
 
 /** A credit approval for a draft bill of `paise` at a store, asked by `token`. */
@@ -381,17 +381,16 @@ describe('credit approvals', () => {
 });
 
 describe('credit requests', () => {
-  it('goes to those who approve credit, at the customers they see', async () => {
-    expect(new Set(idsOf(await inbox(m.owner), 'credit_request'))).toEqual(
-      new Set([ids.requestWide, ids.requestKkp]),
-    );
+  it('goes to those who approve credit, at the customers they see, never who asked', async () => {
+    // The owner asked for Kukatpally Traders' limit: the admin decides it.
+    expect(idsOf(await inbox(m.owner), 'credit_request')).toEqual([ids.requestWide]);
     expect(new Set(idsOf(await inbox(m.admin), 'credit_request'))).toEqual(
       new Set([ids.requestWide, ids.requestKkp]),
     );
     // An Ameerpet manager given credit:approve sees business-wide and Ameerpet customers.
     expect(idsOf(await inbox(m.creditApprover), 'credit_request')).toEqual([ids.requestWide]);
     expect((await inbox(m.ampManager)).kinds).not.toContain('credit_request');
-    expect(item(await inbox(m.owner), 'credit_request', ids.requestKkp)).toMatchObject({
+    expect(item(await inbox(m.admin), 'credit_request', ids.requestKkp)).toMatchObject({
       step: 'decide_request',
       reference: expect.stringMatching(/^CR-/),
       title: 'Kukatpally Traders',
@@ -407,6 +406,25 @@ describe('credit requests', () => {
       await api(t, m.owner).get(`/credit-requests?status=pending&storeId=${b.stores.kkp}`),
     ).json<{ items: { id: string }[] }>();
     expect(atKkp.items.map((request) => request.id)).toEqual([ids.requestKkp]);
+  });
+});
+
+describe('a shop with one approver', () => {
+  it('lets the owner decide their own credit request when nobody else approves credit', async () => {
+    const alone = await billingBusiness(t);
+    const request = ok(
+      await api(t, alone.owner).post('/credit-requests', {
+        partyId: alone.parties.contractor,
+        limitPaise: 1_000_000,
+        creditDays: 30,
+      }),
+    ).json<{ id: string }>();
+    // A store employee cannot approve credit: the owner is still the only approver.
+    await alone.member('store_employee', [alone.stores.amp]);
+    const view = await inbox(alone.owner);
+    expect(idsOf(view, 'credit_request')).toEqual([request.id]);
+    ok(await api(t, alone.owner).post(`/credit-requests/${request.id}/approve`, {}));
+    expect(idsOf(await inbox(alone.owner), 'credit_request')).toEqual([]);
   });
 });
 
@@ -613,7 +631,10 @@ describe('the whole inbox', () => {
     // Kukatpally: its transfer to dispatch, its count, its customers' items, its low stock.
     const kkp = await inbox(m.owner, `?storeId=${b.stores.kkp}`);
     expect(idsOf(kkp, 'transfer')).toEqual([ids.t2]);
-    expect(idsOf(kkp, 'credit_request')).toEqual([ids.requestKkp]);
+    expect(idsOf(kkp, 'credit_request')).toEqual([]);
+    expect(idsOf(await inbox(m.admin, `?storeId=${b.stores.kkp}`), 'credit_request')).toEqual([
+      ids.requestKkp,
+    ]);
     expect(idsOf(kkp, 'credit_approval')).toEqual([ids.kkpSale]);
     expect(idsOf(kkp, 'stock_count')).toEqual([ids.countKkp]);
     expect(idsOf(kkp, 'escalation')).toEqual([ids.escalationKkp]);

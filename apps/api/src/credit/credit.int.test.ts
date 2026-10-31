@@ -321,8 +321,19 @@ describe('requesting and approving credit', () => {
 
     expect(response.statusCode).toBe(201);
     expect(await inbox(admin, 'credit_request_awaiting_approval')).toHaveLength(before + 1);
-    // Owners may approve their own requests; nobody else needs telling.
-    await api(owner).post(`/credit-requests/${response.json<CreditRequestView>().id}/approve`);
+    // Like a credit approval, another approver decides it (the admin here); the request waits.
+    const requestId = response.json<CreditRequestView>().id;
+    for (const decision of ['approve', 'reject'] as const) {
+      const own = await api(owner).post(`/credit-requests/${requestId}/${decision}`, {
+        reason: 'Mine',
+      });
+      expect(own.statusCode).toBe(403);
+      expect(own.json<{ message: string }>().message).toBe(
+        'You asked for this credit request: another approver decides it',
+      );
+    }
+    expect((await credit(owner, 'wide')).status).toBe('none');
+    await api(admin).post(`/credit-requests/${requestId}/approve`);
     expect((await credit(owner, 'wide')).status).toBe('active');
   });
 
@@ -483,7 +494,8 @@ describe('hold and release', () => {
 
 describe('credit list', () => {
   it('lists parties with credit, closest to their limit first, within the member’s stores', async () => {
-    await api(owner).post(`/credit-requests/${id('puneRequest')}/approve`);
+    // The owner asked for it: the admin approves.
+    await api(admin).post(`/credit-requests/${id('puneRequest')}/approve`);
     await api(owner).patch(`/parties/${id('wide')}/credit`, { manualExposurePaise: 9_000_00 });
 
     const page = (await api(owner).get('/credit-profiles')).json<{
