@@ -559,20 +559,24 @@ describe('follow-ups', () => {
 });
 
 describe('low stock', () => {
-  it('goes to who manages stock or buys, at their stores', async () => {
+  it('goes to whoever buys at the store; where nobody of its own buys, to who manages stock', async () => {
     const lowAt = async (token: string) =>
       (group(await inbox(token), 'low_stock')?.items ?? []).map((entry) => entry.id);
     const ampApex = `${b.stores.amp}:${b.apex}`;
     const ampPrimer = `${b.stores.amp}:${primer}`;
     const kkpApex = `${b.stores.kkp}:${b.apex}`;
-    // The emptiest shelves first.
+    // Buyers (purchasing:manage) at every store of theirs, the emptiest shelves first.
     expect(await lowAt(m.owner)).toEqual([ampPrimer, ampApex, kkpApex]);
-    expect(await lowAt(m.ampManager)).toEqual([ampPrimer, ampApex]);
-    expect(await lowAt(m.kkpManager)).toEqual([kkpApex]);
+    expect(await lowAt(m.admin)).toEqual([ampPrimer, ampApex, kkpApex]);
     expect(await lowAt(m.stocker)).toEqual([ampPrimer, ampApex]);
-    expect(await lowAt(m.salesStock)).toEqual([ampPrimer, ampApex]);
-    // purchasing:manage alone is enough; inventory:read alone is not.
+    // A store employee given purchasing:manage buys too.
     expect(await lowAt(m.buyer)).toEqual([ampPrimer, ampApex]);
+    // Ameerpet has buyers of its own (the inventory manager and that employee): its
+    // branch manager, and others managing its stock, are not asked.
+    expect(await lowAt(m.ampManager)).toEqual([]);
+    expect(await lowAt(m.salesStock)).toEqual([]);
+    // Nobody of Kukatpally's own buys (the owner and admin work everywhere): its manager is asked.
+    expect(await lowAt(m.kkpManager)).toEqual([kkpApex]);
     expect((await inbox(m.sales)).kinds).not.toContain('low_stock');
     expect((await inbox(m.noApprovals)).kinds).not.toContain('low_stock');
     const owner = await inbox(m.owner);

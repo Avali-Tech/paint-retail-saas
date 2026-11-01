@@ -22,6 +22,7 @@ import type { MessagingProvider } from '../messaging/messaging-provider.js';
 import { sendDueMessages } from '../messaging/outbox.js';
 import { runDueLinkRefunds } from '../payment-links/link-refunds.js';
 import type { PaymentLinkGateways } from '../payment-links/payment-link-gateways.js';
+import { hasOwnBuyer } from '../members/deciders.js';
 import { reconcileDueBusinesses } from '../reconciliation/reconciler.js';
 import { ManualBillingService } from '../subscriptions/manual-billing.js';
 import type { EmailSender } from './email-sender.js';
@@ -300,6 +301,7 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
           label: productVariants.label,
           available: sql<string>`${available}`,
           reorderLevel: reorderRules.reorderLevel,
+          ownBuyer: sql<boolean>`${hasOwnBuyer(tx, reorderRules.storeId)}`,
         })
         .from(reorderRules)
         .innerJoin(stores, eq(stores.id, reorderRules.storeId))
@@ -335,25 +337,30 @@ export class NotificationsWorker implements OnApplicationBootstrap, OnApplicatio
 
       const byStore = new Map<
         string,
-        { organizationId: string; storeName: string; items: typeof low }
+        { organizationId: string; storeName: string; ownBuyer: boolean; items: typeof low }
       >();
       for (const item of low) {
         const group = byStore.get(item.storeId) ?? {
           organizationId: item.organizationId,
           storeName: item.storeName,
+          ownBuyer: item.ownBuyer,
           items: [],
         };
         group.items.push(item);
         byStore.set(item.storeId, group);
       }
-      for (const [storeId, { organizationId, storeName, items }] of byStore) {
+      for (const [storeId, { organizationId, storeName, ownBuyer, items }] of byStore) {
         await tx
           .insert(lowStockAlerts)
           .values(items.map(({ variantId }) => ({ organizationId, storeId, variantId })));
         await this.notifier.notify(tx, {
           organizationId,
           event: 'low_stock',
-          to: { storeId, permission: 'inventory:manage' },
+          // Whoever buys at the store; without a buyer of its own, also who manages its stock.
+          to: {
+            storeId,
+            permission: ownBuyer ? 'purchasing:manage' : ['purchasing:manage', 'inventory:manage'],
+          },
           title: `Low stock at ${storeName}: ${String(items.length)} product(s)`,
           body: items
             .map(

@@ -308,16 +308,16 @@ export class InboxService {
       },
       {
         kind: 'low_stock',
-        // Who keeps the shelves full or buys: the low-stock screen, for those who act on it.
+        // Whoever buys at the store; where nobody of its own does, who manages its stock.
         allowed: (auth) =>
           can(auth, 'inventory:read') &&
           (can(auth, 'inventory:manage') || can(auth, 'purchasing:manage')),
         load: async (auth, { storeId, limit }) => {
-          const page = await reorder.lowStock(auth, {
-            ...(storeId === undefined ? {} : { storeId }),
-            limit,
-            offset: 0,
-          });
+          const page = await reorder.lowStock(
+            auth,
+            { ...(storeId === undefined ? {} : { storeId }), limit, offset: 0 },
+            true,
+          );
           return {
             total: page.total,
             items: page.items.map((item) => ({
