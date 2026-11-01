@@ -1,5 +1,5 @@
 import { PERMISSIONS } from '@paint/shared';
-import { renderHook, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -15,6 +15,7 @@ import {
   profile,
 } from '../test-support/fake-api.js';
 import { renderApp } from '../test-support/render-app.js';
+import { LAST_TABS_KEY } from './last-tab.js';
 import { found } from '../test-support/found.js';
 
 const location = () => screen.getByTestId('location').textContent;
@@ -290,6 +291,23 @@ describe('sections and tabs', () => {
       'href',
       '/invoices',
     );
+  });
+
+  it('opens the tab remembered last even when the menu was drawn before it', async () => {
+    localStorage.removeItem(LAST_TABS_KEY);
+    renderApp({
+      path: '/transfers',
+      routes: { 'GET /auth/me': () => json(OWNER) },
+    });
+    await screen.findByRole('navigation', { name: 'Stock' });
+    // A tab clicked a moment ago, before the menu drew again.
+    const sales = within(sidebar()).getByRole('link', { name: 'Sales' });
+    expect(sales).toHaveAttribute('href', '/quotations');
+    localStorage.setItem(LAST_TABS_KEY, JSON.stringify({ sales: '/notes' }));
+    fireEvent.click(sales);
+    await waitFor(() => {
+      expect(location()).toBe('/notes');
+    });
   });
 
   it('gathers the settings on one page, each with a way back to it', async () => {

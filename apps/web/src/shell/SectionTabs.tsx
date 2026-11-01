@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 import { useI18n } from '../i18n/i18n.js';
 import { CountBadge, useBadgedName } from '../inbox/inbox-count.js';
+import { rememberTab } from './last-tab.js';
 import type { NavItem } from './nav.js';
 import { SETTINGS_PATH, type Section } from './sections.js';
 
@@ -49,6 +50,11 @@ export function SectionTabs({
           className="section-nav__link"
           aria-current={tab === current ? 'page' : undefined}
           aria-label={badgedName(t(tab.label), badges[tab.key] ?? 0)}
+          // Remembered on the click too: a quick click elsewhere can come before the
+          // shell renders this tab, and the section would then reopen at its first tab.
+          onClick={() => {
+            rememberTab(section.key, tab.path);
+          }}
         >
           {t(tab.label)}
           <CountBadge count={badges[tab.key] ?? 0} />
