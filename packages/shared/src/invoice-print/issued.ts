@@ -1,16 +1,12 @@
-import {
-  DEFAULT_GST_OPTIONS,
-  buildInvoiceView,
-  computeInvoice,
-  type Discount,
-  type GstRate,
-  type InvoiceView,
-  type IssuedInvoiceView,
-  type PrintAddress,
-  type SecondLanguage,
-} from '@paint/shared';
+import type { PrintableInvoiceView } from '../billing-api.js';
+import { computeInvoice } from '../gst/invoice.js';
+import { DEFAULT_GST_OPTIONS, type Discount, type GstRate } from '../gst/types.js';
+import type { SecondLanguage } from './labels.js';
+import type { InvoiceView, PrintAddress } from './types.js';
+import { buildInvoiceView } from './view-model.js';
 
-// An issued bill as round 2b's templates print it. The issue snapshots every line's
+// An issued bill as round 2b's templates print it, at the counter, on a reprint and as
+// the API's PDF. The issue snapshots every line's
 // rate (with its nature: exempt or nil-rated at 0%), price and discount, so the
 // engine's `Invoice` is worked out again from the document (the same inputs give the
 // same figures), then joined to its header data and the business's print settings.
@@ -32,7 +28,7 @@ const address = (text: string | null, stateCode: string): PrintAddress => ({
  * `secondLanguage`, under the business's logo (an image address; null for none).
  */
 export function printViewOf(
-  document: IssuedInvoiceView,
+  document: PrintableInvoiceView,
   secondLanguage: SecondLanguage | null,
   logoUrl: string | null,
 ): InvoiceView {

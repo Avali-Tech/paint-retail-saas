@@ -18,6 +18,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { errorMessage } from '../api/errors.js';
 import { useApi } from '../app/services.js';
+import { usePermissions } from '../auth/session.js';
 import { useI18n } from '../i18n/i18n.js';
 import { saveFile } from '../lib/download.js';
 import { useDebouncedValue, useUrlFilters } from '../lib/hooks.js';
@@ -77,6 +78,7 @@ export function PaymentsPage() {
   const to = isDate(filters.values.to) ? filters.values.to : undefined;
   const q = useDebouncedValue(filters.values.q.trim(), 300);
   const [message, setMessage] = useState<string | null>(null);
+  const can = usePermissions();
   const payments = useQuery({
     queryKey: [
       'payments',
@@ -104,9 +106,16 @@ export function PaymentsPage() {
         title={t('books.payments.title')}
         description={t('books.payments.description')}
         actions={
-          <Link to="/payment-links" {...buttonStyle('secondary')}>
-            {t('books.payments.links')}
-          </Link>
+          <span className="row">
+            {can('payments:manage') && (
+              <Link to="/payments/new" {...buttonStyle()}>
+                {t('books.payments.take')}
+              </Link>
+            )}
+            <Link to="/payment-links" {...buttonStyle('secondary')}>
+              {t('books.payments.links')}
+            </Link>
+          </span>
         }
       />
       <Card>
@@ -196,7 +205,7 @@ export function PaymentsPage() {
                       {page.items.map((payment) => (
                         <tr key={payment.id}>
                           <th scope="row">
-                            {payment.number}
+                            <Link to={`/payments/${payment.id}`}>{payment.number}</Link>
                             <span className="cell-meta">
                               {payment.voucherNumber ??
                                 label('paymentDirections', payment.direction)}

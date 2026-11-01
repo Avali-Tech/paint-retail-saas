@@ -51,6 +51,23 @@ export const salesEn = {
       supply: 'Supply',
       cancelReason: 'Cancelled because',
     },
+    reprint: {
+      a4: 'Print A4',
+      thermal: 'Print 80 mm',
+      pdf: 'PDF',
+    },
+    cancel: {
+      open: 'Cancel invoice',
+      title: 'Cancel invoice {number}',
+      rules:
+        'An invoice can be cancelled only on the day it was issued, and only before a credit or debit note, a dispatch or a payment against it. Otherwise raise a credit note.',
+      notToday:
+        'This invoice was issued on {date}, so it can no longer be cancelled. Raise a credit note under Returns and notes instead.',
+      reason: 'Reason',
+      reasonInvalid: 'Say why, in at least 3 characters',
+      submit: 'Cancel invoice',
+      done: 'Invoice {number} cancelled',
+    },
     adjust: {
       title: 'Returns and notes',
       error: 'Could not load the returns and notes',

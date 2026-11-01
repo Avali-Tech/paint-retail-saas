@@ -4,7 +4,7 @@ import { hi } from '../i18n/hi.js';
 import { fakeFetch, json } from '../test-support/fake-api.js';
 import { buildUrl, createApiClient, parseJson } from './client.js';
 import { endpoints } from './endpoints.js';
-import { ApiError, errorMessage, setErrorTexts, toApiError } from './errors.js';
+import { ApiError, errorMessage, errorWithIssues, setErrorTexts, toApiError } from './errors.js';
 
 function client(routes: Parameters<typeof fakeFetch>[0], token: string | null = 'tok') {
   const api = fakeFetch(routes);
@@ -201,6 +201,18 @@ describe('errorMessage', () => {
     expect(errorMessage(new Error('x'))).toBe(hi.errors.generic);
     expect(errorMessage(new ApiError(500, 'Database down'))).toBe('Database down');
     expect(toApiError(403, null).message).toBe(hi.errors.forbidden);
+  });
+
+  it('adds what the API said about each field when asked', () => {
+    const refused = new ApiError(422, 'Cannot record the payment', [
+      { path: 'reference', message: 'Enter the cheque number' },
+      { path: 'chequeDate', message: 'And its date' },
+    ]);
+    expect(errorWithIssues(refused)).toBe(
+      'Cannot record the payment: Enter the cheque number. And its date',
+    );
+    expect(errorWithIssues(new ApiError(409, 'Closed'))).toBe('Closed');
+    expect(errorWithIssues(new Error('x'))).toBe('Something went wrong. Please try again.');
   });
 });
 

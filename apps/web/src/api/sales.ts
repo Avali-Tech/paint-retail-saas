@@ -4,6 +4,7 @@ import type {
   NotePage,
   NoteView,
   PrintBankDetails,
+  PrintableInvoiceView,
   ReturnDisposition,
   SalesSettingsView,
   SalesReturnView,
@@ -97,6 +98,15 @@ export function salesEndpoints(api: ApiClient) {
       }),
     invoice: (id: string, signal?: AbortSignal) =>
       api.get<TaxDocumentView>(`/invoices/${id}`, { signal }),
+    /** An issued invoice with its print settings, to reprint it. */
+    printable: (id: string, signal?: AbortSignal) =>
+      api.get<PrintableInvoiceView>(`/invoices/${id}/print`, { signal }),
+    /** The issued invoice as an A4 PDF, its labels also in Hindi or Telugu. */
+    invoicePdf: (id: string, lang: 'en' | 'hi' | 'te') =>
+      api.download(`/invoices/${id}/invoice.pdf`, { query: { lang } }),
+    /** Same-day cancellation of an issued invoice (billing:cancel). */
+    cancelInvoice: (id: string, reason: string) =>
+      api.post<TaxDocumentView>(`/invoices/${id}/cancel`, { reason }),
     adjustments: (id: string, signal?: AbortSignal) =>
       api.get<InvoiceAdjustments>(`/invoices/${id}/adjustments`, { signal }),
     returnGoods: (input: SalesReturnInput) => api.post<SalesReturnView>('/sales-returns', input),

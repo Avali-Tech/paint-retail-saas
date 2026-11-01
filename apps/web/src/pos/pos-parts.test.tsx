@@ -1,3 +1,4 @@
+import { printViewOf } from '@paint/shared';
 import { render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../i18n/i18n.js';
@@ -5,7 +6,6 @@ import { IdentityProvider } from '../theme/IdentityProvider.js';
 import { lineTintView } from '../tint/test-support/tint-fixtures.js';
 import { product, variant } from '../test-support/inventory-fixtures.js';
 import { billReducer, newBill } from './bill.js';
-import { printViewOf } from './print-view.js';
 import { PrintSlot } from './PosPrint.js';
 import { previewBill, ratesFrom, type Preview } from './preview.js';
 import { TotalsPanel } from './TotalsPanel.js';

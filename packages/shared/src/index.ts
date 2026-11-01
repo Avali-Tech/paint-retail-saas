@@ -222,6 +222,7 @@ export {
   type IssuePaymentRequest,
   type InvoicePrintSettings,
   type IssuedInvoiceView,
+  type PrintableInvoiceView,
   type OpenDocumentView,
   type OpenRegisterRequest,
   type PartyLedgerEntryKind,
@@ -586,3 +587,4 @@ export * from './reorder-suggestion.js';
 export * from './mistints.js';
 export * from './slow-movers.js';
 export * from './inbox.js';
+export * from './setup-checklist.js';

@@ -12,6 +12,12 @@ const RegisterSessionPage = lazy(() =>
 const PaymentsPage = lazy(() =>
   import('./PaymentsPage.js').then((module) => ({ default: module.PaymentsPage })),
 );
+const TakePaymentPage = lazy(() =>
+  import('./TakePaymentPage.js').then((module) => ({ default: module.TakePaymentPage })),
+);
+const PaymentPage = lazy(() =>
+  import('./PaymentPage.js').then((module) => ({ default: module.PaymentPage })),
+);
 const AccountingExportPage = lazy(() =>
   import('./AccountingExportPage.js').then((module) => ({ default: module.AccountingExportPage })),
 );
@@ -29,6 +35,8 @@ export function booksRoutes() {
       <Route path="registers" element={guarded('register:manage', RegistersPage)} />
       <Route path="registers/:id" element={guarded('register:manage', RegisterSessionPage)} />
       <Route path="payments" element={guarded('sales:read', PaymentsPage)} />
+      <Route path="payments/new" element={guarded('payments:manage', TakePaymentPage)} />
+      <Route path="payments/:id" element={guarded('sales:read', PaymentPage)} />
       <Route path="accounting" element={<Navigate to="/accounting/export" replace />} />
       <Route
         path="accounting/export"

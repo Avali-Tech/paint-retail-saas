@@ -37,6 +37,7 @@ export {
   type QuotationLabels,
 } from './quotation-labels.js';
 export { sampleInvoice, sampleInvoiceView, type SampleInvoiceOptions } from './sample.js';
+export { printViewOf } from './issued.js';
 export { THERMAL_COLUMNS, renderThermalText, wrapText } from './thermal-text.js';
 export type * from './types.js';
 export {

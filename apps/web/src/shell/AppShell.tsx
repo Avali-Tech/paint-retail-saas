@@ -43,13 +43,23 @@ function SectionEntry({
 }) {
   const { t } = useI18n();
   const badgedName = useBadgedName();
+  const navigate = useNavigate();
+  const target = sectionTarget(section, readLastTabs());
   return (
     <Link
-      to={sectionTarget(section, readLastTabs())}
+      to={target}
       className={className}
       aria-current={active ? 'true' : undefined}
       aria-label={badgedName(t(section.label), badge)}
-      onClick={onNavigate}
+      onClick={(event) => {
+        // The tab used last may have changed since this link was drawn (a quick click).
+        const latest = sectionTarget(section, readLastTabs());
+        if (latest !== target) {
+          event.preventDefault();
+          void navigate(latest);
+        }
+        onNavigate?.();
+      }}
     >
       {plus ? <span aria-hidden="true">+</span> : <Icon name={section.icon} />}
       <span>{t(section.label)}</span>

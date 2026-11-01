@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { OWNER, json } from '../test-support/fake-api.js';
+import { OWNER, json, profile } from '../test-support/fake-api.js';
 import { renderApp } from '../test-support/render-app.js';
 import { PAYMENTS_PAGE_SIZE } from './PaymentsPage.js';
 import { PAYMENT } from './test-support/books-fixtures.js';
@@ -66,6 +66,14 @@ describe('PaymentsPage', { timeout: 30_000 }, () => {
     });
     const table = await screen.findByRole('table', { name: 'Payments' });
     expect(requests.at(-1)?.query.toString()).toBe('limit=50&offset=0');
+    expect(screen.getByRole('link', { name: 'Take a payment' })).toHaveAttribute(
+      'href',
+      '/payments/new',
+    );
+    expect(within(table).getByRole('link', { name: 'RC-000012' })).toHaveAttribute(
+      'href',
+      '/payments/pay-1',
+    );
     const [, received, voucher, refund] = within(table).getAllByRole('row');
     expect(received).toHaveTextContent('RC-000012Received');
     expect(received).toHaveTextContent('Deccan Contractors');
@@ -106,14 +114,15 @@ describe('PaymentsPage', { timeout: 30_000 }, () => {
     expect(await screen.findByText('No payments here')).toBeVisible();
   });
 
-  it('shows a failure', async () => {
+  it('shows a failure, and no way to take a payment to a reader', async () => {
     renderApp({
       path: '/payments',
       routes: {
-        'GET /auth/me': () => json(OWNER),
+        'GET /auth/me': () => json(profile(['sales:read'])),
         'GET /payments': () => json({ message: 'Down' }, 500),
       },
     });
     expect(await screen.findByText('Could not load the payments')).toBeVisible();
+    expect(screen.queryByRole('link', { name: 'Take a payment' })).toBeNull();
   });
 });

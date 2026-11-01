@@ -295,10 +295,17 @@ export interface InvoicePrintSettings {
   readonly aggregateTurnoverPaise: number;
 }
 
-/** What POST /invoices/:id/issue returns: the invoice, its payments and what is still due. */
-export interface IssuedInvoiceView extends TaxDocumentView {
-  /** For printing it at the counter. */
+/**
+ * GET /invoices/:id/print: an issued invoice or bill of supply with what printing it
+ * needs, to reprint it on A4 or the 80 mm counter printer (the same view model as at
+ * the counter, `printViewOf`). The settings are today's, as on the first print.
+ */
+export interface PrintableInvoiceView extends TaxDocumentView {
   readonly print: InvoicePrintSettings;
+}
+
+/** What POST /invoices/:id/issue returns: the invoice, its payments and what is still due. */
+export interface IssuedInvoiceView extends PrintableInvoiceView {
   readonly payments: PaymentView[];
   /** Advances and payments allocated to this invoice. */
   readonly paidPaise: number;

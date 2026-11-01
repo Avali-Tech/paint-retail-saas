@@ -1,16 +1,17 @@
 import 'reflect-metadata';
 import { Controller, Get, Inject } from '@nestjs/common';
+import type { SetupChecklistView } from '@paint/shared';
 import type { AuthContext } from '../auth/auth-context.js';
 import { CurrentAuth } from '../auth/decorators.js';
-import { OnboardingService, type Onboarding } from './onboarding.service.js';
+import { OnboardingService } from './onboarding.service.js';
 
 @Controller('onboarding')
 export class OnboardingController {
   constructor(@Inject(OnboardingService) private readonly onboarding: OnboardingService) {}
 
-  /** Open to every member: it shows progress, not records. */
+  /** The "Getting started" checklist. Open to every member: it shows progress, not records. */
   @Get()
-  get(@CurrentAuth() auth: AuthContext): Promise<Onboarding> {
+  get(@CurrentAuth() auth: AuthContext): Promise<SetupChecklistView> {
     return this.onboarding.get(auth);
   }
 }

@@ -1,7 +1,17 @@
 import type { NavItem } from '../shell/nav.js';
 
-/** Settings → Stores and Settings → Billing go-live (PO-100, PO-102). */
+/** Settings → Getting started, Stores and Billing go-live (PO-100, PO-102). */
 export const SETUP_NAV_ITEMS: readonly NavItem[] = [
+  {
+    // The first steps of a new business, first in Settings (also on Home until done).
+    key: 'gettingStarted',
+    section: 'settings',
+    group: 'business',
+    order: 5,
+    label: 'gettingStarted.title',
+    path: '/settings/getting-started',
+    permission: 'organization:manage',
+  },
   {
     key: 'storeSettings',
     section: 'settings',

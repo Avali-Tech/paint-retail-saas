@@ -1,4 +1,4 @@
-import type { IssuedInvoiceView } from '@paint/shared';
+import { printViewOf, type PrintableInvoiceView } from '@paint/shared';
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n/i18n.js';
@@ -6,7 +6,6 @@ import { InvoiceA4 } from '../print/InvoiceA4.js';
 import { InvoiceThermal } from '../print/InvoiceThermal.js';
 import '../print/print.css';
 import { useIdentity } from '../theme/IdentityProvider.js';
-import { printViewOf } from './print-view.js';
 
 // Printing at the counter (spec §5.2 step 5, §5.4): the issued bill is rendered with
 // round 2b's templates into a print-only layer, under the business's logo and with
@@ -17,7 +16,7 @@ export type PrintFormat = 'thermal' | 'a4';
 /** One request to print: a new `id` prints again. */
 export interface PrintJob {
   readonly id: number;
-  readonly invoice: IssuedInvoiceView;
+  readonly invoice: PrintableInvoiceView;
   readonly format: PrintFormat;
 }
 
