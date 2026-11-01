@@ -99,8 +99,11 @@ export type TimelineQuery = z.output<typeof timelineSchema>;
 export const followUpsSchema = z.object({
   /** In India time: before today, today, after today, or every open one. */
   when: z.enum(FOLLOW_UP_WINDOWS).default('open'),
-  /** A member, me, or (for managers) everyone's at the member's stores. */
-  assignedTo: z.union([member, z.literal('everyone')]).default('me'),
+  /**
+   * A member, me, or (for managers) everyone's at the member's stores, or the
+   * team's: everyone's but mine, of members who work at my stores.
+   */
+  assignedTo: z.union([member, z.literal('everyone'), z.literal('team')]).default('me'),
   storeId: z.uuid().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),

@@ -9,6 +9,7 @@ export const INBOX_KINDS = [
   'stock_count',
   'escalation',
   'follow_up',
+  'team_follow_up',
   'low_stock',
 ] as const;
 export type InboxKind = (typeof INBOX_KINDS)[number];
@@ -31,6 +32,8 @@ export const INBOX_STEPS = [
   // follow_up
   'follow_up_overdue',
   'follow_up_today',
+  // team_follow_up
+  'team_follow_up_overdue',
   // low_stock
   'out_of_stock',
   'below_minimum',
@@ -42,14 +45,14 @@ export const INBOX_PRIORITIES = ['high', 'normal', 'low'] as const;
 export type InboxPriority = (typeof INBOX_PRIORITIES)[number];
 
 /** An action the inbox can take on an item without opening it, through an existing endpoint. */
-export type InboxActionKey = 'approve' | 'reject' | 'acknowledge' | 'complete';
+export type InboxActionKey = 'approve' | 'reject' | 'acknowledge' | 'complete' | 'reassign';
 
 export interface InboxAction {
   readonly key: InboxActionKey;
-  /** The existing endpoint it posts to, e.g. /credit-approvals/{id}/approve. */
+  /** The existing endpoint it calls, e.g. POST /credit-approvals/{id}/approve. */
   readonly endpoint: string;
-  /** What the member gives first: nothing, an optional note, or a reason (required). */
-  readonly input: 'none' | 'note' | 'reason';
+  /** What the member gives first: nothing, an optional note, a reason (required), or a member. */
+  readonly input: 'none' | 'note' | 'reason' | 'member';
 }
 
 export interface InboxItem {
@@ -62,6 +65,10 @@ export interface InboxItem {
   readonly title: string;
   /** Who asked for it or sent it, when someone did. */
   readonly requestedBy: string | null;
+  /** Whose it is, for a team member's follow-up. */
+  readonly assignee: { readonly memberId: string; readonly name: string } | null;
+  /** The record a follow-up is about (party, lead, opportunity, project). */
+  readonly record: { readonly type: string; readonly id: string } | null;
   readonly store: { readonly id: string; readonly name: string } | null;
   readonly amountPaise: number | null;
   /** Since when it waits (an ISO time or date); null when it has no start (low stock). */

@@ -42,6 +42,8 @@ const m = {
   salesStock: '',
   /** A store employee also given purchasing:manage. */
   buyer: '',
+  /** An inventory manager also given members:read: sees the team, cannot change customers' activities. */
+  teamViewer: '',
 };
 const memberIds = new Map<string, string>();
 
@@ -66,6 +68,7 @@ const ids = {
   overdue: '',
   today: '',
   cashierToday: '',
+  managerOverdue: '',
 };
 
 let kkpParty = '';
@@ -169,6 +172,7 @@ beforeAll(async () => {
   m.creditApprover = await b.member('branch_manager', [amp], { granted: ['credit:approve'] });
   m.salesStock = await b.member('sales_executive', [amp], { granted: ['inventory:manage'] });
   m.buyer = await b.member('store_employee', [amp], { granted: ['purchasing:manage'] });
+  m.teamViewer = await b.member('inventory_manager', [amp], { granted: ['members:read'] });
   for (const token of Object.values(m)) {
     memberIds.set(token, ok(await api(t, token).get('/auth/me')).json<AuthProfile>().memberId);
   }
@@ -304,6 +308,7 @@ beforeAll(async () => {
   ids.today = await followUp('Visit the site', new Date(now), m.sales);
   await followUp('Next week', new Date(now + 3 * DAY), m.sales);
   ids.cashierToday = await followUp('Ring back', new Date(now), m.cashier);
+  ids.managerOverdue = await followUp('Check the site', new Date(now - 3 * DAY), m.ampManager);
   const done = await followUp('Already done', new Date(now - DAY), m.sales);
   ok(await api(t, m.owner).post(`/activities/${done}/complete`, {}));
 }, 300_000);
@@ -350,6 +355,8 @@ describe('credit approvals', () => {
       reference: expect.stringMatching(/^AP-\d{6}$/),
       title: 'Deccan Contractors',
       requestedBy: 'Staff sales_executive',
+      assignee: null,
+      record: null,
       store: { id: b.stores.amp, name: 'Ameerpet' },
       amountPaise: 2_500_000,
       since: expect.any(String),
@@ -600,6 +607,61 @@ describe('low stock', () => {
   });
 });
 
+describe("the team's overdue follow-ups", () => {
+  it('shows who sees the team the overdue follow-ups of members at their stores, not their own', async () => {
+    const team = async (token: string) => idsOf(await inbox(token), 'team_follow_up');
+    // The owner works at every store: everyone's but their own.
+    expect(new Set(await team(m.owner))).toEqual(new Set([ids.overdue, ids.managerOverdue]));
+    // An Ameerpet manager: the sales executive's, not their own (in "Follow-ups").
+    expect(await team(m.ampManager)).toEqual([ids.overdue]);
+    expect(idsOf(await inbox(m.ampManager), 'follow_up')).toEqual([ids.managerOverdue]);
+    expect(new Set(await team(m.creditApprover))).toEqual(
+      new Set([ids.overdue, ids.managerOverdue]),
+    );
+    // Kukatpally's manager: nobody of theirs is late. Who does not see the team: no group.
+    expect(await team(m.kkpManager)).toEqual([]);
+    expect((await inbox(m.kkpManager)).kinds).toContain('team_follow_up');
+    expect((await inbox(m.sales)).kinds).not.toContain('team_follow_up');
+    expect(item(await inbox(m.ampManager), 'team_follow_up', ids.overdue)).toEqual({
+      kind: 'team_follow_up',
+      id: ids.overdue,
+      step: 'team_follow_up_overdue',
+      reference: 'Suresh',
+      title: 'Call about the shade card',
+      requestedBy: null,
+      assignee: { memberId: memberIds.get(m.sales), name: 'Staff sales_executive' },
+      record: { type: 'party', id: b.parties.homeowner },
+      store: null,
+      amountPaise: null,
+      since: expect.any(String),
+      due: expect.any(String),
+      quantity: null,
+      priority: 'normal',
+      link: `/parties/${b.parties.homeowner}`,
+      actions: [{ key: 'reassign', endpoint: `/activities/${ids.overdue}`, input: 'member' }],
+    });
+    // Seeing the team does not let them change a customer's activities: open it only.
+    expect(item(await inbox(m.teamViewer), 'team_follow_up', ids.overdue).actions).toEqual([]);
+    // Not for everyone: only who sees the team asks for it.
+    const refused = await api(t, m.sales).get('/activities/follow-ups?assignedTo=team');
+    expect(refused.statusCode).toBe(403);
+  });
+
+  it('moves a reassigned follow-up to its new owner', async () => {
+    const reassign = item(await inbox(m.owner), 'team_follow_up', ids.managerOverdue).actions[0];
+    ok(
+      await api(t, m.owner).patch(String(reassign?.endpoint), {
+        assignedMemberId: memberIds.get(m.sales),
+      }),
+    );
+    expect(idsOf(await inbox(m.sales), 'follow_up')).toContain(ids.managerOverdue);
+    expect(idsOf(await inbox(m.ampManager), 'follow_up')).toEqual([]);
+    expect(new Set(idsOf(await inbox(m.ampManager), 'team_follow_up'))).toEqual(
+      new Set([ids.overdue, ids.managerOverdue]),
+    );
+  });
+});
+
 describe('the whole inbox', () => {
   it('lists the kinds a member can be asked about, and counts every item', async () => {
     const owner = await inbox(m.owner);
@@ -610,6 +672,7 @@ describe('the whole inbox', () => {
       'stock_count',
       'escalation',
       'follow_up',
+      'team_follow_up',
       'low_stock',
     ]);
     // Only the groups with something in them, in order.
@@ -619,6 +682,7 @@ describe('the whole inbox', () => {
       'transfer',
       'stock_count',
       'escalation',
+      'team_follow_up',
       'low_stock',
     ]);
     expect(owner.total).toBe(owner.groups.reduce((sum, entry) => sum + entry.total, 0));
@@ -678,6 +742,6 @@ describe('acting from the inbox', () => {
     ok(await api(t, m.sales).post(String(done?.endpoint), {}));
     const sales = await inbox(m.sales);
     expect(idsOf(sales, 'escalation')).toEqual([ids.escalationWide]);
-    expect(idsOf(sales, 'follow_up')).toEqual([ids.today]);
+    expect(new Set(idsOf(sales, 'follow_up'))).toEqual(new Set([ids.today, ids.managerOverdue]));
   });
 });

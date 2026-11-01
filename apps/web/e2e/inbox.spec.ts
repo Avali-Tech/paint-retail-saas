@@ -224,6 +224,50 @@ test('a sales executive’s inbox has their follow-ups, and no approvals', async
   await expect(homeLink(page)).toHaveAccessibleName('Home');
 });
 
+test('a branch manager sees their team’s late follow-ups and hands one on', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const theShop = await shop('Inbox Team Paints');
+  const sales = await member(
+    async () => (await browser.newContext()).newPage(),
+    theShop.business,
+    'sales_executive',
+    'Vikram Sales',
+  );
+  await call('POST', '/activities', {
+    token: await storedToken(sales.page),
+    body: {
+      recordType: 'party',
+      recordId: theShop.partyId,
+      type: 'call',
+      subject: 'Chase the shade card',
+      dueAt: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+    },
+  });
+  const { page } = await member(
+    async () => (await browser.newContext()).newPage(),
+    theShop.business,
+    'branch_manager',
+    'Meena Manager',
+  );
+  await page.goto('/inbox');
+  const team = page.getByRole('region', { name: 'Team follow-ups overdue (1)' });
+  await expect(team).toContainText('Chase the shade card');
+  await expect(team).toContainText('For Vikram Sales');
+  await expectUsable(page);
+  await team.getByRole('button', { name: 'Reassign “Chase the shade card”' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Reassign: Chase the shade card' });
+  await dialog
+    .getByRole('combobox', { name: 'Assigned to' })
+    .selectOption({ label: 'Meena Manager · Branch Manager' });
+  await dialog.getByRole('button', { name: 'Assign' }).click();
+  await expect(page.getByText('Follow-up reassigned')).toBeVisible();
+  // Now it is the manager's own: under Follow-ups, not the team's.
+  await expect(page.getByRole('region', { name: 'Follow-ups (1)' })).toContainText(
+    'Chase the shade card',
+  );
+  await expect(page.getByRole('region', { name: /^Team follow-ups overdue/ })).toHaveCount(0);
+});
+
 test('the inbox fits a phone @phone', async ({ page }) => {
   test.setTimeout(120_000);
   const theShop = await shop('Inbox Phone Paints');

@@ -54,7 +54,14 @@ const action = (
   input: InboxAction['input'],
 ): InboxAction => ({ key, endpoint, input });
 
-const NO_FIGURES = { amountPaise: null, due: null, quantity: null, requestedBy: null } as const;
+const NO_FIGURES = {
+  amountPaise: null,
+  due: null,
+  quantity: null,
+  requestedBy: null,
+  assignee: null,
+  record: null,
+} as const;
 
 /**
  * The "Needs action" inbox (docs/mvp-3/navigation-ux.md, step 2): what waits on
@@ -108,6 +115,8 @@ export class InboxService {
               since: approval.createdAt,
               due: null,
               quantity: null,
+              assignee: null,
+              record: null,
               // A sale or a customer on hold waits on it.
               priority: 'high',
               link: `/credit/approvals/${approval.id}`,
@@ -295,6 +304,7 @@ export class InboxService {
                 since: followUp.createdAt,
                 due: followUp.dueAt,
                 priority: when === 'overdue' ? 'high' : 'normal',
+                record: { type: followUp.record.type, id: followUp.record.id },
                 link: `${RECORD_PATHS[followUp.record.type]}${followUp.record.id}`,
                 // Changing an activity needs the manage permission of its record.
                 actions: manage
@@ -304,6 +314,41 @@ export class InboxService {
             }
           }
           return { total, items: items.slice(0, limit) };
+        },
+      },
+      {
+        kind: 'team_follow_up',
+        // Who sees the team (owner, admin, branch manager): their team's overdue follow-ups.
+        allowed: (auth) => can(auth, 'members:read'),
+        load: async (auth, { storeId, limit }) => {
+          const page = await activities.followUps(auth, {
+            when: 'overdue',
+            assignedTo: 'team',
+            ...(storeId === undefined ? {} : { storeId }),
+            limit,
+            offset: 0,
+          });
+          return {
+            total: page.total,
+            items: page.items.map((followUp) => ({
+              ...NO_FIGURES,
+              id: followUp.id,
+              step: 'team_follow_up_overdue',
+              reference: followUp.record.label,
+              title: followUp.subject,
+              assignee: followUp.assignedTo,
+              record: { type: followUp.record.type, id: followUp.record.id },
+              storeId: null,
+              since: followUp.createdAt,
+              due: followUp.dueAt,
+              priority: 'normal',
+              link: `${RECORD_PATHS[followUp.record.type]}${followUp.record.id}`,
+              // Handing it to someone else changes the activity: the record's manage permission.
+              actions: auth.permissions.has(recordPermissions(followUp.record.type).manage)
+                ? [action('reassign', `/activities/${followUp.id}`, 'member')]
+                : [],
+            })),
+          };
         },
       },
       {
