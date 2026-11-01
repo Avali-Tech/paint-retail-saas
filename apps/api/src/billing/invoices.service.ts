@@ -32,6 +32,9 @@ import { tintsOf, writeLineTints } from '../paint/line-tints.js';
 const { gstinProfiles, productVariants, salesSettings, stores, taxDocumentLines, taxDocuments } =
   schema;
 
+/** What is reprinted from an invoice's page: not notes, which have their own. */
+const PRINTED_KINDS: ReadonlySet<string> = new Set(['invoice', 'bill_of_supply']);
+
 const percentOf = (discount: DiscountInput | undefined) =>
   discount?.kind === 'percent' ? discount.basisPoints : null;
 const amountOf = (discount: DiscountInput | undefined) =>
@@ -120,10 +123,7 @@ export class InvoicesService {
   printable(auth: AuthContext, id: string): Promise<PrintableInvoiceView> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
       const document = await loadDocument(tx, auth, id);
-      if (
-        document.status !== 'issued' ||
-        (document.kind !== 'invoice' && document.kind !== 'bill_of_supply')
-      ) {
+      if (document.status !== 'issued' || !PRINTED_KINDS.has(document.kind)) {
         throw new ConflictException('Only an issued invoice or bill of supply is printed');
       }
       const [profile] = await tx
