@@ -27,6 +27,7 @@ let b: BillingBusiness;
 let manager: string;
 let ownerMemberId: string;
 let managerMemberId: string;
+let salesMemberId: string;
 let brandId: string;
 let paints: string;
 let batch = 0;
@@ -39,6 +40,9 @@ beforeAll(async () => {
   manager = await b.member('branch_manager', [b.stores.amp]);
   ownerMemberId = ok(await api(t, b.owner).get('/auth/me')).json<AuthProfile>().memberId;
   managerMemberId = ok(await api(t, manager).get('/auth/me')).json<AuthProfile>().memberId;
+  // A sales executive at the manager's store: their overdue follow-ups are the manager's team's.
+  const sales = await b.member('sales_executive', [b.stores.amp]);
+  salesMemberId = ok(await api(t, sales).get('/auth/me')).json<AuthProfile>().memberId;
   ok(await api(t, b.owner).post('/sales/go-live', {}));
   brandId = ok(await api(t, b.owner).post('/brands', { name: 'Shades' })).json<{ id: string }>().id;
   const options = ok(await api(t, b.owner).get('/tax-categories/options')).json<{
@@ -107,7 +111,7 @@ async function grow(size: number) {
         lines: [{ variantId: b.apex, quantity: 1 }],
       }),
     );
-    for (const memberId of [ownerMemberId, managerMemberId]) {
+    for (const memberId of [ownerMemberId, managerMemberId, salesMemberId]) {
       ok(
         await owner.post('/activities', {
           recordType: 'party',
@@ -206,7 +210,15 @@ describe('the inbox as its queues grow', { timeout: 300_000 }, () => {
     await grow(39);
     const after = ok(await api(t, b.owner).get('/inbox')).json<InboxView>();
     // Every kind did grow (the owner decides credit requests; the manager asked for the sales).
-    for (const kind of ['credit_approval', 'credit_request', 'transfer', 'escalation'] as const) {
+    for (const kind of [
+      'credit_approval',
+      'credit_request',
+      'transfer',
+      'escalation',
+      'follow_up',
+      'team_follow_up',
+      'low_stock',
+    ] as const) {
       const was = before.groups.find((entry) => entry.kind === kind)?.total ?? 0;
       const now = after.groups.find((entry) => entry.kind === kind)?.total ?? 0;
       expect({ kind, grew: now >= was + 39 }).toEqual({ kind, grew: true });

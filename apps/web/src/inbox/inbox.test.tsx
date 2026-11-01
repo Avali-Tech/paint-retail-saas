@@ -15,6 +15,8 @@ const item = (
   reference: null,
   title: 'Something',
   requestedBy: null,
+  assignee: null,
+  record: null,
   store: null,
   amountPaise: null,
   since: null,
@@ -120,6 +122,19 @@ const group = (items: InboxItem[], total = items.length): InboxGroup => ({
   kind: items[0]?.kind ?? 'follow_up',
   total,
   items,
+});
+
+const TEAM = item({
+  kind: 'team_follow_up',
+  id: 'activity-2',
+  step: 'team_follow_up_overdue',
+  reference: 'Suresh',
+  title: 'Visit the Kondapur site',
+  assignee: { memberId: 'member-2', name: 'Sita Rao' },
+  record: { type: 'party', id: 'party-1' },
+  due: '2026-10-28T05:30:00.000Z',
+  link: '/parties/party-1',
+  actions: [{ key: 'reassign', endpoint: '/activities/activity-2', input: 'member' }],
 });
 
 const VIEW: InboxView = {
@@ -383,5 +398,74 @@ describe('acting from the inbox', () => {
     for (const name of ['Credit requests (1)', 'Transfers (1)', 'Follow-ups (1)']) {
       expect(within(screen.getByRole('region', { name })).queryByRole('button')).toBeNull();
     }
+  });
+});
+
+describe("the team's late follow-ups", () => {
+  it('names whose it is, opens the record and hands it to someone else', async () => {
+    const patches: [string, unknown][] = [];
+    const { user } = renderApp({
+      path: '/inbox',
+      routes: routes(
+        { kinds: ['team_follow_up'], groups: [group([TEAM])], total: 1 },
+        {
+          'GET /members/assignable': () =>
+            json([
+              {
+                id: 'member-2',
+                name: 'Sita Rao',
+                role: 'Sales Executive',
+                allStores: false,
+                storeIds: [],
+              },
+              {
+                id: 'member-3',
+                name: 'Ravi Kumar',
+                role: 'Sales Executive',
+                allStores: false,
+                storeIds: [],
+              },
+            ]),
+          'PATCH /activities/:id': (request) => {
+            patches.push([request.path, request.body]);
+            return json({});
+          },
+        },
+      ),
+    });
+    const team = await screen.findByRole('region', { name: 'Team follow-ups overdue (1)' });
+    expect(within(team).getByText(/^For Sita Rao · Due/)).toBeInTheDocument();
+    expect(
+      within(team).getByRole('link', { name: 'Open: Visit the Kondapur site' }),
+    ).toHaveAttribute('href', '/parties/party-1');
+    await user.click(
+      within(team).getByRole('button', { name: 'Reassign “Visit the Kondapur site”' }),
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Reassign: Visit the Kondapur site' });
+    await user.selectOptions(
+      await within(dialog).findByRole('combobox', { name: 'Assigned to' }),
+      'Ravi Kumar · Sales Executive',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Assign' }));
+    expect(await screen.findByText('Follow-up reassigned')).toBeInTheDocument();
+    expect(patches).toEqual([['/activities/activity-2', { assignedMemberId: 'member-3' }]]);
+  });
+
+  it('only opens a follow-up the member may not hand on', async () => {
+    const view: InboxView = {
+      kinds: ['team_follow_up'],
+      groups: [
+        group([
+          { ...TEAM, id: 'a', title: 'No reassign', actions: [] },
+          { ...TEAM, id: 'b', title: 'No assignee', assignee: null },
+          { ...TEAM, id: 'c', title: 'No record', record: null },
+        ]),
+      ],
+      total: 3,
+    };
+    renderApp({ path: '/inbox', routes: routes(view) });
+    const team = await screen.findByRole('region', { name: 'Team follow-ups overdue (3)' });
+    expect(within(team).queryByRole('button')).toBeNull();
+    expect(within(team).getAllByRole('link', { name: /^Open:/ })).toHaveLength(3);
   });
 });

@@ -26,9 +26,15 @@ export interface NotifierSettings {
 export interface Notice {
   readonly organizationId: string;
   readonly event: NotificationEvent;
-  /** Everyone with the permission at the store (null = anywhere), or particular members… */
+  /**
+   * Everyone with the permission (or any of several) at the store (null =
+   * anywhere), or particular members…
+   */
   readonly to:
-    | { readonly storeId: string | null; readonly permission: Permission }
+    | {
+        readonly storeId: string | null;
+        readonly permission: Permission | readonly Permission[];
+      }
     | { readonly memberIds: readonly string[] }
     /** …or everyone with a role (the Owner, for an owner-level credit approval). */
     | { readonly roleKey: string };
@@ -125,8 +131,9 @@ export class Notifier {
         tx.select({ id: roles.id }).from(roles).where(eq(roles.key, to.roleKey)),
       );
     }
+    const permissions = typeof to.permission === 'string' ? [to.permission] : to.permission;
     return and(
-      holdsPermission(tx, to.permission),
+      or(...permissions.map((permission) => holdsPermission(tx, permission))),
       to.storeId === null
         ? undefined
         : or(

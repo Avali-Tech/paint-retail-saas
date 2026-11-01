@@ -255,6 +255,36 @@ describe('low stock', () => {
     // Send the email it queued, so later tests start with an empty outbox.
     expect(await worker().sendDueEmails()).toEqual({ sent: 1, failed: 0 });
   });
+
+  it('tells the store’s own buyer instead of its manager, once it has one', async () => {
+    const roles = (await api(owner).get('/roles')).json<{ id: string; key: string }[]>();
+    const phone = uniquePhone();
+    await api(owner).post('/members', {
+      fullName: 'Hyd Buyer',
+      phone,
+      password: 'Staff@2026',
+      roleId: roles.find((role) => role.key === 'inventory_manager')?.id,
+      storeIds: [hyd],
+    });
+    const buyer = (
+      await t.app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { identifier: phone, password: 'Staff@2026' },
+      })
+    ).json<{ token: string }>().token;
+    const managerHad = (await lowNotices(manager)).length;
+    const ownerHad = (await lowNotices(owner)).length;
+    const d = await product(1);
+
+    expect(await worker().checkLowStock()).toBe(1);
+    expect((await lowNotices(buyer)).map((n) => n.body)).toEqual([
+      `${d.sku} Paint ${String(seq)} 1 l: 1 left (reorder at 5)`,
+    ]);
+    expect(await lowNotices(owner)).toHaveLength(ownerHad + 1);
+    expect(await lowNotices(manager)).toHaveLength(managerHad);
+    expect(await worker().sendDueEmails()).toEqual({ sent: 0, failed: 0 });
+  });
 });
 
 const queue = async (

@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema, withTenant, type DatabaseConnection, type Transaction } from '@paint/db';
-import { DEFAULT_LEAD_TIME_DAYS, canAccessStore, suggestReorderLevels } from '@paint/shared';
+import { DEFAULT_LEAD_TIME_DAYS, can, canAccessStore, suggestReorderLevels } from '@paint/shared';
 import {
   and,
   asc,
@@ -11,6 +11,7 @@ import {
   gt,
   ilike,
   inArray,
+  not,
   or,
   sql,
   type AnyColumn,
@@ -18,6 +19,7 @@ import {
 } from 'drizzle-orm';
 import type { AuthContext } from '../auth/auth-context.js';
 import { DATABASE } from '../database/database.module.js';
+import { hasOwnBuyer } from '../members/deciders.js';
 import { containsPattern } from '../parties/party-access.js';
 import type {
   ListRulesQuery,
@@ -242,12 +244,19 @@ export class ReorderService {
   }
 
   /** Products at or below their reorder level, most urgent first. */
-  lowStock(auth: AuthContext, query: LowStockQuery): Promise<Page<LowStockItem>> {
+  /**
+   * Products at or below their reorder level. `routed` keeps to the stores where
+   * low stock is the member's to act on (the inbox): every store of theirs for a
+   * buyer (purchasing:manage), and for who manages stock, their stores without a
+   * buyer of their own.
+   */
+  lowStock(auth: AuthContext, query: LowStockQuery, routed = false): Promise<Page<LowStockItem>> {
     return withTenant(this.connection.db, auth.organization.id, async (tx) => {
       this.assertStoreFilter(auth, query.storeId);
       const available = sql`coalesce(${stockBalances.onHand}, 0) - coalesce(${stockBalances.reserved}, 0)`;
       const where = and(
         this.storeScope(auth, reorderRules.storeId, query.storeId),
+        routed ? this.lowStockRouting(tx, auth) : undefined,
         eq(productVariants.isActive, true),
         eq(products.isActive, true),
         sql`${available} <= ${reorderRules.reorderLevel}`,
@@ -562,6 +571,11 @@ export class ReorderService {
       )
       .where(where);
     return Number(totals?.total);
+  }
+
+  /** For a buyer, every store of theirs; else (who manages stock) those without a buyer of their own. */
+  private lowStockRouting(tx: Transaction, auth: AuthContext): SQL | undefined {
+    return can(auth, 'purchasing:manage') ? undefined : not(hasOwnBuyer(tx, reorderRules.storeId));
   }
 
   private assertStoreFilter(auth: AuthContext, storeId: string | undefined): void {

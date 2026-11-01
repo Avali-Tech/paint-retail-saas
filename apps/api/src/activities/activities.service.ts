@@ -15,6 +15,7 @@ import {
   desc,
   eq,
   gte,
+  inArray,
   isNotNull,
   isNull,
   lt,
@@ -42,7 +43,7 @@ import {
   type UpdateActivityInput,
 } from './activities.schemas.js';
 
-const { activities, organizationMembers, users } = schema;
+const { activities, memberStores, organizationMembers, users } = schema;
 
 type ActivityRow = typeof activities.$inferSelect;
 type RecordType = (typeof ACTIVITY_RECORD_TYPES)[number];
@@ -72,6 +73,18 @@ export function followUpScope(
     storeId ? eq(activities.storeId, storeId) : undefined,
     visibleRecords(auth, activities.recordType, activities.recordId, ACTIVITY_RECORD_TYPES),
   );
+}
+
+/**
+ * The member's team, for their follow-ups: everyone but them who works at one
+ * of their stores (anyone, for who works at every store).
+ */
+function teamOf(auth: AuthContext): SQL {
+  const others = sql`${activities.assignedMemberId} <> ${auth.memberId}`;
+  if (auth.allStores) return others;
+  return sql`${others} and ${activities.assignedMemberId} in (
+    select ${memberStores.memberId} from ${memberStores}
+    where ${inArray(memberStores.storeId, [...auth.storeIds])})`;
 }
 
 /**
@@ -204,16 +217,15 @@ export class ActivitiesService {
       if (query.storeId && !canAccessStore(auth, query.storeId)) {
         throw new NotFoundException('Store not found');
       }
-      if (query.assignedTo === 'everyone' && !auth.permissions.has('members:read')) {
+      const wide = query.assignedTo === 'everyone' || query.assignedTo === 'team';
+      if (wide && !auth.permissions.has('members:read')) {
         throw new ForbiddenException('Only members who can see the team see everyone’s follow-ups');
       }
-      const assignee =
-        query.assignedTo === 'everyone'
-          ? null
-          : query.assignedTo === 'me'
-            ? auth.memberId
-            : query.assignedTo;
-      const scope = followUpScope(auth, assignee, query.storeId);
+      const assignee = wide ? null : query.assignedTo === 'me' ? auth.memberId : query.assignedTo;
+      const scope = and(
+        followUpScope(auth, assignee, query.storeId),
+        query.assignedTo === 'team' ? teamOf(auth) : undefined,
+      );
       const window = {
         overdue: lt(activities.dueAt, startOfTodayIst),
         today: and(gte(activities.dueAt, startOfTodayIst), lt(activities.dueAt, endOfTodayIst)),

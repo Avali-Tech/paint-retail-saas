@@ -200,15 +200,16 @@ opening the record. No migrations: it reads the queues that already exist.
 
 ### 6.3 The kinds
 
-| Kind             | Who (and where)                                                                                                                                                                   | Inline                                                                     |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Credit approvals | `credit:read` and an approver: the owner (every level), `credit:approve` (releases), `credit:approve_sale` (manager-level sales at their stores). Never the member's own request. | Approve (optional reason; a release asks the waiver date), reject (reason) |
-| Credit requests  | `credit:read` and `credit:approve`, for the customers they can see                                                                                                                | Approve (optional note), reject (reason)                                   |
-| Transfers        | `inventory:manage`: to approve and to dispatch at the sending store, to receive at the receiving store                                                                            | Approve in full, reject (reason); dispatch and receive open the transfer   |
-| Stock counts     | `inventory:manage` at the store; submitted, and not by the member unless they work at every store                                                                                 | None: variance reasons are given on the count                              |
-| Broken promises  | `receivables:read` and `credit:manage`, for customers of their stores and business-wide ones: open escalations                                                                    | Acknowledge (optional note)                                                |
-| Follow-ups       | Everyone: their own, overdue and due today (India time)                                                                                                                           | Done (outcome, next step), when they may change the record                 |
-| Low stock        | `inventory:read` and `inventory:manage` or `purchasing:manage`, at their stores; emptiest first                                                                                   | None: "Reorder" opens low stock at that store                              |
+| Kind                    | Who (and where)                                                                                                                                                                             | Inline                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Credit approvals        | `credit:read` and an approver: the owner (every level), `credit:approve` (releases), `credit:approve_sale` (manager-level sales at their stores). Never the member's own request.           | Approve (optional reason; a release asks the waiver date), reject (reason) |
+| Credit requests         | `credit:read` and `credit:approve`, for the customers they can see. Not the member's own request, unless no other active member holds `credit:approve` (§6.5)                               | Approve (optional note), reject (reason)                                   |
+| Transfers               | `inventory:manage`: to approve and to dispatch at the sending store, to receive at the receiving store                                                                                      | Approve in full, reject (reason); dispatch and receive open the transfer   |
+| Stock counts            | `inventory:manage` at the store; submitted, and not by the member unless they work at every store                                                                                           | None: variance reasons are given on the count                              |
+| Broken promises         | `receivables:read` and `credit:manage`, for customers of their stores and business-wide ones: open escalations                                                                              | Acknowledge (optional note)                                                |
+| Follow-ups              | Everyone: their own, overdue and due today (India time)                                                                                                                                     | Done (outcome, next step), when they may change the record                 |
+| Team follow-ups overdue | `members:read` (owner, admin, branch manager): overdue follow-ups of the members assigned to their stores (everyone's, for who works at every store), not their own; each names whose it is | Open; reassign (`PATCH /activities/:id`) when they may change the record   |
+| Low stock               | Whoever buys (`purchasing:manage`) at the store; at a store with no buyer of its own, also who manages its stock (`inventory:manage`) (§6.5); emptiest first                                | None: "Reorder" opens low stock at that store                              |
 
 Priority: credit approvals, broken promises, stock in transit, overdue follow-ups and empty
 shelves are high; low stock at its reorder level is low; the rest normal. Within a kind, items
@@ -216,35 +217,56 @@ keep their queue's order (transfers: to approve, to dispatch, to receive).
 
 What each system role's inbox holds:
 
-| Role               | Inbox                                                                                                                                                          |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Owner              | Every credit approval but their own, credit requests, every transfer step, every submitted count, every broken promise, their follow-ups, low stock everywhere |
-| Organization Admin | Manager-level sales and releases (not the owner's level), credit requests, transfers, counts, broken promises, follow-ups, low stock                           |
-| Branch Manager     | Manager-level sales at their stores (not their own), transfers and others' counts at their stores, broken promises of their customers, follow-ups, low stock   |
-| Sales Executive    | Broken promises of their stores' customers, their follow-ups                                                                                                   |
-| CRM Executive      | Their follow-ups                                                                                                                                               |
-| Inventory Manager  | Transfers, others' counts and low stock at their stores, their follow-ups                                                                                      |
-| Store Employee     | Their follow-ups (no "Done": they cannot change customers' activities)                                                                                         |
+| Role               | Inbox                                                                                                                                                                                                                                                      |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owner              | Every credit approval and credit request but their own (their own requests too while nobody else approves credit), every transfer step, every submitted count, every broken promise, their follow-ups, the team's overdue follow-ups, low stock everywhere |
+| Organization Admin | Manager-level sales and releases (not the owner's level), credit requests, transfers, counts, broken promises, follow-ups, the team's overdue follow-ups, low stock                                                                                        |
+| Branch Manager     | Manager-level sales at their stores (not their own), transfers and others' counts at their stores, broken promises of their customers, follow-ups, their store team's overdue follow-ups, low stock at their stores without a buyer of their own           |
+| Sales Executive    | Broken promises of their stores' customers, their follow-ups                                                                                                                                                                                               |
+| CRM Executive      | Their follow-ups                                                                                                                                                                                                                                           |
+| Inventory Manager  | Transfers, others' counts and low stock at their stores (they buy), their follow-ups                                                                                                                                                                       |
+| Store Employee     | Their follow-ups (no "Done": they cannot change customers' activities)                                                                                                                                                                                     |
 
 ### 6.4 The page
 
 Cards per kind, each with its count and "See all" (to the queue's own screen) past 20. Filters:
 kind and store, kept in the address. Each item shows what it asks, its number, store, amount or
-quantity, who asked and when, and its due date. Dialogs are the queues' own (credit approval,
-credit request, acknowledge, done). Empty: "Nothing waiting for you". English, Hindi and Telugu.
+quantity, who asked or whose it is, when, and its due date. Dialogs are the queues' own (credit
+approval, credit request, acknowledge, done, assign). Empty: "Nothing waiting for you". English,
+Hindi and Telugu.
 
-### 6.5 Open questions
+### 6.5 Rules decided with the product owner (round 2)
+
+- **Nobody decides their own credit request**, as with credit approvals:
+  `POST /credit-requests/:id/approve` and `/reject` answer 403 "You asked for this credit request:
+  another approver decides it" while another active member (not platform support) holds
+  `credit:approve`. A one-owner shop, where nobody else does, still decides its own. The inbox
+  leaves out the member's own requests by the same rule; the requests screen shows the message.
+- **Low stock goes to whoever buys.** A store "has a buyer of its own" when an active member
+  assigned to it (not one who works at every store, like the owner) holds `purchasing:manage`,
+  exceptions included. Low stock at a store goes to the members holding `purchasing:manage` who
+  work there (the owner and admins always do); at a store without a buyer of its own, also to those
+  holding `inventory:manage` there (the branch manager), so nothing goes unnoticed. The inbox and
+  the low-stock notification (bell and email, from the worker) follow the same rule.
+- **Managers see their team's overdue follow-ups**, as their own group (§6.3). `GET
+/activities/follow-ups?assignedTo=team` gives the same list to the follow-ups screen (needs
+  `members:read`). Reassigning uses the existing `PATCH /activities/:id` with `assignedMemberId`,
+  and the existing assignee list (`GET /members/assignable`).
+- The scale test also grows the team's follow-ups and low stock: query counts stay flat.
+
+### 6.6 Open questions
 
 - **Plan requests** (subscription plan changes) are not in the inbox: they wait on the platform
   console, not on a member. Add them if a business-side step appears.
-- **Credit requests the member raised** still show to them, as on the requests screen: approving
-  your own limit request is allowed today. Should requests, like approvals, go to someone else?
-- **Low stock** goes to whoever manages stock or buys at the store (branch and inventory managers
-  both). Should it go only to who buys, or be grouped by store when a store has many rows?
+- **Low stock and the owner:** the owner (and admins) work at every store, so they always get
+  low stock, and do not count as a store's own buyer. Should an owner be able to opt out (the
+  notification settings already can for the bell and email)?
+- **Low stock** rows: group by store when a store has many?
 - **Dispatch and receive** open the transfer (quantities and the challan). Is "dispatch in full"
   inline wanted?
-- **Follow-ups** are only overdue and today's; the owner does not see the team's. Should managers
-  see their team's overdue ones?
+- **Team follow-ups** are by the stores the assignee is assigned to; an admin or owner's own late
+  follow-ups show to other owners and admins only. Should the follow-ups screen get a "Team"
+  choice too (the API supports it)?
 - **Broken promises:** a sales executive sees their stores' escalations, not only their own
   customers'. Narrow to the customers they look after?
 - The count runs about a dozen small queries a minute per open app. If that shows, cache it per

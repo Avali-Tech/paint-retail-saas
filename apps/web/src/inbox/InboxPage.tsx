@@ -24,7 +24,10 @@ import { useApi } from '../app/services.js';
 import { AcknowledgeDialog } from '../collections/AcknowledgeDialog.js';
 import { ApprovalDecision } from '../credit/approval-parts.js';
 import { RequestDecision } from '../credit/RequestDecision.js';
+import type { ActivityRecordType } from '../api/follow-ups.js';
+import { refreshActivities } from '../followups/activity-helpers.js';
 import { DoneDialog } from '../followups/FollowUpDialogs.js';
+import { AssignDialog } from '../leads/members.js';
 import { useI18n, type MessageKey } from '../i18n/i18n.js';
 import { errorMessage } from '../api/errors.js';
 import { useUrlFilters } from '../lib/hooks.js';
@@ -44,6 +47,7 @@ export const KIND_PATHS: Readonly<Record<InboxKind, string>> = {
   stock_count: '/stock-counts',
   escalation: '/collections',
   follow_up: '/follow-ups',
+  team_follow_up: '/follow-ups?assignedTo=everyone',
   low_stock: '/stock/low',
 };
 
@@ -118,6 +122,58 @@ function TransferDecision({ item }: { readonly item: InboxItem }) {
   );
 }
 
+/** A team member's late follow-up: hand it to someone else, or open its record. */
+function TeamFollowUpActions({ item }: { readonly item: InboxItem }) {
+  const api = useApi();
+  const { t } = useI18n();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const [reassigning, setReassigning] = useState(false);
+  const { assignee, record } = item;
+  return (
+    <>
+      {item.actions.some((action) => action.key === 'reassign') &&
+        assignee !== null &&
+        record !== null && (
+          <>
+            <Button
+              size="sm"
+              variant="secondary"
+              aria-label={t('inbox.reassignName', { name: item.title })}
+              onClick={() => {
+                setReassigning(true);
+              }}
+            >
+              {t('inbox.reassign')}
+            </Button>
+            {reassigning && (
+              <AssignDialog
+                title={t('inbox.reassignTitle', { name: item.title })}
+                current={assignee.memberId}
+                assignment={{ for: 'activity', recordType: record.type as ActivityRecordType }}
+                onClose={() => {
+                  setReassigning(false);
+                }}
+                onSubmit={async (memberId) => {
+                  await api.followUps.update(item.id, { assignedMemberId: memberId });
+                  await refreshActivities(queryClient);
+                  toast({ title: t('inbox.reassigned'), tone: 'success' });
+                }}
+              />
+            )}
+          </>
+        )}
+      <Link
+        to={item.link}
+        {...buttonStyle('secondary', 'sm')}
+        aria-label={`${t('inbox.open.open')}: ${item.title}`}
+      >
+        {t('inbox.open.open')}
+      </Link>
+    </>
+  );
+}
+
 /** The buttons of an item: its inline actions, else a link to where it is done. */
 function ItemActions({ item }: { readonly item: InboxItem }) {
   const { t } = useI18n();
@@ -126,6 +182,7 @@ function ItemActions({ item }: { readonly item: InboxItem }) {
     setDialog(false);
   };
   const keys = new Set(item.actions.map((action) => action.key));
+  if (item.kind === 'team_follow_up') return <TeamFollowUpActions item={item} />;
   if (item.kind === 'credit_approval' && keys.has('approve')) {
     return (
       <ApprovalDecision
@@ -196,6 +253,7 @@ function ItemRow({ item }: { readonly item: InboxItem }) {
   ].filter((fact): fact is string => fact !== null);
   const when = [
     item.requestedBy === null ? null : t('inbox.by', { name: item.requestedBy }),
+    item.assignee === null ? null : t('inbox.assignedTo', { name: item.assignee.name }),
     item.since === null ? null : t('inbox.since', { when: relativeTime(item.since) }),
     item.due === null
       ? null
